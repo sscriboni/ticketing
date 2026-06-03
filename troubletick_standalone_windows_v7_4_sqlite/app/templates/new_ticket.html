@@ -1,0 +1,88 @@
+﻿﻿<!doctype html><html lang="it"><head><meta charset="utf-8"><title>Nuovo Ticket — {{ cfg.app_title }}</title>
+<link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet"></head>
+<body class="bg-light d-flex flex-column min-vh-100">
+
+<nav class="navbar navbar-expand-lg navbar-dark bg-primary shadow-sm mb-4">
+  <div class="container">
+    <a class="navbar-brand fw-bold" href="/">{{ cfg.logo_emoji }} {{ cfg.app_title }}</a>
+    <div>
+      <a href="/login" class="btn btn-outline-light btn-sm">Area Operatori</a>
+    </div>
+  </div>
+</nav>
+
+<div class="container flex-grow-1 mb-5">
+<h2 class="mb-4">{{ cfg.company_name }} — Richiedi assistenza</h2>
+<form method="post" action="/new" enctype="multipart/form-data">
+  <div class="row g-3">
+    <div class="col-12">
+      <label class="form-label">Descrizione del problema</label>
+      <textarea name="descrizione" rows="5" class="form-control" required autofocus></textarea>
+    </div>
+
+    <div class="col-md-12"><label class="form-label">Nominativo</label><input name="nominativo" class="form-control" required placeholder="Nome e Cognome"></div>
+    <div class="col-md-6"><label class="form-label">Email</label><input type="email" name="email" class="form-control" placeholder="es. mario.rossi@azienda.it"><small class="text-muted">Se viene indicata l'email sarà possibile ricevere aggiornamenti riguardo l'assistenza.</small></div>
+    <div class="col-md-6"><label class="form-label">Telefono</label><input type="tel" name="telefono" class="form-control" placeholder="es. 3331234567" pattern="[0-9]+" title="Inserisci solo numeri" oninput="this.value = this.value.replace(/[^0-9]/g, '')"></div>
+    
+    <div class="col-md-12"><label class="form-label">Sede</label><input type="text" name="sede" class="form-control" required placeholder="es. Sede Centrale, Piano 1"></div>
+
+    <div class="col-md-6"><label class="form-label">Destinatario</label>
+      <select name="reparto_id" class="form-select" id="repartoSelect" required>
+        <option value="" disabled selected>A quale reparto inviare la richiesta?</option>
+        {% for reparto in reparti_dest %}
+        <option value="{{ reparto.reparto_id }}">{{ reparto.nome }}</option>
+        {% endfor %}
+      </select>
+    </div>
+    <div class="col-md-6"><label class="form-label">Servizio (opzionale)</label>
+      <select name="servizio_id" class="form-select" id="servizioSelect">
+        <option value="">Nessun servizio</option>
+        {% for servizio in servizi %}
+        <option value="{{ servizio.servizio_id }}" data-reparto="{{ servizio.reparto_id }}">{{ servizio.descrizione }}</option>
+        {% endfor %}
+      </select>
+          <div class="form-text text-muted mt-1">
+        <small>ℹ️ Il Servizio serve a prendere in carico più velocemente il ticket, ma se non è conosciuto verrà assegnato da un operatore. Nel dubbio non inserire niente.</small>
+    </div>
+    </div>
+    <div class="col-12">
+      <label class="form-label">Allegato (opzionale)</label>
+      <input type="file" name="allegato" class="form-control">
+      <small class="text-muted">Dimensione massima: 10MB. File eseguibili non consentiti.</small>
+    </div>
+  </div>
+  <div class="mt-3">
+    <button class="btn btn-primary">Invia richiesta</button>
+    <a href="/" class="btn btn-outline-secondary">Annulla</a>
+  </div>
+</form>
+</div>
+
+<footer class="bg-dark text-white text-center py-3 mt-auto">
+  <div class="container">
+    <p class="mb-0 small">{{ cfg.footer_text }}</p>
+  </div>
+</footer>
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    const repartoSelect = document.getElementById('repartoSelect');
+    const servizioSelect = document.getElementById('servizioSelect');
+    
+    if (repartoSelect && servizioSelect) {
+        function filterServizi() {
+            const repId = parseInt(repartoSelect.value);
+            Array.from(servizioSelect.options).forEach(opt => {
+                if (opt.value === "") return; // Mantiene "Nessun servizio"
+                let isMatch = parseInt(opt.dataset.reparto) === repId;
+                opt.hidden = !isMatch;
+                opt.style.display = isMatch ? '' : 'none';
+                // Seleziona "Nessun servizio" in automatico se il servizio scelto prima scompare
+                if (!isMatch && opt.selected) servizioSelect.value = "";
+            });
+        }
+        repartoSelect.addEventListener('change', filterServizi);
+        filterServizi(); // Avvia il filtro al caricamento iniziale della pagina
+    }
+});
+</script>
+</body></html>

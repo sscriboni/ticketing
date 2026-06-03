@@ -1,0 +1,63 @@
+<!doctype html>
+<html lang="it">
+<head>
+    <meta charset="utf-8">
+    <title>Registrazione Operatore — {{ cfg.app_title }}</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
+</head>
+<body class="bg-light d-flex flex-column min-vh-100">
+
+<nav class="navbar navbar-expand-lg navbar-dark bg-primary shadow-sm mb-4">
+  <div class="container">
+    <a class="navbar-brand fw-bold" href="/">{{ cfg.logo_emoji }} {{ cfg.app_title }}</a>
+    <div>
+      <a href="/login" class="btn btn-outline-light btn-sm">Torna al Login</a>
+    </div>
+  </div>
+</nav>
+
+<div class="container flex-grow-1 mb-5" style="max-width: 600px;">
+    <h2>Registrazione Nuovo Operatore</h2>
+    <p class="text-muted">Compila i tuoi dati per richiedere l'accesso al pannello di assistenza. <strong>L'account dovrà essere approvato da un amministratore prima di poter accedere.</strong></p>
+    
+    {% if error %}<div class="alert alert-danger">{{ error }}</div>{% endif %}
+    
+    <form method="post" action="/register" class="mt-3 bg-white p-4 rounded shadow-sm">
+        <div class="row g-3">
+            <div class="col-md-6">
+                <label class="form-label fw-bold">Nome *</label>
+                <input type="text" name="nome" class="form-control" required>
+            </div>
+            <div class="col-md-6">
+                <label class="form-label fw-bold">Cognome *</label>
+                <input type="text" name="cognome" class="form-control" required>
+            </div>
+            <div class="col-md-6">
+                <label class="form-label fw-bold">Username *</label>
+                <input type="text" name="username" class="form-control" required>
+            </div>
+            <div class="col-md-6">
+                <label class="form-label fw-bold">Password *</label>
+                <input type="password" name="password" class="form-control" required minlength="6">
+            </div>
+            <div class="col-md-6">
+                <label class="form-label fw-bold">Email *</label>
+                <input type="email" name="email" class="form-control" required>
+            </div>
+            <div class="col-md-6">
+                <label class="form-label fw-bold">Cellulare *</label>
+                <input type="tel" name="telefono" class="form-control" required>
+            </div>
+            <div class="col-md-6">
+                <label class="form-label fw-bold">Reparto *</label>
+                <select name="reparto_id" class="form-select" required><option value="" disabled selected>Scegli...</option>{% for r in reparti %}<option value="{{ r.reparto_id }}">{{ r.nome }}</option>{% endfor %}</select>
+            </div>
+            <div class="col-md-6">
+                <label class="form-label fw-bold">Sede *</label>
+                <select name="sede_id" class="form-select" required><option value="" disabled selected>Scegli...</option>{% for s in sedi %}<option value="{{ s.sede_id }}">{{ s.nome }}</option>{% endfor %}</select>
+            </div>
+        </div>
+        <button type="submit" class="btn btn-primary w-100 mt-4">Invia Richiesta di Registrazione</button>
+    </form>
+</div>
+</body></html>

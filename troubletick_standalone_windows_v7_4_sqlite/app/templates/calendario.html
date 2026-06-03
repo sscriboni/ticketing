@@ -1,0 +1,164 @@
+<!doctype html><html lang="it"><head><meta charset="utf-8"><title>Calendario Assenze — {{ cfg.app_title }}</title>
+<link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css">
+</head>
+<body class="bg-light"><div class="container py-4">
+<div class="text-muted small mb-2 fw-bold">{{ cfg.company_name }}</div>
+<div class="d-flex justify-content-between align-items-center mb-3">
+    <h2>Calendario Assenze</h2>
+    <div class="text-end">
+        {% if user %}<span class="me-3 text-muted d-none d-md-inline-block"><strong>{{ user.nome }} {{ user.cognome }}</strong> ({{ user.ruolo }})</span>{% endif %}
+        <a href="/tickets" class="btn btn-outline-secondary btn-sm me-2">Ticket</a>
+        {% if user and user.ruolo != 'normale' %}<a href="/magazzini" class="btn btn-outline-secondary btn-sm me-2">Magazzini</a>{% endif %}
+        {% if user and user.ruolo != 'normale' %}<a href="/avvisi" class="btn btn-outline-warning btn-sm text-dark me-2">Avvisi</a>{% endif %}
+        {% if user and user.ruolo == 'admin' %}<a href="/admin" class="btn btn-outline-primary btn-sm me-2">Admin</a>{% endif %}
+        {% if user and user.ruolo == 'responsabile' %}<a href="/admin/report-copertura" class="btn btn-outline-primary btn-sm me-2">Report</a>{% endif %}
+        <a href="/logout" class="btn btn-outline-secondary btn-sm">Logout</a>
+    </div>
+</div>
+
+<div class="row gap-4">
+    <!-- LISTA ASSENZE -->
+    <div class="col-12 col-lg-8">
+        <div class="bg-white p-4 rounded shadow-sm">
+            <div id="calendar" class="mb-5"></div>
+            <hr>
+            <h4 class="mb-3">Assenze Programmate</h4>
+            <div class="table-responsive">
+                <table class="table table-striped align-middle">
+                    <thead>
+                        <tr>
+                            <th>Operatore</th>
+                            <th>Reparto</th>
+                            <th>Dal</th>
+                            <th>Al</th>
+                            <th>Motivo</th>
+                            <th>Azioni</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for a in assenze %}
+                        <tr>
+                            <td><strong>{{ a.nome }} {{ a.cognome }}</strong></td>
+                            <td>{{ a.reparto_nome or '—' }}</td>
+                            <td>{{ a.data_inizio }}</td>
+                            <td>{{ a.data_fine }}</td>
+                            <td>{{ a.motivo or '—' }}</td>
+                            <td>
+                                {% if user.ruolo == 'admin' or user.id == a.user_id %}
+                                <form method="post" action="/calendario/{{ a.assenza_id }}/elimina" class="d-inline" onsubmit="return confirm('Eliminare questa assenza?')">
+                                    <button type="submit" class="btn btn-sm btn-danger" title="Elimina">
+                                        <i class="bi bi-trash"></i>
+                                    </button>
+                                </form>
+                                {% endif %}
+                            </td>
+                        </tr>
+                        {% else %}
+                        <tr><td colspan="6" class="text-muted text-center py-4">Nessuna assenza registrata.</td></tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+            <hr class="mt-5">
+            <h4 class="mb-3">Festività</h4>
+            <div class="table-responsive">
+                <table class="table table-sm table-striped align-middle">
+                    <thead>
+                        <tr>
+                            <th>Data</th>
+                            <th>Descrizione</th>
+                            {% if user.ruolo == 'admin' %}<th>Azioni</th>{% endif %}
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for f in festivita %}
+                        <tr>
+                            <td>{{ f.data }}</td>
+                            <td><strong>{{ f.descrizione }}</strong></td>
+                            {% if user.ruolo == 'admin' %}
+                            <td>
+                                <form method="post" action="/calendario/festivita/{{ f.festivita_id }}/elimina" class="d-inline" onsubmit="return confirm('Eliminare questa festività?')">
+                                    <button type="submit" class="btn btn-sm btn-danger" title="Elimina"><i class="bi bi-trash"></i></button>
+                                </form>
+                            </td>
+                            {% endif %}
+                        </tr>
+                        {% else %}
+                        <tr><td colspan="{% if user.ruolo == 'admin' %}3{% else %}2{% endif %}" class="text-muted text-center py-4">Nessuna festività registrata.</td></tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+
+    <!-- FORM NUOVA ASSENZA -->
+    <div class="col-12 col-lg-4">
+        <div class="bg-white p-4 rounded shadow-sm mb-4">
+            <h4 class="mb-3">Segnala Assenza</h4>
+            <form method="post" action="/calendario/nuova">
+                <div class="mb-3"><label class="form-label fw-bold">Data Inizio <span class="text-danger">*</span></label><input type="date" name="data_inizio" class="form-control" required></div>
+                <div class="mb-3"><label class="form-label fw-bold">Data Fine <span class="text-danger">*</span></label><input type="date" name="data_fine" class="form-control" required></div>
+                <div class="mb-4"><label class="form-label fw-bold">Motivo (opzionale)</label><input type="text" name="motivo" class="form-control" placeholder="es. Ferie, Malattia"></div>
+                <button type="submit" class="btn btn-primary w-100">Salva Assenza</button>
+            </form>
+        </div>
+        
+        {% if user.ruolo == 'admin' %}
+        <div class="bg-white p-4 rounded shadow-sm">
+            <h4 class="mb-3">Aggiungi Festività</h4>
+            <form method="post" action="/calendario/festivita/nuova">
+                <div class="mb-3"><label class="form-label fw-bold">Data <span class="text-danger">*</span></label><input type="date" name="data" class="form-control" required></div>
+                <div class="mb-4"><label class="form-label fw-bold">Descrizione <span class="text-danger">*</span></label><input type="text" name="descrizione" class="form-control" required placeholder="es. Natale, Pasqua"></div>
+                <button type="submit" class="btn btn-warning w-100">Salva Festività</button>
+            </form>
+        </div>
+        {% endif %}
+    </div>
+</div>
+</div>
+
+<!-- FULLCALENDAR SCRIPTS -->
+<script src="https://cdn.jsdelivr.net/npm/fullcalendar@6.1.10/index.global.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/fullcalendar@6.1.10/locales/it.global.min.js"></script>
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    var calendarEl = document.getElementById('calendar');
+    var calendar = new FullCalendar.Calendar(calendarEl, {
+        initialView: 'dayGridMonth',
+        locale: 'it',
+        firstDay: 1, // La settimana inizia di Lunedì
+        headerToolbar: {
+            left: 'prev,next today',
+            center: 'title',
+            right: 'dayGridMonth,dayGridWeek'
+        },
+        events: [
+            {% for a in assenze %}
+            {
+                title: '{{ a.nome|replace("'", "\\'") }} {{ a.cognome|replace("'", "\\'") }}{% if a.motivo %} ({{ a.motivo|replace("'", "\\'") }}){% endif %}',
+                start: '{{ a.data_inizio }}',
+                end: (function(){ 
+                    var d = new Date('{{ a.data_fine }}T12:00:00'); 
+                    d.setDate(d.getDate() + 1); // FullCalendar ha la data di fine "esclusiva", aggiungiamo 1 giorno
+                    return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0');
+                })(),
+                allDay: true,
+                color: '{% if user.id == a.user_id %}#198754{% else %}#0d6efd{% endif %}'
+            },
+            {% endfor %}
+            {% for f in festivita %}
+            {
+                title: '🎉 {{ f.descrizione|replace("'", "\\'") }}',
+                start: '{{ f.data }}',
+                allDay: true,
+                color: '#dc3545'
+            }{% if not loop.last %},{% endif %}
+            {% endfor %}
+        ]
+    });
+    calendar.render();
+});
+</script>
+</body></html>

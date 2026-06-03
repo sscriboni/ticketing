@@ -1,0 +1,111 @@
+<!doctype html>
+<html lang="it">
+<head>
+    <meta charset="utf-8">
+    <title>Inventario Magazzini — {{ cfg.app_title }}</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css">
+</head>
+<body class="bg-light">
+<div class="container py-4">
+    <div class="text-muted small mb-2 fw-bold">{{ cfg.company_name }}</div>
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <div class="d-flex align-items-center gap-3">
+            <h2 class="mb-0">Inventario Magazzini</h2>
+            {% if count_in_arrivo > 0 %}
+            <a href="/trasferimenti" class="btn btn-warning btn-sm fw-bold shadow-sm">
+                <i class="bi bi-truck"></i> In Consegna ({{ count_in_arrivo }})
+            </a>
+            {% else %}
+            <a href="/trasferimenti" class="btn btn-outline-secondary btn-sm">
+                <i class="bi bi-arrow-left-right"></i> Trasferimenti
+            </a>
+            {% endif %}
+        </div>
+        <div class="text-end">
+            {% if user %}<span class="me-3 text-muted d-none d-md-inline-block"><strong>{{ user.nome }} {{ user.cognome }}</strong> ({{ user.ruolo }})</span>{% endif %}
+            <a href="/tickets" class="btn btn-outline-secondary btn-sm me-2">Ticket</a>
+            {% if user and user.ruolo != 'normale' %}<a href="/avvisi" class="btn btn-outline-warning btn-sm text-dark me-2">Avvisi</a>{% endif %}
+            <a href="/logout" class="btn btn-outline-secondary btn-sm">Logout</a>
+        </div>
+    </div>
+    
+    <div class="bg-white p-4 rounded shadow-sm mb-4">
+        <form method="get" action="/magazzini" class="row g-3 align-items-end">
+            <div class="col-md-3">
+                <label class="form-label">Magazzino</label>
+                <select name="magazzino_id" class="form-select">
+                    <option value="">— Tutti i magazzini —</option>
+                    {% for m in magazzini %}
+                    <option value="{{ m.magazzino_id }}" {% if filtri.magazzino_id == m.magazzino_id|string %}selected{% endif %}>{{ m.nome }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+            <div class="col-md-3">
+                <label class="form-label">Sede</label>
+                <select name="sede_id" class="form-select">
+                    <option value="">— Tutte le sedi —</option>
+                    {% for s in sedi %}
+                    <option value="{{ s.sede_id }}" {% if filtri.sede_id == s.sede_id|string %}selected{% endif %}>{{ s.nome }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+            <div class="col-md-3">
+                <label class="form-label">Cerca Articolo</label>
+                <input type="text" name="q" class="form-control" value="{{ filtri.q or '' }}" placeholder="Es. PC, Mouse...">
+            </div>
+            <div class="col-md-3 d-flex gap-2">
+                <div class="form-check flex-grow-1 mb-2">
+                    <input class="form-check-input" type="checkbox" name="solo_positive" value="1" id="checkPositive" {% if filtri.solo_positive == '1' %}checked{% endif %}>
+                    <label class="form-check-label" for="checkPositive">Solo in giacenza</label>
+                </div>
+                <button type="submit" class="btn btn-primary h-100">Filtra</button>
+                <a href="/magazzini" class="btn btn-outline-secondary h-100">Reset</a>
+            </div>
+        </form>
+    </div>
+
+    <div class="bg-white p-4 rounded shadow-sm">
+        <div class="table-responsive">
+            <table class="table table-striped table-hover align-middle">
+                <thead class="table-light"><tr><th>Magazzino</th><th>Sede</th><th>Materiale</th><th>Categoria</th><th>Giacenza</th><th>Azioni</th></tr></thead>
+                <tbody>
+                {% for row in righe %}
+                    {% set can_edit = false %}
+                    {% if user.ruolo == 'admin' %}
+                        {% set can_edit = true %}
+                    {% elif user.ruolo in ['assistenza', 'responsabile'] and user_mag_id|string == row.magazzino_id|string %}
+                        {% set can_edit = true %}
+                    {% endif %}
+                <tr>
+                    <td><strong>{{ row.magazzino_nome }}</strong></td>
+                    <td>{{ row.sede_nome or '—' }}</td>
+                    <td><strong>{{ row.materiale_nome }}</strong></td>
+                    <td>{{ row.categoria_nome or '—' }}</td>
+                    <td>
+                        <span class="badge {% if row.quantita > 0 %}bg-success{% else %}bg-secondary{% endif %} fs-6">
+                            {{ row.quantita }}
+                        </span>
+                    </td>
+                    <td>
+                        {% if can_edit %}
+                        <form method="get" action="/magazzino/{{ row.magazzino_id }}/movimento/{{ row.materiale_id }}" class="d-flex gap-1 align-items-center m-0">
+                            <button type="submit" name="operazione" value="carico" class="btn btn-sm btn-success"><i class="bi bi-plus-circle"></i> Carico</button>
+                            <button type="submit" name="operazione" value="scarico" class="btn btn-sm btn-danger" {% if row.quantita == 0 %}disabled{% endif %}><i class="bi bi-dash-circle"></i> Scarico</button>
+                            <a href="/magazzino/{{ row.magazzino_id }}/log" class="btn btn-sm btn-outline-info" title="Log Movimenti"><i class="bi bi-list-ul"></i> Log</a>
+                        </form>
+                        {% else %}
+                        <span class="text-muted small"><i class="bi bi-lock"></i> Sola lettura</span>
+                        {% endif %}
+                    </td>
+                </tr>
+                {% else %}
+                <tr><td colspan="6" class="text-muted text-center py-4">Nessun articolo trovato con i filtri correnti.</td></tr>
+                {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+</body>
+</html>

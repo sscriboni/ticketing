@@ -1,0 +1,259 @@
+<!doctype html>
+<html lang="it">
+<head>
+    <meta charset="utf-8">
+    <title>Gestione Operatori — {{ cfg.app_title }}</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
+    <style>
+        .badge-active { background-color: #28a745; }
+        .badge-inactive { background-color: #dc3545; }
+        .operatore-card { border-left: 4px solid #007bff; }
+    </style>
+</head>
+<body class="bg-light">
+<div class="container py-4">
+    <div class="text-muted small mb-2 fw-bold">{{ cfg.company_name }}</div>
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <h2>Gestione Operatori</h2>
+        <div class="text-end">
+            {% if user %}<span class="me-3 text-muted d-none d-md-inline-block"><strong>{{ user.nome }} {{ user.cognome }}</strong> ({{ user.ruolo }}){% if user.reparto_nome or user.sede_nome %} - {{ user.reparto_nome or 'Nessun Reparto' }} / {{ user.sede_nome or 'Nessuna Sede' }}{% endif %}</span>{% endif %}
+            <a href="/admin" class="btn btn-outline-secondary btn-sm me-2">Admin</a>
+            <a href="/tickets" class="btn btn-outline-secondary btn-sm">Ticket</a>
+            <a href="/logout" class="btn btn-outline-secondary btn-sm">Logout</a>
+        </div>
+    </div>
+
+    <div class="row gap-4">
+        <!-- LISTA OPERATORI -->
+        <div class="col-12 col-lg-8">
+            <div class="bg-white p-4 rounded shadow-sm">
+                <h4 class="mb-3">Operatori Attuali</h4>
+                {% if operatori %}
+                <div class="table-responsive">
+                    <table class="table table-hover table-sm">
+                        <thead class="table-light">
+                            <tr>
+                                <th>Nome</th>
+                                <th>Email / Telefono</th>
+                                <th>Ruolo</th>
+                                <th>Reparto / Sede / Magazzino</th>
+                                <th>Stato</th>
+                                <th>Azioni</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                        {% for op in operatori %}
+                            <tr class="align-middle">
+                                <td>
+                                    <strong>{{ op.nome }} {{ op.cognome }}</strong>{% if op.is_test %} <span class="badge bg-secondary" style="font-size: 0.6em;">TEST</span>{% endif %}<br>
+                                    <small class="text-muted">@{{ op.username }}</small>
+                                </td>
+                                <td>
+                                    {{ op.email }}
+                                    {% if op.telefono %}<br><small class="text-muted">Tel: {{ op.telefono }}</small>{% endif %}
+                                </td>
+                                <td>{{ op.ruolo }}</td>
+                                <td>
+                                    {{ op.reparto_nome or '—' }}<br>
+                                    <small class="text-muted">Sede: {{ op.sede_nome or '—' }}</small><br>
+                                    <small class="text-muted">Mag.: {{ op.magazzino_nome or '—' }}</small>
+                                </td>
+                                <td>
+                                    {% if op.attivo %}
+                                    <span class="badge badge-active">Attivo</span>
+                                    {% else %}
+                                    <span class="badge badge-inactive">Da Approvare / Inattivo</span>
+                                    {% endif %}
+                                </td>
+                                <td>
+                                    <a href="/admin/operatore/{{ op.user_id }}/modifica" class="btn btn-sm btn-warning">Modifica</a>
+                                    <form method="post" action="/admin/operatore/{{ op.user_id }}/toggle" class="d-inline">
+                                        <button type="submit" class="btn btn-sm {% if op.attivo %}btn-outline-danger{% else %}btn-outline-success{% endif %}">
+                                            {% if op.attivo %}Disabilita{% else %}Abilita{% endif %}
+                                        </button>
+                                    </form>
+                                    {% if not op.attivo %}
+                                    <form method="post" action="/admin/operatore/{{ op.user_id }}/delete" class="d-inline" onsubmit="return confirm('Eliminare questo operatore e le relative assegnazioni?')">
+                                        <button type="submit" class="btn btn-sm btn-danger">Elimina</button>
+                                    </form>
+                                    {% endif %}
+                                </td>
+                            </tr>
+                        {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+                {% else %}
+                <p class="text-muted">Nessun operatore presente.</p>
+                {% endif %}
+            </div>
+        </div>
+
+        <!-- FORM NUOVO OPERATORE -->
+        <div class="col-12 col-lg-4">
+            <div class="bg-white p-4 rounded shadow-sm">
+                <h4 class="mb-3">Nuovo Operatore</h4>
+                <form method="post" action="/admin/operatore/nuovo">
+                    <div class="mb-3">
+                        <label class="form-label fw-bold">Username <span class="text-danger">*</span></label>
+                        <input type="text" name="username" class="form-control" required placeholder="es: luca.rossi">
+                    </div>
+
+                    <div class="mb-3">
+                        <label class="form-label fw-bold">Password <span class="text-danger">*</span></label>
+                        <input type="password" name="password" class="form-control" required placeholder="Password sicura">
+                    </div>
+
+                    <div class="mb-3">
+                        <label class="form-label fw-bold">Nome <span class="text-danger">*</span></label>
+                        <input type="text" name="nome" class="form-control" required placeholder="es: Luca">
+                    </div>
+
+                    <div class="mb-3">
+                        <label class="form-label fw-bold">Cognome <span class="text-danger">*</span></label>
+                        <input type="text" name="cognome" class="form-control" required placeholder="es: Rossi">
+                    </div>
+
+                    <div class="mb-3">
+                        <label class="form-label fw-bold">Email <span class="text-danger">*</span></label>
+                        <input type="email" name="email" class="form-control" required placeholder="es: luca@example.com">
+                    </div>
+
+                    <div class="mb-3">
+                        <label class="form-label fw-bold">Telefono</label>
+                        <input type="text" name="telefono" class="form-control" placeholder="es: 3331234567">
+                    </div>
+
+                    <div class="mb-3">
+                        <label class="form-label fw-bold">Ruolo <span class="text-danger">*</span></label>
+                        <select name="ruolo" class="form-select" required>
+                            {% for r in ruoli %}
+                            <option value="{{ r.nome }}" {% if r.nome == 'assistenza' %}selected{% endif %}>{{ r.descrizione }}</option>
+                            {% endfor %}
+                        </select>
+                    </div>
+
+                    <div class="mb-3">
+                        <label class="form-label fw-bold">Reparto <span class="text-danger">*</span></label>
+                        <select name="reparto_id" class="form-select" id="newRepartoSelect" required>
+                            <option value="" disabled selected>Seleziona reparto</option>
+                            {% for reparto in reparti %}
+                            <option value="{{ reparto.reparto_id }}">{{ reparto.nome }}</option>
+                            {% endfor %}
+                        </select>
+                    </div>
+
+                    <div class="mb-3" id="newServiziContainer" style="display: none;">
+                        <label class="form-label fw-bold">Servizi di competenza</label>
+                        <div class="border p-2 rounded bg-light">
+                            {% for servizio in servizi %}
+                            <div class="form-check servizio-item" data-reparto="{{ servizio.reparto_id }}" style="display: none;">
+                                <input class="form-check-input" type="checkbox" name="servizi" value="{{ servizio.servizio_id }}" id="new_servizio_{{ servizio.servizio_id }}">
+                                <label class="form-check-label" for="new_servizio_{{ servizio.servizio_id }}">
+                                    {{ servizio.descrizione }}
+                                </label>
+                            </div>
+                            {% endfor %}
+                            <p class="text-muted mb-0" id="newNoServiziMsg" style="display: none; font-size: 0.9em;">Nessun servizio per questo reparto.</p>
+                        </div>
+                    </div>
+
+                    <div class="mb-3">
+                        <label class="form-label fw-bold">Sede</label>
+                        <select name="sede_id" class="form-select">
+                            <option value="" selected>Nessuna sede</option>
+                            {% for sede in sedi %}
+                            <option value="{{ sede.sede_id }}">{{ sede.nome }}</option>
+                            {% endfor %}
+                        </select>
+                    </div>
+
+                    <div class="mb-3">
+                        <label class="form-label fw-bold">Magazzino</label>
+                        <select name="magazzino_id" class="form-select" id="newMagazzinoSelect">
+                            <option value="" selected>Nessun magazzino</option>
+                            {% for magazzino in magazzini %}
+                            <option value="{{ magazzino.magazzino_id }}" data-reparto="{{ magazzino.reparto_id }}" style="display: none;">{{ magazzino.nome }}</option>
+                            {% endfor %}
+                        </select>
+                    </div>
+
+                    <div class="mb-3 form-check form-switch">
+                        <input class="form-check-input" type="checkbox" name="is_test" value="1" id="newTestSwitch">
+                        <label class="form-check-label fw-bold" for="newTestSwitch">Utente di Test</label>
+                    </div>
+
+                    <button type="submit" class="btn btn-primary w-100">
+                        <i class="bi bi-plus-circle"></i> Crea Operatore
+                    </button>
+                </form>
+            </div>
+        </div>
+    </div>
+
+    <hr class="my-5">
+
+    <h3 class="mb-3">Importazione da CSV</h3>
+    <div class="bg-white p-4 rounded shadow-sm">
+        <form method="post" action="/admin/import/operatori" enctype="multipart/form-data">
+            <div class="row g-3 align-items-end">
+                <div class="col-12 col-md-6">
+                    <label class="form-label">File CSV</label>
+                    <input type="file" name="file" class="form-control" accept=".csv" required>
+                    <small class="text-muted">Formato: username, password, nome, cognome, email, telefono, reparto_id</small>
+                </div>
+                <div class="col-12 col-md-6">
+                    <button type="submit" class="btn btn-success w-100">Importa Operatori</button>
+                </div>
+            </div>
+        </form>
+    </div>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    const repartoSelect = document.getElementById('newRepartoSelect');
+    const serviziContainer = document.getElementById('newServiziContainer');
+    const serviziItems = document.querySelectorAll('.servizio-item');
+    const noServiziMsg = document.getElementById('newNoServiziMsg');
+    const magazzinoSelect = document.getElementById('newMagazzinoSelect');
+
+    if (repartoSelect) {
+        repartoSelect.addEventListener('change', function() {
+            const repId = this.value;
+            let count = 0;
+            serviziContainer.style.display = 'block';
+            serviziItems.forEach(item => {
+                const checkbox = item.querySelector('input');
+                if (item.dataset.reparto === repId) {
+                    item.style.display = 'block';
+                    count++;
+                } else {
+                    item.style.display = 'none';
+                    checkbox.checked = false;
+                }
+            });
+            noServiziMsg.style.display = count === 0 ? 'block' : 'none';
+            
+            if (magazzinoSelect) {
+                let magazzinoMatch = false;
+                Array.from(magazzinoSelect.options).forEach(opt => {
+                    if (opt.value === "") return;
+                    let isMatch = opt.dataset.reparto === repId;
+                    opt.hidden = !isMatch;
+                    opt.style.display = isMatch ? '' : 'none';
+                    if (isMatch && opt.selected) {
+                        magazzinoMatch = true;
+                    }
+                });
+                if (!magazzinoMatch && magazzinoSelect.value !== "") {
+                    magazzinoSelect.value = "";
+                }
+            }
+        });
+    }
+});
+</script>
+</body>
+</html>

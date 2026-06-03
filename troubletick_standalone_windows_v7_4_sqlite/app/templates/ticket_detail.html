@@ -1,0 +1,178 @@
+<!doctype html><html lang="it"><head><meta charset="utf-8"><title>Ticket #{{ ticket.ticket_id }} — {{ cfg.app_title }}</title>
+<link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css">
+</head>
+<body class="bg-light"><div class="container py-4">
+<div class="text-muted small mb-2 fw-bold">{{ cfg.company_name }}</div>
+<div class="d-flex justify-content-between align-items-center mb-3">
+  <div><h2>Ticket #{{ ticket.ticket_id }}{% if ticket.is_test %} <span class="badge bg-secondary fs-6">TEST</span>{% endif %}</h2><p class="text-muted mb-0">{{ ticket.nome }} {{ ticket.cognome }}</p></div>
+  <div class="text-end">
+    {% if user %}<span class="me-3 text-muted d-none d-md-inline-block"><strong>{{ user.nome }} {{ user.cognome }}</strong> ({{ user.ruolo }})</span>{% endif %}
+    <a href="/tickets" class="btn btn-outline-secondary btn-sm me-2">Ticket</a>
+    {% if user and user.ruolo != 'normale' %}<a href="/magazzini" class="btn btn-outline-secondary btn-sm me-2">Magazzini</a>{% endif %}
+    {% if user %}<a href="/richieste-materiale" class="btn btn-outline-secondary btn-sm me-2">Richieste Mat.</a>{% endif %}
+    <a href="/operatori" class="btn btn-outline-secondary btn-sm me-2">Operatori</a>
+    <a href="/calendario" class="btn btn-outline-info btn-sm me-2">Calendario</a>
+    {% if user and user.ruolo != 'normale' %}<a href="/avvisi" class="btn btn-outline-warning btn-sm text-dark me-2">Avvisi</a>{% endif %}
+    {% if user and user.ruolo == 'admin' %}<a href="/admin" class="btn btn-outline-primary btn-sm me-2">Admin</a>{% endif %}
+    {% if user and user.ruolo == 'responsabile' %}<a href="/admin/report-copertura" class="btn btn-outline-primary btn-sm me-2">Report</a>{% endif %}
+    <a href="/logout" class="btn btn-outline-secondary btn-sm">Logout</a>
+  </div>
+</div>
+<div class="card mb-4"><div class="card-body">
+  <div class="row gy-2">
+    <div class="col-md-4"><strong>Riferimento</strong><br>{{ ticket.riferimento or '—' }}</div>
+    <div class="col-md-4"><strong>Reparto (Richiedente)</strong><br>{{ ticket.reparto_appartenenza_nome or '—' }}</div>
+    <div class="col-md-4"><strong>Sede</strong><br>{{ ticket.sede or '—' }}</div>
+    <div class="col-md-4"><strong>Reparto (Assegnato)</strong><br>{{ ticket.reparto_nome or '—' }}</div>
+    <div class="col-md-4"><strong>Servizio</strong><br>{{ ticket.servizio_desc or 'Nessuno' }}</div>
+    <div class="col-md-4"><strong>Priorità</strong><br>{{ ticket.priorita }}</div>
+    <div class="col-md-4"><strong>Stato</strong><br>{{ ticket.stato }}</div>
+    <div class="col-md-4"><strong>Creato il</strong><br>{{ ticket.creato_il }}<br><small>{{ ticket.ip or 'IP non disponibile' }}</small></div>
+  </div>
+  <hr>
+  <div><strong>Descrizione</strong><p>{{ ticket.descrizione }}</p></div>
+  {% if ticket.allegato %}
+  <hr>
+  <div><strong>Allegato principale:</strong> <a href="/uploads/{{ ticket.allegato }}" target="_blank" class="btn btn-sm btn-outline-secondary ms-2"><i class="bi bi-paperclip"></i> Visualizza/Scarica allegato</a></div>
+  {% endif %}
+  <hr>
+  <div class="d-flex gap-2">
+    {% if ticket.stato == 'nuova' %}
+    <form method="post" action="/ticket/{{ ticket.ticket_id }}/stato" class="d-inline">
+        <input type="hidden" name="stato" value="presa_in_carico">
+        <button type="submit" class="btn btn-sm btn-primary">
+            <i class="bi bi-box-arrow-in-down"></i> Prendi in Carico
+        </button>
+    </form>
+    {% endif %}
+    {% if ticket.stato != 'chiusa' %}
+    <form method="post" action="/ticket/{{ ticket.ticket_id }}/stato" class="d-inline">
+        <input type="hidden" name="stato" value="chiusa">
+        <button type="submit" class="btn btn-sm btn-success">
+            <i class="bi bi-check-circle"></i> Chiudi Ticket
+        </button>
+    </form>
+    {% endif %}
+    {% if user and user.ruolo == 'admin' %}
+<form action="/ticket/{{ ticket.ticket_id }}/delete" method="POST" class="d-inline" onsubmit="return confirm('⚠️ Sei sicuro di voler eliminare definitivamente questo ticket? L\'azione è irreversibile e cancellerà anche tutte le note e gli allegati.');">
+    <button type="submit" class="btn btn-danger">Elimina Ticket</button>
+</form>
+
+    {% endif %}
+  </div>
+</div></div>
+<div class="row">
+  <div class="col-lg-6">
+    <div class="card mb-4">
+      <div class="card-body">
+      <h5 class="card-title">Note operative</h5>
+      {% if notes %}
+      <div class="list-group mb-3">
+        {% for note in notes %}
+        <div class="list-group-item">
+          <div class="d-flex justify-content-between align-items-start">
+            <div><strong>{{ note.autore or 'Operatore' }}</strong><br><small>{{ note.creato_il }}</small></div>
+          </div>
+          <p class="mb-0 mt-2">{{ note.testo }}</p>
+          {% if note.allegato %}
+          <div class="mt-2"><a href="/uploads/{{ note.allegato }}" target="_blank" class="badge bg-secondary text-decoration-none"><i class="bi bi-paperclip"></i> Allegato</a></div>
+          {% endif %}
+        </div>
+        {% endfor %}
+      </div>
+      {% else %}
+      <p class="text-muted">Nessuna nota ancora inserita.</p>
+      {% endif %}
+    </div>
+  </div>
+  </div>
+  <div class="col-lg-6">
+    <div class="card mb-4"><div class="card-body">
+      <h5 class="card-title">Aggiungi nota</h5>
+      <form method="post" action="/ticket/{{ ticket.ticket_id }}/note" enctype="multipart/form-data">
+        <div class="mb-3"><label class="form-label">Testo nota</label><textarea name="testo" rows="4" class="form-control" required></textarea></div>
+        <div class="mb-3">
+          <label class="form-label">Allegato (opzionale)</label>
+          <input type="file" name="allegato" class="form-control">
+          <small class="text-muted d-block mt-1">Dimensione massima: 10MB. File eseguibili non consentiti.</small>
+        </div>
+        <button class="btn btn-primary">Salva nota</button>
+      </form>
+    </div></div>
+
+    <div class="card mb-4"><div class="card-body">
+      <h5 class="card-title">Richieste Materiale</h5>
+      {% if richieste_mat %}
+      <ul class="list-group list-group-flush border rounded mb-3">
+        {% for rm in richieste_mat %}
+        <li class="list-group-item py-2 px-3 d-flex justify-content-between align-items-center">
+          <div>
+            <span class="badge bg-secondary me-2">{{ rm.quantita }}x</span> <strong>{{ rm.materiale_nome }}</strong><br>
+            <small class="text-muted">Sede: {{ rm.sede_nome }} | Mag: {{ rm.magazzino_nome or 'Nessuno' }}</small>
+          </div>
+          <span class="badge bg-{% if rm.stato == 'evasa' %}success{% elif rm.stato == 'pronta_per_scarico' %}warning text-dark{% elif rm.stato == 'annullata' %}danger{% else %}info{% endif %}">{{ rm.stato|replace('_', ' ')|title }}</span>
+        </li>
+        {% endfor %}
+      </ul>
+      {% else %}
+      <p class="text-muted small">Nessuna richiesta di materiale collegata a questo ticket.</p>
+      {% endif %}
+      
+      <form method="get" action="/richiesta-materiale/nuova">
+        <input type="hidden" name="ticket_id" value="{{ ticket.ticket_id }}">
+        <button type="submit" class="btn btn-outline-primary btn-sm"><i class="bi bi-box-seam"></i> Crea Nuova Richiesta</button>
+      </form>
+    </div></div>
+
+    <div class="card mb-4"><div class="card-body">
+      <h5 class="card-title">Cambia Reparto o Servizio</h5>
+      <form method="post" action="/ticket/{{ ticket.ticket_id }}/riassegna">
+        <div class="mb-3">
+          <label class="form-label">Nuovo Reparto</label>
+          <select name="reparto_id" class="form-select" id="riassegnaReparto" required>
+            <option value="" disabled>Seleziona reparto</option>
+            {% for rep in reparti %}
+            <option value="{{ rep.reparto_id }}" {% if rep.reparto_id == ticket.reparto_id %}selected{% endif %}>{{ rep.nome }}</option>
+            {% endfor %}
+          </select>
+        </div>
+        <div class="mb-3">
+          <label class="form-label">Nuovo Servizio</label>
+          <select name="servizio_id" class="form-select" id="riassegnaServizio">
+            <option value="">Nessun servizio</option>
+            {% for serv in servizi %}
+            <option value="{{ serv.servizio_id }}" data-reparto="{{ serv.reparto_id }}" {% if serv.servizio_id == ticket.servizio_id %}selected{% endif %}>{{ serv.descrizione }}</option>
+            {% endfor %}
+          </select>
+        </div>
+        <button class="btn btn-warning"><i class="bi bi-arrow-left-right"></i> Riassegna e Trasferisci</button>
+      </form>
+    </div></div>
+  </div>
+</div>
+</div>
+
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    const repartoSelect = document.getElementById('riassegnaReparto');
+    const servizioSelect = document.getElementById('riassegnaServizio');
+    
+    if (repartoSelect && servizioSelect) {
+        function filterServizi() {
+            const repId = parseInt(repartoSelect.value);
+            Array.from(servizioSelect.options).forEach(opt => {
+                if (opt.value === "") return; // Mantiene "Nessun servizio"
+                let isMatch = parseInt(opt.dataset.reparto) === repId;
+                opt.hidden = !isMatch;
+                opt.style.display = isMatch ? '' : 'none';
+                // Seleziona "Nessun servizio" in automatico se il servizio scelto prima scompare
+                if (!isMatch && opt.selected) servizioSelect.value = "";
+            });
+        }
+        repartoSelect.addEventListener('change', filterServizi);
+        filterServizi(); // Avvia il filtro al caricamento iniziale della pagina
+    }
+});
+</script>
+</body></html>

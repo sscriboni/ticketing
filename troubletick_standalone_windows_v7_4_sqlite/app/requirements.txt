@@ -1,0 +1,9 @@
+﻿fastapi
+uvicorn[standard]
+sqlalchemy
+pymysql
+jinja2
+python-dotenv
+python-multipart
+bcrypt
+itsdangerous

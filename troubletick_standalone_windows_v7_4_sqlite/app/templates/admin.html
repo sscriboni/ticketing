@@ -1,0 +1,131 @@
+<!doctype html><html lang="it"><head><meta charset="utf-8"><title>Admin Panel — {{ cfg.app_title }}</title>
+<link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet"></head>
+<body class="bg-light"><div class="container py-4">
+<div class="text-muted small mb-2 fw-bold">{{ cfg.company_name }}</div>
+<div class="d-flex justify-content-between align-items-center mb-4"><h2>Pannello Amministrativo</h2><div class="text-end">
+    {% if user %}<span class="me-3 text-muted d-none d-md-inline-block"><strong>{{ user.nome }} {{ user.cognome }}</strong> ({{ user.ruolo }})</span>{% endif %}
+    <a href="/tickets" class="btn btn-outline-secondary btn-sm me-2">Ticket</a> {% if user and user.ruolo != 'normale' %}<a href="/avvisi" class="btn btn-outline-warning btn-sm text-dark me-2">Avvisi</a>{% endif %} <a href="/logout" class="btn btn-outline-secondary btn-sm">Logout</a>
+</div></div>
+<div class="row g-4">
+  <div class="col-12 col-md-6 col-lg-3">
+    <div class="card h-100 shadow-sm border-0">
+      <div class="card-body text-center">
+        <h5 class="card-title">⚙️ Impostazioni</h5>
+        <p class="card-text text-muted mb-3">Parametri globali app</p>
+        <a href="/admin/impostazioni" class="btn btn-primary">Accedi</a>
+      </div>
+    </div>
+  </div>
+  <div class="col-12 col-md-6 col-lg-3">
+    <div class="card h-100 shadow-sm border-0">
+      <div class="card-body text-center">
+        <h5 class="card-title">🏢 Reparti</h5>
+        <p class="card-text text-muted mb-3">Gestisci i reparti aziendali</p>
+        <a href="/admin/reparti" class="btn btn-primary">Accedi</a>
+      </div>
+    </div>
+  </div>
+  <div class="col-12 col-md-6 col-lg-3">
+    <div class="card h-100 shadow-sm border-0">
+      <div class="card-body text-center">
+        <h5 class="card-title">⚙️ Servizi</h5>
+        <p class="card-text text-muted mb-3">Gestisci i servizi disponibili</p>
+        <a href="/admin/servizi" class="btn btn-primary">Accedi</a>
+      </div>
+    </div>
+  </div>
+  <div class="col-12 col-md-6 col-lg-3">
+    <div class="card h-100 shadow-sm border-0">
+      <div class="card-body text-center">
+        <h5 class="card-title">👥 Operatori</h5>
+        <p class="card-text text-muted mb-3">Gestisci gli operatori</p>
+        <a href="/admin/operatori" class="btn btn-primary">Accedi</a>
+      </div>
+    </div>
+  </div>
+  <div class="col-12 col-md-6 col-lg-3">
+    <div class="card h-100 shadow-sm border-0">
+      <div class="card-body text-center">
+        <h5 class="card-title">📍 Sedi</h5>
+        <p class="card-text text-muted mb-3">Gestisci le sedi aziendali</p>
+        <a href="/admin/sedi" class="btn btn-primary">Accedi</a>
+      </div>
+    </div>
+  </div>
+  <div class="col-12 col-md-6 col-lg-3">
+    <div class="card h-100 shadow-sm border-0">
+      <div class="card-body text-center">
+        <h5 class="card-title">📦 Magazzini</h5>
+        <p class="card-text text-muted mb-3">Gestisci i magazzini</p>
+        <a href="/admin/magazzini" class="btn btn-primary">Accedi</a>
+      </div>
+    </div>
+  </div>
+  <div class="col-12 col-md-6 col-lg-3">
+    <div class="card h-100 shadow-sm border-0">
+      <div class="card-body text-center">
+        <h5 class="card-title">🏛️ Comuni</h5>
+        <p class="card-text text-muted mb-3">Gestisci i comuni</p>
+        <a href="/admin/comuni" class="btn btn-primary">Accedi</a>
+      </div>
+    </div>
+  </div>
+  <div class="col-12 col-md-6 col-lg-3">
+    <div class="card h-100 shadow-sm border-0">
+      <div class="card-body text-center">
+        <h5 class="card-title">� Report</h5>
+        <p class="card-text text-muted mb-3">Copertura personale</p>
+        <a href="/admin/report-copertura" class="btn btn-primary">Accedi</a>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="row g-4 mt-2">
+  <div class="col-12 col-md-8 col-lg-6 mx-auto">
+    <div class="card shadow-sm border-0">
+      <div class="card-body">
+        <h5 class="card-title text-center mb-4">Stato Globale Ticket</h5>
+        <canvas id="ticketStatusChart" style="max-height: 300px;"></canvas>
+      </div>
+    </div>
+  </div>
+  <div class="col-12 col-md-6 col-lg-3">
+    <div class="card h-100 shadow-sm border-0">
+      <div class="card-body text-center">
+        <h5 class="card-title">🏷️ Categorie</h5>
+        <p class="card-text text-muted mb-3">Gestisci le categorie</p>
+        <a href="/admin/categorie" class="btn btn-primary">Accedi</a>
+      </div>
+    </div>
+  </div>
+  <div class="col-12 col-md-6 col-lg-3">
+    <div class="card h-100 shadow-sm border-0">
+      <div class="card-body text-center">
+        <h5 class="card-title">🛒 Prodotti</h5>
+        <p class="card-text text-muted mb-3">Gestisci gli articoli</p>
+        <a href="/admin/materiali" class="btn btn-primary">Accedi</a>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    const ctx = document.getElementById('ticketStatusChart').getContext('2d');
+    new Chart(ctx, {
+        type: 'pie',
+        data: {
+            labels: {{ chart_labels | safe }},
+            datasets: [{
+                data: {{ chart_data | safe }},
+                backgroundColor: ['#0d6efd', '#ffc107', '#198754', '#dc3545', '#6c757d', '#17a2b8']
+            }]
+        },
+        options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { position: 'bottom' } } }
+    });
+});
+</script>
+
+</div></body></html>

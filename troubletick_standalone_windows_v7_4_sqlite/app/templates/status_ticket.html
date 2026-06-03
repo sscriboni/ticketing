@@ -1,0 +1,95 @@
+<!doctype html>
+<html lang="it">
+<head>
+    <meta charset="utf-8">
+    <title>Cerca Ticket — {{ cfg.app_title }}</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
+</head>
+<body class="bg-light d-flex flex-column min-vh-100">
+
+<nav class="navbar navbar-expand-lg navbar-dark bg-primary shadow-sm mb-4">
+    <div class="container">
+        <a class="navbar-brand fw-bold" href="/">{{ cfg.logo_emoji }} {{ cfg.app_title }}</a>
+        <div>
+            <a href="/login" class="btn btn-outline-light btn-sm">Area Operatori</a>
+        </div>
+    </div>
+</nav>
+
+<div class="container flex-grow-1 mb-5">
+    <div class="row justify-content-center">
+        <div class="col-md-6">
+            <h2 class="text-center mb-4">🔍 Controlla lo stato del tuo Ticket</h2>
+            
+            <div class="card shadow-sm mb-4">
+                <div class="card-body">
+                    <form method="POST" action="/status-ticket">
+                        <div class="row g-3">
+                            <div class="col-md-4">
+                                <label for="anno" class="form-label">Anno</label>
+                                <input type="number" class="form-control" id="anno" name="anno" value="{{ anno if anno else current_year }}" required>
+                            </div>
+                            <div class="col-md-8">
+                                <label for="codice" class="form-label">Codice Ticket</label>
+                                <input type="text" class="form-control" id="codice" name="codice" value="{{ codice or '' }}" placeholder="es. 000015" required>
+                            </div>
+                        </div>
+                        <div class="mt-4 text-center">
+                            <button type="submit" class="btn btn-primary w-100">Cerca Ticket</button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+
+            {% if cercato %}
+                {% if ticket %}
+                    <div class="alert alert-success border-success">
+                        <h4 class="alert-heading">Stato: 
+                            <span class="badge bg-{{ 'secondary' if ticket.stato == 'nuova' else 'primary' if ticket.stato == 'presa_in_carico' else 'success' }}">
+                                {{ ticket.stato | replace('_', ' ') | title }}
+                            </span>
+                        </h4>
+                        <hr>
+                        <p class="mb-1"><strong>Codice:</strong> {{ ticket.codice_ticket }}</p>
+                        <p class="mb-1"><strong>Richiedente:</strong> {{ ticket.nome }} {{ ticket.cognome }}</p>
+                        <p class="mb-1"><strong>Reparto / Servizio:</strong> {{ ticket.reparto_nome or 'N/A' }} / {{ ticket.servizio_desc or 'N/A' }}</p>
+                        <p class="mb-0"><strong>Data creazione:</strong> {{ ticket.creato_il }}</p>
+                        
+                        {% if note %}
+                            <hr>
+                            <h5 class="mt-3">Ultime Note / Aggiornamenti:</h5>
+                            <ul class="list-group list-group-flush mt-2">
+                                {% for n in note %}
+                                    <li class="list-group-item bg-transparent px-0">
+                                        <div class="d-flex w-100 justify-content-between">
+                                            <strong class="text-primary">{{ n.autore }}</strong>
+                                            <small class="text-muted">{{ n.creato_il }}</small>
+                                        </div>
+                                        <p class="mb-1 text-break">{{ n.testo }}</p>
+                                    </li>
+                                {% endfor %}
+                            </ul>
+                        {% endif %}
+                    </div>
+                {% else %}
+                    <div class="alert alert-warning text-center">
+                        Nessun ticket trovato con questi dati. Verifica l'anno e il codice numerico e riprova.
+                    </div>
+                {% endif %}
+            {% endif %}
+            
+            <div class="text-center">
+                <a href="/" class="text-decoration-none">← Torna alla Home</a>
+            </div>
+        </div>
+    </div>
+</div>
+
+<footer class="bg-dark text-white text-center py-3 mt-auto">
+    <div class="container">
+        <p class="mb-0 small">{{ cfg.footer_text }}</p>
+    </div>
+</footer>
+
+</body>
+</html>

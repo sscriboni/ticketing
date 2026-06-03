@@ -1,0 +1,204 @@
+<!doctype html>
+<html lang="it">
+<head>
+    <meta charset="utf-8">
+    <title>Modifica Operatore — {{ cfg.app_title }}</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
+</head>
+<body class="bg-light">
+<div class="container py-4">
+    <div class="text-muted small mb-2 fw-bold">{{ cfg.company_name }}</div>
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <h2>Modifica Operatore</h2>
+        <div class="text-end">
+            {% if user %}<span class="me-3 text-muted d-none d-md-inline-block"><strong>{{ user.nome }} {{ user.cognome }}</strong> ({{ user.ruolo }})</span>{% endif %}
+            <a href="/admin/operatori" class="btn btn-outline-secondary btn-sm">Indietro</a>
+            <a href="/logout" class="btn btn-outline-secondary btn-sm">Logout</a>
+        </div>
+    </div>
+
+    <div class="row">
+        <div class="col-12 col-lg-8 mx-auto">
+            <div class="bg-white p-4 rounded shadow-sm">
+                <h4 class="mb-4">{{ operatore.nome }} {{ operatore.cognome }}</h4>
+
+                <form method="post" action="/admin/operatore/{{ operatore.user_id }}/modifica">
+                    <div class="row mb-3">
+                        <div class="col-md-6">
+                            <label class="form-label fw-bold">Nome <span class="text-danger">*</span></label>
+                            <input type="text" name="nome" class="form-control" value="{{ operatore.nome }}" required>
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label fw-bold">Cognome <span class="text-danger">*</span></label>
+                            <input type="text" name="cognome" class="form-control" value="{{ operatore.cognome }}" required>
+                        </div>
+                    </div>
+
+                    <div class="row mb-3">
+                        <div class="col-md-6">
+                            <label class="form-label fw-bold">Email <span class="text-danger">*</span></label>
+                            <input type="email" name="email" class="form-control" value="{{ operatore.email }}" required>
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label fw-bold">Nuova Password</label>
+                            <input type="password" name="password" class="form-control" placeholder="Lascia vuoto per non modificare">
+                        </div>
+                    </div>
+
+                    <div class="row mb-3">
+                        <div class="col-md-6">
+                            <label class="form-label fw-bold">Username (non modificabile)</label>
+                            <input type="text" class="form-control" value="{{ operatore.username }}" disabled>
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label fw-bold">Ultimo Accesso</label>
+                            <input type="text" class="form-control" value="{{ operatore.ultimo_accesso or 'Mai effettuato' }}" disabled>
+                        </div>
+                    </div>
+
+                    <div class="row mb-3">
+                        <div class="col-md-6">
+                            <label class="form-label fw-bold">Ruolo <span class="text-danger">*</span></label>
+                            <select name="ruolo" class="form-select" required>
+                                {% for r in ruoli %}
+                                <option value="{{ r.nome }}" {% if operatore.ruolo == r.nome %}selected{% endif %}>
+                                    {{ r.descrizione }}
+                                </option>
+                                {% endfor %}
+                            </select>
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label fw-bold">Reparto <span class="text-danger">*</span></label>
+                            <select name="reparto_id" class="form-select" id="editRepartoSelect" required>
+                                <option value="" disabled>Seleziona reparto</option>
+                                {% for reparto in reparti %}
+                                <option value="{{ reparto.reparto_id }}" {% if reparto.reparto_id == operatore.reparto_id %}selected{% endif %}>
+                                    {{ reparto.nome }}
+                                </option>
+                                {% endfor %}
+                            </select>
+                        </div>
+                    </div>
+                    <div class="row mb-3">
+                        <div class="col-md-6">
+                            <label class="form-label fw-bold">Sede</label>
+                            <select name="sede_id" class="form-select">
+                                <option value="">Nessuna sede</option>
+                                {% for sede in sedi %}
+                                <option value="{{ sede.sede_id }}" {% if sede.sede_id == operatore.sede_id %}selected{% endif %}>
+                                    {{ sede.nome }}
+                                </option>
+                                {% endfor %}
+                            </select>
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label fw-bold">Magazzino</label>
+                            <select name="magazzino_id" class="form-select" id="editMagazzinoSelect">
+                                <option value="">Nessun magazzino</option>
+                                {% for magazzino in magazzini %}
+                                <option value="{{ magazzino.magazzino_id }}" data-reparto="{{ magazzino.reparto_id }}" {% if magazzino.magazzino_id == operatore.magazzino_id %}selected{% endif %}>
+                                    {{ magazzino.nome }}
+                                </option>
+                                {% endfor %}
+                            </select>
+                        </div>
+                    </div>
+                    <div class="row mb-3">
+                        <div class="col-md-6">
+                            <label class="form-label fw-bold d-block">Stato Operatore</label>
+                            <div class="form-check form-switch mt-2">
+                                <input class="form-check-input" type="checkbox" name="attivo" value="1" id="attivoSwitch" {% if operatore.attivo %}checked{% endif %}>
+                                <label class="form-check-label" for="attivoSwitch">Utente Attivo</label>
+                            </div>
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label fw-bold d-block">Utente di Test</label>
+                            <div class="form-check form-switch mt-2">
+                                <input class="form-check-input" type="checkbox" name="is_test" value="1" id="testSwitch" {% if operatore.is_test %}checked{% endif %}>
+                                <label class="form-check-label" for="testSwitch">Utente di Test</label>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="mb-4">
+                        <label class="form-label fw-bold">Servizi Assegnati</label>
+                        <div class="border p-3 rounded bg-light" id="editServiziContainer">
+                            {% if servizi %}
+                                {% for servizio in servizi %}
+                                    <div class="form-check edit-servizio-item" data-reparto="{{ servizio.reparto_id }}">
+                                        <input class="form-check-input" type="checkbox" name="servizi" 
+                                               value="{{ servizio.servizio_id }}" 
+                                               id="servizio_{{ servizio.servizio_id }}"
+                                               {% if servizio.servizio_id in servizi_assegnati %}checked{% endif %}>
+                                        <label class="form-check-label" for="servizio_{{ servizio.servizio_id }}">
+                                            {{ servizio.descrizione }}
+                                        </label>
+                                    </div>
+                                {% endfor %}
+                                <p class="text-muted mb-0" id="editNoServiziMsg" style="display: none; font-size: 0.9em;">Nessun servizio per questo reparto.</p>
+                            {% else %}
+                                <p class="text-muted">Nessun servizio disponibile.</p>
+                            {% endif %}
+                        </div>
+                    </div>
+
+                    <div class="d-flex gap-2">
+                        <button type="submit" class="btn btn-primary">Salva Modifiche</button>
+                        <a href="/admin/operatori" class="btn btn-outline-secondary">Annulla</a>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    const repartoSelect = document.getElementById('editRepartoSelect');
+    const serviziItems = document.querySelectorAll('.edit-servizio-item');
+    const noServiziMsg = document.getElementById('editNoServiziMsg');
+    const magazzinoSelect = document.getElementById('editMagazzinoSelect');
+
+    function filterServizi() {
+        const repId = repartoSelect.value;
+        let count = 0;
+        serviziItems.forEach(item => {
+            const checkbox = item.querySelector('input');
+            if (item.dataset.reparto === repId) {
+                item.style.display = 'block';
+                count++;
+            } else {
+                item.style.display = 'none';
+                checkbox.checked = false; // uncheck when hiding
+            }
+        });
+        if (noServiziMsg) {
+            noServiziMsg.style.display = count === 0 ? 'block' : 'none';
+        }
+        
+        if (magazzinoSelect) {
+            let magazzinoMatch = false;
+            Array.from(magazzinoSelect.options).forEach(opt => {
+                if (opt.value === "") return;
+                let isMatch = opt.dataset.reparto === repId;
+                opt.hidden = !isMatch;
+                opt.style.display = isMatch ? '' : 'none';
+                if (isMatch && opt.selected) {
+                    magazzinoMatch = true;
+                }
+            });
+            if (!magazzinoMatch && magazzinoSelect.value !== "") {
+                magazzinoSelect.value = "";
+            }
+        }
+    }
+
+    if (repartoSelect) {
+        repartoSelect.addEventListener('change', filterServizi);
+        filterServizi(); // run once on page load
+    }
+});
+</script>
+</body>
+</html>

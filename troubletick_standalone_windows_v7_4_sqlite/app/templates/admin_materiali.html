@@ -1,0 +1,66 @@
+<!doctype html>
+<html lang="it">
+<head>
+    <meta charset="utf-8">
+    <title>Gestione Prodotti — {{ cfg.app_title }}</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
+</head>
+<body class="bg-light">
+<div class="container py-4">
+    <div class="text-muted small mb-2 fw-bold">{{ cfg.company_name }}</div>
+    <div class="d-flex justify-content-between align-items-center mb-3">
+        <h2>Gestione Prodotti (Materiali)</h2>
+        <div class="text-end">
+            {% if user %}<span class="me-3 text-muted d-none d-md-inline-block"><strong>{{ user.nome }} {{ user.cognome }}</strong> ({{ user.ruolo }})</span>{% endif %}
+            <a href="/admin" class="btn btn-outline-secondary btn-sm me-2">Admin</a>
+            <a href="/tickets" class="btn btn-outline-secondary btn-sm">Ticket</a>
+            <a href="/logout" class="btn btn-outline-secondary btn-sm">Logout</a>
+        </div>
+    </div>
+    <div class="row gap-4">
+        <div class="col-12 col-lg-8 bg-white p-4 rounded shadow-sm">
+            <h4>Elenco Articoli</h4>
+            {% if error == 'in_uso' %}
+            <div class="alert alert-danger py-2 mt-2">Impossibile eliminare: l'articolo ha giacenze positive nei magazzini o è richiesto in un ticket.</div>
+            {% endif %}
+            <div class="table-responsive">
+                <table class="table table-sm table-striped mt-3">
+                    <thead><tr><th>Nome Articolo</th><th>Categoria</th><th>Azioni</th></tr></thead>
+                    <tbody>
+                    {% for m in materiali %}
+                    <tr>
+                        <td><strong>{{ m.nome }}</strong></td>
+                        <td>{{ m.categoria_nome or '—' }}</td>
+                        <td>
+                            <a href="/admin/materiale/{{ m.materiale_id }}/modifica" class="btn btn-sm btn-warning me-1">Modifica</a>
+                            <form method="post" action="/admin/materiale/delete" class="d-inline">
+                                <input type="hidden" name="materiale_id" value="{{ m.materiale_id }}">
+                                <button type="submit" class="btn btn-sm btn-danger" onclick="return confirm('Eliminare questo articolo in modo definitivo?')">Elimina</button>
+                            </form>
+                        </td>
+                    </tr>
+                    {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+        <div class="col-12 col-lg-4 bg-white p-4 rounded shadow-sm align-self-start">
+            <h5>Nuovo Articolo</h5>
+            <form method="post" action="/admin/materiale" class="mt-3">
+                <div class="mb-3"><label class="form-label">Nome Prodotto</label><input name="nome" class="form-control" required placeholder="Es. Tastiera Wireless"></div>
+                <div class="mb-4">
+                    <label class="form-label">Categoria</label>
+                    <select name="categoria_id" class="form-select" required>
+                        <option value="" disabled selected>Seleziona categoria</option>
+                        {% for c in categorie %}
+                        <option value="{{ c.categoria_id }}">{{ c.nome }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+                <button type="submit" class="btn btn-primary w-100">Salva articolo</button>
+            </form>
+        </div>
+    </div>
+</div>
+</body>
+</html>

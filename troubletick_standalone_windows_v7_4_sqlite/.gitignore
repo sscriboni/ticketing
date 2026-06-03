@@ -1,0 +1,23 @@
+# Ambienti virtuali
+venv/
+env/
+
+# Database locale
+*.db
+troubletick.db
+
+# File caricati dagli utenti (mantiene la cartella ma ignora il contenuto)
+app/uploads/*
+!app/uploads/.gitkeep
+
+# Log
+*.log
+failed_logins.log
+
+# Cache di Python
+__pycache__/
+*.pyc
+*.pyo
+
+# Variabili d'ambiente e segreti
+.env

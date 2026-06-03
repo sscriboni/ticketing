@@ -1,0 +1,22 @@
+<!doctype html>
+<html lang="it">
+<head>
+    <meta charset="utf-8">
+</head>
+<body style="font-family: Arial, sans-serif; color: #333; line-height: 1.6; max-width: 600px; margin: 0 auto; padding: 20px;">
+    <div style="text-align: center; margin-bottom: 20px;">
+        <h1 style="color: #0d6efd; margin-bottom: 5px;">{{ cfg.logo_emoji }} {{ cfg.company_name }}</h1>
+        <p style="color: #6c757d; margin-top: 0; font-size: 14px;">Portale Assistenza</p>
+    </div>
+    <div style="background-color: #f8f9fa; padding: 20px; border-radius: 8px; border: 1px solid #dee2e6;">
+        <h3 style="margin-top: 0; color: #198754;">Il tuo ticket è stato chiuso</h3>
+        <p>Ciao <strong>{{ nome }}</strong>,<br>
+        ti informiamo che la tua segnalazione <strong>#{{ codice_ticket }}</strong> è stata contrassegnata come risolta e chiusa dall'operatore <strong>{{ autore }}</strong>.</p>
+        
+        <p style="margin-bottom: 0;">Puoi controllare le note finali in qualsiasi momento inserendo il tuo codice dal portale di stato.</p>
+    </div>
+    <div style="text-align: center; margin-top: 20px; font-size: 0.8em; color: #6c757d;">
+        <p>{{ cfg.footer_text }}</p>
+    </div>
+</body>
+</html>

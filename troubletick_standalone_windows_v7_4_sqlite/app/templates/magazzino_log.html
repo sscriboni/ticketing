@@ -1,0 +1,65 @@
+<!doctype html>
+<html lang="it">
+<head>
+    <meta charset="utf-8">
+    <title>Log Movimenti: {{ magazzino.nome }} — {{ cfg.app_title }}</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
+</head>
+<body class="bg-light">
+<div class="container py-4">
+    <div class="text-muted small mb-2 fw-bold">{{ cfg.company_name }}</div>
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <h2>Log Movimenti: {{ magazzino.nome }}</h2>
+        <div class="text-end">
+            {% if user %}<span class="me-3 text-muted d-none d-md-inline-block"><strong>{{ user.nome }} {{ user.cognome }}</strong> ({{ user.ruolo }})</span>{% endif %}
+            {% if user.ruolo == 'admin' %}
+            <a href="/admin/magazzini" class="btn btn-outline-secondary btn-sm me-2">Torna ai Magazzini</a>
+            {% else %}
+            <a href="/magazzini" class="btn btn-outline-secondary btn-sm me-2">Torna ai Magazzini</a>
+            {% endif %}
+            <a href="/logout" class="btn btn-outline-secondary btn-sm">Logout</a>
+        </div>
+    </div>
+    
+    <div class="bg-white p-4 rounded shadow-sm">
+        <div class="table-responsive">
+            <table class="table table-striped table-sm align-middle">
+                <thead class="table-light">
+                    <tr>
+                        <th>Data</th>
+                        <th>Operatore</th>
+                        <th>Operazione</th>
+                        <th>Articolo</th>
+                        <th>Marca / Modello</th>
+                        <th>Q.tà</th>
+                        <th>Dettagli / Destinazione</th>
+                    </tr>
+                </thead>
+                <tbody>
+                {% for mov in movimenti %}
+                <tr>
+                    <td>{{ mov.data_movimento }}<br><small class="text-muted">{{ mov.creato_il.split(' ')[1] if ' ' in mov.creato_il else '' }}</small></td>
+                    <td>{{ mov.user_nome }} {{ mov.user_cognome }}</td>
+                    <td>{% if mov.operazione == 'carico' %}<span class="badge bg-success">Carico</span>{% else %}<span class="badge bg-danger">Scarico</span>{% endif %}</td>
+                    <td><strong>{{ mov.materiale_nome }}</strong></td>
+                    <td>{% if mov.marca %}<strong>{{ mov.marca }}</strong><br>{% endif %}<small class="text-muted">{{ mov.modello or '—' }}</small></td>
+                    <td>{{ mov.quantita }}</td>
+                    <td>
+                        <small>
+                        {% if mov.descrizione %}<strong>Note:</strong> {{ mov.descrizione }}<br>{% endif %}
+                        {% if mov.sede_nome %}<strong>Sede:</strong> {{ mov.sede_nome }}<br>{% endif %}
+                        {% if mov.posizione_fisica %}<strong>Pos:</strong> {{ mov.posizione_fisica }}{% endif %}
+                        </small>
+                        {% if mov.allegato %}<a href="/uploads/{{ mov.allegato }}" target="_blank" class="badge bg-secondary text-decoration-none mt-1">Allegato</a>{% endif %}
+                    </td>
+                </tr>
+                {% else %}
+                <tr><td colspan="7" class="text-muted text-center py-4">Nessun movimento registrato.</td></tr>
+                {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+</body>
+</html>

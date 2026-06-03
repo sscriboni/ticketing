@@ -1,0 +1,24 @@
+<!doctype html>
+<html lang="it">
+<head>
+    <meta charset="utf-8">
+</head>
+<body style="font-family: Arial, sans-serif; color: #333; line-height: 1.6; max-width: 600px; margin: 0 auto; padding: 20px;">
+    <div style="text-align: center; margin-bottom: 20px;">
+        <h1 style="color: #0d6efd; margin-bottom: 5px;">{{ cfg.logo_emoji }} {{ cfg.company_name }}</h1>
+        <p style="color: #6c757d; margin-top: 0; font-size: 14px;">Portale Assistenza</p>
+    </div>
+    <div style="background-color: #f8f9fa; padding: 20px; border-radius: 8px; border: 1px solid #dee2e6;">
+        <h3 style="margin-top: 0; color: #333;">{{ titolo }}</h3>
+        <p>Il ticket <strong>#{{ codice_ticket }}</strong> (richiesto da {{ nome_richiedente }}) è stato assegnato al tuo servizio (<strong>{{ serv_desc }}</strong>).</p>
+        
+        <p><strong>Descrizione:</strong><br>
+        <div style="background-color: white; padding: 10px; border-radius: 4px; border: 1px solid #ced4da; margin-top: 5px; white-space: pre-wrap;">{{ descrizione }}</div></p>
+        
+        <p style="margin-bottom: 0; margin-top: 15px;">Accedi al portale operatori per prenderlo in carico.</p>
+    </div>
+    <div style="text-align: center; margin-top: 20px; font-size: 0.8em; color: #6c757d;">
+        <p>{{ cfg.footer_text }}</p>
+    </div>
+</body>
+</html>

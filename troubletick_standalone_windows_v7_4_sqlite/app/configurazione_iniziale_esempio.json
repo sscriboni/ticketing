@@ -1,0 +1,115 @@
+{
+  "sedi": [
+    {
+      "nome": "Alessandria via Venezia"
+    },
+    {
+      "nome": "Alessandria Spalto Marengo"
+    },
+    {
+      "nome": "Casale Ospedale"
+    },
+    {
+      "nome": "Casale Distretto"
+    },
+    {
+      "nome": "Casale Consultorio"
+    },
+    {
+      "nome": "Casale Casa della Comunità"
+    },
+    {
+      "nome": "Tortona Distretto"
+    },
+    {
+      "nome": "Tortona Ospedale"
+    },
+    {
+      "nome": "Acqui Distretto"
+    },
+    {
+      "nome": "Acqui Ospedale"
+    },
+    {
+      "nome": "Novi Distretto"
+    },
+    {
+      "nome": "Novi Ospedale"
+    },
+    {
+      "nome": "Ovada Ospedale"
+    }
+  ],
+  "categorie": [
+    {
+      "nome": "Materiale Elettrico"
+    },
+    {
+      "nome": "Materiale Informatico"
+    },
+    {
+      "nome": "Materiale idraulico"
+    },
+    {
+      "nome": "Arredamento Ufficio"
+    }
+  ],
+  "reparti": [
+    {
+      "nome": "Ufficio Tecnico",
+      "descrizione": "Gestione impianti e attrezzature",
+      "accetta_ticket": 1
+    },
+    {
+      "nome": "ICT",
+      "descrizione": "Software, reti, postazioni di lavoro",
+      "accetta_ticket": 1
+    },
+    {
+      "nome": "Risorse Umane",
+      "descrizione": "Solo ad uso interno",
+      "accetta_ticket": 0
+    }
+  ],
+  "servizi": [
+    {
+      "descrizione": "Sostituzione Lampadine",
+      "reparto": "Ufficio Tecnico"
+    },
+    {
+      "descrizione": "Malfunzionamento Climatizzatori",
+      "reparto": "Ufficio Tecnico"
+    }
+  ],
+  "materiali": [
+    {
+      "nome": "Lampadina LED",
+      "categoria": "Materiale Elettrico"
+    },
+    {
+      "nome": "Sedia Ergonomica",
+      "categoria": "Arredamento Ufficio"
+    }
+  ],
+  "magazzini": [
+    {
+      "nome": "Magazzino Tecnico Roma",
+      "sede": "Sede Centrale",
+      "categoria": "Materiale Elettrico",
+      "reparto": "Ufficio Tecnico"
+    }
+  ],
+  "operatori": [
+    {
+      "username": "mario.tecnico",
+      "password": "password123",
+      "nome": "Mario",
+      "cognome": "Rossi",
+      "email": "mario.rossi@example.com",
+      "ruolo": "assistenza",
+      "reparto": "Ufficio Tecnico",
+      "sede": "Sede Centrale",
+      "magazzino": "Magazzino Tecnico Roma"
+    }
+  ]
+}
