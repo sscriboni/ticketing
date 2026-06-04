@@ -13,12 +13,19 @@
     <div class="alert alert-danger py-2 mt-2">Impossibile eliminare: il servizio è associato a ticket o operatori attivi.</div>
     {% endif %}
     <table class="table table-sm table-striped mt-3">
-      <thead><tr><th>Servizio</th><th>Reparto</th><th>Azioni</th></tr></thead>
+      <thead><tr><th>Servizio</th><th>Reparto</th><th>Stato</th><th>Azioni</th></tr></thead>
       <tbody>
       {% for servizio in servizi %}
       <tr>
         <td><strong>{{ servizio.descrizione }}</strong></td>
         <td>{{ servizio.reparto_nome or '—' }}</td>
+        <td>
+          {% if servizio.accetta_ticket %}
+          <span class="badge bg-success">Aperto al Pubblico</span>
+          {% else %}
+          <span class="badge bg-danger">Ad uso Interno</span>
+          {% endif %}
+        </td>
         <td>
           <a href="/admin/servizio/{{ servizio.servizio_id }}/modifica" class="btn btn-sm btn-warning me-1">Modifica</a>
           <form method="post" action="/admin/servizio/delete" class="d-inline">
@@ -42,6 +49,10 @@
         <option value="{{ reparto.reparto_id }}">{{ reparto.nome }}</option>
         {% endfor %}
       </select></div>
+      <div class="mb-3 form-check form-switch">
+        <input type="checkbox" name="accetta_ticket" class="form-check-input" value="1" id="chkAccetta" checked>
+        <label class="form-check-label" for="chkAccetta">Abilita ricezione ticket (visibile al pubblico)</label>
+      </div>
       <button type="submit" class="btn btn-primary w-100">Salva servizio</button>
     </form>
   </div>

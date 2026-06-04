@@ -27,6 +27,10 @@
                 <option value="{{ reparto.reparto_id }}" {% if reparto.reparto_id == servizio.reparto_id %}selected{% endif %}>{{ reparto.nome }}</option>
                 {% endfor %}
             </select></div>
+            <div class="mb-4 form-check form-switch">
+                <input type="checkbox" name="accetta_ticket" class="form-check-input" value="1" id="chkAccettaEdit" {% if servizio.accetta_ticket %}checked{% endif %}>
+                <label class="form-check-label" for="chkAccettaEdit">Abilita ricezione ticket (visibile nel form pubblico)</label>
+            </div>
             <div class="d-flex gap-2"><button type="submit" class="btn btn-primary">Salva Modifiche</button>
             <a href="/admin/servizi" class="btn btn-outline-secondary">Annulla</a></div>
         </form>
