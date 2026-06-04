@@ -275,6 +275,24 @@ app.add_middleware(SessionMiddleware, secret_key="supersecretkey")
 app.mount("/static", StaticFiles(directory=os.path.join(BASE_DIR,"static")), name="static")
 app.mount("/uploads", StaticFiles(directory=UPLOAD_DIR), name="uploads")
 
+def get_new_tickets_count(user):
+    if not user or user.get("ruolo") == "normale":
+        return 0
+    try:
+        with engine.connect() as c:
+            uid = user.get("id")
+            if user.get("ruolo") == "admin":
+                return c.execute(text("SELECT COUNT(*) FROM tickets WHERE stato = 'nuova'")).scalar() or 0
+            elif user.get("ruolo") == "responsabile":
+                return c.execute(text("SELECT COUNT(*) FROM tickets WHERE stato = 'nuova' AND reparto_id = (SELECT reparto_id FROM users WHERE user_id = :uid)"), {"uid": uid}).scalar() or 0
+            elif user.get("ruolo") == "assistenza":
+                return c.execute(text("SELECT COUNT(*) FROM tickets WHERE stato = 'nuova' AND (reparto_id = (SELECT reparto_id FROM users WHERE user_id = :uid) OR servizio_id IN (SELECT servizio_id FROM operatori_servizi WHERE user_id = :uid))"), {"uid": uid}).scalar() or 0
+    except Exception:
+        pass
+    return 0
+
+templates.env.globals["get_new_tickets_count"] = get_new_tickets_count
+
 @app.exception_handler(Exception)
 async def global_exception_handler(request: Request, exc: Exception):
     now = datetime.now().strftime("%Y-%m-%d %H:%M:%S")

@@ -1,0 +1,71 @@
+<nav class="navbar navbar-expand-lg navbar-dark bg-primary shadow-sm mb-4">
+  <div class="container-fluid px-4">
+    <a class="navbar-brand fw-bold" href="/">{{ cfg.logo_emoji }} {{ cfg.app_title }}</a>
+    <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#mainNavbar" aria-controls="mainNavbar" aria-expanded="false" aria-label="Toggle navigation">
+      <span class="navbar-toggler-icon"></span>
+    </button>
+    
+    <div class="collapse navbar-collapse" id="mainNavbar">
+      {% if user %}
+      <ul class="navbar-nav me-auto mb-2 mb-lg-0">
+        <li class="nav-item">
+          <a class="nav-link {% if request.url.path == '/tickets' or request.url.path.startswith('/ticket/') %}active fw-bold{% endif %}" href="/tickets">
+            <i class="bi bi-ticket-detailed"></i> Ticket
+            {% set cnt_nuovi = get_new_tickets_count(user) %}
+            {% if cnt_nuovi > 0 %}
+            <span class="badge bg-danger rounded-pill ms-1">{{ cnt_nuovi }}</span>
+            {% endif %}
+          </a>
+        </li>
+        
+        {% if user.ruolo != 'normale' %}
+        <li class="nav-item"><a class="nav-link {% if request.url.path == '/magazzini' or request.url.path.startswith('/magazzino/') or request.url.path.startswith('/trasferimenti') %}active fw-bold{% endif %}" href="/magazzini"><i class="bi bi-boxes"></i> Magazzini</a></li>
+        <li class="nav-item"><a class="nav-link {% if request.url.path.startswith('/avvisi') %}active fw-bold{% endif %}" href="/avvisi"><i class="bi bi-megaphone"></i> Avvisi</a></li>
+        {% endif %}
+        
+        <li class="nav-item"><a class="nav-link {% if request.url.path.startswith('/richieste-materiale') or request.url.path.startswith('/richiesta-materiale') %}active fw-bold{% endif %}" href="/richieste-materiale"><i class="bi bi-cart"></i> Richieste Mat.</a></li>
+        <li class="nav-item"><a class="nav-link {% if request.url.path.startswith('/calendario') %}active fw-bold{% endif %}" href="/calendario"><i class="bi bi-calendar3"></i> Calendario</a></li>
+        <li class="nav-item"><a class="nav-link {% if request.url.path == '/operatori' %}active fw-bold{% endif %}" href="/operatori"><i class="bi bi-people"></i> Operatori</a></li>
+        
+        {% if user.ruolo == 'responsabile' %}
+        <li class="nav-item"><a class="nav-link {% if request.url.path == '/admin/report-copertura' %}active fw-bold{% endif %}" href="/admin/report-copertura"><i class="bi bi-bar-chart"></i> Report</a></li>
+        {% endif %}
+        
+        {% if user.ruolo == 'admin' %}
+        <li class="nav-item dropdown">
+          <a class="nav-link dropdown-toggle {% if request.url.path.startswith('/admin') and request.url.path != '/admin/report-copertura' %}active fw-bold{% endif %}" href="#" id="adminDropdown" role="button" data-bs-toggle="dropdown" aria-expanded="false">
+            <i class="bi bi-gear"></i> Amministrazione
+          </a>
+          <ul class="dropdown-menu shadow" aria-labelledby="adminDropdown">
+            <li><a class="dropdown-item" href="/admin">Dashboard Admin</a></li>
+            <li><hr class="dropdown-divider"></li>
+            <li><a class="dropdown-item" href="/admin/operatori">Gestione Operatori</a></li>
+            <li><a class="dropdown-item" href="/admin/reparti">Gestione Reparti</a></li>
+            <li><a class="dropdown-item" href="/admin/servizi">Gestione Servizi</a></li>
+            <li><a class="dropdown-item" href="/admin/sedi">Gestione Sedi</a></li>
+            <li><a class="dropdown-item" href="/admin/comuni">Gestione Comuni</a></li>
+            <li><hr class="dropdown-divider"></li>
+            <li><a class="dropdown-item" href="/admin/categorie">Categorie Materiali</a></li>
+            <li><a class="dropdown-item" href="/admin/materiali">Anagrafica Materiali</a></li>
+            <li><hr class="dropdown-divider"></li>
+            <li><a class="dropdown-item" href="/admin/impostazioni">Impostazioni Globali</a></li>
+          </ul>
+        </li>
+        {% endif %}
+      </ul>
+      
+      <div class="d-flex align-items-center">
+        <span class="text-light me-3 d-none d-md-inline-block">
+          <i class="bi bi-person-circle"></i> <strong>{{ user.nome }} {{ user.cognome }}</strong> <small>({{ user.ruolo }})</small>
+        </span>
+        <a href="/logout" class="btn btn-outline-light btn-sm"><i class="bi bi-box-arrow-right"></i> Logout</a>
+      </div>
+      {% else %}
+      <ul class="navbar-nav ms-auto mb-2 mb-lg-0">
+         <li class="nav-item"><a href="/login" class="btn btn-outline-light btn-sm">Area Operatori</a></li>
+      </ul>
+      {% endif %}
+    </div>
+  </div>
+</nav>
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
