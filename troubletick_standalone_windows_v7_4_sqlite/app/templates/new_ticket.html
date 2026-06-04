@@ -16,17 +16,11 @@
 <form method="post" action="/new" enctype="multipart/form-data">
   <div class="row g-3">
     <div class="col-12">
-      <label class="form-label">Descrizione del problema</label>
+      <label class="form-label">Descrizione del problema <span class="text-danger">*</span></label>
       <textarea name="descrizione" rows="5" class="form-control" required autofocus></textarea>
     </div>
 
-    <div class="col-md-12"><label class="form-label">Nominativo</label><input name="nominativo" class="form-control" required placeholder="Nome e Cognome"></div>
-    <div class="col-md-6"><label class="form-label">Email</label><input type="email" name="email" class="form-control" placeholder="es. mario.rossi@azienda.it"><small class="text-muted">Se viene indicata l'email sarà possibile ricevere aggiornamenti riguardo l'assistenza.</small></div>
-    <div class="col-md-6"><label class="form-label">Telefono</label><input type="tel" name="telefono" class="form-control" placeholder="es. 3331234567" pattern="[0-9]+" title="Inserisci solo numeri" oninput="this.value = this.value.replace(/[^0-9]/g, '')"></div>
-    
-    <div class="col-md-12"><label class="form-label">Sede</label><input type="text" name="sede" class="form-control" required placeholder="es. Sede Centrale, Piano 1"></div>
-
-    <div class="col-md-6"><label class="form-label">Destinatario</label>
+    <div class="col-md-6"><label class="form-label">Destinatario <span class="text-danger">*</span></label>
       <select name="reparto_id" class="form-select" id="repartoSelect" required>
         <option value="" disabled selected>A quale reparto inviare la richiesta?</option>
         {% for reparto in reparti_dest %}
@@ -45,6 +39,13 @@
         <small>ℹ️ Il Servizio serve a prendere in carico più velocemente il ticket, ma se non è conosciuto verrà assegnato da un operatore. Nel dubbio non inserire niente.</small>
     </div>
     </div>
+
+    <div class="col-md-12"><label class="form-label">Nominativo <span class="text-danger">*</span></label><input name="nominativo" class="form-control" required placeholder="Nome e Cognome"></div>
+    <div class="col-md-6"><label class="form-label">Email</label><input type="email" name="email" id="emailInput" class="form-control" placeholder="es. mario.rossi@azienda.it" pattern="[a-zA-Z0-9._%+\-]+@[a-zA-Z0-9.\-]+\.[a-zA-Z]{2,}$" title="Inserisci un indirizzo email valido"><small class="text-muted">Obbligatorio se non si inserisce il telefono.</small></div>
+    <div class="col-md-6"><label class="form-label">Telefono</label><input type="tel" name="telefono" id="telefonoInput" class="form-control" placeholder="es. 3331234567" pattern="[0-9]{8,15}" title="Inserisci un numero di telefono valido (da 8 a 15 cifre)" oninput="this.value = this.value.replace(/[^0-9]/g, '')"><small class="text-muted">Obbligatorio se non si inserisce l'email.</small></div>
+    
+    <div class="col-md-12"><label class="form-label">Sede <span class="text-danger">*</span></label><input type="text" name="sede" class="form-control" required placeholder="es. Sede Centrale, Piano 1"></div>
+
     <div class="col-12">
       <label class="form-label">Allegato (opzionale)</label>
       <input type="file" name="allegato" class="form-control">
@@ -82,6 +83,24 @@ document.addEventListener('DOMContentLoaded', function() {
         }
         repartoSelect.addEventListener('change', filterServizi);
         filterServizi(); // Avvia il filtro al caricamento iniziale della pagina
+    }
+
+    const emailInput = document.getElementById('emailInput');
+    const telefonoInput = document.getElementById('telefonoInput');
+    
+    if (emailInput && telefonoInput) {
+        function checkContactFields() {
+            if (emailInput.value.trim() === '' && telefonoInput.value.trim() === '') {
+                emailInput.required = true;
+                telefonoInput.required = true;
+            } else {
+                emailInput.required = false;
+                telefonoInput.required = false;
+            }
+        }
+        emailInput.addEventListener('input', checkContactFields);
+        telefonoInput.addEventListener('input', checkContactFields);
+        checkContactFields(); // Controllo iniziale
     }
 });
 </script>
