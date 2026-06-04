@@ -7,15 +7,10 @@
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css">
 </head>
 <body class="bg-light">
+{% include 'navbar.html' %}
 <div class="container py-4">
-    <div class="text-muted small mb-2 fw-bold">{{ cfg.company_name }}</div>
     <div class="d-flex justify-content-between align-items-center mb-4">
         <h2>Trasferimenti Merce</h2>
-        <div class="text-end">
-            {% if user %}<span class="me-3 text-muted d-none d-md-inline-block"><strong>{{ user.nome }} {{ user.cognome }}</strong> ({{ user.ruolo }})</span>{% endif %}
-            <a href="/magazzini" class="btn btn-outline-secondary btn-sm me-2">Torna ai Magazzini</a>
-            <a href="/logout" class="btn btn-outline-secondary btn-sm">Logout</a>
-        </div>
     </div>
     
     <div class="bg-white p-4 rounded shadow-sm">
