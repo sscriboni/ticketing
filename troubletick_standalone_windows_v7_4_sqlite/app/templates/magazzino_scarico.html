@@ -62,8 +62,18 @@
                     </div>
                 </div>
                 <div class="mb-3">
-                    <label class="form-label fw-bold">Identificativo di Carico <span class="text-danger">*</span></label>
-                    <input type="text" name="posizione_fisica" class="form-control border-danger" placeholder="Lotto o Carico da cui scalare" required>
+                    <label class="form-label fw-bold">Posizione di Magazzino <span class="text-danger">*</span></label>
+                    {% if posizioni %}
+                    <select name="posizione_fisica" class="form-select border-danger" required>
+                        <option value="">-- Seleziona Posizione / Lotto --</option>
+                        {% for pos in posizioni %}
+                        <option value="{{ pos }}">{{ pos }}</option>
+                        {% endfor %}
+                    </select>
+                    {% else %}
+                    <input type="text" name="posizione_fisica" class="form-control border-danger" placeholder="Es. Scaffale A, Lotto 300" minlength="5" required>
+                    {% endif %}
+                    <small class="text-muted">Indicare la posizione o il lotto da cui scalare la merce.</small>
                 </div>
                 <div class="mb-4"><label class="form-label fw-bold">Note / Dettagli <span class="text-danger">*</span></label><input type="text" name="descrizione" class="form-control border-danger" placeholder="Obbligatorio: Es. Consegnato a Mario, Spostamento..." required></div>
                 <div class="mb-4"><label class="form-label fw-bold">Allegato (opzionale)</label><input type="file" name="allegato" class="form-control"></div>

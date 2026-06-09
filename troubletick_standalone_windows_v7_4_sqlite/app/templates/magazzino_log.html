@@ -48,7 +48,7 @@
                         <small>
                         {% if mov.descrizione %}<strong>Note:</strong> {{ mov.descrizione }}<br>{% endif %}
                         {% if mov.sede_nome %}<strong>Sede:</strong> {{ mov.sede_nome }}<br>{% endif %}
-                        {% if mov.posizione_fisica %}<strong>Id. Carico:</strong> {{ mov.posizione_fisica }}{% endif %}
+                        {% if mov.posizione_fisica %}<strong>Posizione:</strong> {{ mov.posizione_fisica }}{% endif %}
                         </small>
                         {% if mov.allegato %}<a href="/uploads/{{ mov.allegato }}" target="_blank" class="badge bg-secondary text-decoration-none mt-1">Allegato</a>{% endif %}
                     </td>

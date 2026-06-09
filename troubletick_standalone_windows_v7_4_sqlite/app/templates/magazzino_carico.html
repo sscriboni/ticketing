@@ -50,8 +50,10 @@
                     </div>
                 </div>
                 <div class="mb-3">
-                    <label class="form-label fw-bold">Identificativo di Carico <span class="text-danger">*</span></label>
-                    <input type="text" name="posizione_fisica" class="form-control" placeholder="Es. Lotto 123, Bolla 456" required></div>
+                    <label class="form-label fw-bold">Posizione di Magazzino <span class="text-danger">*</span></label>
+                    <input type="text" name="posizione_fisica" class="form-control" placeholder="Es. Scaffale A, Lotto 300 Stampanti HP" minlength="5" required>
+                    <small class="text-muted d-block mt-1">È un breve testo che raggruppa gli articoli caricati e andrà indicato anche in fase di scarico. Può essere una posizione fisica (es. scaffale A) o un lotto (es. Lotto 300 Stampanti HP).</small>
+                </div>
                 <div class="mb-3"><label class="form-label fw-bold">Note / Dettagli</label><input type="text" name="descrizione" class="form-control" placeholder="Es. Arrivo merce, reso fornitore..."></div>
                 
                 <div class="mb-4">

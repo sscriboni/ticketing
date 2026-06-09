@@ -34,8 +34,18 @@
     
     <div class="row g-3 mb-4">
       <div class="col-md-4">
-        <label class="form-label">Identificativo di Carico <span class="text-danger">*</span></label>
-        <input type="text" name="posizione_fisica" class="form-control" placeholder="Lotto da cui scalare" required>
+        <label class="form-label">Posizione di Magazzino <span class="text-danger">*</span></label>
+        {% if posizioni %}
+        <select name="posizione_fisica" class="form-select" required>
+            <option value="">-- Seleziona Posizione / Lotto --</option>
+            {% for pos in posizioni %}
+            <option value="{{ pos }}">{{ pos }}</option>
+            {% endfor %}
+        </select>
+        {% else %}
+        <input type="text" name="posizione_fisica" class="form-control" placeholder="Es. Scaffale A, Lotto 300" minlength="5" required>
+        {% endif %}
+        <small class="text-muted">Indicare la posizione o il lotto da cui scalare.</small>
       </div>
       <div class="col-md-4">
         <label class="form-label">Marca e Modello</label>

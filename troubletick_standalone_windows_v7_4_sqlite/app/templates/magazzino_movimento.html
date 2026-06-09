@@ -70,8 +70,18 @@
                 {% endif %}
                 
                 <div class="mb-4">
-                    <label class="form-label fw-bold">Identificativo di Carico <span class="text-danger">*</span></label>
-                    <input type="text" name="posizione_fisica" class="form-control" placeholder="Es. Lotto 123, Bolla 456" required>
+                    <label class="form-label fw-bold">Posizione di Magazzino <span class="text-danger">*</span></label>
+                    {% if operazione == 'scarico' and posizioni %}
+                    <select name="posizione_fisica" class="form-select" required>
+                        <option value="">-- Seleziona Posizione / Lotto --</option>
+                        {% for pos in posizioni %}
+                        <option value="{{ pos }}">{{ pos }}</option>
+                        {% endfor %}
+                    </select>
+                    {% else %}
+                    <input type="text" name="posizione_fisica" class="form-control" placeholder="Es. Scaffale A, Lotto 300 Stampanti HP" minlength="5" required>
+                    {% endif %}
+                    <small class="text-muted d-block mt-1">È un breve testo che raggruppa gli articoli caricati e andrà indicato anche in fase di scarico. Può essere una posizione fisica (es. scaffale A) o un lotto (es. Lotto 300 Stampanti HP).</small>
                 </div>
 
                 <div class="mb-4">

@@ -180,6 +180,15 @@ def magazzino_movimento_form(r: Request, magazzino_id: int, materiale_id: int, o
             WHERE magazzino_id != :id AND (categoria_id IS NULL OR categoria_id = :mat_cat)
             ORDER BY nome
         """), {"id": magazzino_id, "mat_cat": materiale.get("categoria_id")}).mappings().all()
+        
+        posizioni = []
+        if operazione == "scarico":
+            posizioni = c.execute(text("""
+                SELECT DISTINCT posizione_fisica 
+                FROM movimenti_magazzino 
+                WHERE magazzino_id = :mag_id AND materiale_id = :mat_id AND operazione = 'carico' AND posizione_fisica IS NOT NULL AND posizione_fisica != ''
+            """), {"mag_id": magazzino_id, "mat_id": materiale_id}).scalars().all()
+            
         from datetime import date
         oggi = date.today().isoformat()
         
@@ -187,7 +196,7 @@ def magazzino_movimento_form(r: Request, magazzino_id: int, materiale_id: int, o
     return templates.TemplateResponse(r, template_file, {
         "request": r, "cfg": CFG, "user": user, 
         "magazzino": magazzino, "materiale": materiale,
-        "operazione": operazione, "sedi": sedi, "magazzini_dest": magazzini_dest, "oggi": oggi
+        "operazione": operazione, "sedi": sedi, "magazzini_dest": magazzini_dest, "oggi": oggi, "posizioni": posizioni
     })
 
 @router.post("/magazzino/{magazzino_id}/movimento/{materiale_id}")
