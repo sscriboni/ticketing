@@ -124,7 +124,12 @@ def user_magazzini_list(r: Request, magazzino_id: str = None, sede_id: str = Non
         rows = c.execute(text(f"""
             SELECT m.magazzino_id, m.nome AS magazzino_nome, s.nome AS sede_nome,
                    mat.materiale_id, mat.nome AS materiale_nome, c.nome AS categoria_nome,
-                   COALESCE(g.quantita, 0) AS quantita
+                   COALESCE(g.quantita, 0) AS quantita,
+                   (SELECT allegato FROM movimenti_magazzino 
+                    WHERE magazzino_id = m.magazzino_id AND materiale_id = mat.materiale_id AND operazione = 'carico' 
+                    AND allegato IS NOT NULL AND allegato != ''
+                    AND (LOWER(allegato) LIKE '%.jpg' OR LOWER(allegato) LIKE '%.jpeg' OR LOWER(allegato) LIKE '%.png' OR LOWER(allegato) LIKE '%.gif' OR LOWER(allegato) LIKE '%.webp')
+                    ORDER BY creato_il DESC LIMIT 1) as ultima_foto
             FROM magazzini m
             JOIN materiali mat ON (m.categoria_id IS NULL OR m.categoria_id = mat.categoria_id)
             LEFT JOIN giacenze g ON m.magazzino_id = g.magazzino_id AND mat.materiale_id = g.materiale_id
@@ -182,12 +187,21 @@ def magazzino_movimento_form(r: Request, magazzino_id: int, materiale_id: int, o
         """), {"id": magazzino_id, "mat_cat": materiale.get("categoria_id")}).mappings().all()
         
         posizioni = []
+        ultima_foto = None
         if operazione == "scarico":
             posizioni = c.execute(text("""
                 SELECT DISTINCT posizione_fisica 
                 FROM movimenti_magazzino 
                 WHERE magazzino_id = :mag_id AND materiale_id = :mat_id AND operazione = 'carico' AND posizione_fisica IS NOT NULL AND posizione_fisica != ''
             """), {"mag_id": magazzino_id, "mat_id": materiale_id}).scalars().all()
+            
+            ultima_foto = c.execute(text("""
+                SELECT allegato FROM movimenti_magazzino 
+                WHERE magazzino_id = :mag_id AND materiale_id = :mat_id AND operazione = 'carico' 
+                AND allegato IS NOT NULL AND allegato != ''
+                AND (LOWER(allegato) LIKE '%.jpg' OR LOWER(allegato) LIKE '%.jpeg' OR LOWER(allegato) LIKE '%.png' OR LOWER(allegato) LIKE '%.gif' OR LOWER(allegato) LIKE '%.webp')
+                ORDER BY creato_il DESC LIMIT 1
+            """), {"mag_id": magazzino_id, "mat_id": materiale_id}).scalar()
             
         from datetime import date
         oggi = date.today().isoformat()
@@ -196,7 +210,7 @@ def magazzino_movimento_form(r: Request, magazzino_id: int, materiale_id: int, o
     return templates.TemplateResponse(r, template_file, {
         "request": r, "cfg": CFG, "user": user, 
         "magazzino": magazzino, "materiale": materiale,
-        "operazione": operazione, "sedi": sedi, "magazzini_dest": magazzini_dest, "oggi": oggi, "posizioni": posizioni
+        "operazione": operazione, "sedi": sedi, "magazzini_dest": magazzini_dest, "oggi": oggi, "posizioni": posizioni, "ultima_foto": ultima_foto
     })
 
 @router.post("/magazzino/{magazzino_id}/movimento/{materiale_id}")

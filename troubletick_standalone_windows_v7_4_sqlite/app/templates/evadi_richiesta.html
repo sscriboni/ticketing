@@ -14,11 +14,18 @@
   </div>
   
   <form method="post" action="/richiesta-materiale/{{ richiesta.richiesta_id }}/evadi" enctype="multipart/form-data">
-    <div class="row mb-3 bg-light p-3 rounded mx-0">
-      <div class="col-md-3"><strong>Materiale:</strong><br>{{ richiesta.materiale_nome }}</div>
-      <div class="col-md-3"><strong>Quantità da scaricare:</strong><br><span class="badge bg-secondary fs-6">{{ richiesta.quantita }}x</span></div>
-      <div class="col-md-3"><strong>Sede Destinazione:</strong><br>{{ richiesta.sede_nome }}</div>
-      <div class="col-md-3"><strong>Richiedente:</strong><br>ID Utente #{{ richiesta.user_id }}</div>
+    <div class="row mb-3 bg-light p-3 rounded mx-0 d-flex align-items-center">
+      {% if ultima_foto %}
+      <div class="col-auto">
+          <a href="/uploads/{{ ultima_foto }}" target="_blank">
+              <img src="/uploads/{{ ultima_foto }}" alt="Foto" style="width: 50px; height: 50px; object-fit: cover; border-radius: 6px; border: 1px solid #dee2e6;">
+          </a>
+      </div>
+      {% endif %}
+      <div class="col"><strong>Materiale:</strong><br>{{ richiesta.materiale_nome }}</div>
+      <div class="col"><strong>Quantità da scaricare:</strong><br><span class="badge bg-secondary fs-6">{{ richiesta.quantita }}x</span></div>
+      <div class="col"><strong>Destinazione:</strong><br>{{ richiesta.sede_nome }}</div>
+      <div class="col"><strong>Richiedente:</strong><br>ID #{{ richiesta.user_id }}</div>
     </div>
 
     <div class="row g-3 mb-3">
