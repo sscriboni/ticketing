@@ -20,11 +20,6 @@
     <div class="row">
         <div class="col-12 col-md-8 col-lg-6 mx-auto bg-white p-4 rounded shadow-sm border-top border-danger border-4">
             <div class="mb-4 d-flex align-items-center gap-3">
-                {% if ultima_foto %}
-                <a href="/uploads/{{ ultima_foto }}" target="_blank">
-                    <img src="/uploads/{{ ultima_foto }}" alt="Foto Articolo" style="width: 60px; height: 60px; object-fit: cover; border-radius: 6px; border: 1px solid #dee2e6;">
-                </a>
-                {% endif %}
                 <div>
                     <strong>Magazzino:</strong> {{ magazzino.nome }}<br>
                     <strong>Articolo in uscita:</strong> {{ materiale.nome }}<br>

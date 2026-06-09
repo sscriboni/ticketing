@@ -126,12 +126,7 @@ def user_magazzini_list(r: Request, magazzino_id: str = None, sede_id: str = Non
         rows = c.execute(text(f"""
             SELECT m.magazzino_id, m.nome AS magazzino_nome, s.nome AS sede_nome,
                    mat.materiale_id, mat.nome AS materiale_nome, c.nome AS categoria_nome,
-                   COALESCE(g.quantita, 0) AS quantita,
-                   (SELECT allegato FROM movimenti_magazzino 
-                    WHERE magazzino_id = m.magazzino_id AND materiale_id = mat.materiale_id AND operazione = 'carico' 
-                    AND allegato IS NOT NULL AND allegato != ''
-                    AND (LOWER(allegato) LIKE '%.jpg' OR LOWER(allegato) LIKE '%.jpeg' OR LOWER(allegato) LIKE '%.png' OR LOWER(allegato) LIKE '%.gif' OR LOWER(allegato) LIKE '%.webp')
-                    ORDER BY creato_il DESC LIMIT 1) as ultima_foto
+                   COALESCE(g.quantita, 0) AS quantita
             FROM magazzini m
             JOIN materiali mat ON (m.categoria_id IS NULL OR m.categoria_id = mat.categoria_id)
             LEFT JOIN giacenze g ON m.magazzino_id = g.magazzino_id AND mat.materiale_id = g.materiale_id
@@ -189,21 +184,12 @@ def magazzino_movimento_form(r: Request, magazzino_id: int, materiale_id: int, o
         """), {"id": magazzino_id, "mat_cat": materiale.get("categoria_id")}).mappings().all()
         
         posizioni = []
-        ultima_foto = None
         if operazione == "scarico":
             posizioni = c.execute(text("""
                 SELECT DISTINCT posizione_fisica 
                 FROM movimenti_magazzino 
                 WHERE magazzino_id = :mag_id AND materiale_id = :mat_id AND operazione = 'carico' AND posizione_fisica IS NOT NULL AND posizione_fisica != ''
             """), {"mag_id": magazzino_id, "mat_id": materiale_id}).scalars().all()
-            
-            ultima_foto = c.execute(text("""
-                SELECT allegato FROM movimenti_magazzino 
-                WHERE magazzino_id = :mag_id AND materiale_id = :mat_id AND operazione = 'carico' 
-                AND allegato IS NOT NULL AND allegato != ''
-                AND (LOWER(allegato) LIKE '%.jpg' OR LOWER(allegato) LIKE '%.jpeg' OR LOWER(allegato) LIKE '%.png' OR LOWER(allegato) LIKE '%.gif' OR LOWER(allegato) LIKE '%.webp')
-                ORDER BY creato_il DESC LIMIT 1
-            """), {"mag_id": magazzino_id, "mat_id": materiale_id}).scalar()
             
         from datetime import date
         oggi = date.today().isoformat()
@@ -212,11 +198,11 @@ def magazzino_movimento_form(r: Request, magazzino_id: int, materiale_id: int, o
     return templates.TemplateResponse(r, template_file, {
         "request": r, "cfg": CFG, "user": user, 
         "magazzino": magazzino, "materiale": materiale,
-        "operazione": operazione, "sedi": sedi, "magazzini_dest": magazzini_dest, "oggi": oggi, "posizioni": posizioni, "ultima_foto": ultima_foto
+        "operazione": operazione, "sedi": sedi, "magazzini_dest": magazzini_dest, "oggi": oggi, "posizioni": posizioni
     })
 
 @router.post("/magazzino/{magazzino_id}/movimento/{materiale_id}")
-def magazzino_movimento_action(
+async def magazzino_movimento_action(
     r: Request, magazzino_id: int, materiale_id: int, operazione: str = Form(...), quantita: int = Form(...),
     data_movimento: str = Form(...), descrizione: str = Form(""), 
     sede_assegnazione_id: str = Form(None), posizione_fisica: str = Form(...),
@@ -229,6 +215,12 @@ def magazzino_movimento_action(
     if "user" not in r.session: return RedirectResponse(url="/login")
     user = r.session.get("user")
     
+    # Workaround per il bug di troncamento immagini > 1MB (SpooledTemporaryFile) su Windows
+    if allegato and allegato.filename:
+        content = await allegato.read()
+        import io
+        allegato.file = io.BytesIO(content)
+
     allegato_filename = save_upload(allegato)
 
     with engine.begin() as c:
@@ -317,63 +309,6 @@ def magazzino_movimento_action(
             if mov_id:
                 return RedirectResponse(url=f"/stampa-consegna/scarico/{mov_id}", status_code=303)
             
-    return RedirectResponse(url="/magazzini", status_code=303)
-
-@router.get("/magazzino/{magazzino_id}/materiale/{materiale_id}/foto", response_class=HTMLResponse)
-def magazzino_foto_form(r: Request, magazzino_id: int, materiale_id: int, error: str = None):
-    if "user" not in r.session: return RedirectResponse(url="/login")
-    user = r.session.get("user")
-    
-    with engine.connect() as c:
-        can_edit = False
-        if user.get("ruolo") == "admin":
-            can_edit = True
-        elif user.get("ruolo") in ("assistenza", "responsabile"):
-            mag_id = c.execute(text("SELECT magazzino_id FROM users WHERE user_id = :uid"), {"uid": user.get("id")}).scalar()
-            if mag_id == magazzino_id: can_edit = True
-            
-        if not can_edit:
-            return RedirectResponse(url="/magazzini")
-            
-        magazzino = c.execute(text("SELECT * FROM magazzini WHERE magazzino_id = :id"), {"id": magazzino_id}).mappings().first()
-        materiale = c.execute(text("SELECT * FROM materiali WHERE materiale_id = :id"), {"id": materiale_id}).mappings().first()
-        
-        if not magazzino or not materiale:
-            return RedirectResponse(url="/magazzini")
-
-    return templates.TemplateResponse(r, "magazzino_foto.html", {
-        "request": r, "cfg": CFG, "user": user, 
-        "magazzino": magazzino, "materiale": materiale, "error": error
-    })
-
-@router.post("/magazzino/{magazzino_id}/materiale/{materiale_id}/foto")
-def magazzino_foto_action(r: Request, magazzino_id: int, materiale_id: int, allegato: UploadFile = File(...)):
-    if "user" not in r.session: return RedirectResponse(url="/login")
-    user = r.session.get("user")
-    
-    allegato_filename = save_upload(allegato)
-    if not allegato_filename:
-        now = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-        log_file = os.path.join(BASE_DIR, "app_events.log")
-        try:
-            allegato.file.seek(0, 2)
-            file_size = allegato.file.tell()
-            allegato.file.seek(0)
-            with open(log_file, "a", encoding="utf-8") as f:
-                f.write(f"[{now}] ERRORE UPLOAD FOTO: Tentativo di upload fallito per utente {user.get('username')} (ID: {user.get('id')}). File: {allegato.filename}. Dimensione: {file_size} bytes. Possibile causa: file troppo grande o estensione non permessa.\n")
-        except Exception:
-            pass
-        return RedirectResponse(url=f"/magazzino/{magazzino_id}/materiale/{materiale_id}/foto?error=upload_failed", status_code=303)
-
-    from datetime import date
-    oggi = date.today().isoformat()
-
-    with engine.begin() as c:
-        c.execute(text("""
-            INSERT INTO movimenti_magazzino (magazzino_id, materiale_id, user_id, operazione, quantita, data_movimento, descrizione, allegato)
-            VALUES (:mag, :mat, :uid, 'carico', 0, :dt, 'Aggiornamento foto articolo', :all)
-        """), {"mag": magazzino_id, "mat": materiale_id, "uid": user["id"], "dt": oggi, "all": allegato_filename})
-
     return RedirectResponse(url="/magazzini", status_code=303)
 
 @router.get("/stampa-consegna/{tipo}/{doc_id}", response_class=HTMLResponse)
@@ -766,12 +701,18 @@ def evadi_richiesta_form(r: Request, richiesta_id: int):
     return templates.TemplateResponse(r, "evadi_richiesta.html", {"request": r, "cfg": CFG, "user": user, "richiesta": richiesta, "oggi": oggi})
 
 @router.post("/richiesta-materiale/{richiesta_id}/evadi")
-def evadi_richiesta_action(r: Request, richiesta_id: int, data_movimento: str = Form(...), descrizione: str = Form(""), 
+async def evadi_richiesta_action(r: Request, richiesta_id: int, data_movimento: str = Form(...), descrizione: str = Form(""), 
                            posizione_fisica: str = Form(...), marca: str = Form(""), modello: str = Form(""),
                            allegato: UploadFile = File(None), genera_pdf: str = Form(None)):
     if "user" not in r.session: return RedirectResponse(url="/login")
     user = r.session.get("user")
     
+    # Workaround per il bug di troncamento immagini > 1MB (SpooledTemporaryFile) su Windows
+    if allegato and allegato.filename:
+        content = await allegato.read()
+        import io
+        allegato.file = io.BytesIO(content)
+
     allegato_filename = save_upload(allegato)
     
     with engine.begin() as c:
