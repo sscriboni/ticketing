@@ -1,8 +1,10 @@
+import os
+from datetime import datetime
 from fastapi import APIRouter, Request, Form, UploadFile, File
 from fastapi.responses import HTMLResponse, RedirectResponse
 from sqlalchemy import text
 
-from core import engine, CFG, templates
+from core import engine, CFG, templates, BASE_DIR
 from utils import require_superuser, save_upload
 
 router = APIRouter()
@@ -318,7 +320,7 @@ def magazzino_movimento_action(
     return RedirectResponse(url="/magazzini", status_code=303)
 
 @router.get("/magazzino/{magazzino_id}/materiale/{materiale_id}/foto", response_class=HTMLResponse)
-def magazzino_foto_form(r: Request, magazzino_id: int, materiale_id: int):
+def magazzino_foto_form(r: Request, magazzino_id: int, materiale_id: int, error: str = None):
     if "user" not in r.session: return RedirectResponse(url="/login")
     user = r.session.get("user")
     
@@ -341,7 +343,7 @@ def magazzino_foto_form(r: Request, magazzino_id: int, materiale_id: int):
 
     return templates.TemplateResponse(r, "magazzino_foto.html", {
         "request": r, "cfg": CFG, "user": user, 
-        "magazzino": magazzino, "materiale": materiale
+        "magazzino": magazzino, "materiale": materiale, "error": error
     })
 
 @router.post("/magazzino/{magazzino_id}/materiale/{materiale_id}/foto")
@@ -351,7 +353,16 @@ def magazzino_foto_action(r: Request, magazzino_id: int, materiale_id: int, alle
     
     allegato_filename = save_upload(allegato)
     if not allegato_filename:
-        # Potremmo voler mostrare un messaggio di errore
+        now = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+        log_file = os.path.join(BASE_DIR, "app_events.log")
+        try:
+            allegato.file.seek(0, 2)
+            file_size = allegato.file.tell()
+            allegato.file.seek(0)
+            with open(log_file, "a", encoding="utf-8") as f:
+                f.write(f"[{now}] ERRORE UPLOAD FOTO: Tentativo di upload fallito per utente {user.get('username')} (ID: {user.get('id')}). File: {allegato.filename}. Dimensione: {file_size} bytes. Possibile causa: file troppo grande o estensione non permessa.\n")
+        except Exception:
+            pass
         return RedirectResponse(url=f"/magazzino/{magazzino_id}/materiale/{materiale_id}/foto?error=upload_failed", status_code=303)
 
     from datetime import date

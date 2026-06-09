@@ -18,6 +18,12 @@
     
     <div class="row">
         <div class="col-12 col-md-8 col-lg-6 mx-auto bg-white p-4 rounded shadow-sm border-top border-primary border-4">
+            {% if error == 'upload_failed' %}
+            <div class="alert alert-danger">
+                <i class="bi bi-exclamation-triangle-fill"></i> <strong>Errore nel caricamento!</strong><br>
+                Il file potrebbe essere troppo grande (max 10MB) o di un formato non consentito. Riprova con un'altra immagine.
+            </div>
+            {% endif %}
             <div class="mb-4">
                 <strong>Magazzino:</strong> {{ magazzino.nome }}<br>
                 <strong>Articolo:</strong> {{ materiale.nome }}
