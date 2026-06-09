@@ -50,6 +50,9 @@
                                 {% endif %}
                                 <div>
                                     <strong>{{ pos.posizione_fisica or 'Non specificata' }}</strong>
+                                    {% if can_edit and pos.posizione_fisica %}
+                                    <a href="#" class="small text-decoration-none ms-2" data-bs-toggle="modal" data-bs-target="#renamePosModal" data-pos="{{ pos.posizione_fisica }}" title="Rinomina Posizione"><i class="bi bi-pencil"></i></a>
+                                    {% endif %}
                                     {% if can_edit %}<br><a href="#" class="small text-decoration-none" data-bs-toggle="modal" data-bs-target="#fotoModal" data-pos="{{ pos.posizione_fisica }}"><i class="bi bi-camera"></i> Carica Foto</a>{% endif %}
                                 </div>
                             </div>
@@ -110,6 +113,32 @@
     </div>
   </div>
 </div>
+
+<div class="modal fade" id="renamePosModal" tabindex="-1" aria-labelledby="renamePosModalLabel" aria-hidden="true">
+  <div class="modal-dialog">
+    <div class="modal-content">
+      <form method="post" action="/magazzino/{{ magazzino.magazzino_id }}/materiale/{{ materiale.materiale_id }}/rinomina-posizione">
+        <div class="modal-header">
+          <h5 class="modal-title" id="renamePosModalLabel">Rinomina Posizione / Lotto</h5>
+          <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+        </div>
+        <div class="modal-body">
+            <input type="hidden" name="old_posizione" id="modalOldPosizione">
+            <p>Stai rinominando: <strong id="modalOldPosizioneText"></strong></p>
+            <div class="mb-3">
+                <label class="form-label fw-bold">Nuovo Nome</label>
+                <input type="text" name="new_posizione" id="modalNewPosizione" class="form-control" required minlength="1">
+                <small class="text-muted d-block mt-1">Questa modifica cambierà il nome della posizione o del lotto per tutti i movimenti passati di questo articolo.</small>
+            </div>
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Annulla</button>
+          <button type="submit" class="btn btn-primary"><i class="bi bi-pencil"></i> Rinomina</button>
+        </div>
+      </form>
+    </div>
+  </div>
+</div>
 {% endif %}
 
 <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
@@ -124,6 +153,20 @@ document.addEventListener('DOMContentLoaded', function() {
             var textPos = fotoModal.querySelector('#modalPosizioneText');
             inputPos.value = pos;
             textPos.textContent = pos;
+        });
+    }
+
+    var renamePosModal = document.getElementById('renamePosModal');
+    if (renamePosModal) {
+        renamePosModal.addEventListener('show.bs.modal', function (event) {
+            var button = event.relatedTarget;
+            var pos = button.getAttribute('data-pos');
+            var inputOldPos = renamePosModal.querySelector('#modalOldPosizione');
+            var textOldPos = renamePosModal.querySelector('#modalOldPosizioneText');
+            var inputNewPos = renamePosModal.querySelector('#modalNewPosizione');
+            inputOldPos.value = pos;
+            textOldPos.textContent = pos;
+            inputNewPos.value = pos;
         });
     }
 });

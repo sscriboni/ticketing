@@ -229,6 +229,37 @@ async def magazzino_foto_posizione_action(r: Request, magazzino_id: int, materia
 
     return RedirectResponse(url=f"/magazzino/{magazzino_id}/giacenza/{materiale_id}", status_code=303)
 
+@router.post("/magazzino/{magazzino_id}/materiale/{materiale_id}/rinomina-posizione")
+def magazzino_rinomina_posizione(r: Request, magazzino_id: int, materiale_id: int, old_posizione: str = Form(...), new_posizione: str = Form(...)):
+    if "user" not in r.session: return RedirectResponse(url="/login")
+    user = r.session.get("user")
+    
+    with engine.begin() as c:
+        can_edit = False
+        if user.get("ruolo") == "admin":
+            can_edit = True
+        elif user.get("ruolo") in ("assistenza", "responsabile"):
+            user_mag_id = c.execute(text("SELECT magazzino_id FROM users WHERE user_id = :uid"), {"uid": user.get("id")}).scalar()
+            if user_mag_id == magazzino_id: can_edit = True
+            
+        if not can_edit:
+            return RedirectResponse(url=f"/magazzino/{magazzino_id}/giacenza/{materiale_id}", status_code=303)
+
+        if new_posizione and new_posizione.strip() and old_posizione:
+            c.execute(text("""
+                UPDATE movimenti_magazzino 
+                SET posizione_fisica = :new_pos 
+                WHERE magazzino_id = :mag_id AND materiale_id = :mat_id AND posizione_fisica = :old_pos
+            """), {"new_pos": new_posizione.strip(), "mag_id": magazzino_id, "mat_id": materiale_id, "old_pos": old_posizione})
+            
+            c.execute(text("""
+                UPDATE consegne_programmate 
+                SET posizione_fisica = :new_pos 
+                WHERE magazzino_id = :mag_id AND materiale_id = :mat_id AND posizione_fisica = :old_pos
+            """), {"new_pos": new_posizione.strip(), "mag_id": magazzino_id, "mat_id": materiale_id, "old_pos": old_posizione})
+            
+    return RedirectResponse(url=f"/magazzino/{magazzino_id}/giacenza/{materiale_id}", status_code=303)
+
 @router.get("/magazzino/{magazzino_id}/movimento/{materiale_id}", response_class=HTMLResponse)
 def magazzino_movimento_form(r: Request, magazzino_id: int, materiale_id: int, operazione: str):
     if "user" not in r.session: return RedirectResponse(url="/login")
