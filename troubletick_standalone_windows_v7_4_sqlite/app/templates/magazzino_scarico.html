@@ -35,9 +35,15 @@
             <form method="post" action="/magazzino/{{ magazzino.magazzino_id }}/movimento/{{ materiale.materiale_id }}" enctype="multipart/form-data">
                 <input type="hidden" name="operazione" value="scarico">
                 
+                <div class="form-check form-switch mb-3 bg-light border rounded p-3">
+                    <input class="form-check-input" type="checkbox" name="programma_consegna" value="1" id="programmaConsegnaSwitch" onchange="toggleProgrammazione(this.checked)">
+                    <label class="form-check-label fw-bold" for="programmaConsegnaSwitch">Programma consegna per una data futura</label>
+                    <small class="d-block text-muted">Selezionando questa opzione, la merce non verrà scalata subito dalla giacenza, ma verrà creata una consegna programmata.</small>
+                </div>
+
                 <div class="row mb-3">
                     <div class="col-md-6">
-                        <label class="form-label fw-bold">Data Scarico <span class="text-danger">*</span></label>
+                        <label class="form-label fw-bold" id="dataLabel">Data Scarico <span class="text-danger">*</span></label>
                         <input type="date" name="data_movimento" class="form-control" value="{{ oggi }}" required>
                     </div>
                     <div class="col-md-6">
@@ -85,10 +91,27 @@
                 <div class="mb-4"><label class="form-label fw-bold">Note / Dettagli <span class="text-danger">*</span></label><input type="text" name="descrizione" class="form-control border-danger" placeholder="Obbligatorio: Es. Consegnato a Mario, Spostamento..." required></div>
                 <div class="mb-4"><label class="form-label fw-bold">Allegato (opzionale)</label><input type="file" name="allegato" class="form-control"></div>
                 
-                <button type="submit" class="btn btn-danger w-100 fw-bold">Conferma Scarico</button>
+                <button type="submit" id="submitBtn" class="btn btn-danger w-100 fw-bold">Conferma Scarico Immediato</button>
             </form>
         </div>
     </div>
 </div>
+<script>
+function toggleProgrammazione(is_checked) {
+    const dataLabel = document.getElementById('dataLabel');
+    const submitBtn = document.getElementById('submitBtn');
+    if (is_checked) {
+        dataLabel.innerHTML = 'Data Consegna Programmata <span class="text-danger">*</span>';
+        submitBtn.classList.remove('btn-danger');
+        submitBtn.classList.add('btn-primary');
+        submitBtn.innerHTML = 'Programma Consegna';
+    } else {
+        dataLabel.innerHTML = 'Data Scarico <span class="text-danger">*</span>';
+        submitBtn.classList.remove('btn-primary');
+        submitBtn.classList.add('btn-danger');
+        submitBtn.innerHTML = 'Conferma Scarico Immediato';
+    }
+}
+</script>
 </body>
 </html>
