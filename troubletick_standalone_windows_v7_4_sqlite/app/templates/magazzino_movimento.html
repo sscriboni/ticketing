@@ -67,12 +67,13 @@
                         <input type="text" name="modello" class="form-control" placeholder="Es. XPS 15">
                     </div>
                 </div>
-                <div class="mb-4">
-                    <label class="form-label fw-bold">Posizione Fisica</label>
-                    <input type="text" name="posizione_fisica" class="form-control" placeholder="Es. Stanza 2, Scaffale 4">
-                </div>
                 {% endif %}
                 
+                <div class="mb-4">
+                    <label class="form-label fw-bold">Identificativo di Carico <span class="text-danger">*</span></label>
+                    <input type="text" name="posizione_fisica" class="form-control" placeholder="Es. Lotto 123, Bolla 456" required>
+                </div>
+
                 <div class="mb-4">
                     <label class="form-label fw-bold">Allegato (opzionale)</label>
                     <input type="file" name="allegato" class="form-control">

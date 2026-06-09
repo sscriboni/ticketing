@@ -194,7 +194,7 @@ def magazzino_movimento_form(r: Request, magazzino_id: int, materiale_id: int, o
 def magazzino_movimento_action(
     r: Request, magazzino_id: int, materiale_id: int, operazione: str = Form(...), quantita: int = Form(...),
     data_movimento: str = Form(...), descrizione: str = Form(""), 
-    sede_assegnazione_id: str = Form(None), posizione_fisica: str = Form(""),
+    sede_assegnazione_id: str = Form(None), posizione_fisica: str = Form(...),
     marca: str = Form(""), modello: str = Form(""),
     magazzino_destinazione_id: str = Form(None),
     allegato: UploadFile = File(None)
@@ -487,7 +487,7 @@ def evadi_richiesta_form(r: Request, richiesta_id: int):
 
 @router.post("/richiesta-materiale/{richiesta_id}/evadi")
 def evadi_richiesta_action(r: Request, richiesta_id: int, data_movimento: str = Form(...), descrizione: str = Form(""), 
-                           posizione_fisica: str = Form(""), marca: str = Form(""), modello: str = Form(""),
+                           posizione_fisica: str = Form(...), marca: str = Form(""), modello: str = Form(""),
                            allegato: UploadFile = File(None)):
     if "user" not in r.session: return RedirectResponse(url="/login")
     user = r.session.get("user")
