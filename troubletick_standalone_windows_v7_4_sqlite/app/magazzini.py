@@ -317,6 +317,54 @@ def magazzino_movimento_action(
             
     return RedirectResponse(url="/magazzini", status_code=303)
 
+@router.get("/magazzino/{magazzino_id}/materiale/{materiale_id}/foto", response_class=HTMLResponse)
+def magazzino_foto_form(r: Request, magazzino_id: int, materiale_id: int):
+    if "user" not in r.session: return RedirectResponse(url="/login")
+    user = r.session.get("user")
+    
+    with engine.connect() as c:
+        can_edit = False
+        if user.get("ruolo") == "admin":
+            can_edit = True
+        elif user.get("ruolo") in ("assistenza", "responsabile"):
+            mag_id = c.execute(text("SELECT magazzino_id FROM users WHERE user_id = :uid"), {"uid": user.get("id")}).scalar()
+            if mag_id == magazzino_id: can_edit = True
+            
+        if not can_edit:
+            return RedirectResponse(url="/magazzini")
+            
+        magazzino = c.execute(text("SELECT * FROM magazzini WHERE magazzino_id = :id"), {"id": magazzino_id}).mappings().first()
+        materiale = c.execute(text("SELECT * FROM materiali WHERE materiale_id = :id"), {"id": materiale_id}).mappings().first()
+        
+        if not magazzino or not materiale:
+            return RedirectResponse(url="/magazzini")
+
+    return templates.TemplateResponse(r, "magazzino_foto.html", {
+        "request": r, "cfg": CFG, "user": user, 
+        "magazzino": magazzino, "materiale": materiale
+    })
+
+@router.post("/magazzino/{magazzino_id}/materiale/{materiale_id}/foto")
+def magazzino_foto_action(r: Request, magazzino_id: int, materiale_id: int, allegato: UploadFile = File(...)):
+    if "user" not in r.session: return RedirectResponse(url="/login")
+    user = r.session.get("user")
+    
+    allegato_filename = save_upload(allegato)
+    if not allegato_filename:
+        # Potremmo voler mostrare un messaggio di errore
+        return RedirectResponse(url=f"/magazzino/{magazzino_id}/materiale/{materiale_id}/foto?error=upload_failed", status_code=303)
+
+    from datetime import date
+    oggi = date.today().isoformat()
+
+    with engine.begin() as c:
+        c.execute(text("""
+            INSERT INTO movimenti_magazzino (magazzino_id, materiale_id, user_id, operazione, quantita, data_movimento, descrizione, allegato)
+            VALUES (:mag, :mat, :uid, 'carico', 0, :dt, 'Aggiornamento foto articolo', :all)
+        """), {"mag": magazzino_id, "mat": materiale_id, "uid": user["id"], "dt": oggi, "all": allegato_filename})
+
+    return RedirectResponse(url="/magazzini", status_code=303)
+
 @router.get("/stampa-consegna/{tipo}/{doc_id}", response_class=HTMLResponse)
 def stampa_consegna(r: Request, tipo: str, doc_id: int):
     if "user" not in r.session: return RedirectResponse(url="/login")

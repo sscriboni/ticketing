@@ -96,6 +96,7 @@
                             <button type="submit" name="operazione" value="carico" class="btn btn-sm btn-success"><i class="bi bi-plus-circle"></i> Carico</button>
                             <button type="submit" name="operazione" value="scarico" class="btn btn-sm btn-danger" {% if row.quantita == 0 %}disabled{% endif %}><i class="bi bi-dash-circle"></i> Scarico</button>
                             <a href="/magazzino/{{ row.magazzino_id }}/log" class="btn btn-sm btn-outline-info" title="Log Movimenti"><i class="bi bi-list-ul"></i> Log</a>
+                            <a href="/magazzino/{{ row.magazzino_id }}/materiale/{{ row.materiale_id }}/foto" class="btn btn-sm btn-outline-secondary" title="Aggiungi/Modifica Foto"><i class="bi bi-camera"></i> Foto</a>
                         </form>
                         {% else %}
                         <span class="text-muted small"><i class="bi bi-lock"></i> Sola lettura</span>
