@@ -221,7 +221,8 @@ def magazzino_movimento_action(
     marca: str = Form(""), modello: str = Form(""),
     magazzino_destinazione_id: str = Form(None),
     allegato: UploadFile = File(None),
-    programma_consegna: str = Form(None)
+    programma_consegna: str = Form(None),
+    genera_pdf: str = Form(None)
 ):
     if "user" not in r.session: return RedirectResponse(url="/login")
     user = r.session.get("user")
@@ -240,6 +241,14 @@ def magazzino_movimento_action(
                 "dt_prog": data_movimento, "desc": descrizione, "sede": sede_id_val,
                 "pos": posizione_fisica, "marca": marca, "modello": modello, "all": allegato_filename
             })
+            if genera_pdf == "1":
+                cons_id = c.execute(text("""
+                    SELECT consegna_id FROM consegne_programmate
+                    WHERE user_id = :uid AND magazzino_id = :mag AND materiale_id = :mat
+                    ORDER BY consegna_id DESC LIMIT 1
+                """), {"uid": user["id"], "mag": magazzino_id, "mat": materiale_id}).scalar()
+                if cons_id:
+                    return RedirectResponse(url=f"/stampa-consegna/programmata/{cons_id}", status_code=303)
             return RedirectResponse(url="/consegne-programmate?success=programmato", status_code=303)
 
         can_edit = False
@@ -297,7 +306,54 @@ def magazzino_movimento_action(
                 "q": quantita, "uid": user["id"], "note": descrizione, "all": allegato_filename
             })
             
+        if operazione == "scarico" and genera_pdf == "1":
+            mov_id = c.execute(text("""
+                SELECT movimento_id FROM movimenti_magazzino
+                WHERE user_id = :uid AND magazzino_id = :mag AND materiale_id = :mat AND operazione = 'scarico'
+                ORDER BY movimento_id DESC LIMIT 1
+            """), {"uid": user["id"], "mag": magazzino_id, "mat": materiale_id}).scalar()
+            if mov_id:
+                return RedirectResponse(url=f"/stampa-consegna/scarico/{mov_id}", status_code=303)
+            
     return RedirectResponse(url="/magazzini", status_code=303)
+
+@router.get("/stampa-consegna/{tipo}/{doc_id}", response_class=HTMLResponse)
+def stampa_consegna(r: Request, tipo: str, doc_id: int):
+    if "user" not in r.session: return RedirectResponse(url="/login")
+    user = r.session.get("user")
+    
+    with engine.connect() as c:
+        if tipo == 'scarico':
+            mov = c.execute(text("""
+                SELECT m.*, mag.nome AS magazzino_nome, s.nome AS sede_nome,
+                       mat.nome AS materiale_nome, u.nome AS user_nome, u.cognome AS user_cognome
+                FROM movimenti_magazzino m
+                JOIN magazzini mag ON m.magazzino_id = mag.magazzino_id
+                LEFT JOIN sedi s ON m.sede_assegnazione_id = s.sede_id
+                JOIN materiali mat ON m.materiale_id = mat.materiale_id
+                JOIN users u ON m.user_id = u.user_id
+                WHERE m.movimento_id = :id AND m.operazione = 'scarico'
+            """), {"id": doc_id}).mappings().first()
+        elif tipo == 'programmata':
+            mov = c.execute(text("""
+                SELECT cp.*, mag.nome AS magazzino_nome, s.nome AS sede_nome,
+                       mat.nome AS materiale_nome, u.nome AS user_nome, u.cognome AS user_cognome
+                FROM consegne_programmate cp
+                JOIN magazzini mag ON cp.magazzino_id = mag.magazzino_id
+                LEFT JOIN sedi s ON cp.sede_assegnazione_id = s.sede_id
+                JOIN materiali mat ON cp.materiale_id = mat.materiale_id
+                JOIN users u ON cp.user_id = u.user_id
+                WHERE cp.consegna_id = :id
+            """), {"id": doc_id}).mappings().first()
+        else:
+            return RedirectResponse(url="/magazzini")
+
+        if not mov:
+            return RedirectResponse(url="/magazzini")
+            
+    return templates.TemplateResponse(r, "stampa_consegna.html", {
+        "request": r, "cfg": CFG, "user": user, "mov": mov, "tipo": tipo
+    })
 
 @router.get("/consegne-programmate", response_class=HTMLResponse)
 def consegne_programmate_list(r: Request, success: str = None, error: str = None):
@@ -653,7 +709,7 @@ def evadi_richiesta_form(r: Request, richiesta_id: int):
 @router.post("/richiesta-materiale/{richiesta_id}/evadi")
 def evadi_richiesta_action(r: Request, richiesta_id: int, data_movimento: str = Form(...), descrizione: str = Form(""), 
                            posizione_fisica: str = Form(...), marca: str = Form(""), modello: str = Form(""),
-                           allegato: UploadFile = File(None)):
+                           allegato: UploadFile = File(None), genera_pdf: str = Form(None)):
     if "user" not in r.session: return RedirectResponse(url="/login")
     user = r.session.get("user")
     
@@ -695,4 +751,13 @@ def evadi_richiesta_action(r: Request, richiesta_id: int, data_movimento: str = 
             c.execute(text("""INSERT INTO ticket_notes (ticket_id, autore, testo, is_internal) VALUES (:tid, :a, :t, 0)"""),
                      {"tid": richiesta["ticket_id"], "a": f"Sistema ({autore})", "t": testo})
                      
+        if genera_pdf == "1":
+            mov_id = c.execute(text("""
+                SELECT movimento_id FROM movimenti_magazzino
+                WHERE user_id = :uid AND magazzino_id = :mag AND materiale_id = :mat AND operazione = 'scarico'
+                ORDER BY movimento_id DESC LIMIT 1
+            """), {"uid": user["id"], "mag": magazzino_id, "mat": materiale_id}).scalar()
+            if mov_id:
+                return RedirectResponse(url=f"/stampa-consegna/scarico/{mov_id}", status_code=303)
+
     return RedirectResponse(url="/richieste-materiale", status_code=303)
