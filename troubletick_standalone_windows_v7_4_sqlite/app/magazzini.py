@@ -155,6 +155,80 @@ def user_magazzini_list(r: Request, magazzino_id: str = None, sede_id: str = Non
         "user_mag_id": user_mag_id, "count_in_arrivo": count_in_arrivo
     })
 
+@router.get("/magazzino/{magazzino_id}/giacenza/{materiale_id}", response_class=HTMLResponse)
+def dettaglio_giacenza(r: Request, magazzino_id: int, materiale_id: int, error: str = None):
+    if "user" not in r.session: return RedirectResponse(url="/login")
+    user = r.session.get("user")
+    
+    if user.get("ruolo") == "normale":
+        return RedirectResponse(url="/tickets")
+        
+    with engine.connect() as c:
+        magazzino = c.execute(text("SELECT * FROM magazzini WHERE magazzino_id = :id"), {"id": magazzino_id}).mappings().first()
+        materiale = c.execute(text("SELECT * FROM materiali WHERE materiale_id = :id"), {"id": materiale_id}).mappings().first()
+        
+        if not magazzino or not materiale:
+            return RedirectResponse(url="/magazzini")
+            
+        can_edit = False
+        if user.get("ruolo") == "admin":
+            can_edit = True
+        elif user.get("ruolo") in ("assistenza", "responsabile"):
+            user_mag_id = c.execute(text("SELECT magazzino_id FROM users WHERE user_id = :uid"), {"uid": user.get("id")}).scalar()
+            if user_mag_id == magazzino_id: can_edit = True
+
+        posizioni = c.execute(text("""
+            SELECT p.posizione_fisica, p.quantita,
+                   (SELECT allegato FROM movimenti_magazzino 
+                    WHERE magazzino_id = :mag_id AND materiale_id = :mat_id AND posizione_fisica = p.posizione_fisica
+                    AND allegato IS NOT NULL AND allegato != ''
+                    AND (LOWER(allegato) LIKE '%.jpg' OR LOWER(allegato) LIKE '%.jpeg' OR LOWER(allegato) LIKE '%.png' OR LOWER(allegato) LIKE '%.gif' OR LOWER(allegato) LIKE '%.webp')
+                    ORDER BY creato_il DESC LIMIT 1) as ultima_foto
+            FROM (
+                SELECT posizione_fisica, 
+                       SUM(CASE WHEN operazione = 'carico' THEN quantita ELSE -quantita END) as quantita
+                FROM movimenti_magazzino
+                WHERE magazzino_id = :mag_id AND materiale_id = :mat_id
+                GROUP BY posizione_fisica
+                HAVING SUM(CASE WHEN operazione = 'carico' THEN quantita ELSE -quantita END) > 0
+            ) p
+            ORDER BY p.posizione_fisica
+        """), {"mag_id": magazzino_id, "mat_id": materiale_id}).mappings().all()
+        
+        totale = c.execute(text("SELECT quantita FROM giacenze WHERE magazzino_id = :mag_id AND materiale_id = :mat_id"), 
+                           {"mag_id": magazzino_id, "mat_id": materiale_id}).scalar() or 0
+
+    return templates.TemplateResponse(r, "dettaglio_giacenza.html", {
+        "request": r, "cfg": CFG, "user": user, 
+        "magazzino": magazzino, "materiale": materiale, "posizioni": posizioni, "totale": totale, "can_edit": can_edit, "error": error
+    })
+
+@router.post("/magazzino/{magazzino_id}/materiale/{materiale_id}/foto")
+async def magazzino_foto_posizione_action(r: Request, magazzino_id: int, materiale_id: int, posizione_fisica: str = Form(...), allegato: UploadFile = File(...)):
+    if "user" not in r.session: return RedirectResponse(url="/login")
+    user = r.session.get("user")
+    
+    # Workaround per il bug di troncamento immagini > 1MB (SpooledTemporaryFile) su Windows
+    if allegato and allegato.filename:
+        content = await allegato.read()
+        import io
+        allegato.file = io.BytesIO(content)
+        
+    allegato_filename = save_upload(allegato)
+    if not allegato_filename:
+        return RedirectResponse(url=f"/magazzino/{magazzino_id}/giacenza/{materiale_id}?error=upload_failed", status_code=303)
+
+    from datetime import date
+    oggi = date.today().isoformat()
+
+    with engine.begin() as c:
+        c.execute(text("""
+            INSERT INTO movimenti_magazzino (magazzino_id, materiale_id, user_id, operazione, quantita, data_movimento, descrizione, allegato, posizione_fisica)
+            VALUES (:mag, :mat, :uid, 'foto', 0, :dt, 'Aggiornamento foto posizione', :all, :pos)
+        """), {"mag": magazzino_id, "mat": materiale_id, "uid": user["id"], "dt": oggi, "all": allegato_filename, "pos": posizione_fisica})
+
+    return RedirectResponse(url=f"/magazzino/{magazzino_id}/giacenza/{materiale_id}", status_code=303)
+
 @router.get("/magazzino/{magazzino_id}/movimento/{materiale_id}", response_class=HTMLResponse)
 def magazzino_movimento_form(r: Request, magazzino_id: int, materiale_id: int, operazione: str):
     if "user" not in r.session: return RedirectResponse(url="/login")

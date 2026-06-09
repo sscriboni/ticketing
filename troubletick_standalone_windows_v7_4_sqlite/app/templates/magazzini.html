@@ -77,9 +77,11 @@
                     <td><strong>{{ row.materiale_nome }}</strong></td>
                     <td>{{ row.categoria_nome or '—' }}</td>
                     <td>
-                        <span class="badge {% if row.quantita > 0 %}bg-success{% else %}bg-secondary{% endif %} fs-6">
-                            {{ row.quantita }}
-                        </span>
+                        <a href="/magazzino/{{ row.magazzino_id }}/giacenza/{{ row.materiale_id }}" class="text-decoration-none" title="Vedi dettaglio posizioni">
+                            <span class="badge {% if row.quantita > 0 %}bg-success{% else %}bg-secondary{% endif %} fs-6 shadow-sm">
+                                {{ row.quantita }}
+                            </span>
+                        </a>
                     </td>
                     <td>
                         {% if can_edit %}
