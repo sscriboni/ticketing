@@ -252,12 +252,6 @@ def magazzino_rinomina_posizione(r: Request, magazzino_id: int, materiale_id: in
                 WHERE magazzino_id = :mag_id AND materiale_id = :mat_id AND posizione_fisica = :old_pos
             """), {"new_pos": new_posizione.strip(), "mag_id": magazzino_id, "mat_id": materiale_id, "old_pos": old_posizione})
             
-            c.execute(text("""
-                UPDATE consegne_programmate 
-                SET posizione_fisica = :new_pos 
-                WHERE magazzino_id = :mag_id AND materiale_id = :mat_id AND posizione_fisica = :old_pos
-            """), {"new_pos": new_posizione.strip(), "mag_id": magazzino_id, "mat_id": materiale_id, "old_pos": old_posizione})
-            
     return RedirectResponse(url=f"/magazzino/{magazzino_id}/giacenza/{materiale_id}", status_code=303)
 
 @router.get("/magazzino/{magazzino_id}/movimento/{materiale_id}", response_class=HTMLResponse)
@@ -316,7 +310,6 @@ async def magazzino_movimento_action(
     marca: str = Form(""), modello: str = Form(""),
     magazzino_destinazione_id: str = Form(None),
     allegato: UploadFile = File(None),
-    programma_consegna: str = Form(None),
     genera_pdf: str = Form(None)
 ):
     if "user" not in r.session: return RedirectResponse(url="/login")
@@ -331,27 +324,6 @@ async def magazzino_movimento_action(
     allegato_filename = save_upload(allegato)
 
     with engine.begin() as c:
-        # Gestione scarico programmato
-        if operazione == "scarico" and programma_consegna == "1":
-            sede_id_val = int(sede_assegnazione_id) if sede_assegnazione_id and str(sede_assegnazione_id).isdigit() else None
-            c.execute(text("""
-                INSERT INTO consegne_programmate (magazzino_id, materiale_id, user_id, quantita, data_programmata, descrizione, sede_assegnazione_id, posizione_fisica, marca, modello, allegato, quando_disponibile)
-                VALUES (:mag, :mat, :uid, :q, :dt_prog, :desc, :sede, :pos, :marca, :modello, :all, 1)
-            """), {
-                "mag": magazzino_id, "mat": materiale_id, "uid": user["id"], "q": quantita,
-                "dt_prog": data_movimento, "desc": descrizione, "sede": sede_id_val,
-                "pos": posizione_fisica, "marca": marca, "modello": modello, "all": allegato_filename
-            })
-            if genera_pdf == "1":
-                cons_id = c.execute(text("""
-                    SELECT consegna_id FROM consegne_programmate
-                    WHERE user_id = :uid AND magazzino_id = :mag AND materiale_id = :mat
-                    ORDER BY consegna_id DESC LIMIT 1
-                """), {"uid": user["id"], "mag": magazzino_id, "mat": materiale_id}).scalar()
-                if cons_id:
-                    return RedirectResponse(url=f"/stampa-consegna/programmata/{cons_id}", status_code=303)
-            return RedirectResponse(url="/consegne-programmate?success=programmato", status_code=303)
-
         can_edit = False
         if user.get("ruolo") == "admin":
             can_edit = True
@@ -435,17 +407,6 @@ def stampa_consegna(r: Request, tipo: str, doc_id: int):
                 JOIN users u ON m.user_id = u.user_id
                 WHERE m.movimento_id = :id AND m.operazione = 'scarico'
             """), {"id": doc_id}).mappings().first()
-        elif tipo == 'programmata':
-            mov = c.execute(text("""
-                SELECT cp.*, mag.nome AS magazzino_nome, s.nome AS sede_nome,
-                       mat.nome AS materiale_nome, u.nome AS user_nome, u.cognome AS user_cognome
-                FROM consegne_programmate cp
-                JOIN magazzini mag ON cp.magazzino_id = mag.magazzino_id
-                LEFT JOIN sedi s ON cp.sede_assegnazione_id = s.sede_id
-                JOIN materiali mat ON cp.materiale_id = mat.materiale_id
-                JOIN users u ON cp.user_id = u.user_id
-                WHERE cp.consegna_id = :id
-            """), {"id": doc_id}).mappings().first()
         else:
             return RedirectResponse(url="/magazzini")
 
@@ -455,135 +416,6 @@ def stampa_consegna(r: Request, tipo: str, doc_id: int):
     return templates.TemplateResponse(r, "stampa_consegna.html", {
         "request": r, "cfg": CFG, "user": user, "mov": mov, "tipo": tipo
     })
-
-@router.get("/consegne-programmate", response_class=HTMLResponse)
-def consegne_programmate_list(r: Request, success: str = None, error: str = None):
-    if "user" not in r.session: return RedirectResponse(url="/login")
-    user = r.session.get("user")
-    if user.get("ruolo") == "normale": return RedirectResponse(url="/tickets")
-    
-    with engine.connect() as c:
-        where_clause = "c.stato = 'programmata'"
-        params = {}
-        user_mag_id = None
-        if user.get("ruolo") != "admin":
-            user_mag_id = c.execute(text("SELECT magazzino_id FROM users WHERE user_id = :uid"), {"uid": user.get("id")}).scalar()
-            if user_mag_id:
-                where_clause += " AND c.magazzino_id = :mag_id"
-                params["mag_id"] = user_mag_id
-            else:
-                where_clause += " AND 1=0"
-
-        consegne = c.execute(text(f"""
-            SELECT c.*, m.nome as materiale_nome, mag.nome as magazzino_nome, s.nome as sede_nome,
-                   u.nome as user_nome, u.cognome as user_cognome
-            FROM consegne_programmate c
-            JOIN materiali m ON c.materiale_id = m.materiale_id
-            JOIN magazzini mag ON c.magazzino_id = mag.magazzino_id
-            LEFT JOIN sedi s ON c.sede_assegnazione_id = s.sede_id
-            JOIN users u ON c.user_id = u.user_id
-            WHERE {where_clause}
-            ORDER BY c.data_programmata ASC
-        """), params).mappings().all()
-
-    return templates.TemplateResponse(r, "consegne_programmate.html", {
-        "request": r, "cfg": CFG, "user": user, "consegne": consegne, "success": success, "error": error, "user_mag_id": user_mag_id
-    })
-
-@router.get("/consegna-programmata/{consegna_id}/modifica", response_class=HTMLResponse)
-def modifica_consegna_form(r: Request, consegna_id: int):
-    if "user" not in r.session: return RedirectResponse(url="/login")
-    user = r.session.get("user")
-    with engine.connect() as c:
-        consegna = c.execute(text("SELECT * FROM consegne_programmate WHERE consegna_id = :id AND stato = 'programmata'"), {"id": consegna_id}).mappings().first()
-        if not consegna: return RedirectResponse(url="/consegne-programmate")
-
-        can_edit = False
-        if user.get("ruolo") == "admin" or consegna['user_id'] == user['id']:
-            can_edit = True
-        elif user.get("ruolo") in ("assistenza", "responsabile"):
-            user_mag_id = c.execute(text("SELECT magazzino_id FROM users WHERE user_id = :uid"), {"uid": user.get("id")}).scalar()
-            if user_mag_id == consegna["magazzino_id"]: can_edit = True
-        if not can_edit: return RedirectResponse(url="/consegne-programmate")
-
-        materiale = c.execute(text("SELECT * FROM materiali WHERE materiale_id = :id"), {"id": consegna['materiale_id']}).mappings().first()
-        magazzino = c.execute(text("SELECT * FROM magazzini WHERE magazzino_id = :id"), {"id": consegna['magazzino_id']}).mappings().first()
-        sedi = c.execute(text("SELECT sede_id, nome FROM sedi ORDER BY nome")).mappings().all()
-
-    return templates.TemplateResponse(r, "modifica_consegna.html", {"request": r, "cfg": CFG, "user": user, "consegna": consegna, "materiale": materiale, "magazzino": magazzino, "sedi": sedi})
-
-@router.post("/consegna-programmata/{consegna_id}/modifica")
-def modifica_consegna_action(r: Request, consegna_id: int, quantita: int = Form(...), data_programmata: str = Form(...), descrizione: str = Form(""), sede_assegnazione_id: str = Form(None), posizione_fisica: str = Form(""), marca: str = Form(""), modello: str = Form(""), quando_disponibile: str = Form(None)):
-    if "user" not in r.session: return RedirectResponse(url="/login")
-    user = r.session.get("user")
-    with engine.begin() as c:
-        consegna = c.execute(text("SELECT * FROM consegne_programmate WHERE consegna_id = :id AND stato = 'programmata'"), {"id": consegna_id}).mappings().first()
-        if not consegna: return RedirectResponse(url="/consegne-programmate")
-
-        can_edit = False
-        if user.get("ruolo") == "admin" or consegna['user_id'] == user['id']:
-            can_edit = True
-        elif user.get("ruolo") in ("assistenza", "responsabile"):
-            user_mag_id = c.execute(text("SELECT magazzino_id FROM users WHERE user_id = :uid"), {"uid": user.get("id")}).scalar()
-            if user_mag_id == consegna["magazzino_id"]: can_edit = True
-        if not can_edit: return RedirectResponse(url="/consegne-programmate")
-
-        sede_id_val = int(sede_assegnazione_id) if sede_assegnazione_id and str(sede_assegnazione_id).isdigit() else None
-        quando_disponibile_val = 1 if quando_disponibile == "1" else 0
-        c.execute(text("""
-            UPDATE consegne_programmate SET quantita = :q, data_programmata = :dt, descrizione = :desc, sede_assegnazione_id = :sede, posizione_fisica = :pos, marca = :marca, modello = :modello, quando_disponibile = :quando
-            WHERE consegna_id = :id
-        """), {"q": quantita, "dt": data_programmata, "desc": descrizione, "sede": sede_id_val, "pos": posizione_fisica, "marca": marca, "modello": modello, "quando": quando_disponibile_val, "id": consegna_id})
-    return RedirectResponse(url="/consegne-programmate?success=modificato", status_code=303)
-
-@router.post("/consegna-programmata/{consegna_id}/esegui")
-def esegui_consegna_programmata(r: Request, consegna_id: int):
-    if "user" not in r.session: return RedirectResponse(url="/login")
-    user = r.session.get("user")
-    
-    with engine.begin() as c:
-        consegna = c.execute(text("SELECT * FROM consegne_programmate WHERE consegna_id = :id AND stato = 'programmata'"), {"id": consegna_id}).mappings().first()
-        if not consegna:
-            return RedirectResponse(url="/consegne-programmate?error=not_found", status_code=303)
-        
-        can_edit = False
-        if user.get("ruolo") == "admin":
-            can_edit = True
-        elif user.get("ruolo") in ("assistenza", "responsabile"):
-            user_mag_id = c.execute(text("SELECT magazzino_id FROM users WHERE user_id = :uid"), {"uid": user.get("id")}).scalar()
-            if user_mag_id == consegna["magazzino_id"]: can_edit = True
-        if not can_edit: return RedirectResponse(url="/consegne-programmate", status_code=303)
-
-        qta_attuale = c.execute(text("SELECT quantita FROM giacenze WHERE magazzino_id = :mag AND materiale_id = :mat"), 
-                                {"mag": consegna["magazzino_id"], "mat": consegna["materiale_id"]}).scalar() or 0
-        
-        if qta_attuale < consegna["quantita"]:
-            return RedirectResponse(url=f"/consegne-programmate?error=giacenza_insufficiente", status_code=303)
-
-        nuova_qta = max(0, qta_attuale - consegna["quantita"])
-        c.execute(text("UPDATE giacenze SET quantita = :q WHERE magazzino_id = :mag AND materiale_id = :mat"),
-                  {"q": nuova_qta, "mag": consegna["magazzino_id"], "mat": consegna["materiale_id"]})
-
-        from datetime import date
-        oggi = date.today().isoformat()
-        desc_log = f"[Eseguita Consegna Programmata #{consegna_id}] {consegna['descrizione']}"
-        
-        c.execute(text("""
-            INSERT INTO movimenti_magazzino (magazzino_id, materiale_id, user_id, operazione, quantita, data_movimento, descrizione, sede_assegnazione_id, posizione_fisica, marca, modello, allegato)
-            VALUES (:mag, :mat, :uid, 'scarico', :q, :dt, :desc, :sede, :pos, :marca, :modello, :all)
-        """), {
-            "mag": consegna["magazzino_id"], "mat": consegna["materiale_id"], "uid": user["id"], "q": consegna["quantita"], 
-            "dt": oggi, "desc": desc_log, "sede": consegna["sede_assegnazione_id"],
-            "pos": consegna["posizione_fisica"], "marca": consegna["marca"], "modello": consegna["modello"], "all": consegna["allegato"]
-        })
-
-        c.execute(text("""
-            UPDATE consegne_programmate 
-            SET stato = 'consegnata', data_consegna_effettiva = :now, user_consegna_id = :uid
-            WHERE consegna_id = :id
-        """), {"now": oggi, "uid": user["id"], "id": consegna_id})
-
-    return RedirectResponse(url="/consegne-programmate?success=eseguita", status_code=303)
 
 @router.get("/trasferimenti", response_class=HTMLResponse)
 def trasferimenti_list(r: Request):

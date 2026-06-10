@@ -78,7 +78,7 @@
             <div class="mt-4 text-center border-top pt-4">
                 <form method="get" action="/magazzino/{{ magazzino.magazzino_id }}/movimento/{{ materiale.materiale_id }}" class="d-inline">
                     <button type="submit" name="operazione" value="carico" class="btn btn-success"><i class="bi bi-plus-circle"></i> Carico</button>
-                    <button type="submit" name="operazione" value="scarico" class="btn btn-danger"><i class="bi bi-dash-circle"></i> Scarico/Prenota</button>
+                    <button type="submit" name="operazione" value="scarico" class="btn btn-danger"><i class="bi bi-dash-circle"></i> Scarico</button>
                 </form>
                 <a href="/magazzino/{{ magazzino.magazzino_id }}/log" class="btn btn-info text-white"><i class="bi bi-list-ul"></i> Log</a>
             </div>

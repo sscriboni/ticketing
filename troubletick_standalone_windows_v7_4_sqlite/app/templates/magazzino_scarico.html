@@ -41,12 +41,6 @@
                 <div class="alert alert-danger"><strong>Giacenza insufficiente!</strong> Non è possibile scaricare la quantità richiesta.</div>
                 {% endif %}
                 
-                <div class="form-check form-switch mb-3 bg-light border rounded p-3">
-                    <input class="form-check-input" type="checkbox" name="programma_consegna" value="1" id="programmaConsegnaSwitch" onchange="toggleProgrammazione(this.checked)">
-                    <label class="form-check-label fw-bold" for="programmaConsegnaSwitch">Consegna quando materiale disponibile</label>
-                    <small class="d-block text-muted">Selezionando questa opzione, la merce non verrà scalata subito dalla giacenza, ma verrà creata una prenotazione (utile anche se la giacenza attuale è zero).</small>
-                </div>
-
                 <div class="form-check form-switch mb-4 bg-light border rounded p-3">
                     <input class="form-check-input" type="checkbox" name="genera_pdf" value="1" id="generaPdfSwitch">
                     <label class="form-check-label fw-bold" for="generaPdfSwitch">Genera PDF (Documento di Consegna)</label>
@@ -111,11 +105,10 @@
     <div class="row mt-4 mb-2">
         <div class="col-12 col-md-8 col-lg-6 mx-auto">
             <div class="alert alert-info small shadow-sm mb-0">
-                <h6 class="alert-heading fw-bold"><i class="bi bi-info-circle-fill me-1"></i> Guida allo Scarico e Prenotazione</h6>
-                <p class="mb-2">Questa pagina ti permette di registrare l'uscita fisica di materiale dal magazzino o di prenotarlo per una consegna futura. Ecco come funzionano le opzioni principali:</p>
+                <h6 class="alert-heading fw-bold"><i class="bi bi-info-circle-fill me-1"></i> Guida allo Scarico</h6>
+                <p class="mb-2">Questa pagina ti permette di registrare l'uscita fisica di materiale dal magazzino. Ecco come funzionano le opzioni principali:</p>
                 <ul class="mb-0 ps-3">
-                    <li class="mb-1"><i class="bi bi-dash-circle text-danger"></i> <strong>Scarico Immediato:</strong> L'opzione predefinita. La merce viene sottratta <strong>istantaneamente</strong> dalla giacenza. Devi obbligatoriamente indicare da quale posizione o lotto stai prelevando i pezzi.</li>
-                    <li class="mb-1"><i class="bi bi-calendar-check text-primary"></i> <strong>Prenotazione:</strong> Attivando l'interruttore <em>"Consegna quando materiale disponibile"</em>, la merce <strong>non viene scalata subito</strong> e vengono ignorati i controlli di disponibilità. Verrà creata una prenotazione che potrai confermare e completare in un secondo momento.</li>
+                    <li class="mb-1"><i class="bi bi-dash-circle text-danger"></i> <strong>Scarico Immediato:</strong> La merce viene sottratta <strong>istantaneamente</strong> dalla giacenza. Devi obbligatoriamente indicare da quale posizione o lotto stai prelevando i pezzi.</li>
                     <li class="mb-1"><i class="bi bi-file-earmark-pdf text-danger"></i> <strong>Genera PDF:</strong> Crea automaticamente un documento di avvenuta consegna, pronto da stampare o salvare come PDF per farlo firmare a chi ritira la merce.</li>
                     <li><i class="bi bi-truck text-primary"></i> <strong>Trasferimento tra Magazzini:</strong> Se scegli un <em>"Magazzino di Destinazione"</em> al posto di una sede generica, il sistema scalerà i pezzi e genererà una spedizione verso quel magazzino. L'operatore ricevente dovrà confermarne l'arrivo.</li>
                 </ul>
@@ -124,48 +117,11 @@
     </div>
 </div>
 <script>
-function toggleProgrammazione(is_checked) {
-    const dataLabel = document.getElementById('dataLabel');
-    const submitBtn = document.getElementById('submitBtn');
-    const posSelect = document.getElementById('posizioneSelect');
-    const posInput = document.getElementById('posizioneInput');
-    if (is_checked) {
-        dataLabel.innerHTML = 'Data Prenotazione <span class="text-danger">*</span>';
-        submitBtn.classList.remove('btn-danger');
-        submitBtn.classList.add('btn-primary');
-        submitBtn.innerHTML = 'Conferma Prenotazione';
-        if(posSelect) {
-            posSelect.required = false;
-            Array.from(posSelect.options).forEach(opt => {
-                if(opt.value !== "") opt.disabled = false;
-            });
-        }
-        if(posInput) posInput.required = false;
-    } else {
-        dataLabel.innerHTML = 'Data <span class="text-danger">*</span>';
-        submitBtn.classList.remove('btn-primary');
-        submitBtn.classList.add('btn-danger');
-        submitBtn.innerHTML = 'Conferma Scarico Immediato';
-        if(posSelect) {
-            posSelect.required = true;
-            Array.from(posSelect.options).forEach(opt => {
-                if(opt.value !== "" && parseInt(opt.dataset.qta) <= 0) {
-                    opt.disabled = true;
-                    if(opt.selected) posSelect.value = "";
-                }
-            });
-        }
-        if(posInput) posInput.required = true;
-    }
-    checkGiacenzaPosizione();
-}
-
 function checkGiacenzaPosizione() {
-    const is_checked = document.getElementById('programmaConsegnaSwitch').checked;
     const posSelect = document.getElementById('posizioneSelect');
     const quantitaInput = document.getElementById('quantitaInput');
     
-    if (!is_checked && posSelect && posSelect.value !== "") {
+    if (posSelect && posSelect.value !== "") {
         const selectedOpt = posSelect.options[posSelect.selectedIndex];
         const disp = parseInt(selectedOpt.dataset.qta);
         if (quantitaInput && !quantitaInput.readOnly) {

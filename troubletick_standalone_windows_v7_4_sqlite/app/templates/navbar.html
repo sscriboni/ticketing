@@ -21,19 +21,18 @@
         
         {% if user.ruolo != 'normale' %}
         <li class="nav-item dropdown">
-          <a class="nav-link dropdown-toggle {% if request.url.path.startswith('/magazzini') or request.url.path.startswith('/magazzino/') or request.url.path.startswith('/trasferimenti') or request.url.path.startswith('/consegne-programmate') or request.url.path.startswith('/stampa-consegna') %}active fw-bold{% endif %}" href="#" id="magazzinoDropdown" role="button" data-bs-toggle="dropdown" aria-expanded="false">
+          <a class="nav-link dropdown-toggle {% if request.url.path.startswith('/magazzini') or request.url.path.startswith('/magazzino/') or request.url.path.startswith('/trasferimenti') or request.url.path.startswith('/stampa-consegna') or request.url.path.startswith('/richieste-materiale') or request.url.path.startswith('/richiesta-materiale') %}active fw-bold{% endif %}" href="#" id="magazzinoDropdown" role="button" data-bs-toggle="dropdown" aria-expanded="false">
             <i class="bi bi-boxes"></i> Magazzino
           </a>
           <ul class="dropdown-menu shadow" aria-labelledby="magazzinoDropdown">
             <li><a class="dropdown-item" href="/magazzini">Inventario</a></li>
-            <li><a class="dropdown-item" href="/consegne-programmate">Prenotazioni Materiale</a></li>
+            <li><a class="dropdown-item" href="/richieste-materiale">Richieste Materiale</a></li>
             <li><a class="dropdown-item" href="/trasferimenti">Trasferimenti tra Magazzini</a></li>
           </ul>
         </li>
         <li class="nav-item"><a class="nav-link {% if request.url.path.startswith('/avvisi') %}active fw-bold{% endif %}" href="/avvisi"><i class="bi bi-megaphone"></i> Avvisi</a></li>
         {% endif %}
         
-        <li class="nav-item"><a class="nav-link {% if request.url.path.startswith('/richieste-materiale') or request.url.path.startswith('/richiesta-materiale') %}active fw-bold{% endif %}" href="/richieste-materiale"><i class="bi bi-cart"></i> Richieste Mat.</a></li>
         <li class="nav-item"><a class="nav-link {% if request.url.path.startswith('/calendario') %}active fw-bold{% endif %}" href="/calendario"><i class="bi bi-calendar3"></i> Calendario</a></li>
         <li class="nav-item">
           <a class="nav-link {% if request.url.path == '/operatori' or request.url.path.startswith('/admin/operatori') %}active fw-bold{% endif %}" href="/operatori">

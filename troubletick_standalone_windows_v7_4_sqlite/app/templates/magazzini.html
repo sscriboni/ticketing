@@ -87,7 +87,7 @@
                         {% if can_edit %}
                         <form method="get" action="/magazzino/{{ row.magazzino_id }}/movimento/{{ row.materiale_id }}" class="d-flex gap-1 align-items-center m-0">
                             <button type="submit" name="operazione" value="carico" class="btn btn-sm btn-success"><i class="bi bi-plus-circle"></i> Carico</button>
-                            <button type="submit" name="operazione" value="scarico" class="btn btn-sm btn-danger"><i class="bi bi-dash-circle"></i> Scarico/Prenota</button>
+                            <button type="submit" name="operazione" value="scarico" class="btn btn-sm btn-danger"><i class="bi bi-dash-circle"></i> Scarico</button>
                             <a href="/magazzino/{{ row.magazzino_id }}/log" class="btn btn-sm btn-outline-info" title="Log Movimenti"><i class="bi bi-list-ul"></i> Log</a>
                         </form>
                         {% else %}
@@ -107,7 +107,7 @@
         <p class="mb-2">Questa pagina ti permette di consultare la giacenza attuale del materiale aziendale. Se il magazzino è assegnato a te (o sei Amministratore), puoi eseguire le seguenti operazioni:</p>
         <ul class="mb-0">
             <li><i class="bi bi-plus-circle text-success"></i> <strong>Carico:</strong> Aggiunge nuovo materiale al magazzino specificando la posizione fisica. Utile per nuovi acquisti o resi.</li>
-            <li><i class="bi bi-dash-circle text-danger"></i> <strong>Scarico:</strong> Rimuove materiale dal magazzino. Puoi usarlo per consumarlo internamente, assegnarlo ad una sede, trasferirlo ad un altro magazzino, oppure per programmarne la consegna in una data futura.</li>
+            <li><i class="bi bi-dash-circle text-danger"></i> <strong>Scarico:</strong> Rimuove materiale dal magazzino. Puoi usarlo per consumarlo internamente, assegnarlo ad una sede o trasferirlo ad un altro magazzino.</li>
             <li><i class="bi bi-list-ul text-info"></i> <strong>Log:</strong> Mostra lo storico cronologico dettagliato di tutti i movimenti (entrate e uscite) effettuati per l'articolo e il magazzino selezionati.</li>
             <li><i class="bi bi-box-seam"></i> <strong>Dettaglio Posizioni:</strong> Cliccando sul numero (badge) della giacenza, potrai vedere l'esatta ripartizione della merce nelle posizioni fisiche / lotti a magazzino, potendo caricarvi delle foto.</li>
         </ul>
