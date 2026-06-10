@@ -41,17 +41,24 @@
         {% if r.ticket_id %}<br><a href="/ticket/{{ r.ticket_id }}" class="small" style="font-size:0.75rem;">Vedi Ticket #{{ r.ticket_id }}</a>{% endif %}
       </td>
       <td>
-        {% if r.stato == 'pronta_per_scarico' %}
-          {% if user.ruolo == 'admin' or (user.magazzino_id and user.magazzino_id == r.magazzino_id) %}
-            <a href="/richiesta-materiale/{{ r.richiesta_id }}/evadi" class="btn btn-sm btn-warning"><i class="bi bi-box-arrow-up"></i> Esegui Scarico</a>
-          {% else %}
-            <span class="text-muted small">Riservato mag.</span>
-          {% endif %}
-        {% elif r.stato == 'nuova' %}
-          <span class="text-muted small">Materiale mancante</span>
-        {% else %}
-          <span class="text-muted small">Completata</span>
-        {% endif %}
+        <div class="d-flex gap-1 align-items-center">
+            {% if r.stato == 'pronta_per_scarico' %}
+                {% if user.ruolo == 'admin' or (user.magazzino_id and user.magazzino_id == r.magazzino_id) %}
+                    <a href="/richiesta-materiale/{{ r.richiesta_id }}/evadi" class="btn btn-sm btn-warning"><i class="bi bi-box-arrow-up"></i> Esegui Scarico</a>
+                {% else %}
+                    <span class="text-muted small">Riservato mag.</span>
+                {% endif %}
+            {% elif r.stato == 'nuova' %}
+                <span class="text-muted small">Materiale mancante</span>
+            {% elif r.stato in ['evasa', 'annullata'] %}
+                <span class="text-muted small">—</span>
+            {% endif %}
+            {% if r.stato in ['nuova', 'pronta_per_scarico'] and (user.ruolo == 'admin' or user.id == r.user_id) %}
+            <form action="/richiesta-materiale/{{ r.richiesta_id }}/annulla" method="post" class="d-inline" onsubmit="return confirm('Sei sicuro di voler annullare questa richiesta?')">
+                <button type="submit" class="btn btn-sm btn-outline-danger" title="Annulla Richiesta"><i class="bi bi-x-circle"></i></button>
+            </form>
+            {% endif %}
+        </div>
       </td>
     </tr>
     {% endfor %}

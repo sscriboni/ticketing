@@ -866,3 +866,32 @@ async def evadi_richiesta_action(r: Request, richiesta_id: int, data_movimento: 
                 return RedirectResponse(url=f"/stampa-consegna/scarico/{mov_id}", status_code=303)
 
     return RedirectResponse(url="/richieste-materiale", status_code=303)
+
+@router.post("/richiesta-materiale/{richiesta_id}/annulla")
+def annulla_richiesta_action(r: Request, richiesta_id: int):
+    if "user" not in r.session: return RedirectResponse(url="/login")
+    user = r.session.get("user")
+
+    with engine.begin() as c:
+        richiesta = c.execute(text("SELECT * FROM richieste_materiale WHERE richiesta_id = :id"), {"id": richiesta_id}).mappings().first()
+        if not richiesta:
+            return RedirectResponse(url="/richieste-materiale", status_code=303)
+
+        # Check permissions
+        can_cancel = False
+        if user.get("ruolo") == "admin" or user.get("id") == richiesta["user_id"]:
+            can_cancel = True
+        
+        if not can_cancel or richiesta["stato"] not in ['nuova', 'pronta_per_scarico']:
+            return RedirectResponse(url="/richieste-materiale", status_code=303)
+
+        c.execute(text("UPDATE richieste_materiale SET stato = 'annullata' WHERE richiesta_id = :id"), {"id": richiesta_id})
+
+        if richiesta["ticket_id"]:
+            autore = f"{user.get('nome','')} {user.get('cognome','')}".strip() or user.get('username')
+            mat_nome = c.execute(text("SELECT nome FROM materiali WHERE materiale_id = :mid"), {"mid": richiesta["materiale_id"]}).scalar()
+            testo = f"Richiesta materiale annullata: {richiesta['quantita']}x {mat_nome}."
+            c.execute(text("""INSERT INTO ticket_notes (ticket_id, autore, testo, is_internal) VALUES (:tid, :a, :t, 0)"""),
+                     {"tid": richiesta["ticket_id"], "a": f"Sistema ({autore})", "t": testo})
+
+    return RedirectResponse(url="/richieste-materiale", status_code=303)
