@@ -310,7 +310,7 @@ def magazzino_movimento_form(r: Request, magazzino_id: int, materiale_id: int, o
 async def magazzino_movimento_action(
     r: Request, magazzino_id: int, materiale_id: int, operazione: str = Form(...), quantita: int = Form(...),
     data_movimento: str = Form(...), descrizione: str = Form(""), 
-    sede_assegnazione_id: str = Form(None), posizione_fisica: str = Form(...),
+    sede_assegnazione_id: str = Form(None), posizione_fisica: str = Form(""),
     marca: str = Form(""), modello: str = Form(""),
     magazzino_destinazione_id: str = Form(None),
     allegato: UploadFile = File(None),
@@ -333,8 +333,8 @@ async def magazzino_movimento_action(
         if operazione == "scarico" and programma_consegna == "1":
             sede_id_val = int(sede_assegnazione_id) if sede_assegnazione_id and str(sede_assegnazione_id).isdigit() else None
             c.execute(text("""
-                INSERT INTO consegne_programmate (magazzino_id, materiale_id, user_id, quantita, data_programmata, descrizione, sede_assegnazione_id, posizione_fisica, marca, modello, allegato)
-                VALUES (:mag, :mat, :uid, :q, :dt_prog, :desc, :sede, :pos, :marca, :modello, :all)
+                INSERT INTO consegne_programmate (magazzino_id, materiale_id, user_id, quantita, data_programmata, descrizione, sede_assegnazione_id, posizione_fisica, marca, modello, allegato, quando_disponibile)
+                VALUES (:mag, :mat, :uid, :q, :dt_prog, :desc, :sede, :pos, :marca, :modello, :all, 1)
             """), {
                 "mag": magazzino_id, "mat": materiale_id, "uid": user["id"], "q": quantita,
                 "dt_prog": data_movimento, "desc": descrizione, "sede": sede_id_val,
@@ -511,7 +511,7 @@ def modifica_consegna_form(r: Request, consegna_id: int):
     return templates.TemplateResponse(r, "modifica_consegna.html", {"request": r, "cfg": CFG, "user": user, "consegna": consegna, "materiale": materiale, "magazzino": magazzino, "sedi": sedi})
 
 @router.post("/consegna-programmata/{consegna_id}/modifica")
-def modifica_consegna_action(r: Request, consegna_id: int, quantita: int = Form(...), data_programmata: str = Form(...), descrizione: str = Form(""), sede_assegnazione_id: str = Form(None), posizione_fisica: str = Form(...), marca: str = Form(""), modello: str = Form("")):
+def modifica_consegna_action(r: Request, consegna_id: int, quantita: int = Form(...), data_programmata: str = Form(...), descrizione: str = Form(""), sede_assegnazione_id: str = Form(None), posizione_fisica: str = Form(""), marca: str = Form(""), modello: str = Form(""), quando_disponibile: str = Form(None)):
     if "user" not in r.session: return RedirectResponse(url="/login")
     user = r.session.get("user")
     with engine.begin() as c:
@@ -527,10 +527,11 @@ def modifica_consegna_action(r: Request, consegna_id: int, quantita: int = Form(
         if not can_edit: return RedirectResponse(url="/consegne-programmate")
 
         sede_id_val = int(sede_assegnazione_id) if sede_assegnazione_id and str(sede_assegnazione_id).isdigit() else None
+        quando_disponibile_val = 1 if quando_disponibile == "1" else 0
         c.execute(text("""
-            UPDATE consegne_programmate SET quantita = :q, data_programmata = :dt, descrizione = :desc, sede_assegnazione_id = :sede, posizione_fisica = :pos, marca = :marca, modello = :modello
+            UPDATE consegne_programmate SET quantita = :q, data_programmata = :dt, descrizione = :desc, sede_assegnazione_id = :sede, posizione_fisica = :pos, marca = :marca, modello = :modello, quando_disponibile = :quando
             WHERE consegna_id = :id
-        """), {"q": quantita, "dt": data_programmata, "desc": descrizione, "sede": sede_id_val, "pos": posizione_fisica, "marca": marca, "modello": modello, "id": consegna_id})
+        """), {"q": quantita, "dt": data_programmata, "desc": descrizione, "sede": sede_id_val, "pos": posizione_fisica, "marca": marca, "modello": modello, "quando": quando_disponibile_val, "id": consegna_id})
     return RedirectResponse(url="/consegne-programmate?success=modificato", status_code=303)
 
 @router.post("/consegna-programmata/{consegna_id}/esegui")

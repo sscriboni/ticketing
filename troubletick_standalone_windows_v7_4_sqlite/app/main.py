@@ -230,7 +230,8 @@ with engine.begin() as c:
         "ALTER TABLE users ADD COLUMN telefono TEXT",
         "ALTER TABLE sedi ADD COLUMN comune_id INTEGER",
         "ALTER TABLE movimenti_magazzino ADD COLUMN marca TEXT",
-        "ALTER TABLE movimenti_magazzino ADD COLUMN modello TEXT"
+        "ALTER TABLE movimenti_magazzino ADD COLUMN modello TEXT",
+        "ALTER TABLE consegne_programmate ADD COLUMN quando_disponibile INTEGER DEFAULT 0"
     ]:
         try:
             c.execute(text(stmt))

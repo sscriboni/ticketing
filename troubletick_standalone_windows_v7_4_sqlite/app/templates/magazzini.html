@@ -87,7 +87,7 @@
                         {% if can_edit %}
                         <form method="get" action="/magazzino/{{ row.magazzino_id }}/movimento/{{ row.materiale_id }}" class="d-flex gap-1 align-items-center m-0">
                             <button type="submit" name="operazione" value="carico" class="btn btn-sm btn-success"><i class="bi bi-plus-circle"></i> Carico</button>
-                            <button type="submit" name="operazione" value="scarico" class="btn btn-sm btn-danger" {% if row.quantita == 0 %}disabled{% endif %}><i class="bi bi-dash-circle"></i> Scarico</button>
+                            <button type="submit" name="operazione" value="scarico" class="btn btn-sm btn-danger"><i class="bi bi-dash-circle"></i> Scarico/Prenota</button>
                             <a href="/magazzino/{{ row.magazzino_id }}/log" class="btn btn-sm btn-outline-info" title="Log Movimenti"><i class="bi bi-list-ul"></i> Log</a>
                         </form>
                         {% else %}

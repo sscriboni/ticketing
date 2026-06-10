@@ -10,7 +10,7 @@
 {% include 'navbar.html' %}
 <div class="container py-4">
     <div class="d-flex justify-content-between align-items-center mb-4">
-        <h2><i class="bi bi-calendar-check"></i> Consegne Programmate</h2>
+        <h2><i class="bi bi-calendar-check"></i> Prenotazioni Materiale</h2>
         <a href="/magazzini" class="btn btn-secondary">
             <i class="bi bi-arrow-left"></i> Torna ai Magazzini
         </a>
@@ -30,7 +30,7 @@
                 <table class="table table-hover align-middle">
                     <thead class="table-light">
                         <tr>
-                            <th>Data Programmata</th>
+                            <th>Data Richiesta</th>
                             <th>Magazzino</th>
                             <th>Materiale</th>
                             <th>Quantità</th>
@@ -42,7 +42,7 @@
                     <tbody>
                         {% for c in consegne %}
                         <tr>
-                            <td>{{ c.data_programmata }}</td>
+                            <td>{{ c.data_programmata }} {% if c.quando_disponibile %}<br><span class="badge bg-info text-dark">Quando disponibile</span>{% endif %}</td>
                             <td>{{ c.magazzino_nome }}</td>
                             <td>
                                 <strong>{{ c.materiale_nome }}</strong><br>
@@ -56,13 +56,13 @@
                             <td>{{ c.user_nome }} {{ c.user_cognome }}</td>
                             <td>
                                 <a href="/consegna-programmata/{{ c.consegna_id }}/modifica" class="btn btn-sm btn-outline-primary"><i class="bi bi-pencil"></i></a>
-                                <form action="/consegna-programmata/{{ c.consegna_id }}/esegui" method="post" class="d-inline" onsubmit="return confirm('Confermi l\'esecuzione di questa consegna programmata? Lo scarico avverrà immediatamente.');">
+                                <form action="/consegna-programmata/{{ c.consegna_id }}/esegui" method="post" class="d-inline" onsubmit="return confirm('Confermi l\'esecuzione di questa prenotazione? Lo scarico avverrà immediatamente.');">
                                     <button type="submit" class="btn btn-sm btn-success"><i class="bi bi-check-lg"></i> Esegui</button>
                                 </form>
                             </td>
                         </tr>
                         {% else %}
-                        <tr><td colspan="7" class="text-center py-4 text-muted">Nessuna consegna programmata trovata.</td></tr>
+                        <tr><td colspan="7" class="text-center py-4 text-muted">Nessuna prenotazione trovata.</td></tr>
                         {% endfor %}
                     </tbody>
                 </table>
