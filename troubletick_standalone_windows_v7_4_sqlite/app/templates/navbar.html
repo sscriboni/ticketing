@@ -8,7 +8,6 @@
     <div class="collapse navbar-collapse" id="mainNavbar">
       {% if user %}
       
-      {% if request.url.path in ['/tickets', '/admin', '/'] %}
       <ul class="navbar-nav me-auto mb-2 mb-lg-0">
         <li class="nav-item">
           <a class="nav-link {% if request.url.path == '/tickets' or request.url.path.startswith('/ticket/') %}active fw-bold{% endif %}" href="/tickets">
@@ -64,16 +63,6 @@
         </li>
         {% endif %}
       </ul>
-      {% else %}
-      <ul class="navbar-nav me-auto mb-2 mb-lg-0">
-        <li class="nav-item">
-          <a class="nav-link active fw-bold" href="javascript:history.back()"><i class="bi bi-arrow-left-circle"></i> Torna Indietro</a>
-        </li>
-        <li class="nav-item ms-lg-2">
-          <a class="nav-link" href="{% if request.url.path.startswith('/admin') %}/admin{% else %}/tickets{% endif %}"><i class="bi bi-house"></i> Home {% if request.url.path.startswith('/admin') %}Admin{% else %}Ticket{% endif %}</a>
-        </li>
-      </ul>
-      {% endif %}
       
       <div class="d-flex align-items-center">
         <span class="text-light me-3 d-none d-md-inline-block">
