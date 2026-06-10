@@ -1704,14 +1704,18 @@ def admin_operatori(r: Request):
 @app.post("/admin/operatore/nuovo")
 def new_operatore(r: Request, username: str=Form(...), password: str=Form(...), nome: str=Form(...), 
                   cognome: str=Form(...), email: str=Form(...), telefono: str=Form(None), 
-                  reparto_id: int=Form(...), ruolo: str=Form('assistenza'), sede_id: str=Form(None), magazzino_id: str=Form(None), is_test: int=Form(0),
+                  reparto_id: str=Form(None), ruolo: str=Form('assistenza'), sede_id: str=Form(None), magazzino_id: str=Form(None), is_test: int=Form(0),
                   servizi: list=Form(None)):
     user = require_superuser(r)
     if isinstance(user, RedirectResponse):
         return user
     
     servizi = servizi or []
+    username = username.strip()
+    password = password.strip()
+    email = email.strip()
     def h(p): return bcrypt.hashpw(p.encode('utf-8'), bcrypt.gensalt()).decode('utf-8')
+    reparto_id_val = int(reparto_id) if reparto_id and str(reparto_id).isdigit() else None
     sede_id_val = int(sede_id) if sede_id and str(sede_id).isdigit() else None
     magazzino_id_val = int(magazzino_id) if magazzino_id and str(magazzino_id).isdigit() else None
     
@@ -1720,7 +1724,7 @@ def new_operatore(r: Request, username: str=Form(...), password: str=Form(...), 
             c.execute(text("""
                 INSERT INTO users (username, password_hash, nome, cognome, email, telefono, ruolo, reparto_id, attivo, sede_id, magazzino_id, is_test)
                 VALUES (:u, :h, :n, :c, :e, :tel, :ruolo, :r, 1, :sede, :mag, :is_test)
-            """), {"u": username, "h": h(password), "n": nome, "c": cognome, "e": email, "tel": telefono, "ruolo": ruolo, "r": reparto_id, "sede": sede_id_val, "mag": magazzino_id_val, "is_test": is_test})
+            """), {"u": username, "h": h(password), "n": nome, "c": cognome, "e": email, "tel": telefono, "ruolo": ruolo, "r": reparto_id_val, "sede": sede_id_val, "mag": magazzino_id_val, "is_test": is_test})
             
             user_id = c.execute(text("SELECT user_id FROM users WHERE username = :u"), {"u": username}).scalar()
             
@@ -1768,14 +1772,17 @@ def edit_operatore_form(r: Request, user_id: int):
 @app.post("/admin/operatore/{user_id}/modifica")
 def edit_operatore(r: Request, user_id: int, background_tasks: BackgroundTasks, nome: str=Form(...), cognome: str=Form(...), 
                    email: str=Form(...), telefono: str=Form(None), 
-                   reparto_id: int=Form(...), ruolo: str=Form(...), attivo: int=Form(0),
+                   reparto_id: str=Form(None), ruolo: str=Form(...), attivo: int=Form(0),
                    password: str=Form(""), servizi: list=Form(None), sede_id: str=Form(None), magazzino_id: str=Form(None), is_test: int=Form(0)):
     user = require_superuser(r)
     if isinstance(user, RedirectResponse):
         return user
     
     servizi = servizi or []
+    email = email.strip()
+    password = password.strip()
     def h(p): return bcrypt.hashpw(p.encode('utf-8'), bcrypt.gensalt()).decode('utf-8')
+    reparto_id_val = int(reparto_id) if reparto_id and str(reparto_id).isdigit() else None
     sede_id_val = int(sede_id) if sede_id and str(sede_id).isdigit() else None
     magazzino_id_val = int(magazzino_id) if magazzino_id and str(magazzino_id).isdigit() else None
     
@@ -1789,12 +1796,12 @@ def edit_operatore(r: Request, user_id: int, background_tasks: BackgroundTasks, 
             c.execute(text(f"""
                 UPDATE users SET nome=:n, cognome=:c, email=:e, {tel_sql}reparto_id=:r, ruolo=:ruolo, attivo=:a, password_hash=:p, sede_id=:sede, magazzino_id=:mag, is_test=:is_test
                  WHERE user_id=:uid AND user_id != 1
-            """), {"n": nome, "c": cognome, "e": email, "r": reparto_id, "ruolo": ruolo, "a": attivo, "p": h(password), "sede": sede_id_val, "mag": magazzino_id_val, "is_test": is_test, "uid": user_id, **tel_param})
+            """), {"n": nome, "c": cognome, "e": email, "r": reparto_id_val, "ruolo": ruolo, "a": attivo, "p": h(password), "sede": sede_id_val, "mag": magazzino_id_val, "is_test": is_test, "uid": user_id, **tel_param})
         else:
             c.execute(text(f"""
                 UPDATE users SET nome=:n, cognome=:c, email=:e, {tel_sql}reparto_id=:r, ruolo=:ruolo, attivo=:a, sede_id=:sede, magazzino_id=:mag, is_test=:is_test
                  WHERE user_id=:uid AND user_id != 1
-            """), {"n": nome, "c": cognome, "e": email, "r": reparto_id, "ruolo": ruolo, "a": attivo, "sede": sede_id_val, "mag": magazzino_id_val, "is_test": is_test, "uid": user_id, **tel_param})
+            """), {"n": nome, "c": cognome, "e": email, "r": reparto_id_val, "ruolo": ruolo, "a": attivo, "sede": sede_id_val, "mag": magazzino_id_val, "is_test": is_test, "uid": user_id, **tel_param})
         
         # Aggiorna servizi assegnati
         c.execute(text("DELETE FROM operatori_servizi WHERE user_id = :uid"), {"uid": user_id})

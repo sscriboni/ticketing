@@ -20,6 +20,8 @@ def login_form(r: Request, reset: str = None, msg: str = None):
 
 @router.post("/login")
 def login_action(r: Request, username: str=Form(...), password: str=Form(...)):
+    username = username.strip()
+    password = password.strip()
     with engine.connect() as c:
         query = """
             SELECT u.user_id, u.username, u.password_hash, u.nome, u.cognome, u.ruolo, u.magazzino_id,
@@ -57,6 +59,9 @@ def register_form(r: Request):
 def register_action(r: Request, username: str=Form(...), password: str=Form(...),
                     nome: str=Form(...), cognome: str=Form(...), email: str=Form(...),
                     telefono: str=Form(...), reparto_id: int=Form(...), sede_id: int=Form(...)):
+    username = username.strip()
+    password = password.strip()
+    email = email.strip()
     with engine.begin() as c:
         existing = c.execute(text("SELECT user_id FROM users WHERE username = :u OR email = :e"), {"u": username, "e": email}).scalar()
         if existing:
