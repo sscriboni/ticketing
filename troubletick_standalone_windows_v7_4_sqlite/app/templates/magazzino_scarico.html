@@ -59,16 +59,16 @@
                     </div>
                     <div class="col-md-6">
                         <label class="form-label fw-bold">Quantità <span class="text-danger">*</span></label>
-                        <input type="number" name="quantita" class="form-control border-danger" min="1" value="{{ richiesta.quantita if richiesta else 1 }}" required {% if richiesta %}readonly{% endif %}>
+                        <input type="number" name="quantita" class="form-control border-danger" min="1" value="{{ richiesta.quantita if richiesta else 1 }}" required {% if richiesta %}readonly{% endif %} id="quantitaInput" oninput="checkGiacenzaPosizione()">
                     </div>
                 </div>
                 <div class="mb-3">
                     <label class="form-label fw-bold">Posizione di Magazzino (se nota)</label>
                     {% if posizioni %}
-                    <select name="posizione_fisica" class="form-select border-danger" id="posizioneSelect" required>
+                    <select name="posizione_fisica" class="form-select border-danger" id="posizioneSelect" required onchange="checkGiacenzaPosizione()">
                         <option value="">-- Seleziona Posizione / Lotto --</option>
                         {% for pos in posizioni %}
-                        <option value="{{ pos }}">{{ pos }}</option>
+                        <option value="{{ pos.posizione_fisica }}" data-qta="{{ pos.quantita }}" {% if pos.quantita <= 0 %}disabled{% endif %}>{{ pos.posizione_fisica }} (Disp: {{ pos.quantita }})</option>
                         {% endfor %}
                     </select>
                     {% else %}
@@ -83,7 +83,6 @@
                         <select name="sede_assegnazione_id" class="form-select">
                             <option value="">-- Nessuna / Uso generico --</option>
                             {% for sede in sedi %}
-                            <option value="{{ sede.sede_id }}">{{ sede.nome }}</option>
                             <option value="{{ sede.sede_id }}" {% if richiesta and richiesta.sede_dest_id == sede.sede_id %}selected{% endif %}>{{ sede.nome }}</option>
                             {% endfor %}
                         </select>
@@ -119,17 +118,53 @@ function toggleProgrammazione(is_checked) {
         submitBtn.classList.remove('btn-danger');
         submitBtn.classList.add('btn-primary');
         submitBtn.innerHTML = 'Conferma Prenotazione';
-        if(posSelect) posSelect.required = false;
+        if(posSelect) {
+            posSelect.required = false;
+            Array.from(posSelect.options).forEach(opt => {
+                if(opt.value !== "") opt.disabled = false;
+            });
+        }
         if(posInput) posInput.required = false;
     } else {
         dataLabel.innerHTML = 'Data <span class="text-danger">*</span>';
         submitBtn.classList.remove('btn-primary');
         submitBtn.classList.add('btn-danger');
         submitBtn.innerHTML = 'Conferma Scarico Immediato';
-        if(posSelect) posSelect.required = true;
+        if(posSelect) {
+            posSelect.required = true;
+            Array.from(posSelect.options).forEach(opt => {
+                if(opt.value !== "" && parseInt(opt.dataset.qta) <= 0) {
+                    opt.disabled = true;
+                    if(opt.selected) posSelect.value = "";
+                }
+            });
+        }
         if(posInput) posInput.required = true;
     }
+    checkGiacenzaPosizione();
 }
+
+function checkGiacenzaPosizione() {
+    const is_checked = document.getElementById('programmaConsegnaSwitch').checked;
+    const posSelect = document.getElementById('posizioneSelect');
+    const quantitaInput = document.getElementById('quantitaInput');
+    
+    if (!is_checked && posSelect && posSelect.value !== "") {
+        const selectedOpt = posSelect.options[posSelect.selectedIndex];
+        const disp = parseInt(selectedOpt.dataset.qta);
+        if (quantitaInput && !quantitaInput.readOnly) {
+            quantitaInput.max = disp;
+        }
+    } else {
+        if (quantitaInput && !quantitaInput.readOnly) {
+            quantitaInput.removeAttribute('max');
+        }
+    }
+}
+
+document.addEventListener('DOMContentLoaded', function() {
+    checkGiacenzaPosizione();
+});
 </script>
 </body>
 </html>

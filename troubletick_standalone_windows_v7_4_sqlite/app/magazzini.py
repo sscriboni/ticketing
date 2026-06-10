@@ -291,10 +291,12 @@ def magazzino_movimento_form(r: Request, magazzino_id: int, materiale_id: int, o
         posizioni = []
         if operazione == "scarico":
             posizioni = c.execute(text("""
-                SELECT DISTINCT posizione_fisica 
+                SELECT posizione_fisica, 
+                       SUM(CASE WHEN operazione = 'carico' THEN quantita ELSE -quantita END) as quantita
                 FROM movimenti_magazzino 
-                WHERE magazzino_id = :mag_id AND materiale_id = :mat_id AND operazione = 'carico' AND posizione_fisica IS NOT NULL AND posizione_fisica != ''
-            """), {"mag_id": magazzino_id, "mat_id": materiale_id}).scalars().all()
+                WHERE magazzino_id = :mag_id AND materiale_id = :mat_id AND posizione_fisica IS NOT NULL AND posizione_fisica != ''
+                GROUP BY posizione_fisica
+            """), {"mag_id": magazzino_id, "mat_id": materiale_id}).mappings().all()
             
         from datetime import date
         oggi = date.today().isoformat()
