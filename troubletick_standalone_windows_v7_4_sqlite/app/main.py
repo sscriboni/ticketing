@@ -311,6 +311,27 @@ def get_new_tickets_count(user):
 
 templates.env.globals["get_new_tickets_count"] = get_new_tickets_count
 
+def get_operators_count(user):
+    if not user or user.get("ruolo") == "normale":
+        return 0
+    try:
+        with engine.connect() as c:
+            uid = user.get("id")
+            if user.get("ruolo") == "admin":
+                return c.execute(text("SELECT COUNT(*) FROM users WHERE attivo = 1 AND user_id != 1")).scalar() or 0
+            elif user.get("ruolo") == "responsabile":
+                user_rep = c.execute(text("SELECT reparto_id FROM users WHERE user_id = :uid"), {"uid": uid}).scalar()
+                if user_rep:
+                    return c.execute(text("SELECT COUNT(*) FROM users WHERE attivo = 1 AND user_id != 1 AND reparto_id = :rep"), {"rep": user_rep}).scalar() or 0
+                return 0
+            elif user.get("ruolo") == "assistenza":
+                return c.execute(text("SELECT COUNT(*) FROM users WHERE attivo = 1 AND user_id != 1")).scalar() or 0
+    except Exception:
+        pass
+    return 0
+
+templates.env.globals["get_operators_count"] = get_operators_count
+
 @app.exception_handler(Exception)
 async def global_exception_handler(request: Request, exc: Exception):
     now = datetime.now().strftime("%Y-%m-%d %H:%M:%S")

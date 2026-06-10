@@ -35,7 +35,15 @@
         
         <li class="nav-item"><a class="nav-link {% if request.url.path.startswith('/richieste-materiale') or request.url.path.startswith('/richiesta-materiale') %}active fw-bold{% endif %}" href="/richieste-materiale"><i class="bi bi-cart"></i> Richieste Mat.</a></li>
         <li class="nav-item"><a class="nav-link {% if request.url.path.startswith('/calendario') %}active fw-bold{% endif %}" href="/calendario"><i class="bi bi-calendar3"></i> Calendario</a></li>
-        <li class="nav-item"><a class="nav-link {% if request.url.path == '/operatori' or request.url.path.startswith('/admin/operatori') %}active fw-bold{% endif %}" href="/operatori"><i class="bi bi-people"></i> Operatori</a></li>
+        <li class="nav-item">
+          <a class="nav-link {% if request.url.path == '/operatori' or request.url.path.startswith('/admin/operatori') %}active fw-bold{% endif %}" href="/operatori">
+            <i class="bi bi-people"></i> Operatori
+            {% set cnt_ops = get_operators_count(user) %}
+            {% if cnt_ops > 0 %}
+            <span class="badge bg-secondary rounded-pill ms-1">{{ cnt_ops }}</span>
+            {% endif %}
+          </a>
+        </li>
         
         {% if user.ruolo == 'responsabile' %}
         <li class="nav-item"><a class="nav-link {% if request.url.path == '/admin/report-copertura' %}active fw-bold{% endif %}" href="/admin/report-copertura"><i class="bi bi-bar-chart"></i> Report</a></li>
