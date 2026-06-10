@@ -21,7 +21,7 @@
         
         {% if user.ruolo != 'normale' %}
         <li class="nav-item dropdown">
-          <a class="nav-link dropdown-toggle {% if request.url.path.startswith('/magazzin') or request.url.path.startswith('/trasferimenti') or request.url.path.startswith('/consegne-programmate') %}active fw-bold{% endif %}" href="#" id="magazzinoDropdown" role="button" data-bs-toggle="dropdown" aria-expanded="false">
+          <a class="nav-link dropdown-toggle {% if request.url.path.startswith('/magazzini') or request.url.path.startswith('/magazzino/') or request.url.path.startswith('/trasferimenti') or request.url.path.startswith('/consegne-programmate') or request.url.path.startswith('/stampa-consegna') %}active fw-bold{% endif %}" href="#" id="magazzinoDropdown" role="button" data-bs-toggle="dropdown" aria-expanded="false">
             <i class="bi bi-boxes"></i> Magazzino
           </a>
           <ul class="dropdown-menu shadow" aria-labelledby="magazzinoDropdown">
