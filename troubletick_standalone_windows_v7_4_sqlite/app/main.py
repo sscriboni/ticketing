@@ -848,23 +848,6 @@ def elimina_assenza(r: Request, assenza_id: int):
             c.execute(text("DELETE FROM assenze WHERE assenza_id = :id AND user_id = :uid"), {"id": assenza_id, "uid": user.get("id")})
     return RedirectResponse(url="/calendario", status_code=303)
 
-@app.post("/calendario/festivita/nuova")
-def nuova_festivita(r: Request, data: str = Form(...), descrizione: str = Form(...)):
-    user = require_superuser(r)
-    if isinstance(user, RedirectResponse): return user
-    with engine.begin() as c:
-        c.execute(text("""INSERT INTO festivita (data, descrizione) VALUES (:d, :desc)"""), 
-                  {"d": data, "desc": descrizione})
-    return RedirectResponse(url="/calendario", status_code=303)
-
-@app.post("/calendario/festivita/{festivita_id}/elimina")
-def elimina_festivita(r: Request, festivita_id: int):
-    user = require_superuser(r)
-    if isinstance(user, RedirectResponse): return user
-    with engine.begin() as c:
-        c.execute(text("DELETE FROM festivita WHERE festivita_id = :id"), {"id": festivita_id})
-    return RedirectResponse(url="/calendario", status_code=303)
-
 @app.get("/admin", response_class=HTMLResponse)
 def admin(r: Request):
     user = require_superuser(r)
@@ -1480,6 +1463,32 @@ def delete_comune(r: Request, comune_id: int = Form(...)):
             
         c.execute(text("DELETE FROM comuni WHERE comune_id = :id"), {"id": comune_id})
     return RedirectResponse(url="/admin/comuni", status_code=303)
+
+@app.get("/admin/festivita", response_class=HTMLResponse)
+def admin_festivita(r: Request):
+    user = require_superuser(r)
+    if isinstance(user, RedirectResponse):
+        return user
+    with engine.connect() as c:
+        festivita = c.execute(text("SELECT * FROM festivita ORDER BY data DESC")).mappings().all()
+    return templates.TemplateResponse(r, "admin_festivita.html", {"request": r, "cfg": CFG, "user": user, "festivita": festivita})
+
+@app.post("/admin/festivita")
+def add_festivita(r: Request, data: str = Form(...), descrizione: str = Form(...)):
+    user = require_superuser(r)
+    if isinstance(user, RedirectResponse): return user
+    with engine.begin() as c:
+        c.execute(text("""INSERT INTO festivita (data, descrizione) VALUES (:d, :desc)"""), 
+                  {"d": data, "desc": descrizione})
+    return RedirectResponse(url="/admin/festivita", status_code=303)
+
+@app.post("/admin/festivita/delete")
+def delete_festivita(r: Request, festivita_id: int = Form(...)):
+    user = require_superuser(r)
+    if isinstance(user, RedirectResponse): return user
+    with engine.begin() as c:
+        c.execute(text("DELETE FROM festivita WHERE festivita_id = :id"), {"id": festivita_id})
+    return RedirectResponse(url="/admin/festivita", status_code=303)
 
 @app.post("/admin/import/comuni")
 async def import_comuni(r: Request, file: UploadFile = File(...)):

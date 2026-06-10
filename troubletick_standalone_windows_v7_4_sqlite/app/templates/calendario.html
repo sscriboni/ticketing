@@ -52,36 +52,6 @@
                     </tbody>
                 </table>
             </div>
-            <hr class="mt-5">
-            <h4 class="mb-3">Festività</h4>
-            <div class="table-responsive">
-                <table class="table table-sm table-striped align-middle">
-                    <thead>
-                        <tr>
-                            <th>Data</th>
-                            <th>Descrizione</th>
-                            {% if user.ruolo == 'admin' %}<th>Azioni</th>{% endif %}
-                        </tr>
-                    </thead>
-                    <tbody>
-                        {% for f in festivita %}
-                        <tr>
-                            <td>{{ f.data }}</td>
-                            <td><strong>{{ f.descrizione }}</strong></td>
-                            {% if user.ruolo == 'admin' %}
-                            <td>
-                                <form method="post" action="/calendario/festivita/{{ f.festivita_id }}/elimina" class="d-inline" onsubmit="return confirm('Eliminare questa festività?')">
-                                    <button type="submit" class="btn btn-sm btn-danger" title="Elimina"><i class="bi bi-trash"></i></button>
-                                </form>
-                            </td>
-                            {% endif %}
-                        </tr>
-                        {% else %}
-                        <tr><td colspan="{% if user.ruolo == 'admin' %}3{% else %}2{% endif %}" class="text-muted text-center py-4">Nessuna festività registrata.</td></tr>
-                        {% endfor %}
-                    </tbody>
-                </table>
-            </div>
         </div>
     </div>
 
@@ -96,17 +66,6 @@
                 <button type="submit" class="btn btn-primary w-100">Salva Assenza</button>
             </form>
         </div>
-        
-        {% if user.ruolo == 'admin' %}
-        <div class="bg-white p-4 rounded shadow-sm">
-            <h4 class="mb-3">Aggiungi Festività</h4>
-            <form method="post" action="/calendario/festivita/nuova">
-                <div class="mb-3"><label class="form-label fw-bold">Data <span class="text-danger">*</span></label><input type="date" name="data" class="form-control" required></div>
-                <div class="mb-4"><label class="form-label fw-bold">Descrizione <span class="text-danger">*</span></label><input type="text" name="descrizione" class="form-control" required placeholder="es. Natale, Pasqua"></div>
-                <button type="submit" class="btn btn-warning w-100">Salva Festività</button>
-            </form>
-        </div>
-        {% endif %}
     </div>
 </div>
 <div class="alert alert-info mt-4 small shadow-sm">
