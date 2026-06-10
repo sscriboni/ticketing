@@ -1170,7 +1170,7 @@ async def import_full(r: Request, file: UploadFile = File(...), svuota_db: str =
         with engine.begin() as c:
             if svuota_db == "1":
                 c.execute(text("DELETE FROM operatori_servizi"))
-                c.execute(text("DELETE FROM users WHERE ruolo != 'admin'"))
+                c.execute(text("DELETE FROM users WHERE user_id != 1"))
                 c.execute(text("DELETE FROM giacenze"))
                 c.execute(text("DELETE FROM magazzini"))
                 c.execute(text("DELETE FROM materiali"))
@@ -1273,7 +1273,7 @@ def export_full(r: Request):
             LEFT JOIN reparti r ON u.reparto_id = r.reparto_id
             LEFT JOIN sedi s ON u.sede_id = s.sede_id
             LEFT JOIN magazzini m ON u.magazzino_id = m.magazzino_id
-            WHERE u.ruolo != 'admin'
+            WHERE u.user_id != 1
         """)).mappings().all()
 
     export_data = {
@@ -1651,7 +1651,7 @@ def operatori(r: Request):
         return RedirectResponse(url="/admin/operatori", status_code=303)
     
     with engine.connect() as c:
-        where_clause = "WHERE u.ruolo != 'admin'"
+        where_clause = "WHERE u.user_id != 1"
         params = {}
         if user.get("ruolo") == "responsabile":
             user_rep = c.execute(text("SELECT reparto_id FROM users WHERE user_id = :uid"), {"uid": user.get("id")}).scalar()
@@ -1668,7 +1668,7 @@ def operatori(r: Request):
               LEFT JOIN sedi sd ON u.sede_id = sd.sede_id
               LEFT JOIN magazzini m ON u.magazzino_id = m.magazzino_id
              """ + where_clause + """
-             GROUP BY u.user_id
+             GROUP BY u.user_id, u.username, u.nome, u.cognome, u.email, u.telefono, u.ruolo, u.attivo, u.is_test, sd.nome, m.nome
              ORDER BY u.nome
         """), params).mappings().all()
     return templates.TemplateResponse(r, "operatori.html", {"request": r, "cfg": CFG, "operatori": rows, "user": user})
@@ -1683,15 +1683,15 @@ def admin_operatori(r: Request):
     with engine.connect() as c:
         operatori = c.execute(text("""
             SELECT u.user_id, u.username, u.nome, u.cognome, u.email, u.telefono, u.ruolo, u.reparto_id, u.attivo, u.is_test,
-                   GROUP_CONCAT(s.descrizione, ', ') AS servizi, r.nome AS reparto_nome, sd.nome AS sede_nome, m.nome AS magazzino_nome
+                   GROUP_CONCAT(s.descrizione) AS servizi, r.nome AS reparto_nome, sd.nome AS sede_nome, m.nome AS magazzino_nome
               FROM users u
               LEFT JOIN operatori_servizi os ON os.user_id = u.user_id
               LEFT JOIN servizi s ON s.servizio_id = os.servizio_id
               LEFT JOIN reparti r ON u.reparto_id = r.reparto_id
               LEFT JOIN sedi sd ON u.sede_id = sd.sede_id
               LEFT JOIN magazzini m ON u.magazzino_id = m.magazzino_id
-             WHERE u.ruolo != 'admin'
-             GROUP BY u.user_id
+             WHERE u.user_id != 1
+             GROUP BY u.user_id, u.username, u.nome, u.cognome, u.email, u.telefono, u.ruolo, u.reparto_id, u.attivo, u.is_test, r.nome, sd.nome, m.nome
              ORDER BY u.nome
         """)).mappings().all()
         reparti = c.execute(text("SELECT reparto_id, nome FROM reparti ORDER BY nome")).mappings().all()
@@ -1745,7 +1745,7 @@ def edit_operatore_form(r: Request, user_id: int):
         operatore = c.execute(text("""
             SELECT u.user_id, u.username, u.nome, u.cognome, u.email, u.telefono, u.ruolo, u.reparto_id, u.attivo, u.ultimo_accesso, u.sede_id, u.magazzino_id, u.is_test
               FROM users u
-             WHERE u.user_id = :id AND u.ruolo != 'admin'
+             WHERE u.user_id = :id AND u.user_id != 1
         """), {"id": user_id}).mappings().first()
         
         if not operatore:
@@ -1788,12 +1788,12 @@ def edit_operatore(r: Request, user_id: int, background_tasks: BackgroundTasks, 
         if password:
             c.execute(text(f"""
                 UPDATE users SET nome=:n, cognome=:c, email=:e, {tel_sql}reparto_id=:r, ruolo=:ruolo, attivo=:a, password_hash=:p, sede_id=:sede, magazzino_id=:mag, is_test=:is_test
-                 WHERE user_id=:uid AND ruolo != 'admin'
+                 WHERE user_id=:uid AND user_id != 1
             """), {"n": nome, "c": cognome, "e": email, "r": reparto_id, "ruolo": ruolo, "a": attivo, "p": h(password), "sede": sede_id_val, "mag": magazzino_id_val, "is_test": is_test, "uid": user_id, **tel_param})
         else:
             c.execute(text(f"""
                 UPDATE users SET nome=:n, cognome=:c, email=:e, {tel_sql}reparto_id=:r, ruolo=:ruolo, attivo=:a, sede_id=:sede, magazzino_id=:mag, is_test=:is_test
-                 WHERE user_id=:uid AND ruolo != 'admin'
+                 WHERE user_id=:uid AND user_id != 1
             """), {"n": nome, "c": cognome, "e": email, "r": reparto_id, "ruolo": ruolo, "a": attivo, "sede": sede_id_val, "mag": magazzino_id_val, "is_test": is_test, "uid": user_id, **tel_param})
         
         # Aggiorna servizi assegnati
@@ -1820,7 +1820,7 @@ def toggle_operatore(r: Request, user_id: int, background_tasks: BackgroundTasks
         return user
     
     with engine.begin() as c:
-        op = c.execute(text("SELECT attivo, nome, email, username FROM users WHERE user_id=:uid AND ruolo != 'admin'"), {"uid": user_id}).mappings().first()
+        op = c.execute(text("SELECT attivo, nome, email, username FROM users WHERE user_id=:uid AND user_id != 1"), {"uid": user_id}).mappings().first()
         if op:
             new_status = 0 if op["attivo"] else 1
             c.execute(text("UPDATE users SET attivo=:s WHERE user_id=:uid"), {"s": new_status, "uid": user_id})
@@ -1839,8 +1839,10 @@ def delete_operatore(r: Request, user_id: int):
         return user
     
     with engine.begin() as c:
-        c.execute(text("DELETE FROM operatori_servizi WHERE user_id = :uid"), {"uid": user_id})
-        c.execute(text("DELETE FROM users WHERE user_id = :uid AND ruolo != 'admin'"), {"uid": user_id})
+        check = c.execute(text("SELECT user_id FROM users WHERE user_id = :uid AND user_id != 1"), {"uid": user_id}).scalar()
+        if check:
+            c.execute(text("DELETE FROM operatori_servizi WHERE user_id = :uid"), {"uid": user_id})
+            c.execute(text("DELETE FROM users WHERE user_id = :uid"), {"uid": user_id})
     
     return RedirectResponse(url="/admin/operatori", status_code=303)
 
