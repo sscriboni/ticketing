@@ -1,4 +1,4 @@
-﻿import os, json, csv, io, shutil, uuid, traceback
+﻿﻿import os, json, csv, io, shutil, uuid, traceback
 from contextlib import asynccontextmanager
 from datetime import datetime
 from fastapi import FastAPI, Request, Form, UploadFile, File, BackgroundTasks
@@ -181,6 +181,24 @@ with engine.begin() as c:
         magazzino_id INTEGER,
         ticket_id INTEGER,
         stato TEXT DEFAULT 'nuova',
+        creato_il TEXT DEFAULT CURRENT_TIMESTAMP
+    )"""))
+    c.execute(text(f"""CREATE TABLE IF NOT EXISTS consegne_programmate (
+        consegna_id {DB_PK},
+        magazzino_id INTEGER NOT NULL,
+        materiale_id INTEGER NOT NULL,
+        user_id INTEGER NOT NULL,
+        quantita INTEGER NOT NULL,
+        data_programmata TEXT,
+        descrizione TEXT,
+        sede_assegnazione_id INTEGER,
+        posizione_fisica TEXT,
+        marca TEXT,
+        modello TEXT,
+        allegato TEXT,
+        stato TEXT DEFAULT 'programmata',
+        data_consegna_effettiva TEXT,
+        user_consegna_id INTEGER,
         creato_il TEXT DEFAULT CURRENT_TIMESTAMP
     )"""))
 
