@@ -65,10 +65,16 @@
       </ul>
       
       <div class="d-flex align-items-center">
-        <span class="text-light me-3 d-none d-md-inline-block">
-          <i class="bi bi-person-circle"></i> <strong>{{ user.nome }} {{ user.cognome }}</strong> <small>({{ user.ruolo }})</small>
-        </span>
-        <a href="/logout" class="btn btn-outline-light btn-sm"><i class="bi bi-box-arrow-right"></i> Logout</a>
+        <div class="nav-item dropdown">
+          <a class="nav-link dropdown-toggle text-light" href="#" id="userDropdown" role="button" data-bs-toggle="dropdown" aria-expanded="false">
+            <i class="bi bi-person-circle"></i> <strong>{{ user.nome }} {{ user.cognome }}</strong>
+          </a>
+          <ul class="dropdown-menu dropdown-menu-end shadow" aria-labelledby="userDropdown">
+            <li><h6 class="dropdown-header">Ruolo: {{ user.ruolo|capitalize }}</h6></li>
+            <li><hr class="dropdown-divider"></li>
+            <li><a class="dropdown-item" href="/logout"><i class="bi bi-box-arrow-right me-2"></i>Logout</a></li>
+          </ul>
+        </div>
       </div>
       {% else %}
       <ul class="navbar-nav ms-auto mb-2 mb-lg-0">
