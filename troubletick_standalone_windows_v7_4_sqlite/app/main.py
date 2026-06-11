@@ -1689,6 +1689,31 @@ async def import_operatori(r: Request, file: UploadFile = File(...)):
     
     return RedirectResponse(url="/admin", status_code=303)
 
+@app.get("/profilo", response_class=HTMLResponse)
+def user_profile_form(r: Request, msg: str = None, error: str = None):
+    if "user" not in r.session: return RedirectResponse(url="/login")
+    user = r.session.get("user")
+    with engine.connect() as c:
+        operatore = c.execute(text("SELECT email, telefono, username, nome, cognome FROM users WHERE user_id = :uid"), {"uid": user.get("id")}).mappings().first()
+    return templates.TemplateResponse(r, "profilo.html", {"request": r, "cfg": CFG, "user": user, "operatore": operatore, "msg": msg, "error": error})
+
+@app.post("/profilo")
+def user_profile_action(r: Request, telefono: str = Form(""), password: str = Form(""), conferma_password: str = Form("")):
+    if "user" not in r.session: return RedirectResponse(url="/login")
+    user = r.session.get("user")
+    
+    if password and password != conferma_password:
+        return RedirectResponse(url="/profilo?error=passwords_mismatch", status_code=303)
+        
+    with engine.begin() as c:
+        if password:
+            hashed = bcrypt.hashpw(password.encode('utf-8'), bcrypt.gensalt()).decode('utf-8')
+            c.execute(text("UPDATE users SET telefono=:tel, password_hash=:p WHERE user_id=:uid"), {"tel": telefono, "p": hashed, "uid": user.get("id")})
+        else:
+            c.execute(text("UPDATE users SET telefono=:tel WHERE user_id=:uid"), {"tel": telefono, "uid": user.get("id")})
+                
+    return RedirectResponse(url="/profilo?msg=aggiornato", status_code=303)
+
 @app.get("/operatori", response_class=HTMLResponse)
 def operatori(r: Request):
     if "user" not in r.session:
