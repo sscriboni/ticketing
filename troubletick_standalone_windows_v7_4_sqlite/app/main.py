@@ -781,6 +781,7 @@ def delete_ticket(r: Request, ticket_id: int):
             except: pass
             
     with engine.begin() as c:
+        c.execute(text("DELETE FROM richieste_materiale WHERE ticket_id = :id"), {"id": ticket_id})
         c.execute(text("DELETE FROM ticket_materiali WHERE ticket_id = :id"), {"id": ticket_id})
         c.execute(text("DELETE FROM ticket_notes WHERE ticket_id = :id"), {"id": ticket_id})
         c.execute(text("DELETE FROM tickets WHERE ticket_id = :id"), {"id": ticket_id})
@@ -808,6 +809,11 @@ def delete_tickets_massivo(r: Request, data_inizio: str = Form(...), data_fine: 
             for n in notes:
                 if n["allegato"]: files_to_delete.append(n["allegato"])
                 
+        c.execute(text("""
+            DELETE FROM richieste_materiale 
+            WHERE ticket_id IN (SELECT ticket_id FROM tickets WHERE date(creato_il) >= date(:start) AND date(creato_il) <= date(:end))
+        """), {"start": data_inizio, "end": data_fine})
+        
         c.execute(text("""
             DELETE FROM ticket_materiali 
             WHERE ticket_id IN (SELECT ticket_id FROM tickets WHERE date(creato_il) >= date(:start) AND date(creato_il) <= date(:end))
