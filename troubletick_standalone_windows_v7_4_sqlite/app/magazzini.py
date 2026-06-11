@@ -586,25 +586,30 @@ def nuova_richiesta_materiale_form(r: Request, ticket_id: str = None):
         sedi = c.execute(text("SELECT sede_id, nome FROM sedi ORDER BY nome")).mappings().all()
         categorie = c.execute(text("SELECT categoria_id, nome FROM categorie ORDER BY nome")).mappings().all()
         materiali = c.execute(text("SELECT materiale_id, nome, categoria_id FROM materiali ORDER BY nome")).mappings().all()
+        magazzini = c.execute(text("SELECT magazzino_id, nome FROM magazzini ORDER BY nome")).mappings().all()
+        
+        giacenze_raw = c.execute(text("SELECT magazzino_id, materiale_id, quantita FROM giacenze")).mappings().all()
+        giacenze_json = []
+        for g in giacenze_raw:
+            giacenze_json.append({"magazzino_id": g["magazzino_id"], "materiale_id": g["materiale_id"], "quantita": g["quantita"]})
+            
+        import json
+        giacenze_json_str = json.dumps(giacenze_json)
         
     return templates.TemplateResponse(r, "nuova_richiesta_materiale.html", {
-        "request": r, "cfg": CFG, "user": user, "sedi": sedi, "categorie": categorie, "materiali": materiali, "ticket_id": ticket_id
+        "request": r, "cfg": CFG, "user": user, "sedi": sedi, "categorie": categorie, "materiali": materiali,
+        "magazzini": magazzini, "giacenze_json": giacenze_json_str, "ticket_id": ticket_id
     })
 
 @router.post("/richiesta-materiale/nuova")
 def nuova_richiesta_materiale_action(r: Request, sede_dest_id: int = Form(...), categoria_id: int = Form(...), 
-                                     materiale_id: int = Form(...), quantita: int = Form(...), ticket_id: str = Form(None)):
+                                     materiale_id: int = Form(...), magazzino_id: int = Form(...), quantita: int = Form(...), ticket_id: str = Form(None)):
     if "user" not in r.session: return RedirectResponse(url="/login")
     user = r.session.get("user")
     
     ticket_id_val = int(ticket_id) if ticket_id and str(ticket_id).isdigit() else None
     
     with engine.begin() as c:
-        magazzino_id = None
-        if not ticket_id_val:
-            magazzino_id = c.execute(text("SELECT magazzino_id FROM magazzini WHERE (sede_id = :sede OR sede_id IS NULL) AND (categoria_id = :cat OR categoria_id IS NULL) ORDER BY sede_id DESC, categoria_id DESC LIMIT 1"),
-                                     {"sede": sede_dest_id, "cat": categoria_id}).scalar()
-        
         stato = 'nuova'
         if magazzino_id:
             giacenza = c.execute(text("SELECT quantita FROM giacenze WHERE magazzino_id = :mag AND materiale_id = :mat"),
