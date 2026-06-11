@@ -600,8 +600,10 @@ def nuova_richiesta_materiale_action(r: Request, sede_dest_id: int = Form(...), 
     ticket_id_val = int(ticket_id) if ticket_id and str(ticket_id).isdigit() else None
     
     with engine.begin() as c:
-        magazzino_id = c.execute(text("SELECT magazzino_id FROM magazzini WHERE (sede_id = :sede OR sede_id IS NULL) AND (categoria_id = :cat OR categoria_id IS NULL) ORDER BY sede_id DESC, categoria_id DESC LIMIT 1"),
-                                 {"sede": sede_dest_id, "cat": categoria_id}).scalar()
+        magazzino_id = None
+        if not ticket_id_val:
+            magazzino_id = c.execute(text("SELECT magazzino_id FROM magazzini WHERE (sede_id = :sede OR sede_id IS NULL) AND (categoria_id = :cat OR categoria_id IS NULL) ORDER BY sede_id DESC, categoria_id DESC LIMIT 1"),
+                                     {"sede": sede_dest_id, "cat": categoria_id}).scalar()
         
         stato = 'nuova'
         if magazzino_id:
