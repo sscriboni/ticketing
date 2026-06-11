@@ -45,6 +45,7 @@
             {% endif %}
           </a>
         </li>
+        <li class="nav-item"><a class="nav-link {% if request.url.path.startswith('/documentazione') %}active fw-bold{% endif %}" href="/documentazione"><i class="bi bi-book"></i> Documentazione</a></li>
         
         {% if user.ruolo == 'responsabile' %}
         <li class="nav-item"><a class="nav-link {% if request.url.path == '/admin/report-copertura' %}active fw-bold{% endif %}" href="/admin/report-copertura"><i class="bi bi-bar-chart"></i> Report</a></li>

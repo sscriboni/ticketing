@@ -1751,6 +1751,19 @@ def operatori(r: Request):
         """), params).mappings().all()
     return templates.TemplateResponse(r, "operatori.html", {"request": r, "cfg": CFG, "operatori": rows, "user": user})
 
+@app.get("/documentazione", response_class=HTMLResponse)
+def documentazione(r: Request):
+    user = r.session.get("user")
+    doc_path = os.path.join(os.path.dirname(BASE_DIR), "DOCUMENTAZIONE.md")
+    content = ""
+    try:
+        with open(doc_path, "r", encoding="utf-8") as f:
+            content = f.read()
+    except Exception:
+        content = "# Documentazione non trovata\nIl file DOCUMENTAZIONE.md non è presente nella cartella principale del progetto."
+        
+    return templates.TemplateResponse(r, "documentazione.html", {"request": r, "cfg": CFG, "user": user, "content": content})
+
 # ===== GESTIONE OPERATORI PER ADMIN =====
 
 @app.get("/admin/operatori", response_class=HTMLResponse)
