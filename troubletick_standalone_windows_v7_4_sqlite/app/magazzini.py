@@ -517,33 +517,81 @@ def ricevi_trasferimento(r: Request, trasferimento_id: int):
                   
     return RedirectResponse(url="/trasferimenti", status_code=303)
 
-@router.get("/magazzino/{magazzino_id}/log", response_class=HTMLResponse)
-def magazzino_log(r: Request, magazzino_id: int):
+@router.get("/log-magazzini", response_class=HTMLResponse)
+def log_magazzini(r: Request, magazzino_id: str = None, categoria_id: str = None, materiale_id: str = None, operazione: str = None, data_dal: str = None, data_al: str = None, q: str = None):
     if "user" not in r.session: return RedirectResponse(url="/login")
     user = r.session.get("user")
+    
+    if user.get("ruolo") == "normale":
+        return RedirectResponse(url="/tickets")
+        
     with engine.connect() as c:
-        magazzino = c.execute(text("SELECT * FROM magazzini WHERE magazzino_id = :id"), {"id": magazzino_id}).mappings().first()
-        if not magazzino: return RedirectResponse(url="/magazzini")
+        where_clauses = []
+        params = {}
         
-        can_view = False
-        if user.get("ruolo") == "admin": can_view = True
-        elif user.get("ruolo") in ("assistenza", "responsabile"):
+        if user.get("ruolo") != "admin":
             user_mag_id = c.execute(text("SELECT magazzino_id FROM users WHERE user_id = :uid"), {"uid": user.get("id")}).scalar()
-            if user_mag_id == magazzino_id: can_view = True
-        
-        if not can_view: return RedirectResponse(url="/magazzini")
+            if user_mag_id:
+                where_clauses.append("mm.magazzino_id = :user_mag_id")
+                params["user_mag_id"] = user_mag_id
+            else:
+                where_clauses.append("1 = 0")
+                
+        if magazzino_id and magazzino_id.isdigit():
+            where_clauses.append("mm.magazzino_id = :mag_id")
+            params["mag_id"] = int(magazzino_id)
+        if categoria_id and categoria_id.isdigit():
+            where_clauses.append("mat.categoria_id = :cat_id")
+            params["cat_id"] = int(categoria_id)
+        if materiale_id and materiale_id.isdigit():
+            where_clauses.append("mm.materiale_id = :mat_id")
+            params["mat_id"] = int(materiale_id)
+        if operazione:
+            where_clauses.append("mm.operazione = :op")
+            params["op"] = operazione
+        if data_dal:
+            where_clauses.append("mm.data_movimento >= :data_dal")
+            params["data_dal"] = data_dal
+        if data_al:
+            where_clauses.append("mm.data_movimento <= :data_al")
+            params["data_al"] = data_al
+        if q:
+            where_clauses.append("(mm.descrizione LIKE :q OR mat.nome LIKE :q OR mm.marca LIKE :q OR mm.modello LIKE :q OR mm.posizione_fisica LIKE :q)")
+            params["q"] = f"%{q}%"
 
-        movimenti = c.execute(text("""
-            SELECT mm.*, mat.nome as materiale_nome, u.nome as user_nome, u.cognome as user_cognome, s.nome as sede_nome
+        where_sql = ("WHERE " + " AND ".join(where_clauses)) if where_clauses else ""
+        
+        movimenti = c.execute(text(f"""
+            SELECT mm.*, mat.nome as materiale_nome, c.nome as categoria_nome, u.nome as user_nome, u.cognome as user_cognome, s.nome as sede_nome, mag.nome as magazzino_nome
             FROM movimenti_magazzino mm
             JOIN materiali mat ON mm.materiale_id = mat.materiale_id
+            LEFT JOIN categorie c ON mat.categoria_id = c.categoria_id
             JOIN users u ON mm.user_id = u.user_id
             LEFT JOIN sedi s ON mm.sede_assegnazione_id = s.sede_id
-            WHERE mm.magazzino_id = :id
+            JOIN magazzini mag ON mm.magazzino_id = mag.magazzino_id
+            {where_sql}
             ORDER BY mm.creato_il DESC
-        """), {"id": magazzino_id}).mappings().all()
+        """), params).mappings().all()
+        
+        magazzini = c.execute(text("SELECT magazzino_id, nome FROM magazzini ORDER BY nome")).mappings().all()
+        categorie = c.execute(text("SELECT categoria_id, nome FROM categorie ORDER BY nome")).mappings().all()
+        materiali = c.execute(text("SELECT materiale_id, nome FROM materiali ORDER BY nome")).mappings().all()
+        
+        filtri = {
+            "magazzino_id": magazzino_id,
+            "categoria_id": categoria_id,
+            "materiale_id": materiale_id,
+            "operazione": operazione,
+            "data_dal": data_dal,
+            "data_al": data_al,
+            "q": q
+        }
 
-    return templates.TemplateResponse(r, "magazzino_log.html", {"request": r, "cfg": CFG, "user": user, "magazzino": magazzino, "movimenti": movimenti})
+    return templates.TemplateResponse(r, "log_magazzini.html", {
+        "request": r, "cfg": CFG, "user": user, 
+        "movimenti": movimenti, "magazzini": magazzini, 
+        "categorie": categorie, "materiali": materiali, "filtri": filtri
+    })
 
 @router.get("/richieste-materiale", response_class=HTMLResponse)
 def richieste_materiale_list(r: Request):
