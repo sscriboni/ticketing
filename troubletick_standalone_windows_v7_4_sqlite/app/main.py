@@ -16,254 +16,257 @@ import auth
 import magazzini
 
 # Init schema + seed
-with engine.begin() as c:
-    c.execute(text(f"""CREATE TABLE IF NOT EXISTS reparti (
-        reparto_id {DB_PK},
-        nome TEXT NOT NULL,
-        descrizione TEXT
-    )"""))
-    c.execute(text(f"""CREATE TABLE IF NOT EXISTS servizi (
-        servizio_id {DB_PK},
-        descrizione TEXT NOT NULL,
-        reparto_id INTEGER NOT NULL,
-        accetta_ticket INTEGER DEFAULT 1
-    )"""))
-    c.execute(text(f"""CREATE TABLE IF NOT EXISTS users (
-        user_id {DB_PK},
-        username TEXT UNIQUE NOT NULL,
-        password_hash TEXT NOT NULL,
-        nome TEXT NOT NULL,
-        cognome TEXT NOT NULL,
-        email TEXT NOT NULL,
-        telefono TEXT,
-        ruolo TEXT NOT NULL,
-        reparto_id INTEGER,
-        attivo INTEGER DEFAULT 1,
-        is_test INTEGER DEFAULT 0
-    )"""))
-    c.execute(text(f"""CREATE TABLE IF NOT EXISTS operatori_servizi (
-        id {DB_PK},
-        user_id INTEGER NOT NULL,
-        servizio_id INTEGER NOT NULL,
-        UNIQUE(user_id, servizio_id)
-    )"""))
-    c.execute(text(f"""CREATE TABLE IF NOT EXISTS operatori_magazzini (
-        id {DB_PK},
-        user_id INTEGER NOT NULL,
-        magazzino_id INTEGER NOT NULL,
-        UNIQUE(user_id, magazzino_id)
-    )"""))
-    c.execute(text(f"""CREATE TABLE IF NOT EXISTS tickets (
-        ticket_id {DB_PK},
-        codice_ticket TEXT,
-        nome TEXT NOT NULL,
-        cognome TEXT NOT NULL,
-        email TEXT,
-        telefono TEXT,
-        sede TEXT,
-        riferimento TEXT,
-        reparto_id INTEGER,
-        servizio_id INTEGER,
-        descrizione TEXT NOT NULL,
-        priorita TEXT DEFAULT 'media',
-        stato TEXT DEFAULT 'nuova',
-        ip TEXT,
-        creato_il TEXT DEFAULT CURRENT_TIMESTAMP,
-        is_test INTEGER DEFAULT 0,
-        reparto_appartenenza TEXT,
-        allegato TEXT
-    )"""))
-    c.execute(text(f"""CREATE TABLE IF NOT EXISTS ticket_notes (
-        note_id {DB_PK},
-        ticket_id INTEGER NOT NULL,
-        autore TEXT,
-        testo TEXT NOT NULL,
-        creato_il TEXT DEFAULT CURRENT_TIMESTAMP,
-        allegato TEXT,
-        is_internal INTEGER DEFAULT 0
-    )"""))
-    c.execute(text(f"""CREATE TABLE IF NOT EXISTS assenze (
-        assenza_id {DB_PK},
-        user_id INTEGER NOT NULL,
-        data_inizio TEXT NOT NULL,
-        data_fine TEXT NOT NULL,
-        motivo TEXT
-    )"""))
-    c.execute(text(f"""CREATE TABLE IF NOT EXISTS festivita (
-        festivita_id {DB_PK},
-        data TEXT NOT NULL,
-        descrizione TEXT NOT NULL
-    )"""))
-    c.execute(text(f"""CREATE TABLE IF NOT EXISTS sedi (
-        sede_id {DB_PK},
-        nome TEXT NOT NULL
-    )"""))
-    c.execute(text(f"""CREATE TABLE IF NOT EXISTS comuni (
-        comune_id {DB_PK},
-        nome TEXT UNIQUE NOT NULL
-    )"""))
-    c.execute(text(f"""CREATE TABLE IF NOT EXISTS ruoli (
-        ruolo_id {DB_PK},
-        nome TEXT UNIQUE NOT NULL,
-        descrizione TEXT
-    )"""))
-    c.execute(text(f"""CREATE TABLE IF NOT EXISTS categorie (
-        categoria_id {DB_PK},
-        nome TEXT UNIQUE NOT NULL
-    )"""))
-    c.execute(text(f"""CREATE TABLE IF NOT EXISTS materiali (
-        materiale_id {DB_PK},
-        nome TEXT UNIQUE NOT NULL,
-        categoria_id INTEGER
-    )"""))
-    c.execute(text(f"""CREATE TABLE IF NOT EXISTS ticket_materiali (
-        id {DB_PK},
-        ticket_id INTEGER NOT NULL,
-        materiale_id INTEGER NOT NULL,
-        quantita INTEGER NOT NULL
-    )"""))
-    c.execute(text(f"""CREATE TABLE IF NOT EXISTS magazzini (
-        magazzino_id {DB_PK},
-        nome TEXT NOT NULL,
-        sede_id INTEGER,
-        categoria_id INTEGER,
-        reparto_id INTEGER
-    )"""))
-    c.execute(text(f"""CREATE TABLE IF NOT EXISTS giacenze (
-        giacenza_id {DB_PK},
-        magazzino_id INTEGER NOT NULL,
-        materiale_id INTEGER NOT NULL,
-        quantita INTEGER DEFAULT 0,
-        UNIQUE(magazzino_id, materiale_id)
-    )"""))
-    c.execute(text(f"""CREATE TABLE IF NOT EXISTS movimenti_magazzino (
-        movimento_id {DB_PK},
-        magazzino_id INTEGER NOT NULL,
-        materiale_id INTEGER NOT NULL,
-        user_id INTEGER NOT NULL,
-        operazione TEXT NOT NULL,
-        quantita INTEGER NOT NULL,
-        data_movimento TEXT NOT NULL,
-        descrizione TEXT,
-        sede_assegnazione_id INTEGER,
-        posizione_fisica TEXT,
-        creato_il TEXT DEFAULT CURRENT_TIMESTAMP,
-        marca TEXT,
-        modello TEXT,
-        allegato TEXT
-    )"""))
-    c.execute(text(f"""CREATE TABLE IF NOT EXISTS trasferimenti (
-        trasferimento_id {DB_PK},
-        magazzino_partenza_id INTEGER NOT NULL,
-        magazzino_dest_id INTEGER NOT NULL,
-        materiale_id INTEGER NOT NULL,
-        quantita INTEGER NOT NULL,
-        stato TEXT DEFAULT 'in_consegna',
-        creato_il TEXT DEFAULT CURRENT_TIMESTAMP,
-        user_partenza_id INTEGER NOT NULL,
-        user_arrivo_id INTEGER,
-        data_arrivo TEXT,
-        note TEXT,
-        allegato TEXT
-    )"""))
-    c.execute(text(f"""CREATE TABLE IF NOT EXISTS avvisi (
-        avviso_id {DB_PK},
-        user_id INTEGER NOT NULL,
-        servizio_id INTEGER,
-        titolo TEXT NOT NULL,
-        testo TEXT NOT NULL,
-        gravita TEXT DEFAULT 'info',
-        data_inizio TEXT,
-        data_fine TEXT,
-        creato_il TEXT DEFAULT CURRENT_TIMESTAMP
-    )"""))
-    c.execute(text(f"""CREATE TABLE IF NOT EXISTS richieste_materiale (
-        richiesta_id {DB_PK},
-        user_id INTEGER NOT NULL,
-        sede_dest_id INTEGER NOT NULL,
-        categoria_id INTEGER NOT NULL,
-        materiale_id INTEGER NOT NULL,
-        quantita INTEGER NOT NULL,
-        magazzino_id INTEGER,
-        ticket_id INTEGER,
-        stato TEXT DEFAULT 'nuova',
-        creato_il TEXT DEFAULT CURRENT_TIMESTAMP
-    )"""))
-    c.execute(text(f"""CREATE TABLE IF NOT EXISTS consegne_programmate (
-        consegna_id {DB_PK},
-        magazzino_id INTEGER NOT NULL,
-        materiale_id INTEGER NOT NULL,
-        user_id INTEGER NOT NULL,
-        quantita INTEGER NOT NULL,
-        data_programmata TEXT,
-        descrizione TEXT,
-        sede_assegnazione_id INTEGER,
-        posizione_fisica TEXT,
-        marca TEXT,
-        modello TEXT,
-        allegato TEXT,
-        stato TEXT DEFAULT 'programmata',
-        data_consegna_effettiva TEXT,
-        user_consegna_id INTEGER,
-        creato_il TEXT DEFAULT CURRENT_TIMESTAMP
-    )"""))
-
-    for stmt in [
-        "ALTER TABLE tickets ADD COLUMN codice_ticket TEXT",
-        "ALTER TABLE tickets ADD COLUMN riferimento TEXT",
-        "ALTER TABLE tickets ADD COLUMN reparto_id INTEGER",
-        "ALTER TABLE tickets ADD COLUMN servizio_id INTEGER",
-        "ALTER TABLE tickets ADD COLUMN ip TEXT",
-        "ALTER TABLE tickets ADD COLUMN reparto_appartenenza_id INTEGER",
-        "ALTER TABLE tickets ADD COLUMN reparto_appartenenza TEXT",
-        "ALTER TABLE users ADD COLUMN ultimo_accesso TEXT",
-        "ALTER TABLE users ADD COLUMN reset_token TEXT",
-        "ALTER TABLE users ADD COLUMN reset_expires TEXT",
-        "ALTER TABLE reparti ADD COLUMN accetta_ticket INTEGER DEFAULT 1",
-        "ALTER TABLE servizi ADD COLUMN accetta_ticket INTEGER DEFAULT 1",
-        "ALTER TABLE users ADD COLUMN is_test INTEGER DEFAULT 0",
-        "ALTER TABLE tickets ADD COLUMN is_test INTEGER DEFAULT 0",
-        "ALTER TABLE users ADD COLUMN sede_id INTEGER",
-        "ALTER TABLE tickets ADD COLUMN allegato TEXT",
-        "ALTER TABLE ticket_notes ADD COLUMN allegato TEXT",
-        "ALTER TABLE ticket_notes ADD COLUMN is_internal INTEGER DEFAULT 0",
-        "ALTER TABLE materiali ADD COLUMN tipologia TEXT",
-        "ALTER TABLE materiali ADD COLUMN categoria_id INTEGER",
-        "ALTER TABLE magazzini ADD COLUMN categoria_id INTEGER",
-        "ALTER TABLE magazzini ADD COLUMN reparto_id INTEGER",
-        "ALTER TABLE users ADD COLUMN magazzino_id INTEGER",
-        "ALTER TABLE movimenti_magazzino ADD COLUMN allegato TEXT",
-        "ALTER TABLE users ADD COLUMN telefono TEXT",
-        "ALTER TABLE sedi ADD COLUMN comune_id INTEGER",
-        "ALTER TABLE movimenti_magazzino ADD COLUMN marca TEXT",
-        "ALTER TABLE movimenti_magazzino ADD COLUMN modello TEXT",
-        "ALTER TABLE consegne_programmate ADD COLUMN quando_disponibile INTEGER DEFAULT 0",
-        "INSERT OR IGNORE INTO operatori_magazzini (user_id, magazzino_id) SELECT user_id, magazzino_id FROM users WHERE magazzino_id IS NOT NULL"
-    ]:
-        try:
-            if stmt.startswith("INSERT OR IGNORE") and DB_DRIVER.startswith("mysql"):
+try:
+    with engine.begin() as c:
+        c.execute(text(f"""CREATE TABLE IF NOT EXISTS reparti (
+            reparto_id {DB_PK},
+            nome TEXT NOT NULL,
+            descrizione TEXT
+        )"""))
+        c.execute(text(f"""CREATE TABLE IF NOT EXISTS servizi (
+            servizio_id {DB_PK},
+            descrizione TEXT NOT NULL,
+            reparto_id INTEGER NOT NULL,
+            accetta_ticket INTEGER DEFAULT 1
+        )"""))
+        c.execute(text(f"""CREATE TABLE IF NOT EXISTS users (
+            user_id {DB_PK},
+            username TEXT UNIQUE NOT NULL,
+            password_hash TEXT NOT NULL,
+            nome TEXT NOT NULL,
+            cognome TEXT NOT NULL,
+            email TEXT NOT NULL,
+            telefono TEXT,
+            ruolo TEXT NOT NULL,
+            reparto_id INTEGER,
+            attivo INTEGER DEFAULT 1,
+            is_test INTEGER DEFAULT 0
+        )"""))
+        c.execute(text(f"""CREATE TABLE IF NOT EXISTS operatori_servizi (
+            id {DB_PK},
+            user_id INTEGER NOT NULL,
+            servizio_id INTEGER NOT NULL,
+            UNIQUE(user_id, servizio_id)
+        )"""))
+        c.execute(text(f"""CREATE TABLE IF NOT EXISTS operatori_magazzini (
+            id {DB_PK},
+            user_id INTEGER NOT NULL,
+            magazzino_id INTEGER NOT NULL,
+            UNIQUE(user_id, magazzino_id)
+        )"""))
+        c.execute(text(f"""CREATE TABLE IF NOT EXISTS tickets (
+            ticket_id {DB_PK},
+            codice_ticket TEXT,
+            nome TEXT NOT NULL,
+            cognome TEXT NOT NULL,
+            email TEXT,
+            telefono TEXT,
+            sede TEXT,
+            riferimento TEXT,
+            reparto_id INTEGER,
+            servizio_id INTEGER,
+            descrizione TEXT NOT NULL,
+            priorita TEXT DEFAULT 'media',
+            stato TEXT DEFAULT 'nuova',
+            ip TEXT,
+            creato_il TEXT DEFAULT CURRENT_TIMESTAMP,
+            is_test INTEGER DEFAULT 0,
+            reparto_appartenenza TEXT,
+            allegato TEXT
+        )"""))
+        c.execute(text(f"""CREATE TABLE IF NOT EXISTS ticket_notes (
+            note_id {DB_PK},
+            ticket_id INTEGER NOT NULL,
+            autore TEXT,
+            testo TEXT NOT NULL,
+            creato_il TEXT DEFAULT CURRENT_TIMESTAMP,
+            allegato TEXT,
+            is_internal INTEGER DEFAULT 0
+        )"""))
+        c.execute(text(f"""CREATE TABLE IF NOT EXISTS assenze (
+            assenza_id {DB_PK},
+            user_id INTEGER NOT NULL,
+            data_inizio TEXT NOT NULL,
+            data_fine TEXT NOT NULL,
+            motivo TEXT
+        )"""))
+        c.execute(text(f"""CREATE TABLE IF NOT EXISTS festivita (
+            festivita_id {DB_PK},
+            data TEXT NOT NULL,
+            descrizione TEXT NOT NULL
+        )"""))
+        c.execute(text(f"""CREATE TABLE IF NOT EXISTS sedi (
+            sede_id {DB_PK},
+            nome TEXT NOT NULL
+        )"""))
+        c.execute(text(f"""CREATE TABLE IF NOT EXISTS comuni (
+            comune_id {DB_PK},
+            nome TEXT UNIQUE NOT NULL
+        )"""))
+        c.execute(text(f"""CREATE TABLE IF NOT EXISTS ruoli (
+            ruolo_id {DB_PK},
+            nome TEXT UNIQUE NOT NULL,
+            descrizione TEXT
+        )"""))
+        c.execute(text(f"""CREATE TABLE IF NOT EXISTS categorie (
+            categoria_id {DB_PK},
+            nome TEXT UNIQUE NOT NULL
+        )"""))
+        c.execute(text(f"""CREATE TABLE IF NOT EXISTS materiali (
+            materiale_id {DB_PK},
+            nome TEXT UNIQUE NOT NULL,
+            categoria_id INTEGER
+        )"""))
+        c.execute(text(f"""CREATE TABLE IF NOT EXISTS ticket_materiali (
+            id {DB_PK},
+            ticket_id INTEGER NOT NULL,
+            materiale_id INTEGER NOT NULL,
+            quantita INTEGER NOT NULL
+        )"""))
+        c.execute(text(f"""CREATE TABLE IF NOT EXISTS magazzini (
+            magazzino_id {DB_PK},
+            nome TEXT NOT NULL,
+            sede_id INTEGER,
+            categoria_id INTEGER,
+            reparto_id INTEGER
+        )"""))
+        c.execute(text(f"""CREATE TABLE IF NOT EXISTS giacenze (
+            giacenza_id {DB_PK},
+            magazzino_id INTEGER NOT NULL,
+            materiale_id INTEGER NOT NULL,
+            quantita INTEGER DEFAULT 0,
+            UNIQUE(magazzino_id, materiale_id)
+        )"""))
+        c.execute(text(f"""CREATE TABLE IF NOT EXISTS movimenti_magazzino (
+            movimento_id {DB_PK},
+            magazzino_id INTEGER NOT NULL,
+            materiale_id INTEGER NOT NULL,
+            user_id INTEGER NOT NULL,
+            operazione TEXT NOT NULL,
+            quantita INTEGER NOT NULL,
+            data_movimento TEXT NOT NULL,
+            descrizione TEXT,
+            sede_assegnazione_id INTEGER,
+            posizione_fisica TEXT,
+            creato_il TEXT DEFAULT CURRENT_TIMESTAMP,
+            marca TEXT,
+            modello TEXT,
+            allegato TEXT
+        )"""))
+        c.execute(text(f"""CREATE TABLE IF NOT EXISTS trasferimenti (
+            trasferimento_id {DB_PK},
+            magazzino_partenza_id INTEGER NOT NULL,
+            magazzino_dest_id INTEGER NOT NULL,
+            materiale_id INTEGER NOT NULL,
+            quantita INTEGER NOT NULL,
+            stato TEXT DEFAULT 'in_consegna',
+            creato_il TEXT DEFAULT CURRENT_TIMESTAMP,
+            user_partenza_id INTEGER NOT NULL,
+            user_arrivo_id INTEGER,
+            data_arrivo TEXT,
+            note TEXT,
+            allegato TEXT
+        )"""))
+        c.execute(text(f"""CREATE TABLE IF NOT EXISTS avvisi (
+            avviso_id {DB_PK},
+            user_id INTEGER NOT NULL,
+            servizio_id INTEGER,
+            titolo TEXT NOT NULL,
+            testo TEXT NOT NULL,
+            gravita TEXT DEFAULT 'info',
+            data_inizio TEXT,
+            data_fine TEXT,
+            creato_il TEXT DEFAULT CURRENT_TIMESTAMP
+        )"""))
+        c.execute(text(f"""CREATE TABLE IF NOT EXISTS richieste_materiale (
+            richiesta_id {DB_PK},
+            user_id INTEGER NOT NULL,
+            sede_dest_id INTEGER NOT NULL,
+            categoria_id INTEGER NOT NULL,
+            materiale_id INTEGER NOT NULL,
+            quantita INTEGER NOT NULL,
+            magazzino_id INTEGER,
+            ticket_id INTEGER,
+            stato TEXT DEFAULT 'nuova',
+            creato_il TEXT DEFAULT CURRENT_TIMESTAMP
+        )"""))
+        c.execute(text(f"""CREATE TABLE IF NOT EXISTS consegne_programmate (
+            consegna_id {DB_PK},
+            magazzino_id INTEGER NOT NULL,
+            materiale_id INTEGER NOT NULL,
+            user_id INTEGER NOT NULL,
+            quantita INTEGER NOT NULL,
+            data_programmata TEXT,
+            descrizione TEXT,
+            sede_assegnazione_id INTEGER,
+            posizione_fisica TEXT,
+            marca TEXT,
+            modello TEXT,
+            allegato TEXT,
+            stato TEXT DEFAULT 'programmata',
+            data_consegna_effettiva TEXT,
+            user_consegna_id INTEGER,
+            creato_il TEXT DEFAULT CURRENT_TIMESTAMP
+        )"""))
+    
+        for stmt in [
+            "ALTER TABLE tickets ADD COLUMN codice_ticket TEXT",
+            "ALTER TABLE tickets ADD COLUMN riferimento TEXT",
+            "ALTER TABLE tickets ADD COLUMN reparto_id INTEGER",
+            "ALTER TABLE tickets ADD COLUMN servizio_id INTEGER",
+            "ALTER TABLE tickets ADD COLUMN ip TEXT",
+            "ALTER TABLE tickets ADD COLUMN reparto_appartenenza_id INTEGER",
+            "ALTER TABLE tickets ADD COLUMN reparto_appartenenza TEXT",
+            "ALTER TABLE users ADD COLUMN ultimo_accesso TEXT",
+            "ALTER TABLE users ADD COLUMN reset_token TEXT",
+            "ALTER TABLE users ADD COLUMN reset_expires TEXT",
+            "ALTER TABLE reparti ADD COLUMN accetta_ticket INTEGER DEFAULT 1",
+            "ALTER TABLE servizi ADD COLUMN accetta_ticket INTEGER DEFAULT 1",
+            "ALTER TABLE users ADD COLUMN is_test INTEGER DEFAULT 0",
+            "ALTER TABLE tickets ADD COLUMN is_test INTEGER DEFAULT 0",
+            "ALTER TABLE users ADD COLUMN sede_id INTEGER",
+            "ALTER TABLE tickets ADD COLUMN allegato TEXT",
+            "ALTER TABLE ticket_notes ADD COLUMN allegato TEXT",
+            "ALTER TABLE ticket_notes ADD COLUMN is_internal INTEGER DEFAULT 0",
+            "ALTER TABLE materiali ADD COLUMN tipologia TEXT",
+            "ALTER TABLE materiali ADD COLUMN categoria_id INTEGER",
+            "ALTER TABLE magazzini ADD COLUMN categoria_id INTEGER",
+            "ALTER TABLE magazzini ADD COLUMN reparto_id INTEGER",
+            "ALTER TABLE users ADD COLUMN magazzino_id INTEGER",
+            "ALTER TABLE movimenti_magazzino ADD COLUMN allegato TEXT",
+            "ALTER TABLE users ADD COLUMN telefono TEXT",
+            "ALTER TABLE sedi ADD COLUMN comune_id INTEGER",
+            "ALTER TABLE movimenti_magazzino ADD COLUMN marca TEXT",
+            "ALTER TABLE movimenti_magazzino ADD COLUMN modello TEXT",
+            "ALTER TABLE consegne_programmate ADD COLUMN quando_disponibile INTEGER DEFAULT 0",
+            "INSERT OR IGNORE INTO operatori_magazzini (user_id, magazzino_id) SELECT user_id, magazzino_id FROM users WHERE magazzino_id IS NOT NULL"
+        ]:
+            try:
+                if stmt.startswith("INSERT OR IGNORE") and DB_DRIVER.startswith("mysql"):
+                    stmt = stmt.replace("INSERT OR IGNORE", "INSERT IGNORE")
+                c.execute(text(stmt))
+            except Exception:
+                pass
+    
+        def sql_insert_ignore(stmt, params=None):
+            if DB_DRIVER.startswith("mysql"):
                 stmt = stmt.replace("INSERT OR IGNORE", "INSERT IGNORE")
-            c.execute(text(stmt))
-        except Exception:
+            c.execute(text(stmt), params or {})
+            
+        # seed ruoli
+        sql_insert_ignore("INSERT OR IGNORE INTO ruoli(ruolo_id,nome,descrizione) VALUES (1,'admin','Amministratore (massima visibilità)'),(2,'responsabile','Responsabile del reparto (vede operatori, ticket, report)'),(3,'assistenza','Operatore di assistenza (gestisce ticket dei propri servizi)'),(4,'normale','Operatore normale (non vede/gestisce ticket)')")
+        try:
+            c.execute(text("UPDATE users SET ruolo = 'admin' WHERE ruolo = 'superuser'"))
+            c.execute(text("UPDATE users SET ruolo = 'assistenza' WHERE ruolo = 'reparto'"))
+        except:
             pass
-
-    def sql_insert_ignore(stmt, params=None):
-        if DB_DRIVER.startswith("mysql"):
-            stmt = stmt.replace("INSERT OR IGNORE", "INSERT IGNORE")
-        c.execute(text(stmt), params or {})
-        
-    # seed ruoli
-    sql_insert_ignore("INSERT OR IGNORE INTO ruoli(ruolo_id,nome,descrizione) VALUES (1,'admin','Amministratore (massima visibilità)'),(2,'responsabile','Responsabile del reparto (vede operatori, ticket, report)'),(3,'assistenza','Operatore di assistenza (gestisce ticket dei propri servizi)'),(4,'normale','Operatore normale (non vede/gestisce ticket)')")
-    try:
-        c.execute(text("UPDATE users SET ruolo = 'admin' WHERE ruolo = 'superuser'"))
-        c.execute(text("UPDATE users SET ruolo = 'assistenza' WHERE ruolo = 'reparto'"))
-    except:
-        pass
-
-    # Crea account amministratore base
-    def h(p): return bcrypt.hashpw(p.encode('utf-8'), bcrypt.gensalt()).decode('utf-8')
-    sql_insert_ignore("INSERT OR IGNORE INTO users(username,password_hash,nome,cognome,email,ruolo,attivo,is_test) VALUES (:u,:h,:n,:c,:e,:r,1,0)",
-                     {"u":'admin',"h":h('admin'),"n":'Admin',"c":'Super',"e":'admin@example.com',"r":'admin'})
+    
+        # Crea account amministratore base
+        def h(p): return bcrypt.hashpw(p.encode('utf-8'), bcrypt.gensalt()).decode('utf-8')
+        sql_insert_ignore("INSERT OR IGNORE INTO users(username,password_hash,nome,cognome,email,ruolo,attivo,is_test) VALUES (:u,:h,:n,:c,:e,:r,1,0)",
+                         {"u":'admin',"h":h('admin'),"n":'Admin',"c":'Super',"e":'admin@example.com',"r":'admin'})
+except Exception as e:
+    print(f"Skipping DB init on this worker (possible concurrency lock): {e}")
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
