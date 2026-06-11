@@ -68,7 +68,7 @@
                     {% set can_edit = false %}
                     {% if user.ruolo == 'admin' %}
                         {% set can_edit = true %}
-                    {% elif user.ruolo in ['assistenza', 'responsabile'] and user_mag_id|string == row.magazzino_id|string %}
+                    {% elif user.ruolo in ['assistenza', 'responsabile'] and row.magazzino_id in user_mag_ids %}
                         {% set can_edit = true %}
                     {% endif %}
                 <tr>

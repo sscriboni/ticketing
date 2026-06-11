@@ -139,12 +139,12 @@ def user_magazzini_list(r: Request, magazzino_id: str = None, sede_id: str = Non
         magazzini_list = c.execute(text("SELECT magazzino_id, nome FROM magazzini ORDER BY nome")).mappings().all()
         sedi_list = c.execute(text("SELECT sede_id, nome FROM sedi ORDER BY nome")).mappings().all()
 
-        user_mag_id = None
+        user_mag_ids = []
         count_in_arrivo = 0
         if user.get("ruolo") in ("assistenza", "responsabile"):
-            user_mag_id = c.execute(text("SELECT magazzino_id FROM users WHERE user_id = :uid"), {"uid": user.get("id")}).scalar()
-            if user_mag_id:
-                count_in_arrivo = c.execute(text("SELECT COUNT(*) FROM trasferimenti WHERE magazzino_dest_id = :mid AND stato = 'in_consegna'"), {"mid": user_mag_id}).scalar() or 0
+            user_mag_ids = c.execute(text("SELECT magazzino_id FROM operatori_magazzini WHERE user_id = :uid"), {"uid": user.get("id")}).scalars().all()
+            if user_mag_ids:
+                count_in_arrivo = c.execute(text("SELECT COUNT(*) FROM trasferimenti WHERE magazzino_dest_id IN :mids AND stato = 'in_consegna'"), {"mids": tuple(user_mag_ids)}).scalar() or 0
         elif user.get("ruolo") == "admin":
             count_in_arrivo = c.execute(text("SELECT COUNT(*) FROM trasferimenti WHERE stato = 'in_consegna'")).scalar() or 0
 
@@ -152,7 +152,7 @@ def user_magazzini_list(r: Request, magazzino_id: str = None, sede_id: str = Non
         "request": r, "cfg": CFG, "user": user, 
         "righe": rows, "magazzini": magazzini_list, "sedi": sedi_list,
         "filtri": {"magazzino_id": magazzino_id, "sede_id": sede_id, "q": q, "solo_positive": solo_positive},
-        "user_mag_id": user_mag_id, "count_in_arrivo": count_in_arrivo
+        "user_mag_ids": user_mag_ids, "count_in_arrivo": count_in_arrivo
     })
 
 @router.get("/magazzino/{magazzino_id}/giacenza/{materiale_id}", response_class=HTMLResponse)
@@ -174,8 +174,8 @@ def dettaglio_giacenza(r: Request, magazzino_id: int, materiale_id: int, error: 
         if user.get("ruolo") == "admin":
             can_edit = True
         elif user.get("ruolo") in ("assistenza", "responsabile"):
-            user_mag_id = c.execute(text("SELECT magazzino_id FROM users WHERE user_id = :uid"), {"uid": user.get("id")}).scalar()
-            if user_mag_id == magazzino_id: can_edit = True
+            user_mag_ids = c.execute(text("SELECT magazzino_id FROM operatori_magazzini WHERE user_id = :uid"), {"uid": user.get("id")}).scalars().all()
+            if magazzino_id in user_mag_ids: can_edit = True
 
         posizioni = c.execute(text("""
             SELECT p.posizione_fisica, p.quantita,
@@ -239,8 +239,8 @@ def magazzino_rinomina_posizione(r: Request, magazzino_id: int, materiale_id: in
         if user.get("ruolo") == "admin":
             can_edit = True
         elif user.get("ruolo") in ("assistenza", "responsabile"):
-            user_mag_id = c.execute(text("SELECT magazzino_id FROM users WHERE user_id = :uid"), {"uid": user.get("id")}).scalar()
-            if user_mag_id == magazzino_id: can_edit = True
+            user_mag_ids = c.execute(text("SELECT magazzino_id FROM operatori_magazzini WHERE user_id = :uid"), {"uid": user.get("id")}).scalars().all()
+            if magazzino_id in user_mag_ids: can_edit = True
             
         if not can_edit:
             return RedirectResponse(url=f"/magazzino/{magazzino_id}/giacenza/{materiale_id}", status_code=303)
@@ -264,8 +264,8 @@ def magazzino_movimento_form(r: Request, magazzino_id: int, materiale_id: int, o
         if user.get("ruolo") == "admin":
             can_edit = True
         elif user.get("ruolo") in ("assistenza", "responsabile"):
-            mag_id = c.execute(text("SELECT magazzino_id FROM users WHERE user_id = :uid"), {"uid": user.get("id")}).scalar()
-            if mag_id == magazzino_id: can_edit = True
+            user_mag_ids = c.execute(text("SELECT magazzino_id FROM operatori_magazzini WHERE user_id = :uid"), {"uid": user.get("id")}).scalars().all()
+            if magazzino_id in user_mag_ids: can_edit = True
             
         if not can_edit:
             return RedirectResponse(url="/magazzini")
@@ -333,8 +333,8 @@ async def magazzino_movimento_action(
         if user.get("ruolo") == "admin":
             can_edit = True
         elif user.get("ruolo") in ("assistenza", "responsabile"):
-            mag_id = c.execute(text("SELECT magazzino_id FROM users WHERE user_id = :uid"), {"uid": user.get("id")}).scalar()
-            if mag_id == magazzino_id: can_edit = True
+            user_mag_ids = c.execute(text("SELECT magazzino_id FROM operatori_magazzini WHERE user_id = :uid"), {"uid": user.get("id")}).scalars().all()
+            if magazzino_id in user_mag_ids: can_edit = True
             
         if not can_edit or quantita <= 0:
             return RedirectResponse(url="/magazzini", status_code=303)
@@ -444,12 +444,15 @@ def trasferimenti_list(r: Request):
     with engine.connect() as c:
         where_clause = "1=1"
         params = {}
-        user_mag_id = None
+        user_mag_ids = []
         
         if user.get("ruolo") != "admin":
-            user_mag_id = c.execute(text("SELECT magazzino_id FROM users WHERE user_id = :uid"), {"uid": user.get("id")}).scalar()
-            where_clause += " AND (t.magazzino_dest_id = :mag_id OR t.magazzino_partenza_id = :mag_id)"
-            params["mag_id"] = user_mag_id
+            user_mag_ids = c.execute(text("SELECT magazzino_id FROM operatori_magazzini WHERE user_id = :uid"), {"uid": user.get("id")}).scalars().all()
+            if user_mag_ids:
+                where_clause += " AND (t.magazzino_dest_id IN :mids OR t.magazzino_partenza_id IN :mids)"
+                params["mids"] = tuple(user_mag_ids)
+            else:
+                where_clause += " AND 1=0"
             
         trasferimenti = c.execute(text(f"""
             SELECT t.*, 
@@ -466,7 +469,7 @@ def trasferimenti_list(r: Request):
             ORDER BY t.stato DESC, t.creato_il DESC
         """), params).mappings().all()
         
-    return templates.TemplateResponse(r, "trasferimenti.html", {"request": r, "cfg": CFG, "user": user, "trasferimenti": trasferimenti, "user_mag_id": user_mag_id})
+    return templates.TemplateResponse(r, "trasferimenti.html", {"request": r, "cfg": CFG, "user": user, "trasferimenti": trasferimenti, "user_mag_ids": user_mag_ids})
 
 @router.post("/trasferimenti/{trasferimento_id}/ricevi")
 def ricevi_trasferimento(r: Request, trasferimento_id: int):
@@ -480,8 +483,8 @@ def ricevi_trasferimento(r: Request, trasferimento_id: int):
             return RedirectResponse(url="/trasferimenti", status_code=303)
             
         if user.get("ruolo") != "admin":
-            user_mag_id = c.execute(text("SELECT magazzino_id FROM users WHERE user_id = :uid"), {"uid": user.get("id")}).scalar()
-            if t["magazzino_dest_id"] != user_mag_id:
+            user_mag_ids = c.execute(text("SELECT magazzino_id FROM operatori_magazzini WHERE user_id = :uid"), {"uid": user.get("id")}).scalars().all()
+            if t["magazzino_dest_id"] not in user_mag_ids:
                 return RedirectResponse(url="/trasferimenti", status_code=303)
                 
         from datetime import datetime
@@ -530,10 +533,10 @@ def log_magazzini(r: Request, magazzino_id: str = None, categoria_id: str = None
         params = {}
         
         if user.get("ruolo") != "admin":
-            user_mag_id = c.execute(text("SELECT magazzino_id FROM users WHERE user_id = :uid"), {"uid": user.get("id")}).scalar()
-            if user_mag_id:
-                where_clauses.append("mm.magazzino_id = :user_mag_id")
-                params["user_mag_id"] = user_mag_id
+            user_mag_ids = c.execute(text("SELECT magazzino_id FROM operatori_magazzini WHERE user_id = :uid"), {"uid": user.get("id")}).scalars().all()
+            if user_mag_ids:
+                where_clauses.append("mm.magazzino_id IN :user_mag_ids")
+                params["user_mag_ids"] = tuple(user_mag_ids)
             else:
                 where_clauses.append("1 = 0")
                 
@@ -601,11 +604,12 @@ def richieste_materiale_list(r: Request):
     with engine.connect() as c:
         where_clause = "1=1"
         params = {}
+        user_mag_ids = []
         if user.get("ruolo") != "admin":
-            mag_id = c.execute(text("SELECT magazzino_id FROM users WHERE user_id = :uid"), {"uid": user.get("id")}).scalar()
-            if mag_id:
-                where_clause = "(rm.magazzino_id = :mag_id OR rm.user_id = :uid)"
-                params = {"mag_id": mag_id, "uid": user["id"]}
+            user_mag_ids = c.execute(text("SELECT magazzino_id FROM operatori_magazzini WHERE user_id = :uid"), {"uid": user.get("id")}).scalars().all()
+            if user_mag_ids:
+                where_clause = "(rm.magazzino_id IN :mids OR rm.user_id = :uid)"
+                params = {"mids": tuple(user_mag_ids), "uid": user["id"]}
             else:
                 where_clause = "rm.user_id = :uid"
                 params = {"uid": user["id"]}
@@ -623,7 +627,7 @@ def richieste_materiale_list(r: Request):
             ORDER BY rm.creato_il DESC
         """), params).mappings().all()
         
-    return templates.TemplateResponse(r, "richieste_materiale.html", {"request": r, "cfg": CFG, "user": user, "richieste": richieste})
+    return templates.TemplateResponse(r, "richieste_materiale.html", {"request": r, "cfg": CFG, "user": user, "richieste": richieste, "user_mag_ids": user_mag_ids})
 
 @router.get("/richiesta-materiale/nuova", response_class=HTMLResponse)
 def nuova_richiesta_materiale_form(r: Request, ticket_id: str = None):

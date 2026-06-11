@@ -45,7 +45,7 @@
                     </td>
                     <td>
                         {% if t.stato == 'in_consegna' %}
-                            {% if user.ruolo == 'admin' or user_mag_id == t.magazzino_dest_id %}
+                            {% if user.ruolo == 'admin' or t.magazzino_dest_id in user_mag_ids %}
                             <form method="post" action="/trasferimenti/{{ t.trasferimento_id }}/ricevi" onsubmit="return confirm('Confermi di aver ricevuto fisicamente questo materiale nel tuo magazzino?');">
                                 <button type="submit" class="btn btn-success btn-sm"><i class="bi bi-box-arrow-in-down"></i> Segna Arrivato</button>
                             </form>

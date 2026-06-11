@@ -162,14 +162,19 @@
                         </select>
                     </div>
 
-                    <div class="mb-3">
-                        <label class="form-label fw-bold">Magazzino</label>
-                        <select name="magazzino_id" class="form-select" id="newMagazzinoSelect">
-                            <option value="" selected>Nessun magazzino</option>
+                    <div class="mb-3" id="newMagazziniContainer" style="display: none;">
+                        <label class="form-label fw-bold">Magazzini di competenza</label>
+                        <div class="border p-2 rounded bg-light">
                             {% for magazzino in magazzini %}
-                            <option value="{{ magazzino.magazzino_id }}" data-reparto="{{ magazzino.reparto_id }}" style="display: none;">{{ magazzino.nome }}</option>
+                            <div class="form-check magazzino-item" data-reparto="{{ magazzino.reparto_id }}" style="display: none;">
+                                <input class="form-check-input" type="checkbox" name="magazzini" value="{{ magazzino.magazzino_id }}" id="new_magazzino_{{ magazzino.magazzino_id }}">
+                                <label class="form-check-label" for="new_magazzino_{{ magazzino.magazzino_id }}">
+                                    {{ magazzino.nome }}
+                                </label>
+                            </div>
                             {% endfor %}
-                        </select>
+                            <p class="text-muted mb-0" id="newNoMagazziniMsg" style="display: none; font-size: 0.9em;">Nessun magazzino per questo reparto.</p>
+                        </div>
                     </div>
 
                     <div class="mb-3 form-check form-switch">
@@ -213,7 +218,9 @@ document.addEventListener('DOMContentLoaded', function() {
     const serviziContainer = document.getElementById('newServiziContainer');
     const serviziItems = document.querySelectorAll('.servizio-item');
     const noServiziMsg = document.getElementById('newNoServiziMsg');
-    const magazzinoSelect = document.getElementById('newMagazzinoSelect');
+    const magazziniContainer = document.getElementById('newMagazziniContainer');
+    const magazziniItems = document.querySelectorAll('.magazzino-item');
+    const noMagazziniMsg = document.getElementById('newNoMagazziniMsg');
 
     if (repartoSelect) {
         repartoSelect.addEventListener('change', function() {
@@ -232,19 +239,21 @@ document.addEventListener('DOMContentLoaded', function() {
             });
             noServiziMsg.style.display = count === 0 ? 'block' : 'none';
             
-            if (magazzinoSelect) {
+            if (magazziniContainer) {
                 let magazzinoMatch = false;
-                Array.from(magazzinoSelect.options).forEach(opt => {
-                    if (opt.value === "") return;
-                    let isMatch = opt.dataset.reparto === repId;
-                    opt.hidden = !isMatch;
-                    opt.style.display = isMatch ? '' : 'none';
-                    if (isMatch && opt.selected) {
+                magazziniContainer.style.display = 'block';
+                magazziniItems.forEach(item => {
+                    const checkbox = item.querySelector('input');
+                    if (item.dataset.reparto === repId) {
+                        item.style.display = 'block';
                         magazzinoMatch = true;
+                    } else {
+                        item.style.display = 'none';
+                        checkbox.checked = false;
                     }
                 });
-                if (!magazzinoMatch && magazzinoSelect.value !== "") {
-                    magazzinoSelect.value = "";
+                if (noMagazziniMsg) {
+                    noMagazziniMsg.style.display = magazzinoMatch ? 'none' : 'block';
                 }
             }
         });

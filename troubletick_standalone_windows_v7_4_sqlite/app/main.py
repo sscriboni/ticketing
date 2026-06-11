@@ -1,4 +1,4 @@
-﻿import os, json, csv, io, shutil, uuid, traceback
+﻿﻿import os, json, csv, io, shutil, uuid, traceback
 from contextlib import asynccontextmanager
 from datetime import datetime
 from fastapi import FastAPI, Request, Form, UploadFile, File, BackgroundTasks
@@ -46,6 +46,12 @@ with engine.begin() as c:
         user_id INTEGER NOT NULL,
         servizio_id INTEGER NOT NULL,
         UNIQUE(user_id, servizio_id)
+    )"""))
+    c.execute(text(f"""CREATE TABLE IF NOT EXISTS operatori_magazzini (
+        id {DB_PK},
+        user_id INTEGER NOT NULL,
+        magazzino_id INTEGER NOT NULL,
+        UNIQUE(user_id, magazzino_id)
     )"""))
     c.execute(text(f"""CREATE TABLE IF NOT EXISTS tickets (
         ticket_id {DB_PK},
@@ -231,9 +237,12 @@ with engine.begin() as c:
         "ALTER TABLE sedi ADD COLUMN comune_id INTEGER",
         "ALTER TABLE movimenti_magazzino ADD COLUMN marca TEXT",
         "ALTER TABLE movimenti_magazzino ADD COLUMN modello TEXT",
-        "ALTER TABLE consegne_programmate ADD COLUMN quando_disponibile INTEGER DEFAULT 0"
+        "ALTER TABLE consegne_programmate ADD COLUMN quando_disponibile INTEGER DEFAULT 0",
+        "INSERT OR IGNORE INTO operatori_magazzini (user_id, magazzino_id) SELECT user_id, magazzino_id FROM users WHERE magazzino_id IS NOT NULL"
     ]:
         try:
+            if stmt.startswith("INSERT OR IGNORE") and DB_DRIVER.startswith("mysql"):
+                stmt = stmt.replace("INSERT OR IGNORE", "INSERT IGNORE")
             c.execute(text(stmt))
         except Exception:
             pass
@@ -1250,12 +1259,22 @@ async def import_full(r: Request, file: UploadFile = File(...), svuota_db: str =
             for op in data.get("operatori", []):
                 rep_id = c.execute(text("SELECT reparto_id FROM reparti WHERE nome = :n"), {"n": op.get("reparto")}).scalar()
                 sede_id = c.execute(text("SELECT sede_id FROM sedi WHERE nome = :n"), {"n": op.get("sede")}).scalar()
-                mag_id = c.execute(text("SELECT magazzino_id FROM magazzini WHERE nome = :n"), {"n": op.get("magazzino")}).scalar()
                 if not c.execute(text("SELECT user_id FROM users WHERE username = :u OR email = :e"), {"u": op["username"], "e": op.get("email")}).scalar():
-                    c.execute(text("""INSERT INTO users (username, password_hash, nome, cognome, email, telefono, ruolo, reparto_id, sede_id, magazzino_id, attivo) 
-                                      VALUES (:u, :h, :n, :c, :e, :tel, :ruolo, :rid, :sid, :mid, 1)"""),
+                    c.execute(text("""INSERT INTO users (username, password_hash, nome, cognome, email, telefono, ruolo, reparto_id, sede_id, attivo) 
+                                      VALUES (:u, :h, :n, :c, :e, :tel, :ruolo, :rid, :sid, 1)"""),
                               {"u": op["username"], "h": h(op["password"]), "n": op.get("nome", ""), "c": op.get("cognome", ""), 
-                               "e": op.get("email", ""), "tel": op.get("telefono", ""), "ruolo": op.get("ruolo", "assistenza"), "rid": rep_id, "sid": sede_id, "mid": mag_id})
+                               "e": op.get("email", ""), "tel": op.get("telefono", ""), "ruolo": op.get("ruolo", "assistenza"), "rid": rep_id, "sid": sede_id})
+                    
+                    user_id = c.execute(text("SELECT user_id FROM users WHERE username = :u"), {"u": op["username"]}).scalar()
+                    
+                    mags = op.get("magazzino", "")
+                    if mags:
+                        for m_name in mags.split(","):
+                            mag_id = c.execute(text("SELECT magazzino_id FROM magazzini WHERE nome = :n"), {"n": m_name.strip()}).scalar()
+                            if mag_id:
+                                try:
+                                    c.execute(text("INSERT INTO operatori_magazzini (user_id, magazzino_id) VALUES (:uid, :mid)"), {"uid": user_id, "mid": mag_id})
+                                except: pass
     
     except Exception as e:
         return RedirectResponse(url="/admin/impostazioni?msg=import_err", status_code=303)
@@ -1296,12 +1315,14 @@ def export_full(r: Request):
         
         operatori = c.execute(text("""
             SELECT u.username, u.nome, u.cognome, u.email, u.telefono, u.ruolo, 
-                   r.nome as reparto, s.nome as sede, m.nome as magazzino
+                   r.nome as reparto, s.nome as sede, GROUP_CONCAT(DISTINCT m.nome) as magazzino
             FROM users u
             LEFT JOIN reparti r ON u.reparto_id = r.reparto_id
             LEFT JOIN sedi s ON u.sede_id = s.sede_id
-            LEFT JOIN magazzini m ON u.magazzino_id = m.magazzino_id
+            LEFT JOIN operatori_magazzini om ON om.user_id = u.user_id
+            LEFT JOIN magazzini m ON om.magazzino_id = m.magazzino_id
             WHERE u.user_id != 1
+            GROUP BY u.username, u.nome, u.cognome, u.email, u.telefono, u.ruolo, r.nome, s.nome
         """)).mappings().all()
 
     export_data = {
@@ -1689,14 +1710,15 @@ def operatori(r: Request):
 
         rows = c.execute(text("""
             SELECT u.user_id, u.username, u.nome, u.cognome, u.email, u.telefono, u.ruolo, u.attivo, u.is_test,
-                   GROUP_CONCAT(s.descrizione) AS servizi, sd.nome as sede_nome, m.nome as magazzino_nome
+                   GROUP_CONCAT(DISTINCT s.descrizione) AS servizi, sd.nome as sede_nome, GROUP_CONCAT(DISTINCT m.nome) as magazzino_nome
               FROM users u
               LEFT JOIN operatori_servizi os ON os.user_id = u.user_id
               LEFT JOIN servizi s ON s.servizio_id = os.servizio_id
               LEFT JOIN sedi sd ON u.sede_id = sd.sede_id
-              LEFT JOIN magazzini m ON u.magazzino_id = m.magazzino_id
+              LEFT JOIN operatori_magazzini om ON om.user_id = u.user_id
+              LEFT JOIN magazzini m ON om.magazzino_id = m.magazzino_id
              """ + where_clause + """
-             GROUP BY u.user_id, u.username, u.nome, u.cognome, u.email, u.telefono, u.ruolo, u.attivo, u.is_test, sd.nome, m.nome
+             GROUP BY u.user_id, u.username, u.nome, u.cognome, u.email, u.telefono, u.ruolo, u.attivo, u.is_test, sd.nome
              ORDER BY u.nome
         """), params).mappings().all()
     return templates.TemplateResponse(r, "operatori.html", {"request": r, "cfg": CFG, "operatori": rows, "user": user})
@@ -1711,15 +1733,16 @@ def admin_operatori(r: Request):
     with engine.connect() as c:
         operatori = c.execute(text("""
             SELECT u.user_id, u.username, u.nome, u.cognome, u.email, u.telefono, u.ruolo, u.reparto_id, u.attivo, u.is_test,
-                   GROUP_CONCAT(s.descrizione) AS servizi, r.nome AS reparto_nome, sd.nome AS sede_nome, m.nome AS magazzino_nome
+                   GROUP_CONCAT(DISTINCT s.descrizione) AS servizi, r.nome AS reparto_nome, sd.nome AS sede_nome, GROUP_CONCAT(DISTINCT m.nome) AS magazzino_nome
               FROM users u
               LEFT JOIN operatori_servizi os ON os.user_id = u.user_id
               LEFT JOIN servizi s ON s.servizio_id = os.servizio_id
               LEFT JOIN reparti r ON u.reparto_id = r.reparto_id
               LEFT JOIN sedi sd ON u.sede_id = sd.sede_id
-              LEFT JOIN magazzini m ON u.magazzino_id = m.magazzino_id
+              LEFT JOIN operatori_magazzini om ON om.user_id = u.user_id
+              LEFT JOIN magazzini m ON om.magazzino_id = m.magazzino_id
              WHERE u.user_id != 1
-             GROUP BY u.user_id, u.username, u.nome, u.cognome, u.email, u.telefono, u.ruolo, u.reparto_id, u.attivo, u.is_test, r.nome, sd.nome, m.nome
+             GROUP BY u.user_id, u.username, u.nome, u.cognome, u.email, u.telefono, u.ruolo, u.reparto_id, u.attivo, u.is_test, r.nome, sd.nome
              ORDER BY u.nome
         """)).mappings().all()
         reparti = c.execute(text("SELECT reparto_id, nome FROM reparti ORDER BY nome")).mappings().all()
@@ -1732,8 +1755,8 @@ def admin_operatori(r: Request):
 @app.post("/admin/operatore/nuovo")
 def new_operatore(r: Request, username: str=Form(...), password: str=Form(...), nome: str=Form(...), 
                   cognome: str=Form(...), email: str=Form(...), telefono: str=Form(None), 
-                  reparto_id: str=Form(None), ruolo: str=Form('assistenza'), sede_id: str=Form(None), magazzino_id: str=Form(None), is_test: int=Form(0),
-                  servizi: list=Form(None)):
+                  reparto_id: str=Form(None), ruolo: str=Form('assistenza'), sede_id: str=Form(None), is_test: int=Form(0),
+                  servizi: list=Form(None), magazzini: list=Form(None)):
     user = require_superuser(r)
     if isinstance(user, RedirectResponse):
         return user
@@ -1745,14 +1768,13 @@ def new_operatore(r: Request, username: str=Form(...), password: str=Form(...), 
     def h(p): return bcrypt.hashpw(p.encode('utf-8'), bcrypt.gensalt()).decode('utf-8')
     reparto_id_val = int(reparto_id) if reparto_id and str(reparto_id).isdigit() else None
     sede_id_val = int(sede_id) if sede_id and str(sede_id).isdigit() else None
-    magazzino_id_val = int(magazzino_id) if magazzino_id and str(magazzino_id).isdigit() else None
     
     try:
         with engine.begin() as c:
             c.execute(text("""
-                INSERT INTO users (username, password_hash, nome, cognome, email, telefono, ruolo, reparto_id, attivo, sede_id, magazzino_id, is_test)
-                VALUES (:u, :h, :n, :c, :e, :tel, :ruolo, :r, 1, :sede, :mag, :is_test)
-            """), {"u": username, "h": h(password), "n": nome, "c": cognome, "e": email, "tel": telefono, "ruolo": ruolo, "r": reparto_id_val, "sede": sede_id_val, "mag": magazzino_id_val, "is_test": is_test})
+                INSERT INTO users (username, password_hash, nome, cognome, email, telefono, ruolo, reparto_id, attivo, sede_id, is_test)
+                VALUES (:u, :h, :n, :c, :e, :tel, :ruolo, :r, 1, :sede, :is_test)
+            """), {"u": username, "h": h(password), "n": nome, "c": cognome, "e": email, "tel": telefono, "ruolo": ruolo, "r": reparto_id_val, "sede": sede_id_val, "is_test": is_test})
             
             user_id = c.execute(text("SELECT user_id FROM users WHERE username = :u"), {"u": username}).scalar()
             
@@ -1762,6 +1784,14 @@ def new_operatore(r: Request, username: str=Form(...), password: str=Form(...), 
                         c.execute(text("""
                             INSERT INTO operatori_servizi (user_id, servizio_id) VALUES (:uid, :sid)
                         """), {"uid": user_id, "sid": int(servizio_id)})
+                    except:
+                        pass
+                magazzini = magazzini or []
+                for mag_id in magazzini:
+                    try:
+                        c.execute(text("""
+                            INSERT INTO operatori_magazzini (user_id, magazzino_id) VALUES (:uid, :mid)
+                        """), {"uid": user_id, "mid": int(mag_id)})
                     except:
                         pass
         return RedirectResponse(url="/admin/operatori", status_code=303)
@@ -1775,7 +1805,7 @@ def edit_operatore_form(r: Request, user_id: int):
         return user
     with engine.connect() as c:
         operatore = c.execute(text("""
-            SELECT u.user_id, u.username, u.nome, u.cognome, u.email, u.telefono, u.ruolo, u.reparto_id, u.attivo, u.ultimo_accesso, u.sede_id, u.magazzino_id, u.is_test
+            SELECT u.user_id, u.username, u.nome, u.cognome, u.email, u.telefono, u.ruolo, u.reparto_id, u.attivo, u.ultimo_accesso, u.sede_id, u.is_test
               FROM users u
              WHERE u.user_id = :id AND u.user_id != 1
         """), {"id": user_id}).mappings().first()
@@ -1787,6 +1817,9 @@ def edit_operatore_form(r: Request, user_id: int):
         servizi_assegnati = c.execute(text("""
             SELECT servizio_id FROM operatori_servizi WHERE user_id = :uid
         """), {"uid": user_id}).scalars().all()
+        magazzini_assegnati = c.execute(text("""
+            SELECT magazzino_id FROM operatori_magazzini WHERE user_id = :uid
+        """), {"uid": user_id}).scalars().all()
         servizi = c.execute(text("SELECT servizio_id, descrizione, reparto_id FROM servizi ORDER BY descrizione")).mappings().all()
         sedi = c.execute(text("SELECT sede_id, nome FROM sedi ORDER BY nome")).mappings().all()
         ruoli = c.execute(text("SELECT nome, descrizione FROM ruoli ORDER BY ruolo_id")).mappings().all()
@@ -1794,14 +1827,14 @@ def edit_operatore_form(r: Request, user_id: int):
     
     return templates.TemplateResponse(r, "edit_operatore.html", {
         "request": r, "cfg": CFG, "user": user, "operatore": operatore, 
-        "reparti": reparti, "servizi": servizi, "servizi_assegnati": servizi_assegnati, "sedi": sedi, "ruoli": ruoli, "magazzini": magazzini
+        "reparti": reparti, "servizi": servizi, "servizi_assegnati": servizi_assegnati, "sedi": sedi, "ruoli": ruoli, "magazzini": magazzini, "magazzini_assegnati": magazzini_assegnati
     })
 
 @app.post("/admin/operatore/{user_id}/modifica")
 def edit_operatore(r: Request, user_id: int, background_tasks: BackgroundTasks, nome: str=Form(...), cognome: str=Form(...), 
                    email: str=Form(...), telefono: str=Form(None), 
                    reparto_id: str=Form(None), ruolo: str=Form(...), attivo: int=Form(0),
-                   password: str=Form(""), servizi: list=Form(None), sede_id: str=Form(None), magazzino_id: str=Form(None), is_test: int=Form(0)):
+                   password: str=Form(""), servizi: list=Form(None), sede_id: str=Form(None), magazzini: list=Form(None), is_test: int=Form(0)):
     user = require_superuser(r)
     if isinstance(user, RedirectResponse):
         return user
@@ -1812,7 +1845,6 @@ def edit_operatore(r: Request, user_id: int, background_tasks: BackgroundTasks, 
     def h(p): return bcrypt.hashpw(p.encode('utf-8'), bcrypt.gensalt()).decode('utf-8')
     reparto_id_val = int(reparto_id) if reparto_id and str(reparto_id).isdigit() else None
     sede_id_val = int(sede_id) if sede_id and str(sede_id).isdigit() else None
-    magazzino_id_val = int(magazzino_id) if magazzino_id and str(magazzino_id).isdigit() else None
     
     tel_param = {"tel": telefono} if telefono is not None else {}
     tel_sql = "telefono=:tel, " if telefono is not None else ""
@@ -1822,14 +1854,14 @@ def edit_operatore(r: Request, user_id: int, background_tasks: BackgroundTasks, 
         
         if password:
             c.execute(text(f"""
-                UPDATE users SET nome=:n, cognome=:c, email=:e, {tel_sql}reparto_id=:r, ruolo=:ruolo, attivo=:a, password_hash=:p, sede_id=:sede, magazzino_id=:mag, is_test=:is_test
+                UPDATE users SET nome=:n, cognome=:c, email=:e, {tel_sql}reparto_id=:r, ruolo=:ruolo, attivo=:a, password_hash=:p, sede_id=:sede, is_test=:is_test
                  WHERE user_id=:uid AND user_id != 1
-            """), {"n": nome, "c": cognome, "e": email, "r": reparto_id_val, "ruolo": ruolo, "a": attivo, "p": h(password), "sede": sede_id_val, "mag": magazzino_id_val, "is_test": is_test, "uid": user_id, **tel_param})
+            """), {"n": nome, "c": cognome, "e": email, "r": reparto_id_val, "ruolo": ruolo, "a": attivo, "p": h(password), "sede": sede_id_val, "is_test": is_test, "uid": user_id, **tel_param})
         else:
             c.execute(text(f"""
-                UPDATE users SET nome=:n, cognome=:c, email=:e, {tel_sql}reparto_id=:r, ruolo=:ruolo, attivo=:a, sede_id=:sede, magazzino_id=:mag, is_test=:is_test
+                UPDATE users SET nome=:n, cognome=:c, email=:e, {tel_sql}reparto_id=:r, ruolo=:ruolo, attivo=:a, sede_id=:sede, is_test=:is_test
                  WHERE user_id=:uid AND user_id != 1
-            """), {"n": nome, "c": cognome, "e": email, "r": reparto_id_val, "ruolo": ruolo, "a": attivo, "sede": sede_id_val, "mag": magazzino_id_val, "is_test": is_test, "uid": user_id, **tel_param})
+            """), {"n": nome, "c": cognome, "e": email, "r": reparto_id_val, "ruolo": ruolo, "a": attivo, "sede": sede_id_val, "is_test": is_test, "uid": user_id, **tel_param})
         
         # Aggiorna servizi assegnati
         c.execute(text("DELETE FROM operatori_servizi WHERE user_id = :uid"), {"uid": user_id})
@@ -1838,6 +1870,16 @@ def edit_operatore(r: Request, user_id: int, background_tasks: BackgroundTasks, 
                 c.execute(text("""
                     INSERT INTO operatori_servizi (user_id, servizio_id) VALUES (:uid, :sid)
                 """), {"uid": user_id, "sid": int(servizio_id)})
+            except:
+                pass
+                
+        c.execute(text("DELETE FROM operatori_magazzini WHERE user_id = :uid"), {"uid": user_id})
+        magazzini = magazzini or []
+        for mag_id in magazzini:
+            try:
+                c.execute(text("""
+                    INSERT INTO operatori_magazzini (user_id, magazzino_id) VALUES (:uid, :mid)
+                """), {"uid": user_id, "mid": int(mag_id)})
             except:
                 pass
                 
@@ -1877,6 +1919,7 @@ def delete_operatore(r: Request, user_id: int):
         check = c.execute(text("SELECT user_id FROM users WHERE user_id = :uid AND user_id != 1"), {"uid": user_id}).scalar()
         if check:
             c.execute(text("DELETE FROM operatori_servizi WHERE user_id = :uid"), {"uid": user_id})
+            c.execute(text("DELETE FROM operatori_magazzini WHERE user_id = :uid"), {"uid": user_id})
             c.execute(text("DELETE FROM users WHERE user_id = :uid"), {"uid": user_id})
     
     return RedirectResponse(url="/admin/operatori", status_code=303)

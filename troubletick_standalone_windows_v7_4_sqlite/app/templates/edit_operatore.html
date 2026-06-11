@@ -91,17 +91,6 @@
                                 {% endfor %}
                             </select>
                         </div>
-                        <div class="col-md-6">
-                            <label class="form-label fw-bold">Magazzino</label>
-                            <select name="magazzino_id" class="form-select" id="editMagazzinoSelect">
-                                <option value="">Nessun magazzino</option>
-                                {% for magazzino in magazzini %}
-                                <option value="{{ magazzino.magazzino_id }}" data-reparto="{{ magazzino.reparto_id }}" {% if magazzino.magazzino_id == operatore.magazzino_id %}selected{% endif %}>
-                                    {{ magazzino.nome }}
-                                </option>
-                                {% endfor %}
-                            </select>
-                        </div>
                     </div>
                     <div class="row mb-3">
                         <div class="col-md-6">
@@ -117,6 +106,28 @@
                                 <input class="form-check-input" type="checkbox" name="is_test" value="1" id="testSwitch" {% if operatore.is_test %}checked{% endif %}>
                                 <label class="form-check-label" for="testSwitch">Utente di Test</label>
                             </div>
+                        </div>
+                    </div>
+
+                    <div class="mb-4">
+                        <label class="form-label fw-bold">Magazzini Assegnati</label>
+                        <div class="border p-3 rounded bg-light" id="editMagazziniContainer">
+                            {% if magazzini %}
+                                {% for magazzino in magazzini %}
+                                    <div class="form-check edit-magazzino-item" data-reparto="{{ magazzino.reparto_id }}">
+                                        <input class="form-check-input" type="checkbox" name="magazzini" 
+                                               value="{{ magazzino.magazzino_id }}" 
+                                               id="magazzino_{{ magazzino.magazzino_id }}"
+                                               {% if magazzino.magazzino_id in magazzini_assegnati %}checked{% endif %}>
+                                        <label class="form-check-label" for="magazzino_{{ magazzino.magazzino_id }}">
+                                            {{ magazzino.nome }}
+                                        </label>
+                                    </div>
+                                {% endfor %}
+                                <p class="text-muted mb-0" id="editNoMagazziniMsg" style="display: none; font-size: 0.9em;">Nessun magazzino per questo reparto.</p>
+                            {% else %}
+                                <p class="text-muted">Nessun magazzino disponibile.</p>
+                            {% endif %}
                         </div>
                     </div>
 
@@ -158,9 +169,10 @@ document.addEventListener('DOMContentLoaded', function() {
     const repartoSelect = document.getElementById('editRepartoSelect');
     const serviziItems = document.querySelectorAll('.edit-servizio-item');
     const noServiziMsg = document.getElementById('editNoServiziMsg');
-    const magazzinoSelect = document.getElementById('editMagazzinoSelect');
+    const magazziniItems = document.querySelectorAll('.edit-magazzino-item');
+    const noMagazziniMsg = document.getElementById('editNoMagazziniMsg');
 
-    function filterServizi() {
+    function filterLists() {
         const repId = repartoSelect.value;
         let count = 0;
         serviziItems.forEach(item => {
@@ -177,26 +189,25 @@ document.addEventListener('DOMContentLoaded', function() {
             noServiziMsg.style.display = count === 0 ? 'block' : 'none';
         }
         
-        if (magazzinoSelect) {
-            let magazzinoMatch = false;
-            Array.from(magazzinoSelect.options).forEach(opt => {
-                if (opt.value === "") return;
-                let isMatch = opt.dataset.reparto === repId;
-                opt.hidden = !isMatch;
-                opt.style.display = isMatch ? '' : 'none';
-                if (isMatch && opt.selected) {
-                    magazzinoMatch = true;
-                }
-            });
-            if (!magazzinoMatch && magazzinoSelect.value !== "") {
-                magazzinoSelect.value = "";
+        let countM = 0;
+        magazziniItems.forEach(item => {
+            const checkbox = item.querySelector('input');
+            if (item.dataset.reparto === repId) {
+                item.style.display = 'block';
+                countM++;
+            } else {
+                item.style.display = 'none';
+                checkbox.checked = false;
             }
+        });
+        if (noMagazziniMsg) {
+            noMagazziniMsg.style.display = countM === 0 ? 'block' : 'none';
         }
     }
 
     if (repartoSelect) {
-        repartoSelect.addEventListener('change', filterServizi);
-        filterServizi(); // run once on page load
+        repartoSelect.addEventListener('change', filterLists);
+        filterLists(); // run once on page load
     }
 });
 </script>
