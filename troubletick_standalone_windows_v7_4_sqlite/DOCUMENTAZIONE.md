@@ -51,10 +51,25 @@ L'applicativo è strutturato in diversi moduli che coprono l'intero ciclo di vit
 * **Trasferimento e Riassegnazione:** Riassegnazione di un ticket a un altro reparto/servizio con notifica automatica via email ai nuovi operatori incaricati.
 
 ### 3. Logistica e Magazzino
-* **Catalogo Materiali:** Classificazione degli articoli per **Categorie** (es. *Materiale informatico*, *Materiale elettrico*, *Arredamento*).
-* **Inventario Magazzini Unificato:** Visualizzazione in tempo reale di tutte le giacenze. Solo gli operatori assegnati a uno specifico magazzino possono effettuare operazioni di movimentazione.
-* **Movimenti Dettagliati:** Ogni carico o scarico genera un log immutabile che traccia operatore, data, quantitativo, dettagli logistici (sede di assegnazione, posizione fisica sullo scaffale), marca, modello dell'articolo movimentato e l'**allegato documentale** (es. foto, bolla di trasporto o DDT).
-* **Trasferimenti In-Transit:** Quando si esegue uno scarico per spedire materiale ad un altro magazzino, il sistema genera un "Trasferimento in Consegna". L'operatore del magazzino ricevente troverà la notifica nella sua dashboard e potrà "Ricevere" il trasferimento, allineando automaticamente le giacenze di destinazione e generando il log di carico.
+Il modulo Magazzino permette di gestire in modo centralizzato e tracciabile tutte le scorte e le movimentazioni aziendali. Di seguito il flusso tipico di gestione:
+
+* **Catalogo Materiali:** Classificazione degli articoli per **Categorie** (es. *Materiale informatico*, *Materiale elettrico*).
+* **Inventario Magazzini Unificato:** Visualizzazione in tempo reale di tutte le giacenze. Solo gli operatori assegnati a specifici magazzini (o gli Amministratori) possono visualizzare e operare sulle giacenze di competenza.
+
+#### Flusso Operativo: Dal Ticket alla Consegna
+1. **Apertura Ticket:** Un utente segnala un problema o una necessità (es. "Toner esaurito"). L'operatore prende in carico la segnalazione.
+2. **Richiesta di Materiale:** L'operatore constata la necessità di un articolo hardware. Direttamente dal dettaglio del ticket, clicca su "Crea Nuova Richiesta".
+   * Seleziona la Categoria, il Prodotto desiderato, la Quantità e la Sede di destinazione.
+   * Il sistema analizza le giacenze e imposta la richiesta in stato "In Attesa" (se non c'è giacenza) o "Pronta per Scarico" (se disponibile).
+3. **Evasione della Richiesta (Scarico):** L'operatore incaricato visualizza la coda delle "Richieste Materiale". Trovando la richiesta "Pronta per Scarico", clicca su **Esegui Scarico**. 
+   * Si apre la maschera di scarico pre-compilata. Il magazziniere deve solo specificare la posizione fisica (es. lo scaffale o il lotto) da cui preleva il bene.
+   * Confermando, i pezzi vengono sottratti, la richiesta diventa "Evasa" e nel ticket viene inserita automaticamente una nota di sistema per avvisare dell'avvenuta fornitura.
+
+#### Gestione Carichi, Scarichi e Trasferimenti
+* **Carico Manuale:** Per registrare l'arrivo di nuova merce (es. da fornitore), l'operatore cerca il prodotto nell'Inventario Magazzini e clicca su **Carico**. Specifica la data, la quantità e soprattutto la posizione fisica (scaffale/lotto). Può anche allegare un DDT PDF o una foto dell'articolo.
+* **Scarico Manuale e Documento PDF:** Per prelievi rapidi slegati dai ticket, basta usare il bottone **Scarico**. Attivando l'opzione "Genera PDF", al termine dell'operazione viene fornito un **Documento di Consegna** stampabile per l'acquisizione della firma da parte di chi ritira il materiale.
+* **Log Movimenti (Scatola Nera):** Ogni carico, scarico o aggiornamento fotografico genera un log immutabile. La pagina "Log Magazzini" permette di filtrare l'intero storico aziendale per data, operatore, materiale o ricerca testuale (es. matricola).
+* **Trasferimenti Tra Magazzini:** Se in fase di "Scarico" si seleziona come destinazione un altro magazzino anziché una sede, il sistema genera un trasferimento "In Consegna". L'operatore del magazzino destinatario visualizzerà un avviso e dovrà confermare fisicamente la ricezione cliccando su "Segna Arrivato", allineando le due giacenze in modo sicuro e tracciato.
 
 ### 4. Gestione Organizzativa (HR / Struttura)
 * **Sedi:** Anagrafica delle sedi aziendali (es. filiali, uffici, smart working).
