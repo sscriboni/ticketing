@@ -603,17 +603,18 @@ def nuova_richiesta_materiale_form(r: Request, ticket_id: str = None):
 
 @router.post("/richiesta-materiale/nuova")
 def nuova_richiesta_materiale_action(r: Request, sede_dest_id: int = Form(...), categoria_id: int = Form(...), 
-                                     materiale_id: int = Form(...), magazzino_id: int = Form(...), quantita: int = Form(...), ticket_id: str = Form(None)):
+                                     materiale_id: int = Form(...), magazzino_id: str = Form(None), quantita: int = Form(...), ticket_id: str = Form(None)):
     if "user" not in r.session: return RedirectResponse(url="/login")
     user = r.session.get("user")
     
     ticket_id_val = int(ticket_id) if ticket_id and str(ticket_id).isdigit() else None
+    magazzino_id_val = int(magazzino_id) if magazzino_id and str(magazzino_id).isdigit() else None
     
     with engine.begin() as c:
         stato = 'nuova'
-        if magazzino_id:
+        if magazzino_id_val:
             giacenza = c.execute(text("SELECT quantita FROM giacenze WHERE magazzino_id = :mag AND materiale_id = :mat"),
-                                 {"mag": magazzino_id, "mat": materiale_id}).scalar() or 0
+                                 {"mag": magazzino_id_val, "mat": materiale_id}).scalar() or 0
             if giacenza >= quantita:
                 stato = 'pronta_per_scarico'
                 
@@ -622,7 +623,7 @@ def nuova_richiesta_materiale_action(r: Request, sede_dest_id: int = Form(...), 
             VALUES (:uid, :sede, :cat, :mat, :q, :mag, :tid, :stato)
         """), {
             "uid": user["id"], "sede": sede_dest_id, "cat": categoria_id, "mat": materiale_id,
-            "q": quantita, "mag": magazzino_id, "tid": ticket_id_val, "stato": stato
+            "q": quantita, "mag": magazzino_id_val, "tid": ticket_id_val, "stato": stato
         })
         
         if ticket_id_val:
