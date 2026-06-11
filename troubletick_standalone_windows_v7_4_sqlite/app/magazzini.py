@@ -255,7 +255,7 @@ def magazzino_rinomina_posizione(r: Request, magazzino_id: int, materiale_id: in
     return RedirectResponse(url=f"/magazzino/{magazzino_id}/giacenza/{materiale_id}", status_code=303)
 
 @router.get("/magazzino/{magazzino_id}/movimento/{materiale_id}", response_class=HTMLResponse)
-def magazzino_movimento_form(r: Request, magazzino_id: int, materiale_id: int, operazione: str):
+def magazzino_movimento_form(r: Request, magazzino_id: int, materiale_id: int, operazione: str, richiesta_id: int = None):
     if "user" not in r.session: return RedirectResponse(url="/login")
     user = r.session.get("user")
     
@@ -292,6 +292,10 @@ def magazzino_movimento_form(r: Request, magazzino_id: int, materiale_id: int, o
                 GROUP BY posizione_fisica
             """), {"mag_id": magazzino_id, "mat_id": materiale_id}).mappings().all()
             
+        richiesta = None
+        if operazione == "scarico" and richiesta_id:
+            richiesta = c.execute(text("SELECT * FROM richieste_materiale WHERE richiesta_id = :id"), {"id": richiesta_id}).mappings().first()
+            
         from datetime import date
         oggi = date.today().isoformat()
         
@@ -299,7 +303,7 @@ def magazzino_movimento_form(r: Request, magazzino_id: int, materiale_id: int, o
     return templates.TemplateResponse(r, template_file, {
         "request": r, "cfg": CFG, "user": user, 
         "magazzino": magazzino, "materiale": materiale,
-        "operazione": operazione, "sedi": sedi, "magazzini_dest": magazzini_dest, "oggi": oggi, "posizioni": posizioni
+        "operazione": operazione, "sedi": sedi, "magazzini_dest": magazzini_dest, "oggi": oggi, "posizioni": posizioni, "richiesta": richiesta
     })
 
 @router.post("/magazzino/{magazzino_id}/movimento/{materiale_id}")
@@ -310,7 +314,8 @@ async def magazzino_movimento_action(
     marca: str = Form(""), modello: str = Form(""),
     magazzino_destinazione_id: str = Form(None),
     allegato: UploadFile = File(None),
-    genera_pdf: str = Form(None)
+    genera_pdf: str = Form(None),
+    richiesta_id: str = Form(None)
 ):
     if "user" not in r.session: return RedirectResponse(url="/login")
     user = r.session.get("user")
@@ -379,6 +384,17 @@ async def magazzino_movimento_action(
                 "q": quantita, "uid": user["id"], "note": descrizione, "all": allegato_filename
             })
             
+        if operazione == "scarico" and richiesta_id and str(richiesta_id).isdigit():
+            rid = int(richiesta_id)
+            c.execute(text("UPDATE richieste_materiale SET stato = 'evasa' WHERE richiesta_id = :id"), {"id": rid})
+            richiesta_ticket = c.execute(text("SELECT ticket_id FROM richieste_materiale WHERE richiesta_id = :id"), {"id": rid}).mappings().first()
+            if richiesta_ticket and richiesta_ticket["ticket_id"]:
+                autore = f"{user.get('nome','')} {user.get('cognome','')}".strip() or user.get('username')
+                mat_nome = c.execute(text("SELECT nome FROM materiali WHERE materiale_id = :mid"), {"mid": materiale_id}).scalar()
+                testo = f"Richiesta materiale evasa dal magazzino: {quantita}x {mat_nome}."
+                c.execute(text("""INSERT INTO ticket_notes (ticket_id, autore, testo, is_internal) VALUES (:tid, :a, :t, 0)"""),
+                         {"tid": richiesta_ticket["ticket_id"], "a": f"Sistema ({autore})", "t": testo})
+            
         if operazione == "scarico" and genera_pdf == "1":
             mov_id = c.execute(text("""
                 SELECT movimento_id FROM movimenti_magazzino
@@ -388,6 +404,8 @@ async def magazzino_movimento_action(
             if mov_id:
                 return RedirectResponse(url=f"/stampa-consegna/scarico/{mov_id}", status_code=303)
             
+    if operazione == "scarico" and richiesta_id:
+        return RedirectResponse(url="/richieste-materiale", status_code=303)
     return RedirectResponse(url="/magazzini", status_code=303)
 
 @router.get("/stampa-consegna/{tipo}/{doc_id}", response_class=HTMLResponse)
@@ -609,97 +627,6 @@ def nuova_richiesta_materiale_action(r: Request, sede_dest_id: int = Form(...), 
 
     if ticket_id_val:
         return RedirectResponse(url=f"/ticket/{ticket_id_val}", status_code=303)
-    return RedirectResponse(url="/richieste-materiale", status_code=303)
-
-@router.get("/richiesta-materiale/{richiesta_id}/evadi", response_class=HTMLResponse)
-def evadi_richiesta_form(r: Request, richiesta_id: int):
-    if "user" not in r.session: return RedirectResponse(url="/login")
-    user = r.session.get("user")
-    
-    with engine.connect() as c:
-        richiesta = c.execute(text("""
-            SELECT rm.*, m.nome as materiale_nome, c.nome as categoria_nome, s.nome as sede_nome, mag.nome as magazzino_nome
-            FROM richieste_materiale rm
-            JOIN materiali m ON rm.materiale_id = m.materiale_id
-            JOIN categorie c ON rm.categoria_id = c.categoria_id
-            JOIN sedi s ON rm.sede_dest_id = s.sede_id
-            LEFT JOIN magazzini mag ON rm.magazzino_id = mag.magazzino_id
-            WHERE rm.richiesta_id = :id
-        """), {"id": richiesta_id}).mappings().first()
-        
-        if not richiesta or richiesta["stato"] != 'pronta_per_scarico':
-            return RedirectResponse(url="/richieste-materiale")
-            
-        if user.get("ruolo") != "admin":
-            user_mag_id = c.execute(text("SELECT magazzino_id FROM users WHERE user_id = :uid"), {"uid": user.get("id")}).scalar()
-            if not user_mag_id or user_mag_id != richiesta["magazzino_id"]:
-                return RedirectResponse(url="/richieste-materiale")
-                
-        from datetime import date
-        oggi = date.today().isoformat()
-        
-    return templates.TemplateResponse(r, "evadi_richiesta.html", {"request": r, "cfg": CFG, "user": user, "richiesta": richiesta, "oggi": oggi})
-
-@router.post("/richiesta-materiale/{richiesta_id}/evadi")
-async def evadi_richiesta_action(r: Request, richiesta_id: int, data_movimento: str = Form(...), descrizione: str = Form(""), 
-                           posizione_fisica: str = Form(...), marca: str = Form(""), modello: str = Form(""),
-                           allegato: UploadFile = File(None), genera_pdf: str = Form(None)):
-    if "user" not in r.session: return RedirectResponse(url="/login")
-    user = r.session.get("user")
-    
-    # Workaround per il bug di troncamento immagini > 1MB (SpooledTemporaryFile) su Windows
-    if allegato and allegato.filename:
-        content = await allegato.read()
-        import io
-        allegato.file = io.BytesIO(content)
-
-    allegato_filename = save_upload(allegato)
-    
-    with engine.begin() as c:
-        richiesta = c.execute(text("SELECT * FROM richieste_materiale WHERE richiesta_id = :id"), {"id": richiesta_id}).mappings().first()
-        if not richiesta or richiesta["stato"] != 'pronta_per_scarico':
-            return RedirectResponse(url="/richieste-materiale", status_code=303)
-            
-        magazzino_id = richiesta["magazzino_id"]
-        materiale_id = richiesta["materiale_id"]
-        quantita = richiesta["quantita"]
-        
-        qta_attuale = c.execute(text("SELECT quantita FROM giacenze WHERE magazzino_id = :mag AND materiale_id = :mat"), 
-                                {"mag": magazzino_id, "mat": materiale_id}).scalar() or 0
-                                
-        nuova_qta = max(0, qta_attuale - quantita)
-        c.execute(text("UPDATE giacenze SET quantita = :q WHERE magazzino_id = :mag AND materiale_id = :mat"),
-                  {"q": nuova_qta, "mag": magazzino_id, "mat": materiale_id})
-                  
-        desc_completa = f"[Evasione Richiesta #{richiesta_id}] {descrizione}"
-        
-        c.execute(text("""
-            INSERT INTO movimenti_magazzino (magazzino_id, materiale_id, user_id, operazione, quantita, data_movimento, descrizione, sede_assegnazione_id, posizione_fisica, marca, modello, allegato)
-            VALUES (:mag, :mat, :uid, 'scarico', :q, :dt, :desc, :sede, :pos, :marca, :modello, :all)
-        """), {
-            "mag": magazzino_id, "mat": materiale_id, "uid": user["id"], "q": quantita, 
-            "dt": data_movimento, "desc": desc_completa, "sede": richiesta["sede_dest_id"],
-            "pos": posizione_fisica, "marca": marca, "modello": modello, "all": allegato_filename
-        })
-        
-        c.execute(text("UPDATE richieste_materiale SET stato = 'evasa' WHERE richiesta_id = :id"), {"id": richiesta_id})
-        
-        if richiesta["ticket_id"]:
-            autore = f"{user.get('nome','')} {user.get('cognome','')}".strip() or user.get('username')
-            mat_nome = c.execute(text("SELECT nome FROM materiali WHERE materiale_id = :mid"), {"mid": materiale_id}).scalar()
-            testo = f"Richiesta materiale evasa dal magazzino: {quantita}x {mat_nome}."
-            c.execute(text("""INSERT INTO ticket_notes (ticket_id, autore, testo, is_internal) VALUES (:tid, :a, :t, 0)"""),
-                     {"tid": richiesta["ticket_id"], "a": f"Sistema ({autore})", "t": testo})
-                     
-        if genera_pdf == "1":
-            mov_id = c.execute(text("""
-                SELECT movimento_id FROM movimenti_magazzino
-                WHERE user_id = :uid AND magazzino_id = :mag AND materiale_id = :mat AND operazione = 'scarico'
-                ORDER BY movimento_id DESC LIMIT 1
-            """), {"uid": user["id"], "mag": magazzino_id, "mat": materiale_id}).scalar()
-            if mov_id:
-                return RedirectResponse(url=f"/stampa-consegna/scarico/{mov_id}", status_code=303)
-
     return RedirectResponse(url="/richieste-materiale", status_code=303)
 
 @router.post("/richiesta-materiale/{richiesta_id}/annulla")

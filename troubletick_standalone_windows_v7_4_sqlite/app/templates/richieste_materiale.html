@@ -44,7 +44,7 @@
         <div class="d-flex gap-1 align-items-center">
             {% if r.stato == 'pronta_per_scarico' %}
                 {% if user.ruolo == 'admin' or (user.magazzino_id and user.magazzino_id == r.magazzino_id) %}
-                    <a href="/richiesta-materiale/{{ r.richiesta_id }}/evadi" class="btn btn-sm btn-warning"><i class="bi bi-box-arrow-up"></i> Esegui Scarico</a>
+                    <a href="/magazzino/{{ r.magazzino_id }}/movimento/{{ r.materiale_id }}?operazione=scarico&richiesta_id={{ r.richiesta_id }}" class="btn btn-sm btn-warning"><i class="bi bi-box-arrow-up"></i> Esegui Scarico</a>
                 {% else %}
                     <span class="text-muted small">Riservato mag.</span>
                 {% endif %}
