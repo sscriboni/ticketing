@@ -11,11 +11,12 @@
     <div class="alert alert-danger py-2 mt-2">Impossibile eliminare: il servizio è associato a ticket o operatori attivi.</div>
     {% endif %}
     <table class="table table-sm table-striped mt-3">
-      <thead><tr><th>Servizio</th><th>Reparto</th><th>Stato</th><th>Azioni</th></tr></thead>
+      <thead><tr><th>Servizio</th><th>Descrizione</th><th>Reparto</th><th>Stato</th><th>Azioni</th></tr></thead>
       <tbody>
       {% for servizio in servizi %}
       <tr>
         <td><strong>{{ servizio.descrizione }}</strong></td>
+        <td>{{ servizio.descrizione_lunga or '—' }}</td>
         <td>{{ servizio.reparto_nome or '—' }}</td>
         <td>
           {% if servizio.accetta_ticket %}
@@ -40,7 +41,11 @@
   <div class="col-12 col-lg-4 bg-white p-4 rounded shadow-sm">
     <h5>Nuovo Servizio</h5>
     <form method="post" action="/admin/servizio" class="mt-3">
-      <div class="mb-3"><label class="form-label">Descrizione</label><input name="descrizione" class="form-control" required></div>
+      <div class="mb-3"><label class="form-label">Nome Servizio</label><input name="descrizione" class="form-control" placeholder="es. Assistenza PC" required></div>
+      <div class="mb-3">
+        <label class="form-label">Descrizione (max 250 car.)</label>
+        <textarea name="descrizione_lunga" class="form-control" rows="3" maxlength="250" placeholder="Spiegazione sintetica del servizio..."></textarea>
+      </div>
       <div class="mb-3"><label class="form-label">Reparto</label><select name="reparto_id" class="form-select" required>
         <option value="" disabled selected>Seleziona reparto</option>
         {% for reparto in reparti %}

@@ -18,8 +18,10 @@
     </div>
     <div class="row"><div class="col-12 col-md-8 col-lg-6 mx-auto bg-white p-4 rounded shadow-sm">
         <form method="post" action="/admin/servizio/{{ servizio.servizio_id }}/modifica">
-            <div class="mb-3"><label class="form-label fw-bold">Descrizione</label>
+            <div class="mb-3"><label class="form-label fw-bold">Nome Servizio</label>
             <input type="text" name="descrizione" class="form-control" value="{{ servizio.descrizione }}" required></div>
+            <div class="mb-3"><label class="form-label fw-bold">Descrizione (max 250 car.)</label>
+            <textarea name="descrizione_lunga" class="form-control" rows="3" maxlength="250" placeholder="Spiegazione sintetica del servizio...">{{ servizio.descrizione_lunga or '' }}</textarea></div>
             <div class="mb-4"><label class="form-label fw-bold">Reparto</label>
             <select name="reparto_id" class="form-select" required>
                 <option value="" disabled>Seleziona reparto</option>

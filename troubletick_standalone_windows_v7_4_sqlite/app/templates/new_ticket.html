@@ -1,4 +1,4 @@
-﻿﻿<!doctype html><html lang="it"><head><meta charset="utf-8"><title>Nuovo Ticket — {{ cfg.app_title }}</title>
+<!doctype html><html lang="it"><head><meta charset="utf-8"><title>Nuovo Ticket — {{ cfg.app_title }}</title>
 <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet"></head>
 <body class="bg-light d-flex flex-column min-vh-100">
 {% include 'navbar.html' %}
@@ -24,12 +24,16 @@
       <select name="servizio_id" class="form-select" id="servizioSelect">
         <option value="">Nessun servizio</option>
         {% for servizio in servizi %}
-        <option value="{{ servizio.servizio_id }}" data-reparto="{{ servizio.reparto_id }}">{{ servizio.descrizione }}</option>
+        <option value="{{ servizio.servizio_id }}" data-reparto="{{ servizio.reparto_id }}" data-description="{{ servizio.descrizione_lunga or '' }}">{{ servizio.descrizione }}</option>
         {% endfor %}
       </select>
-          <div class="form-text text-muted mt-1">
+      <div class="form-text text-muted mt-1">
         <small>ℹ️ Il Servizio serve a prendere in carico più velocemente il ticket, ma se non è conosciuto verrà assegnato da un operatore. Nel dubbio non inserire niente.</small>
-    </div>
+      </div>
+      <div id="serviceDescriptionAlert" class="alert alert-info py-2 px-3 mt-2 d-none" style="font-size: 0.9rem; border-left: 4px solid #0dcaf0;">
+        <div class="fw-bold mb-1">Informazioni sul Servizio selezionato:</div>
+        <div id="serviceDescriptionText"></div>
+      </div>
     </div>
 
     <div class="col-md-12"><label class="form-label">Nominativo <span class="text-danger">*</span></label><input name="nominativo" class="form-control" required placeholder="Nome e Cognome"></div>
@@ -62,6 +66,23 @@ document.addEventListener('DOMContentLoaded', function() {
     const servizioSelect = document.getElementById('servizioSelect');
     
     if (repartoSelect && servizioSelect) {
+        const serviceAlert = document.getElementById('serviceDescriptionAlert');
+        const serviceText = document.getElementById('serviceDescriptionText');
+
+        function updateServiceDescription() {
+            if (!serviceAlert || !serviceText) return;
+            const selectedOpt = servizioSelect.options[servizioSelect.selectedIndex];
+            if (selectedOpt && selectedOpt.value !== "") {
+                const desc = selectedOpt.dataset.description;
+                if (desc && desc.trim() !== "") {
+                    serviceText.textContent = desc;
+                    serviceAlert.classList.remove('d-none');
+                    return;
+                }
+            }
+            serviceAlert.classList.add('d-none');
+        }
+
         function filterServizi() {
             const repId = parseInt(repartoSelect.value);
             Array.from(servizioSelect.options).forEach(opt => {
@@ -72,8 +93,10 @@ document.addEventListener('DOMContentLoaded', function() {
                 // Seleziona "Nessun servizio" in automatico se il servizio scelto prima scompare
                 if (!isMatch && opt.selected) servizioSelect.value = "";
             });
+            updateServiceDescription();
         }
         repartoSelect.addEventListener('change', filterServizi);
+        servizioSelect.addEventListener('change', updateServiceDescription);
         filterServizi(); // Avvia il filtro al caricamento iniziale della pagina
     }
 
