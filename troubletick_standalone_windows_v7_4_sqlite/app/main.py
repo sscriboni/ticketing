@@ -463,7 +463,18 @@ def create_ticket(r: Request,
 
 @app.get("/success", response_class=HTMLResponse)
 def success(r: Request, codice: str = None, email: str = None):
-    return templates.TemplateResponse(r, "success.html", {"request": r, "cfg": CFG, "codice": codice, "email_inviata": bool(email)})
+    ticket_info = None
+    if codice:
+        with engine.connect() as c:
+            ticket_info = c.execute(text("""
+                SELECT t.nome, t.cognome, t.descrizione, r.nome AS reparto_nome, s.descrizione AS servizio_desc
+                FROM tickets t
+                LEFT JOIN reparti r ON t.reparto_id = r.reparto_id
+                LEFT JOIN servizi s ON t.servizio_id = s.servizio_id
+                WHERE t.codice_ticket = :cod ORDER BY t.ticket_id DESC LIMIT 1
+            """), {"cod": codice}).mappings().first()
+            
+    return templates.TemplateResponse(r, "success.html", {"request": r, "cfg": CFG, "codice": codice, "email_inviata": bool(email), "ticket": ticket_info})
 
 @app.get("/status-ticket", response_class=HTMLResponse)
 def status_ticket_form(r: Request):
