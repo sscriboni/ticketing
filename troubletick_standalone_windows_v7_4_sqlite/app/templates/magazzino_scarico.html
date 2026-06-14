@@ -58,18 +58,31 @@
                     </div>
                 </div>
                 <div class="mb-3">
-                    <label class="form-label fw-bold">Posizione di Magazzino (se nota)</label>
+                    <label class="form-label fw-bold">Posizione di Magazzino <span class="text-danger">*</span></label>
                     {% if posizioni %}
                     <select name="posizione_fisica" class="form-select border-danger" id="posizioneSelect" required onchange="checkGiacenzaPosizione()">
                         <option value="">-- Seleziona Posizione / Lotto --</option>
                         {% for pos in posizioni %}
-                        <option value="{{ pos.posizione_fisica }}" data-qta="{{ pos.quantita }}" {% if pos.quantita <= 0 %}disabled{% endif %}>{{ pos.posizione_fisica }} (Disp: {{ pos.quantita }})</option>
+                        <option value="{{ pos.posizione_fisica }}" data-qta="{{ pos.quantita }}" {% if pos.quantita <= 0 %}disabled{% endif %}>{{ pos.posizione_fisica }} (Giacenza: {{ pos.quantita }} pz)</option>
                         {% endfor %}
                     </select>
+                    
+                    <div class="mt-2" id="posizioniBadges">
+                        <small class="text-muted d-block mb-1">Seleziona rapidamente cliccando sulle posizioni con giacenza disponibile:</small>
+                        {% for pos in posizioni %}
+                        <span class="badge {% if pos.quantita > 5 %}bg-success{% elif pos.quantita > 0 %}bg-warning text-dark{% else %}bg-danger{% endif %} me-1 mb-1 p-2" 
+                              onclick="selectPosizione('{{ pos.posizione_fisica }}')" style="font-size: 0.85rem; cursor: pointer;" title="Clicca per selezionare questa posizione">
+                            <i class="bi bi-geo-alt-fill"></i> {{ pos.posizione_fisica }}: <strong>{{ pos.quantita }}</strong> pz
+                        </span>
+                        {% endfor %}
+                    </div>
                     {% else %}
-                    <input type="text" name="posizione_fisica" class="form-control border-danger" id="posizioneInput" placeholder="Es. Scaffale A, Lotto 300" minlength="5" required>
+                    <input type="text" name="posizione_fisica" class="form-control border-danger" id="posizioneInput" placeholder="Es. A-12, Scaffale-A" minlength="3" pattern="^[^\s]{3,}$" title="La posizione deve essere di almeno 3 caratteri e non contenere spazi." required>
+                    <div class="alert alert-warning py-2 mt-2" style="font-size: 0.9rem;">
+                        ⚠️ Nessuna posizione registrata con giacenza per questo articolo. Inserisci manualmente un codice di posizione (es. A-12, senza spazi).
+                    </div>
                     {% endif %}
-                    <small class="text-muted">Indicare la posizione o il lotto da cui scalare la merce.</small>
+                    <small class="text-muted d-block mt-1">Indicare la posizione o il lotto da cui scalare la merce.</small>
                 </div>
                 
                 <div class="row mb-3">
@@ -117,6 +130,14 @@
     </div>
 </div>
 <script>
+function selectPosizione(nomePos) {
+    const posSelect = document.getElementById('posizioneSelect');
+    if (posSelect) {
+        posSelect.value = nomePos;
+        checkGiacenzaPosizione();
+    }
+}
+
 function checkGiacenzaPosizione() {
     const posSelect = document.getElementById('posizioneSelect');
     const quantitaInput = document.getElementById('quantitaInput');

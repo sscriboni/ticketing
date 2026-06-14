@@ -19,6 +19,12 @@
     
     <div class="row">
         <div class="col-12 col-md-8 col-lg-6 mx-auto bg-white p-4 rounded shadow-sm border-top border-success border-4">
+            {% if error == 'posizione_invalida' %}
+            <div class="alert alert-danger py-2">La posizione deve contenere almeno 3 caratteri e NON contenere spazi.</div>
+            {% elif error %}
+            <div class="alert alert-danger py-2">{{ error }}</div>
+            {% endif %}
+            
             <div class="mb-4">
                 <strong>Magazzino:</strong> {{ magazzino.nome }}<br>
                 <strong>Articolo in ingresso:</strong> {{ materiale.nome }}<br>
@@ -51,8 +57,8 @@
                 </div>
                 <div class="mb-3">
                     <label class="form-label fw-bold">Posizione di Magazzino <span class="text-danger">*</span></label>
-                    <input type="text" name="posizione_fisica" class="form-control" placeholder="Es. Scaffale A, Lotto 300 Stampanti HP" minlength="5" required>
-                    <small class="text-muted d-block mt-1">È un breve testo che raggruppa gli articoli caricati e andrà indicato anche in fase di scarico. Può essere una posizione fisica (es. scaffale A) o un lotto (es. Lotto 300 Stampanti HP).</small>
+                    <input type="text" name="posizione_fisica" class="form-control" placeholder="Es. A-12, Scaffale-A, Lotto-B3" minlength="3" pattern="^[^\s]{3,}$" title="La posizione deve essere di almeno 3 caratteri e non contenere spazi." required>
+                    <small class="text-muted d-block mt-1">È un breve codice che raggruppa gli articoli caricati. Deve essere di almeno 3 caratteri e NON contenere spazi (es. A-12, Scaffale-A, Lotto-B3).</small>
                 </div>
                 <div class="mb-3"><label class="form-label fw-bold">Note / Dettagli</label><input type="text" name="descrizione" class="form-control" placeholder="Es. Arrivo merce, reso fornitore..."></div>
                 

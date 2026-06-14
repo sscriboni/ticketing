@@ -248,16 +248,18 @@ def magazzino_rinomina_posizione(r: Request, magazzino_id: int, materiale_id: in
             return RedirectResponse(url=f"/magazzino/{magazzino_id}/giacenza/{materiale_id}", status_code=303)
 
         if new_posizione and new_posizione.strip() and old_posizione:
-            c.execute(text("""
-                UPDATE movimenti_magazzino 
-                SET posizione_fisica = :new_pos 
-                WHERE magazzino_id = :mag_id AND materiale_id = :mat_id AND posizione_fisica = :old_pos
-            """), {"new_pos": new_posizione.strip(), "mag_id": magazzino_id, "mat_id": materiale_id, "old_pos": old_posizione})
+            new_pos_clean = new_posizione.strip()
+            if len(new_pos_clean) >= 3 and not any(c.isspace() for c in new_pos_clean):
+                c.execute(text("""
+                    UPDATE movimenti_magazzino 
+                    SET posizione_fisica = :new_pos 
+                    WHERE magazzino_id = :mag_id AND materiale_id = :mat_id AND posizione_fisica = :old_pos
+                """), {"new_pos": new_pos_clean, "mag_id": magazzino_id, "mat_id": materiale_id, "old_pos": old_posizione})
             
     return RedirectResponse(url=f"/magazzino/{magazzino_id}/giacenza/{materiale_id}", status_code=303)
 
 @router.get("/magazzino/{magazzino_id}/movimento/{materiale_id}", response_class=HTMLResponse)
-def magazzino_movimento_form(r: Request, magazzino_id: int, materiale_id: int, operazione: str, richiesta_id: int = None):
+def magazzino_movimento_form(r: Request, magazzino_id: int, materiale_id: int, operazione: str, richiesta_id: int = None, error: str = None):
     if "user" not in r.session: return RedirectResponse(url="/login")
     user = r.session.get("user")
     
@@ -305,7 +307,7 @@ def magazzino_movimento_form(r: Request, magazzino_id: int, materiale_id: int, o
     return templates.TemplateResponse(r, template_file, {
         "request": r, "cfg": CFG, "user": user, 
         "magazzino": magazzino, "materiale": materiale,
-        "operazione": operazione, "sedi": sedi, "magazzini_dest": magazzini_dest, "oggi": oggi, "posizioni": posizioni, "richiesta": richiesta
+        "operazione": operazione, "sedi": sedi, "magazzini_dest": magazzini_dest, "oggi": oggi, "posizioni": posizioni, "richiesta": richiesta, "error": error
     })
 
 @router.post("/magazzino/{magazzino_id}/movimento/{materiale_id}")
@@ -321,6 +323,15 @@ async def magazzino_movimento_action(
 ):
     if "user" not in r.session: return RedirectResponse(url="/login")
     user = r.session.get("user")
+    
+    if operazione == "carico":
+        pos_clean = (posizione_fisica or "").strip()
+        if len(pos_clean) < 3 or any(c.isspace() for c in pos_clean):
+            richiesta_clause = f"&richiesta_id={richiesta_id}" if (richiesta_id and str(richiesta_id).isdigit()) else ""
+            return RedirectResponse(
+                url=f"/magazzino/{magazzino_id}/movimento/{materiale_id}?operazione=carico&error=posizione_invalida{richiesta_clause}",
+                status_code=303
+            )
     
     # Workaround per il bug di troncamento immagini > 1MB (SpooledTemporaryFile) su Windows
     if allegato and allegato.filename:
