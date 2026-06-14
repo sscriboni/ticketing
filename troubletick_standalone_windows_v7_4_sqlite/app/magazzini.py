@@ -750,3 +750,38 @@ def annulla_richiesta_action(r: Request, richiesta_id: int):
                      {"tid": richiesta["ticket_id"], "a": f"Sistema ({autore})", "t": testo})
 
     return RedirectResponse(url="/richieste-materiale", status_code=303)
+
+@router.get("/magazzino/{magazzino_id}/log", response_class=HTMLResponse)
+def magazzino_log(r: Request, magazzino_id: int):
+    if "user" not in r.session: return RedirectResponse(url="/login")
+    user = r.session.get("user")
+    
+    if user.get("ruolo") == "normale":
+        return RedirectResponse(url="/tickets")
+        
+    with engine.connect() as c:
+        if user.get("ruolo") != "admin":
+            user_mag_ids = c.execute(text("SELECT magazzino_id FROM operatori_magazzini WHERE user_id = :uid"), {"uid": user.get("id")}).scalars().all()
+            if magazzino_id not in user_mag_ids:
+                return RedirectResponse(url="/magazzini")
+                
+        magazzino = c.execute(text("SELECT * FROM magazzini WHERE magazzino_id = :id"), {"id": magazzino_id}).mappings().first()
+        if not magazzino:
+            return RedirectResponse(url="/magazzini")
+            
+        movimenti = c.execute(text("""
+            SELECT mm.*, mat.nome as materiale_nome, c.nome as categoria_nome, 
+                   u.nome as user_nome, u.cognome as user_cognome, s.nome as sede_nome
+            FROM movimenti_magazzino mm
+            JOIN materiali mat ON mm.materiale_id = mat.materiale_id
+            LEFT JOIN categorie c ON mat.categoria_id = c.categoria_id
+            JOIN users u ON mm.user_id = u.user_id
+            LEFT JOIN sedi s ON mm.sede_assegnazione_id = s.sede_id
+            WHERE mm.magazzino_id = :mag_id
+            ORDER BY mm.creato_il DESC
+        """), {"mag_id": magazzino_id}).mappings().all()
+        
+    return templates.TemplateResponse(r, "magazzino_log.html", {
+        "request": r, "cfg": CFG, "user": user, 
+        "magazzino": magazzino, "movimenti": movimenti
+    })
