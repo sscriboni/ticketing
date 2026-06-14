@@ -57,8 +57,24 @@
                 </div>
                 <div class="mb-3">
                     <label class="form-label fw-bold">Posizione di Magazzino <span class="text-danger">*</span></label>
-                    <input type="text" name="posizione_fisica" class="form-control" placeholder="Es. A-12, Scaffale A, Lotto B3" minlength="3" pattern="^[^\s].+[^\s]$" title="La posizione deve essere di almeno 3 caratteri e non contenere spazi all'inizio o alla fine." onblur="this.value = this.value.trim()" onchange="this.value = this.value.trim()" required>
-                    <small class="text-muted d-block mt-1">È un breve codice che raggruppa gli articoli caricati. Deve essere di almeno 3 caratteri (gli spazi interni sono consentiti, ma non all'inizio o alla fine. Verrà eseguito un trim automatico).</small>
+                    <input type="text" name="posizione_fisica" id="posizioneInput" list="posizioniList" class="form-control border-success" placeholder="Es. A-12, Scaffale A, Lotto B3" minlength="3" pattern="^[^\s].+[^\s]$" title="La posizione deve essere di almeno 3 caratteri e non contenere spazi all'inizio o alla fine." onblur="this.value = this.value.trim()" onchange="this.value = this.value.trim()" required>
+                    <datalist id="posizioniList">
+                        {% for pos in posizioni %}
+                        <option value="{{ pos }}">
+                        {% endfor %}
+                    </datalist>
+                    {% if posizioni %}
+                    <div class="mt-2" id="posizioniBadges">
+                        <small class="text-muted d-block mb-1">Oppure seleziona rapidamente una posizione esistente:</small>
+                        {% for pos in posizioni %}
+                        <span class="badge bg-secondary me-1 mb-1 p-2" 
+                              onclick="selectPosizione('{{ pos }}')" style="font-size: 0.85rem; cursor: pointer;" title="Clicca per selezionare questa posizione">
+                            <i class="bi bi-geo-alt-fill"></i> {{ pos }}
+                        </span>
+                        {% endfor %}
+                    </div>
+                    {% endif %}
+                    <small class="text-muted d-block mt-1">È un breve codice che raggruppa gli articoli caricati. Puoi digitarne uno nuovo o selezionarlo tra quelli già esistenti. Deve essere di almeno 3 caratteri (gli spazi interni sono consentiti, ma non all'inizio o alla fine. Verrà eseguito un trim automatico).</small>
                 </div>
                 <div class="mb-3"><label class="form-label fw-bold">Note / Dettagli</label><input type="text" name="descrizione" class="form-control" placeholder="Es. Arrivo merce, reso fornitore..."></div>
                 
@@ -73,5 +89,13 @@
         </div>
     </div>
 </div>
+<script>
+function selectPosizione(nomePos) {
+    const posInput = document.getElementById('posizioneInput');
+    if (posInput) {
+        posInput.value = nomePos;
+    }
+}
+</script>
 </body>
 </html>

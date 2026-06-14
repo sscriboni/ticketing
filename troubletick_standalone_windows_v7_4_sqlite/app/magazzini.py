@@ -297,6 +297,14 @@ def magazzino_movimento_form(r: Request, magazzino_id: int, materiale_id: int, o
                 WHERE magazzino_id = :mag_id AND materiale_id = :mat_id AND posizione_fisica IS NOT NULL AND posizione_fisica != ''
                 GROUP BY posizione_fisica
             """), {"mag_id": magazzino_id, "mat_id": materiale_id}).mappings().all()
+        else:
+            # Per il carico, selezioniamo tutte le posizioni attualmente attive in questo magazzino
+            posizioni = c.execute(text("""
+                SELECT DISTINCT posizione_fisica
+                FROM movimenti_magazzino
+                WHERE magazzino_id = :mag_id AND posizione_fisica IS NOT NULL AND posizione_fisica != ''
+                ORDER BY posizione_fisica
+            """), {"mag_id": magazzino_id}).scalars().all()
             
         richiesta = None
         if operazione == "scarico" and richiesta_id:
