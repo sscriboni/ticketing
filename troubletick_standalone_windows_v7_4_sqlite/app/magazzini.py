@@ -144,7 +144,9 @@ def user_magazzini_list(r: Request, magazzino_id: str = None, sede_id: str = Non
         if user.get("ruolo") in ("assistenza", "responsabile"):
             user_mag_ids = c.execute(text("SELECT magazzino_id FROM operatori_magazzini WHERE user_id = :uid"), {"uid": user.get("id")}).scalars().all()
             if user_mag_ids:
-                count_in_arrivo = c.execute(text("SELECT COUNT(*) FROM trasferimenti WHERE magazzino_dest_id IN :mids AND stato = 'in_consegna'"), {"mids": tuple(user_mag_ids)}).scalar() or 0
+                from sqlalchemy import bindparam
+                stmt_arrivo = text("SELECT COUNT(*) FROM trasferimenti WHERE magazzino_dest_id IN :mids AND stato = 'in_consegna'").bindparams(bindparam("mids", expanding=True))
+                count_in_arrivo = c.execute(stmt_arrivo, {"mids": list(user_mag_ids)}).scalar() or 0
         elif user.get("ruolo") == "admin":
             count_in_arrivo = c.execute(text("SELECT COUNT(*) FROM trasferimenti WHERE stato = 'in_consegna'")).scalar() or 0
 
@@ -450,11 +452,11 @@ def trasferimenti_list(r: Request):
             user_mag_ids = c.execute(text("SELECT magazzino_id FROM operatori_magazzini WHERE user_id = :uid"), {"uid": user.get("id")}).scalars().all()
             if user_mag_ids:
                 where_clause += " AND (t.magazzino_dest_id IN :mids OR t.magazzino_partenza_id IN :mids)"
-                params["mids"] = tuple(user_mag_ids)
+                params["mids"] = list(user_mag_ids)
             else:
                 where_clause += " AND 1=0"
             
-        trasferimenti = c.execute(text(f"""
+        stmt = text(f"""
             SELECT t.*, 
                    mp.nome AS magazzino_partenza,
                    md.nome AS magazzino_destinazione,
@@ -467,7 +469,12 @@ def trasferimenti_list(r: Request):
             JOIN users u ON t.user_partenza_id = u.user_id
             WHERE {where_clause}
             ORDER BY t.stato DESC, t.creato_il DESC
-        """), params).mappings().all()
+        """)
+        if user.get("ruolo") != "admin" and user_mag_ids:
+            from sqlalchemy import bindparam
+            stmt = stmt.bindparams(bindparam("mids", expanding=True))
+            
+        trasferimenti = c.execute(stmt, params).mappings().all()
         
     return templates.TemplateResponse(r, "trasferimenti.html", {"request": r, "cfg": CFG, "user": user, "trasferimenti": trasferimenti, "user_mag_ids": user_mag_ids})
 
@@ -532,11 +539,13 @@ def log_magazzini(r: Request, magazzino_id: str = None, categoria_id: str = None
         where_clauses = []
         params = {}
         
+        use_expanding = False
         if user.get("ruolo") != "admin":
             user_mag_ids = c.execute(text("SELECT magazzino_id FROM operatori_magazzini WHERE user_id = :uid"), {"uid": user.get("id")}).scalars().all()
             if user_mag_ids:
                 where_clauses.append("mm.magazzino_id IN :user_mag_ids")
-                params["user_mag_ids"] = tuple(user_mag_ids)
+                params["user_mag_ids"] = list(user_mag_ids)
+                use_expanding = True
             else:
                 where_clauses.append("1 = 0")
                 
@@ -564,7 +573,7 @@ def log_magazzini(r: Request, magazzino_id: str = None, categoria_id: str = None
 
         where_sql = ("WHERE " + " AND ".join(where_clauses)) if where_clauses else ""
         
-        movimenti = c.execute(text(f"""
+        stmt = text(f"""
             SELECT mm.*, mat.nome as materiale_nome, c.nome as categoria_nome, u.nome as user_nome, u.cognome as user_cognome, s.nome as sede_nome, mag.nome as magazzino_nome
             FROM movimenti_magazzino mm
             JOIN materiali mat ON mm.materiale_id = mat.materiale_id
@@ -574,7 +583,12 @@ def log_magazzini(r: Request, magazzino_id: str = None, categoria_id: str = None
             JOIN magazzini mag ON mm.magazzino_id = mag.magazzino_id
             {where_sql}
             ORDER BY mm.creato_il DESC
-        """), params).mappings().all()
+        """)
+        if use_expanding:
+            from sqlalchemy import bindparam
+            stmt = stmt.bindparams(bindparam("user_mag_ids", expanding=True))
+            
+        movimenti = c.execute(stmt, params).mappings().all()
         
         magazzini = c.execute(text("SELECT magazzino_id, nome FROM magazzini ORDER BY nome")).mappings().all()
         categorie = c.execute(text("SELECT categoria_id, nome FROM categorie ORDER BY nome")).mappings().all()
@@ -605,16 +619,18 @@ def richieste_materiale_list(r: Request):
         where_clause = "1=1"
         params = {}
         user_mag_ids = []
+        use_expanding = False
         if user.get("ruolo") != "admin":
             user_mag_ids = c.execute(text("SELECT magazzino_id FROM operatori_magazzini WHERE user_id = :uid"), {"uid": user.get("id")}).scalars().all()
             if user_mag_ids:
                 where_clause = "(rm.magazzino_id IN :mids OR rm.user_id = :uid)"
-                params = {"mids": tuple(user_mag_ids), "uid": user["id"]}
+                params = {"mids": list(user_mag_ids), "uid": user["id"]}
+                use_expanding = True
             else:
                 where_clause = "rm.user_id = :uid"
                 params = {"uid": user["id"]}
                 
-        richieste = c.execute(text(f"""
+        stmt = text(f"""
             SELECT rm.*, m.nome as materiale_nome, c.nome as categoria_nome, s.nome as sede_nome, mag.nome as magazzino_nome,
                    u.nome as req_nome, u.cognome as req_cognome
             FROM richieste_materiale rm
@@ -625,7 +641,12 @@ def richieste_materiale_list(r: Request):
             LEFT JOIN magazzini mag ON rm.magazzino_id = mag.magazzino_id
             WHERE {where_clause}
             ORDER BY rm.creato_il DESC
-        """), params).mappings().all()
+        """)
+        if use_expanding:
+            from sqlalchemy import bindparam
+            stmt = stmt.bindparams(bindparam("mids", expanding=True))
+            
+        richieste = c.execute(stmt, params).mappings().all()
         
     return templates.TemplateResponse(r, "richieste_materiale.html", {"request": r, "cfg": CFG, "user": user, "richieste": richieste, "user_mag_ids": user_mag_ids})
 
