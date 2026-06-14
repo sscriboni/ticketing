@@ -39,6 +39,8 @@
 
                 {% if error == 'giacenza_insufficiente' %}
                 <div class="alert alert-danger"><strong>Giacenza insufficiente!</strong> Non è possibile scaricare la quantità richiesta.</div>
+                {% elif error == 'posizione_invalida' %}
+                <div class="alert alert-danger"><strong>Posizione non valida!</strong> La posizione deve contenere almeno 3 caratteri e non contenere spazi all'inizio o alla fine.</div>
                 {% endif %}
                 
                 <div class="form-check form-switch mb-4 bg-light border rounded p-3">
@@ -77,9 +79,9 @@
                         {% endfor %}
                     </div>
                     {% else %}
-                    <input type="text" name="posizione_fisica" class="form-control border-danger" id="posizioneInput" placeholder="Es. A-12, Scaffale-A" minlength="3" pattern="^[^\s]{3,}$" title="La posizione deve essere di almeno 3 caratteri e non contenere spazi." required>
+                    <input type="text" name="posizione_fisica" class="form-control border-danger" id="posizioneInput" placeholder="Es. A-12, Scaffale A" minlength="3" pattern="^[^\s].+[^\s]$" title="La posizione deve essere di almeno 3 caratteri e non contenere spazi all'inizio o alla fine." onblur="this.value = this.value.trim()" onchange="this.value = this.value.trim()" required>
                     <div class="alert alert-warning py-2 mt-2" style="font-size: 0.9rem;">
-                        ⚠️ Nessuna posizione registrata con giacenza per questo articolo. Inserisci manualmente un codice di posizione (es. A-12, senza spazi).
+                        ⚠️ Nessuna posizione registrata con giacenza per questo articolo. Inserisci manualmente un codice di posizione (es. Scaffale A). Verrà eseguito un trim automatico.
                     </div>
                     {% endif %}
                     <small class="text-muted d-block mt-1">Indicare la posizione o il lotto da cui scalare la merce.</small>
@@ -110,21 +112,40 @@
                 <div class="mb-4"><label class="form-label fw-bold">Note / Dettagli <span class="text-danger">*</span></label><input type="text" name="descrizione" class="form-control border-danger" value="{% if richiesta %}[Evasione Richiesta #{{ richiesta.richiesta_id }}]{% endif %}" placeholder="Obbligatorio: Es. Consegnato a Mario, Spostamento..." required></div>
                 <div class="mb-4"><label class="form-label fw-bold">Allegato (opzionale)</label><input type="file" name="allegato" class="form-control"></div>
                 
-                <button type="submit" id="submitBtn" class="btn btn-danger w-100 fw-bold">Conferma Scarico Immediato</button>
+                <button type="submit" id="submitBtn" class="btn btn-danger w-100 fw-bold">Conferma Scarico</button>
             </form>
         </div>
     </div>
 
     <div class="row mt-4 mb-2">
         <div class="col-12 col-md-8 col-lg-6 mx-auto">
-            <div class="alert alert-info small shadow-sm mb-0">
-                <h6 class="alert-heading fw-bold"><i class="bi bi-info-circle-fill me-1"></i> Guida allo Scarico</h6>
-                <p class="mb-2">Questa pagina ti permette di registrare l'uscita fisica di materiale dal magazzino. Ecco come funzionano le opzioni principali:</p>
-                <ul class="mb-0 ps-3">
-                    <li class="mb-1"><i class="bi bi-dash-circle text-danger"></i> <strong>Scarico Immediato:</strong> La merce viene sottratta <strong>istantaneamente</strong> dalla giacenza. Devi obbligatoriamente indicare da quale posizione o lotto stai prelevando i pezzi.</li>
-                    <li class="mb-1"><i class="bi bi-file-earmark-pdf text-danger"></i> <strong>Genera PDF:</strong> Crea automaticamente un documento di avvenuta consegna, pronto da stampare o salvare come PDF per farlo firmare a chi ritira la merce.</li>
-                    <li><i class="bi bi-truck text-primary"></i> <strong>Trasferimento tra Magazzini:</strong> Se scegli un <em>"Magazzino di Destinazione"</em> al posto di una sede generica, il sistema scalerà i pezzi e genererà una spedizione verso quel magazzino. L'operatore ricevente dovrà confermarne l'arrivo.</li>
-                </ul>
+            <div class="alert alert-info small shadow-sm mb-0 p-3">
+                <h6 class="alert-heading fw-bold mb-3"><i class="bi bi-info-circle-fill me-1"></i> Guida Operativa allo Scarico Materiale</h6>
+                <p class="mb-3">Questa procedura registra il prelievo fisico e la riduzione delle giacenze per l'articolo selezionato. Di seguito il dettaglio delle opzioni disponibili:</p>
+                
+                <div class="mb-3">
+                    <strong class="text-danger"><i class="bi bi-dash-circle-fill"></i> Scarico Materiale &amp; Giacenze</strong>
+                    <p class="text-muted mb-0 ps-3">La quantità indicata viene sottratta dalla giacenza della posizione selezionata. Per facilitare l'operazione:</p>
+                    <ul class="text-muted ps-4 mb-0">
+                        <li>Usa l'elenco a discesa per selezionare la posizione di provenienza, che evidenzia la giacenza attuale.</li>
+                        <li>Clicca direttamente sui badge colorati (verde per disponibilità alta, giallo per disponibilità ridotta, rosso per esaurito) per valorizzare rapidamente il campo.</li>
+                        <li>Le posizioni possono contenere spazi interni (es. <code>Scaffale A L1</code>), ma eventuali spazi iniziali o finali verranno rimossi automaticamente. La lunghezza minima del codice posizione è di 3 caratteri.</li>
+                    </ul>
+                </div>
+
+                <div class="mb-3">
+                    <strong class="text-primary"><i class="bi bi-geo-alt-fill"></i> Destinazione del Materiale</strong>
+                    <p class="text-muted mb-0 ps-3">Puoi assegnare il materiale in due modi alternativi:</p>
+                    <ul class="text-muted ps-4 mb-0">
+                        <li><strong>Sede di destinazione:</strong> Assegna il materiale a una sede aziendale per uso interno o manutenzione locale.</li>
+                        <li><strong>Trasferimento a Magazzino:</strong> Sposta il materiale in un altro magazzino compatibile. Questa azione riduce la giacenza locale e avvia una spedizione che dovrà essere confermata dal magazziniere di destinazione.</li>
+                    </ul>
+                </div>
+
+                <div>
+                    <strong class="text-success"><i class="bi bi-file-earmark-pdf-fill"></i> Documentazione &amp; Note</strong>
+                    <p class="text-muted mb-0 ps-3">L'inserimento di una nota/descrizione è obbligatorio per tracciare la causale dello scarico. Attivando la spunta <strong>"Genera PDF"</strong>, il sistema produrrà automaticamente un verbale di consegna stampabile da far firmare al destinatario al momento del ritiro.</p>
+                </div>
             </div>
         </div>
     </div>

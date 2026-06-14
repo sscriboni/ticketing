@@ -247,7 +247,7 @@ def magazzino_rinomina_posizione(r: Request, magazzino_id: int, materiale_id: in
         if not can_edit:
             return RedirectResponse(url=f"/magazzino/{magazzino_id}/giacenza/{materiale_id}", status_code=303)
 
-        if new_posizione and new_posizione.strip() and old_posizione:
+        if new_posizione and old_posizione:
             new_pos_clean = new_posizione.strip()
             if len(new_pos_clean) >= 3 and not any(c.isspace() for c in new_pos_clean):
                 c.execute(text("""
@@ -255,6 +255,8 @@ def magazzino_rinomina_posizione(r: Request, magazzino_id: int, materiale_id: in
                     SET posizione_fisica = :new_pos 
                     WHERE magazzino_id = :mag_id AND materiale_id = :mat_id AND posizione_fisica = :old_pos
                 """), {"new_pos": new_pos_clean, "mag_id": magazzino_id, "mat_id": materiale_id, "old_pos": old_posizione})
+            else:
+                return RedirectResponse(url=f"/magazzino/{magazzino_id}/giacenza/{materiale_id}?error=posizione_invalida", status_code=303)
             
     return RedirectResponse(url=f"/magazzino/{magazzino_id}/giacenza/{materiale_id}", status_code=303)
 
@@ -324,14 +326,13 @@ async def magazzino_movimento_action(
     if "user" not in r.session: return RedirectResponse(url="/login")
     user = r.session.get("user")
     
-    if operazione == "carico":
-        pos_clean = (posizione_fisica or "").strip()
-        if len(pos_clean) < 3 or any(c.isspace() for c in pos_clean):
-            richiesta_clause = f"&richiesta_id={richiesta_id}" if (richiesta_id and str(richiesta_id).isdigit()) else ""
-            return RedirectResponse(
-                url=f"/magazzino/{magazzino_id}/movimento/{materiale_id}?operazione=carico&error=posizione_invalida{richiesta_clause}",
-                status_code=303
-            )
+    pos_clean = (posizione_fisica or "").strip()
+    if len(pos_clean) < 3:
+        richiesta_clause = f"&richiesta_id={richiesta_id}" if (richiesta_id and str(richiesta_id).isdigit()) else ""
+        return RedirectResponse(
+            url=f"/magazzino/{magazzino_id}/movimento/{materiale_id}?operazione={operazione}&error=posizione_invalida{richiesta_clause}",
+            status_code=303
+        )
     
     # Workaround per il bug di troncamento immagini > 1MB (SpooledTemporaryFile) su Windows
     if allegato and allegato.filename:
@@ -385,7 +386,7 @@ async def magazzino_movimento_action(
         """), {
             "mag": magazzino_id, "mat": materiale_id, "uid": user["id"], "op": operazione, 
             "q": quantita, "dt": data_movimento, "desc": desc_source, 
-            "sede": sede_id_val, "pos": posizione_fisica, "marca": marca, "modello": modello, "all": allegato_filename
+            "sede": sede_id_val, "pos": pos_clean, "marca": marca, "modello": modello, "all": allegato_filename
         })
         
         if operazione == "scarico" and mag_dest_id_val:
