@@ -219,6 +219,7 @@ try:
             "ALTER TABLE tickets ADD COLUMN reparto_appartenenza_id INTEGER",
             "ALTER TABLE tickets ADD COLUMN reparto_appartenenza TEXT",
             "ALTER TABLE users ADD COLUMN ultimo_accesso TEXT",
+            "ALTER TABLE users ADD COLUMN ultimo_ip TEXT",
             "ALTER TABLE users ADD COLUMN reset_token TEXT",
             "ALTER TABLE users ADD COLUMN reset_expires TEXT",
             "ALTER TABLE reparti ADD COLUMN accetta_ticket INTEGER DEFAULT 1",
@@ -240,6 +241,7 @@ try:
             "ALTER TABLE sedi ADD COLUMN comune_id INTEGER",
             "ALTER TABLE movimenti_magazzino ADD COLUMN marca TEXT",
             "ALTER TABLE movimenti_magazzino ADD COLUMN modello TEXT",
+            "ALTER TABLE movimenti_magazzino ADD COLUMN gruppo_scarico TEXT",
             "ALTER TABLE consegne_programmate ADD COLUMN quando_disponibile INTEGER DEFAULT 0",
             "INSERT OR IGNORE INTO operatori_magazzini (user_id, magazzino_id) SELECT user_id, magazzino_id FROM users WHERE magazzino_id IS NOT NULL"
         ]:
@@ -1736,33 +1738,11 @@ def operatori(r: Request):
         return RedirectResponse(url="/login")
     user = r.session.get("user")
     
-    # Se è superuser, reindirizza alla pagina di gestione
-    if user.get("ruolo") == "admin":
-        return RedirectResponse(url="/admin/operatori", status_code=303)
-    
-    with engine.connect() as c:
-        where_clause = "WHERE u.user_id != 1"
-        params = {}
-        if user.get("ruolo") == "responsabile":
-            user_rep = c.execute(text("SELECT reparto_id FROM users WHERE user_id = :uid"), {"uid": user.get("id")}).scalar()
-            if user_rep:
-                where_clause += " AND u.reparto_id = :rep"
-                params["rep"] = user_rep
-
-        rows = c.execute(text("""
-            SELECT u.user_id, u.username, u.nome, u.cognome, u.email, u.telefono, u.ruolo, u.attivo, u.is_test,
-                   GROUP_CONCAT(DISTINCT s.descrizione) AS servizi, sd.nome as sede_nome, GROUP_CONCAT(DISTINCT m.nome) as magazzino_nome
-              FROM users u
-              LEFT JOIN operatori_servizi os ON os.user_id = u.user_id
-              LEFT JOIN servizi s ON s.servizio_id = os.servizio_id
-              LEFT JOIN sedi sd ON u.sede_id = sd.sede_id
-              LEFT JOIN operatori_magazzini om ON om.user_id = u.user_id
-              LEFT JOIN magazzini m ON om.magazzino_id = m.magazzino_id
-             """ + where_clause + """
-             GROUP BY u.user_id, u.username, u.nome, u.cognome, u.email, u.telefono, u.ruolo, u.attivo, u.is_test, sd.nome
-             ORDER BY u.nome
-        """), params).mappings().all()
-    return templates.TemplateResponse(r, "operatori.html", {"request": r, "cfg": CFG, "operatori": rows, "user": user})
+    # Se non è superuser, reindirizza alla pagina ticket (non autorizzato)
+    if user.get("ruolo") != "admin":
+        return RedirectResponse(url="/tickets")
+        
+    return RedirectResponse(url="/admin/operatori", status_code=303)
 
 @app.get("/documentazione", response_class=HTMLResponse)
 def documentazione(r: Request):
@@ -1786,7 +1766,7 @@ def admin_operatori(r: Request):
         return user
     with engine.connect() as c:
         operatori = c.execute(text("""
-            SELECT u.user_id, u.username, u.nome, u.cognome, u.email, u.telefono, u.ruolo, u.reparto_id, u.attivo, u.is_test,
+            SELECT u.user_id, u.username, u.nome, u.cognome, u.email, u.telefono, u.ruolo, u.reparto_id, u.attivo, u.is_test, u.ultimo_accesso, u.ultimo_ip,
                    GROUP_CONCAT(DISTINCT s.descrizione) AS servizi, r.nome AS reparto_nome, sd.nome AS sede_nome, GROUP_CONCAT(DISTINCT m.nome) AS magazzino_nome
               FROM users u
               LEFT JOIN operatori_servizi os ON os.user_id = u.user_id
@@ -1796,7 +1776,7 @@ def admin_operatori(r: Request):
               LEFT JOIN operatori_magazzini om ON om.user_id = u.user_id
               LEFT JOIN magazzini m ON om.magazzino_id = m.magazzino_id
              WHERE u.user_id != 1
-             GROUP BY u.user_id, u.username, u.nome, u.cognome, u.email, u.telefono, u.ruolo, u.reparto_id, u.attivo, u.is_test, r.nome, sd.nome
+             GROUP BY u.user_id, u.username, u.nome, u.cognome, u.email, u.telefono, u.ruolo, u.reparto_id, u.attivo, u.is_test, u.ultimo_accesso, u.ultimo_ip, r.nome, sd.nome
              ORDER BY u.nome
         """)).mappings().all()
         reparti = c.execute(text("SELECT reparto_id, nome FROM reparti ORDER BY nome")).mappings().all()

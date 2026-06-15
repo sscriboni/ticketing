@@ -31,6 +31,7 @@
                                 <th>Email / Telefono</th>
                                 <th>Ruolo</th>
                                 <th>Reparto / Sede / Magazzino</th>
+                                <th>Ultimo Accesso / IP</th>
                                 <th>Stato</th>
                                 <th>Azioni</th>
                             </tr>
@@ -51,6 +52,22 @@
                                     {{ op.reparto_nome or '—' }}<br>
                                     <small class="text-muted">Sede: {{ op.sede_nome or '—' }}</small><br>
                                     <small class="text-muted">Mag.: {{ op.magazzino_nome or '—' }}</small>
+                                </td>
+                                <td>
+                                    {% if op.ultimo_accesso %}
+                                        {% set datetime_parts = op.ultimo_accesso.split(' ') %}
+                                        {% set date_part = datetime_parts[0] %}
+                                        {% set time_part = datetime_parts[1] if datetime_parts|length > 1 else '' %}
+                                        {% set d_parts = date_part.split('-') %}
+                                        {% if d_parts|length == 3 %}
+                                            {{ d_parts[2] }}/{{ d_parts[1] }}/{{ d_parts[0] }}{% if time_part %} {{ time_part }}{% endif %}
+                                        {% else %}
+                                            {{ op.ultimo_accesso }}
+                                        {% endif %}
+                                        <br><small class="text-muted">IP: {{ op.ultimo_ip or '—' }}</small>
+                                    {% else %}
+                                        <span class="text-muted">Mai effettuato</span>
+                                    {% endif %}
                                 </td>
                                 <td>
                                     {% if op.attivo %}

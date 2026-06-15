@@ -177,11 +177,36 @@
                 <div class="row">
                     <div class="col-6 mb-2">
                         <div class="field-label">Servizio</div>
-                        <div class="field-value">{{ mov.magazzino_nome }}</div>
+                        <div class="field-value">
+                            {% if is_multiplo %}
+                                {% set mag_names = [] %}
+                                {% for m in movements %}
+                                    {% if m.magazzino_nome not in mag_names %}
+                                        {% if mag_names.append(m.magazzino_nome) %}{% endif %}
+                                    {% endif %}
+                                {% endfor %}
+                                {{ mag_names|join(', ') }}
+                            {% else %}
+                                {{ mov.magazzino_nome }}
+                            {% endif %}
+                        </div>
                     </div>
                     <div class="col-6 mb-2">
                         <div class="field-label">Sede</div>
-                        <div class="field-value">{{ mov.magazzino_sede_nome or 'Sede Centrale' }}</div>
+                        <div class="field-value">
+                            {% if is_multiplo %}
+                                {% set sede_names = [] %}
+                                {% for m in movements %}
+                                    {% set s_name = m.magazzino_sede_nome or 'Sede Centrale' %}
+                                    {% if s_name not in sede_names %}
+                                        {% if sede_names.append(s_name) %}{% endif %}
+                                    {% endif %}
+                                {% endfor %}
+                                {{ sede_names|join(', ') }}
+                            {% else %}
+                                {{ mov.magazzino_sede_nome or 'Sede Centrale' }}
+                            {% endif %}
+                        </div>
                     </div>
                     <div class="col-6">
                         <div class="field-label">Referente</div>
@@ -287,27 +312,52 @@
                     </tr>
                 </thead>
                 <tbody>
-                    <!-- Riga con il materiale effettivo -->
-                    <tr style="height: 40px; vertical-align: middle;">
-                        <td class="px-2">
-                            <strong>{{ mov.quantita }}x {{ mov.materiale_nome }}</strong>
-                            {% if mov.marca or mov.modello %}
-                            <span class="text-muted d-block" style="font-size: 0.65rem;">Marca: {{ mov.marca or '—' }} |
-                                Modello: {{ mov.modello or '—' }}</span>
-                            {% endif %}
-                        </td>
-                        <td class="text-center align-middle" style="font-family: monospace;">{{ mov.posizione_fisica or
-                            '——' }}</td>
-                        <td class="text-center align-middle">——</td>
-                    </tr>
-                    <!-- Righe vuote aggiuntive per riempire il foglio stampato come da modulo -->
-                    {% for i in range(3) %}
-                    <tr style="height: 32px;">
-                        <td></td>
-                        <td></td>
-                        <td></td>
-                    </tr>
-                    {% endfor %}
+                    {% if is_multiplo %}
+                        {% for item in movements %}
+                        <tr style="height: 40px; vertical-align: middle;">
+                            <td class="px-2">
+                                <strong>{{ item.quantita }}x {{ item.materiale_nome }}</strong>
+                                {% if item.marca or item.modello %}
+                                <span class="text-muted d-block" style="font-size: 0.65rem;">Marca: {{ item.marca or '—' }} | Modello: {{ item.modello or '—' }}</span>
+                                {% endif %}
+                                <span class="text-muted" style="font-size: 0.65rem; font-style: italic;">(Mag: {{ item.magazzino_nome }})</span>
+                            </td>
+                            <td class="text-center align-middle" style="font-family: monospace;">{{ item.posizione_fisica or '——' }}</td>
+                            <td class="text-center align-middle">——</td>
+                        </tr>
+                        {% endfor %}
+                        {% if movements|length < 4 %}
+                            {% for i in range(4 - movements|length) %}
+                            <tr style="height: 32px;">
+                                <td></td>
+                                <td></td>
+                                <td></td>
+                            </tr>
+                            {% endfor %}
+                        {% endif %}
+                    {% else %}
+                        <!-- Riga con il materiale effettivo -->
+                        <tr style="height: 40px; vertical-align: middle;">
+                            <td class="px-2">
+                                <strong>{{ mov.quantita }}x {{ mov.materiale_nome }}</strong>
+                                {% if mov.marca or mov.modello %}
+                                <span class="text-muted d-block" style="font-size: 0.65rem;">Marca: {{ mov.marca or '—' }} |
+                                    Modello: {{ mov.modello or '—' }}</span>
+                                {% endif %}
+                            </td>
+                            <td class="text-center align-middle" style="font-family: monospace;">{{ mov.posizione_fisica or
+                                '——' }}</td>
+                            <td class="text-center align-middle">——</td>
+                        </tr>
+                        <!-- Righe vuote aggiuntive per riempire il foglio stampato come da modulo -->
+                        {% for i in range(3) %}
+                        <tr style="height: 32px;">
+                            <td></td>
+                            <td></td>
+                            <td></td>
+                        </tr>
+                        {% endfor %}
+                    {% endif %}
                 </tbody>
             </table>
         </div>
@@ -357,7 +407,7 @@
         <div class="d-flex justify-content-between align-items-center border-top border-secondary pt-3 mt-4"
             style="font-size: 0.75rem;">
             <div>
-                Buono di movimento caricato in data: <strong>{{ creato_ita }}</strong> (Rif: MOV-{{ mov.movimento_id }})
+                Buono di movimento caricato in data: <strong>{{ creato_ita }}</strong> (Rif: {% if is_multiplo is defined and is_multiplo %}{{ mov.gruppo_scarico }}{% else %}MOV-{{ mov.movimento_id }}{% endif %})
             </div>
             <div class="text-end d-flex align-items-center gap-2" style="width: 40%;">
                 <span class="text-muted" style="font-size: 0.65rem;">Firma Operatore:</span>

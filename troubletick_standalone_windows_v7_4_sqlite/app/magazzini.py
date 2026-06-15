@@ -1,5 +1,6 @@
 import os
 from datetime import datetime
+from typing import List
 from fastapi import APIRouter, Request, Form, UploadFile, File
 from fastapi.responses import HTMLResponse, RedirectResponse
 from sqlalchemy import text
@@ -430,6 +431,51 @@ async def magazzino_movimento_action(
         return RedirectResponse(url="/richieste-materiale", status_code=303)
     return RedirectResponse(url="/magazzini", status_code=303)
 
+@router.get("/stampa-consegna/multiplo/{gruppo_scarico}", response_class=HTMLResponse)
+def stampa_consegna_multiplo(r: Request, gruppo_scarico: str):
+    if "user" not in r.session: return RedirectResponse(url="/login")
+    user = r.session.get("user")
+    
+    with engine.connect() as c:
+        movements = c.execute(text("""
+            SELECT m.*, mag.nome AS magazzino_nome, s.nome AS sede_nome,
+                   mat.nome AS materiale_nome, u.nome AS user_nome, u.cognome AS user_cognome,
+                   u.telefono AS user_telefono, s_orig.nome AS magazzino_sede_nome
+            FROM movimenti_magazzino m
+            JOIN magazzini mag ON m.magazzino_id = mag.magazzino_id
+            LEFT JOIN sedi s_orig ON mag.sede_id = s_orig.sede_id
+            LEFT JOIN sedi s ON m.sede_assegnazione_id = s.sede_id
+            JOIN materiali mat ON m.materiale_id = mat.materiale_id
+            JOIN users u ON m.user_id = u.user_id
+            WHERE m.gruppo_scarico = :grp AND m.operazione = 'scarico'
+            ORDER BY m.movimento_id ASC
+        """), {"grp": gruppo_scarico}).mappings().all()
+        
+        if not movements:
+            return RedirectResponse(url="/magazzini")
+            
+        if user.get("ruolo") != "admin":
+            user_mag_ids = c.execute(text("SELECT magazzino_id FROM operatori_magazzini WHERE user_id = :uid"), {"uid": user["id"]}).scalars().all()
+            has_permission = False
+            for mov in movements:
+                if mov["magazzino_id"] in user_mag_ids:
+                    has_permission = True
+                    break
+            if not has_permission:
+                return RedirectResponse(url="/magazzini")
+                
+    representative_mov = movements[0]
+    
+    return templates.TemplateResponse(r, "stampa_consegna.html", {
+        "request": r,
+        "cfg": CFG,
+        "user": user,
+        "mov": representative_mov,
+        "movements": movements,
+        "is_multiplo": True,
+        "tipo": "scarico"
+    })
+
 @router.get("/stampa-consegna/{tipo}/{doc_id}", response_class=HTMLResponse)
 def stampa_consegna(r: Request, tipo: str, doc_id: int):
     if "user" not in r.session: return RedirectResponse(url="/login")
@@ -794,4 +840,141 @@ def magazzino_log(r: Request, magazzino_id: int):
     return templates.TemplateResponse(r, "magazzino_log.html", {
         "request": r, "cfg": CFG, "user": user, 
         "magazzino": magazzino, "movimenti": movimenti
-    })
+    })
+
+@router.get("/magazzini/scarico-multiplo", response_class=HTMLResponse)
+def get_scarico_multiplo(r: Request, error: str = None):
+    if "user" not in r.session: return RedirectResponse(url="/login")
+    user = r.session.get("user")
+    if user.get("ruolo") == "normale":
+        return RedirectResponse(url="/tickets")
+        
+    with engine.connect() as c:
+        if user.get("ruolo") == "admin":
+            magazzini_list = c.execute(text("SELECT magazzino_id, nome FROM magazzini ORDER BY nome")).mappings().all()
+        else:
+            magazzini_list = c.execute(text("""
+                SELECT m.magazzino_id, m.nome FROM magazzini m
+                JOIN operatori_magazzini om ON m.magazzino_id = om.magazzino_id
+                WHERE om.user_id = :uid
+                ORDER BY m.nome
+            """), {"uid": user.get("id")}).mappings().all()
+            
+        sedi = c.execute(text("SELECT sede_id, nome FROM sedi ORDER BY nome")).mappings().all()
+        
+        giacenze_raw = c.execute(text("""
+            SELECT mm.magazzino_id, mm.materiale_id, mat.nome AS materiale_nome,
+                   mm.posizione_fisica,
+                   SUM(CASE WHEN mm.operazione = 'carico' THEN mm.quantita ELSE -mm.quantita END) AS quantita
+            FROM movimenti_magazzino mm
+            JOIN materiali mat ON mm.materiale_id = mat.materiale_id
+            GROUP BY mm.magazzino_id, mm.materiale_id, mm.posizione_fisica
+            HAVING SUM(CASE WHEN mm.operazione = 'carico' THEN mm.quantita ELSE -mm.quantita END) > 0
+            ORDER BY mm.magazzino_id, mat.nome, mm.posizione_fisica
+        """)).mappings().all()
+        
+    import json
+    giacenze_json = []
+    for g in giacenze_raw:
+        giacenze_json.append({
+            "magazzino_id": g["magazzino_id"],
+            "materiale_id": g["materiale_id"],
+            "materiale_nome": g["materiale_nome"],
+            "posizione_fisica": g["posizione_fisica"],
+            "quantita": g["quantita"]
+        })
+        
+    magazzini_json = [{"magazzino_id": m["magazzino_id"], "nome": m["nome"]} for m in magazzini_list]
+    
+    from datetime import date
+    oggi = date.today().isoformat()
+    
+    return templates.TemplateResponse(r, "magazzino_scarico_multiplo.html", {
+        "request": r, "cfg": CFG, "user": user,
+        "sedi": sedi,
+        "giacenze_json": json.dumps(giacenze_json),
+        "magazzini_json": json.dumps(magazzini_json),
+        "oggi": oggi,
+        "error": error
+    })
+
+@router.post("/magazzini/scarico-multiplo")
+async def post_scarico_multiplo(
+    r: Request,
+    data_movimento: str = Form(...),
+    descrizione: str = Form(...),
+    sede_assegnazione_id: str = Form(None),
+    genera_pdf: str = Form(None),
+    allegato: UploadFile = File(None),
+    magazzino_id: List[int] = Form(...),
+    materiale_id: List[int] = Form(...),
+    posizione_fisica: List[str] = Form(...),
+    quantita: List[int] = Form(...)
+):
+    if "user" not in r.session: return RedirectResponse(url="/login")
+    user = r.session.get("user")
+    if user.get("ruolo") == "normale":
+        return RedirectResponse(url="/tickets")
+        
+    if not magazzino_id or not (len(magazzino_id) == len(materiale_id) == len(posizione_fisica) == len(quantita)):
+        return RedirectResponse(url="/magazzini?error=parametri_invalidi", status_code=303)
+        
+    with engine.connect() as c:
+        user_mag_ids = []
+        if user.get("ruolo") != "admin":
+            user_mag_ids = c.execute(text("SELECT magazzino_id FROM operatori_magazzini WHERE user_id = :uid"), {"uid": user["id"]}).scalars().all()
+            for m_id in magazzino_id:
+                if m_id not in user_mag_ids:
+                    return RedirectResponse(url="/magazzini?error=non_autorizzato", status_code=303)
+                    
+    import uuid
+    gruppo_scarico_id = f"MULT-{uuid.uuid4().hex[:10].upper()}"
+    
+    if allegato and allegato.filename:
+        content = await allegato.read()
+        import io
+        allegato.file = io.BytesIO(content)
+        
+    allegato_filename = save_upload(allegato)
+    
+    with engine.begin() as c:
+        for i in range(len(magazzino_id)):
+            m_id = magazzino_id[i]
+            mat_id = materiale_id[i]
+            pos = posizione_fisica[i].strip()
+            qta = quantita[i]
+            
+            if qta <= 0:
+                continue
+                
+            qta_pos = c.execute(text("""
+                SELECT SUM(CASE WHEN operazione = 'carico' THEN quantita ELSE -quantita END)
+                FROM movimenti_magazzino
+                WHERE magazzino_id = :mag AND materiale_id = :mat AND posizione_fisica = :pos
+            """), {"mag": m_id, "mat": mat_id, "pos": pos}).scalar() or 0
+            
+            if qta > qta_pos:
+                return RedirectResponse(url="/magazzini/scarico-multiplo?error=giacenza_insufficiente", status_code=303)
+                
+            qta_attuale = c.execute(text("SELECT quantita FROM giacenze WHERE magazzino_id = :mag AND materiale_id = :mat"), 
+                                    {"mag": m_id, "mat": mat_id}).scalar() or 0
+            nuova_qta = max(0, qta_attuale - qta)
+            
+            c.execute(text("UPDATE giacenze SET quantita = :q WHERE magazzino_id = :mag AND materiale_id = :mat"),
+                      {"q": nuova_qta, "mag": m_id, "mat": mat_id})
+                      
+            sede_id_val = int(sede_assegnazione_id) if sede_assegnazione_id and str(sede_assegnazione_id).isdigit() else None
+            
+            c.execute(text("""
+                INSERT INTO movimenti_magazzino (magazzino_id, materiale_id, user_id, operazione, quantita, data_movimento, descrizione, sede_assegnazione_id, posizione_fisica, allegato, gruppo_scarico)
+                VALUES (:mag, :mat, :uid, 'scarico', :q, :dt, :desc, :sede, :pos, :all, :grp)
+            """), {
+                "mag": m_id, "mat": mat_id, "uid": user["id"], "q": qta, "dt": data_movimento,
+                "desc": descrizione, "sede": sede_id_val, "pos": pos, "all": allegato_filename, "grp": gruppo_scarico_id
+            })
+            
+    if genera_pdf == "1":
+        return RedirectResponse(url=f"/stampa-consegna/multiplo/{gruppo_scarico_id}", status_code=303)
+    return RedirectResponse(url="/magazzini", status_code=303)
+
+

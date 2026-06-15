@@ -36,6 +36,7 @@
         {% endif %}
         
         <li class="nav-item"><a class="nav-link {% if request.url.path.startswith('/calendario') %}active fw-bold{% endif %}" href="/calendario"><i class="bi bi-calendar3"></i> Calendario</a></li>
+        {% if user.ruolo == 'admin' %}
         <li class="nav-item">
           <a class="nav-link {% if request.url.path == '/operatori' or request.url.path.startswith('/admin/operatori') %}active fw-bold{% endif %}" href="/operatori">
             <i class="bi bi-people"></i> Operatori
@@ -45,6 +46,7 @@
             {% endif %}
           </a>
         </li>
+        {% endif %}
         <li class="nav-item"><a class="nav-link {% if request.url.path.startswith('/documentazione') %}active fw-bold{% endif %}" href="/documentazione"><i class="bi bi-book"></i> Documentazione</a></li>
         
         {% if user.ruolo == 'responsabile' %}

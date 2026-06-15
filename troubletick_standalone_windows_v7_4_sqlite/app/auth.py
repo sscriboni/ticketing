@@ -37,8 +37,9 @@ def login_action(r: Request, username: str=Form(...), password: str=Form(...)):
             row = c.execute(text(query.format(field="u.username")), {"u": username}).mappings().first()
     if row and ok(password, row["password_hash"]):
         r.session["user"] = {"id":row["user_id"],"username":row["username"],"nome":row["nome"],"cognome":row["cognome"],"ruolo":row["ruolo"], "reparto_nome":row["reparto_nome"], "sede_nome":row["sede_nome"], "magazzino_id":row["magazzino_id"]}
+        ip = r.client.host if r.client else "Sconosciuto"
         with engine.begin() as c_update:
-            c_update.execute(text("UPDATE users SET ultimo_accesso = :now WHERE user_id = :uid"), {"now": datetime.now().strftime("%Y-%m-%d %H:%M:%S"), "uid": row["user_id"]})
+            c_update.execute(text("UPDATE users SET ultimo_accesso = :now, ultimo_ip = :ip WHERE user_id = :uid"), {"now": datetime.now().strftime("%Y-%m-%d %H:%M:%S"), "ip": ip, "uid": row["user_id"]})
         return RedirectResponse(url="/tickets", status_code=303)
         
     ip = r.client.host if r.client else "Sconosciuto"

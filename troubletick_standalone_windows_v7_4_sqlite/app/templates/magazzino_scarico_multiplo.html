@@ -1,0 +1,340 @@
+<!doctype html>
+<html lang="it">
+<head>
+    <meta charset="utf-8">
+    <title>Scarico Multiplo Materiale — {{ cfg.app_title }}</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css">
+    <style>
+        .form-section-card {
+            border-top: 4px solid #dc3545;
+        }
+        .row-item {
+            transition: all 0.2s ease-in-out;
+        }
+        .row-item:hover {
+            background-color: #f8f9fa;
+        }
+    </style>
+</head>
+<body class="bg-light">
+{% include 'navbar.html' %}
+<div class="container py-4">
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <h2>Scarico Multiplo Materiale</h2>
+        <div>
+            <a href="/magazzini" class="btn btn-outline-secondary btn-sm me-2">Annulla</a>
+            <a href="/logout" class="btn btn-outline-secondary btn-sm">Logout</a>
+        </div>
+    </div>
+    
+    <form method="post" action="/magazzini/scarico-multiplo" enctype="multipart/form-data" id="multiScaricoForm">
+        <div class="row g-4">
+            <!-- Colonna Sinistra: Dati Generali -->
+            <div class="col-lg-4">
+                <div class="card shadow-sm form-section-card p-4 bg-white mb-4">
+                    <h5 class="card-title fw-bold mb-3 text-danger"><i class="bi bi-file-earmark-text"></i> Dati Documento</h5>
+                    
+                    <div class="mb-3">
+                        <label class="form-label fw-bold">Data Scarico <span class="text-danger">*</span></label>
+                        <input type="date" name="data_movimento" class="form-control" value="{{ oggi }}" required>
+                    </div>
+
+                    <div class="mb-3">
+                        <label class="form-label fw-bold">Sede di destinazione</label>
+                        <select name="sede_assegnazione_id" class="form-select">
+                            <option value="">-- Nessuna / Uso generico --</option>
+                            {% for sede in sedi %}
+                            <option value="{{ sede.sede_id }}">{{ sede.nome }}</option>
+                            {% endfor %}
+                        </select>
+                        <small class="text-muted d-block mt-1">Assegna il materiale a una sede aziendale.</small>
+                    </div>
+
+                    <div class="form-check form-switch mb-3 bg-light border rounded p-3">
+                        <input class="form-check-input ms-0 me-2" type="checkbox" name="genera_pdf" value="1" id="generaPdfSwitch" checked>
+                        <label class="form-check-label fw-bold" for="generaPdfSwitch">Genera PDF (Buono di Movimento)</label>
+                        <small class="d-block text-muted">Verrà generato il Buono di Movimento firmato da stampare.</small>
+                    </div>
+
+                    <div class="mb-3">
+                        <label class="form-label fw-bold">Note / Causale <span class="text-danger">*</span></label>
+                        <input type="text" name="descrizione" class="form-control border-danger" placeholder="Es. Assegnazione postazioni di lavoro, storno..." required>
+                        <small class="text-muted">Nota unica che descrive questo scarico multiplo.</small>
+                    </div>
+
+                    <div class="mb-3">
+                        <label class="form-label fw-bold">Allegato (opzionale)</label>
+                        <input type="file" name="allegato" class="form-control">
+                        <small class="text-muted">Unico file per tutto il movimento (es. verbale firmato). Max 10MB.</small>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Colonna Destra: Righe di Scarico -->
+            <div class="col-lg-8">
+                <div class="card shadow-sm p-4 bg-white">
+                    <h5 class="card-title fw-bold mb-3 text-danger d-flex justify-content-between align-items-center">
+                        <span><i class="bi bi-list-stars"></i> Articoli da Scaricare</span>
+                        <button type="button" class="btn btn-sm btn-outline-success" onclick="addNewRow()"><i class="bi bi-plus-circle"></i> Aggiungi Riga</button>
+                    </h5>
+
+                    <div class="table-responsive">
+                        <table class="table align-middle" id="itemsTable">
+                            <thead>
+                                <tr>
+                                    <th style="width: 25%;">Magazzino <span class="text-danger">*</span></th>
+                                    <th style="width: 30%;">Materiale <span class="text-danger">*</span></th>
+                                    <th style="width: 25%;">Posizione <span class="text-danger">*</span></th>
+                                    <th style="width: 15%;">Quantità <span class="text-danger">*</span></th>
+                                    <th style="width: 5%;"></th>
+                                </tr>
+                            </thead>
+                            <tbody id="itemsTableBody">
+                                <!-- Righe inserite dinamicamente -->
+                            </tbody>
+                        </table>
+                    </div>
+
+                    <div id="noItemsWarning" class="alert alert-warning text-center py-3">
+                        ⚠️ Nessun articolo aggiunto. Fai clic su "Aggiungi Riga" in alto a destra per iniziare.
+                    </div>
+
+                    <button type="submit" id="submitBtn" class="btn btn-danger w-100 fw-bold py-2 fs-5 mt-3 d-none">
+                        <i class="bi bi-check-circle-fill me-1"></i> Conferma Scarico Multiplo
+                    </button>
+                </div>
+            </div>
+        </div>
+    </form>
+    
+    <!-- Guida all'utilizzo dello scarico errato -->
+    <div class="row mt-4">
+        <div class="col-12 col-lg-8 offset-lg-4">
+            <div class="alert alert-info small shadow-sm p-3">
+                <h6 class="alert-heading fw-bold mb-3"><i class="bi-exclamation-triangle-fill text-warning me-1"></i> Gestione Rettifiche ed Errori</h6>
+                <p class="text-muted mb-0">Ricorda che tutti i movimenti registrati sono immutabili per fini di tracciabilità. Se commetti un errore di inserimento nello scarico multiplo, dovrai effettuare dei <strong>Carichi di rettifica</strong> per i singoli articoli errati, specificando nelle note che si tratta di uno storno di rettifica.</p>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+    // Giacenze JSON caricate dal backend
+    const giacenze = {{ giacenze_json | safe }};
+    
+    // Elenco magazzini a cui l'utente ha accesso
+    const magazziniAbilitati = {{ magazzini_json | safe }};
+
+    let rowCount = 0;
+
+    // Aggiunge una nuova riga alla tabella
+    function addNewRow() {
+        rowCount++;
+        const tbody = document.getElementById('itemsTableBody');
+        const warning = document.getElementById('noItemsWarning');
+        const submitBtn = document.getElementById('submitBtn');
+
+        warning.classList.add('d-none');
+        submitBtn.classList.remove('d-none');
+
+        const rowHtml = `
+            <tr class="row-item" id="row-${rowCount}">
+                <td>
+                    <select name="magazzino_id" class="form-select select-magazzino" id="mag-${rowCount}" onchange="onMagazzinoChange(${rowCount})" required>
+                        <option value="">-- Seleziona --</option>
+                        ${magazziniAbilitati.map(m => `<option value="${m.magazzino_id}">${m.nome}</option>`).join('')}
+                    </select>
+                </td>
+                <td>
+                    <select name="materiale_id" class="form-select select-materiale" id="mat-${rowCount}" onchange="onMaterialeChange(${rowCount})" required disabled>
+                        <option value="">-- Seleziona Magazzino --</option>
+                    </select>
+                </td>
+                <td>
+                    <select name="posizione_fisica" class="form-select select-posizione" id="pos-${rowCount}" onchange="onPosizioneChange(${rowCount})" required disabled>
+                        <option value="">-- Seleziona Materiale --</option>
+                    </select>
+                </td>
+                <td>
+                    <input type="number" name="quantita" class="form-control select-quantita" id="qta-${rowCount}" min="1" required disabled>
+                </td>
+                <td class="text-center">
+                    <button type="button" class="btn btn-sm btn-outline-danger" onclick="removeRow(${rowCount})" title="Rimuovi riga">
+                        <i class="bi bi-trash"></i>
+                    </button>
+                </td>
+            </tr>
+        `;
+        tbody.insertAdjacentHTML('beforeend', rowHtml);
+    }
+
+    // Rimuove una riga esistente
+    function removeRow(id) {
+        const row = document.getElementById(`row-${id}`);
+        if (row) {
+            row.remove();
+        }
+        
+        const tbody = document.getElementById('itemsTableBody');
+        if (tbody.children.length === 0) {
+            document.getElementById('noItemsWarning').classList.remove('d-none');
+            document.getElementById('submitBtn').classList.add('d-none');
+        }
+    }
+
+    // Quando cambia il magazzino in una riga
+    function onMagazzinoChange(id) {
+        const magSelect = document.getElementById(`mag-${id}`);
+        const matSelect = document.getElementById(`mat-${id}`);
+        const posSelect = document.getElementById(`pos-${id}`);
+        const qtaInput = document.getElementById(`qta-${id}`);
+
+        matSelect.innerHTML = '<option value="">-- Seleziona --</option>';
+        posSelect.innerHTML = '<option value="">-- Seleziona Materiale --</option>';
+        posSelect.disabled = true;
+        qtaInput.value = '';
+        qtaInput.disabled = true;
+
+        if (magSelect.value === "") {
+            matSelect.disabled = true;
+            return;
+        }
+
+        // Trova i materiali disponibili in questo magazzino con giacenza positiva
+        const magId = parseInt(magSelect.value);
+        const materialiInMag = giacenze.filter(g => g.magazzino_id === magId);
+        
+        // Estrai materiali unici
+        const uniqueMaterials = [];
+        const map = new Map();
+        for (const item of materialiInMag) {
+            if(!map.has(item.materiale_id)){
+                map.set(item.materiale_id, true);
+                uniqueMaterials.push({
+                    id: item.materiale_id,
+                    nome: item.materiale_nome
+                });
+            }
+        }
+
+        uniqueMaterials.sort((a, b) => a.nome.localeCompare(b.nome));
+
+        if (uniqueMaterials.length === 0) {
+            matSelect.innerHTML = '<option value="">Nessun materiale in giacenza</option>';
+            matSelect.disabled = true;
+        } else {
+            uniqueMaterials.forEach(m => {
+                matSelect.insertAdjacentHTML('beforeend', `<option value="${m.id}">${m.nome}</option>`);
+            });
+            matSelect.disabled = false;
+        }
+    }
+
+    // Quando cambia il materiale in una riga
+    function onMaterialeChange(id) {
+        const magSelect = document.getElementById(`mag-${id}`);
+        const matSelect = document.getElementById(`mat-${id}`);
+        const posSelect = document.getElementById(`pos-${id}`);
+        const qtaInput = document.getElementById(`qta-${id}`);
+
+        posSelect.innerHTML = '<option value="">-- Seleziona --</option>';
+        qtaInput.value = '';
+        qtaInput.disabled = true;
+
+        if (matSelect.value === "") {
+            posSelect.disabled = true;
+            return;
+        }
+
+        const magId = parseInt(magSelect.value);
+        const matId = parseInt(matSelect.value);
+
+        // Trova le posizioni fisiche e le quantità per questo materiale nel magazzino
+        const posizioniDisp = giacenze.filter(g => g.magazzino_id === magId && g.materiale_id === matId);
+
+        posizioniDisp.sort((a, b) => a.posizione_fisica.localeCompare(b.posizione_fisica));
+
+        if (posizioniDisp.length === 0) {
+            posSelect.innerHTML = '<option value="">Nessuna posizione trovata</option>';
+            posSelect.disabled = true;
+        } else {
+            posizioniDisp.forEach(p => {
+                posSelect.insertAdjacentHTML('beforeend', `<option value="${p.posizione_fisica}" data-qta="${p.quantita}">${p.posizione_fisica} (Disponibile: ${p.quantita} pz)</option>`);
+            });
+            posSelect.disabled = false;
+        }
+    }
+
+    // Quando cambia la posizione
+    function onPosizioneChange(id) {
+        const posSelect = document.getElementById(`pos-${id}`);
+        const qtaInput = document.getElementById(`qta-${id}`);
+
+        qtaInput.value = '';
+
+        if (posSelect.value === "") {
+            qtaInput.disabled = true;
+            return;
+        }
+
+        const selectedOpt = posSelect.options[posSelect.selectedIndex];
+        const maxQta = parseInt(selectedOpt.dataset.qta);
+
+        qtaInput.max = maxQta;
+        qtaInput.placeholder = `Max: ${maxQta}`;
+        qtaInput.value = 1;
+        qtaInput.disabled = false;
+    }
+
+    // Validazione del form prima dell'invio
+    document.getElementById('multiScaricoForm').addEventListener('submit', function(e) {
+        const tbody = document.getElementById('itemsTableBody');
+        
+        if (tbody.children.length === 0) {
+            alert("Errore: Aggiungi almeno un articolo da scaricare.");
+            e.preventDefault();
+            return;
+        }
+
+        // Controllo duplicati (stesso magazzino, materiale e posizione nella stessa form)
+        const righe = tbody.getElementsByClassName('row-item');
+        const visti = new Set();
+        
+        for (let i = 0; i < righe.length; i++) {
+            const rowId = righe[i].id.split('-')[1];
+            const mag = document.getElementById(`mag-${rowId}`).value;
+            const mat = document.getElementById(`mat-${rowId}`).value;
+            const pos = document.getElementById(`pos-${rowId}`).value;
+            const qta = parseInt(document.getElementById(`qta-${rowId}`).value);
+            const maxQta = parseInt(document.getElementById(`qta-${rowId}`).max);
+
+            if (!mag || !mat || !pos || !qta) {
+                alert(`Errore: Compila tutti i campi richiesti nella riga ${i+1}.`);
+                e.preventDefault();
+                return;
+            }
+
+            if (qta > maxQta) {
+                alert(`Errore nella riga ${i+1}: La quantità richiesta (${qta}) supera quella disponibile nella posizione (${maxQta}).`);
+                e.preventDefault();
+                return;
+            }
+
+            const chiave = `${mag}-${mat}-${pos}`;
+            if (visti.has(chiave)) {
+                alert(`Errore: Hai inserito più righe con lo stesso articolo e la stessa posizione sullo stesso magazzino. Unisci le quantità in un'unica riga.`);
+                e.preventDefault();
+                return;
+            }
+            visti.add(chiave);
+        }
+    });
+
+    // Avvia con una riga già pronta all'avvio
+    document.addEventListener('DOMContentLoaded', function() {
+        addNewRow();
+    });
+</script>
+</body>
+</html>
