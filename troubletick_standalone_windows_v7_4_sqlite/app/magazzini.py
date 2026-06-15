@@ -732,7 +732,7 @@ def nuova_richiesta_materiale_form(r: Request, ticket_id: str = None):
         giacenze_raw = c.execute(text("SELECT magazzino_id, materiale_id, quantita FROM giacenze")).mappings().all()
         giacenze_json = []
         for g in giacenze_raw:
-            giacenze_json.append({"magazzino_id": g["magazzino_id"], "materiale_id": g["materiale_id"], "quantita": g["quantita"]})
+            giacenze_json.append({"magazzino_id": g["magazzino_id"], "materiale_id": g["materiale_id"], "quantita": int(g["quantita"]) if g["quantita"] is not None else 0})
             
         import json
         giacenze_json_str = json.dumps(giacenze_json)
@@ -881,7 +881,7 @@ def get_scarico_multiplo(r: Request, error: str = None):
             "materiale_id": g["materiale_id"],
             "materiale_nome": g["materiale_nome"],
             "posizione_fisica": g["posizione_fisica"],
-            "quantita": g["quantita"]
+            "quantita": int(g["quantita"]) if g["quantita"] is not None else 0
         })
         
     magazzini_json = [{"magazzino_id": m["magazzino_id"], "nome": m["nome"]} for m in magazzini_list]
