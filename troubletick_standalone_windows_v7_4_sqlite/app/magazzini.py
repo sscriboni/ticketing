@@ -439,9 +439,11 @@ def stampa_consegna(r: Request, tipo: str, doc_id: int):
         if tipo == 'scarico':
             mov = c.execute(text("""
                 SELECT m.*, mag.nome AS magazzino_nome, s.nome AS sede_nome,
-                       mat.nome AS materiale_nome, u.nome AS user_nome, u.cognome AS user_cognome
+                       mat.nome AS materiale_nome, u.nome AS user_nome, u.cognome AS user_cognome,
+                       u.telefono AS user_telefono, s_orig.nome AS magazzino_sede_nome
                 FROM movimenti_magazzino m
                 JOIN magazzini mag ON m.magazzino_id = mag.magazzino_id
+                LEFT JOIN sedi s_orig ON mag.sede_id = s_orig.sede_id
                 LEFT JOIN sedi s ON m.sede_assegnazione_id = s.sede_id
                 JOIN materiali mat ON m.materiale_id = mat.materiale_id
                 JOIN users u ON m.user_id = u.user_id
