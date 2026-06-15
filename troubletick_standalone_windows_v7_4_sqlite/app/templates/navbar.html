@@ -49,8 +49,16 @@
         {% endif %}
         <li class="nav-item"><a class="nav-link {% if request.url.path.startswith('/documentazione') %}active fw-bold{% endif %}" href="/documentazione"><i class="bi bi-book"></i> Documentazione</a></li>
         
-        {% if user.ruolo == 'responsabile' %}
-        <li class="nav-item"><a class="nav-link {% if request.url.path == '/admin/report-copertura' %}active fw-bold{% endif %}" href="/admin/report-copertura"><i class="bi bi-bar-chart"></i> Report</a></li>
+        {% if user.ruolo in ('admin', 'responsabile') %}
+        <li class="nav-item dropdown">
+          <a class="nav-link dropdown-toggle {% if request.url.path == '/admin/report-copertura' or request.url.path == '/magazzini/report' %}active fw-bold{% endif %}" href="#" id="reportDropdown" role="button" data-bs-toggle="dropdown" aria-expanded="false">
+            <i class="bi bi-bar-chart"></i> Report
+          </a>
+          <ul class="dropdown-menu shadow" aria-labelledby="reportDropdown">
+            <li><a class="dropdown-item" href="/admin/report-copertura">Copertura Personale</a></li>
+            <li><a class="dropdown-item" href="/magazzini/report">Stato Magazzini</a></li>
+          </ul>
+        </li>
         {% endif %}
         
         {% if user.ruolo == 'admin' %}

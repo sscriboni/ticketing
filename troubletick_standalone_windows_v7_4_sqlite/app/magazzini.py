@@ -977,4 +977,104 @@ async def post_scarico_multiplo(
         return RedirectResponse(url=f"/stampa-consegna/multiplo/{gruppo_scarico_id}", status_code=303)
     return RedirectResponse(url="/magazzini", status_code=303)
 
+@router.get("/magazzini/report", response_class=HTMLResponse)
+def magazzini_report(r: Request, mese: int = None, anno: int = None, magazzino_id: str = None):
+    if "user" not in r.session: return RedirectResponse(url="/login")
+    user = r.session.get("user")
+    if user.get("ruolo") not in ("admin", "responsabile"):
+        return RedirectResponse(url="/tickets")
+        
+    from datetime import datetime
+    now = datetime.now()
+    if anno is None:
+        anno = now.year
+    if mese is None:
+        mese = now.month
+        
+    with engine.connect() as c:
+        if user.get("ruolo") == "admin":
+            magazzini_list = c.execute(text("SELECT magazzino_id, nome FROM magazzini ORDER BY nome")).mappings().all()
+        else:
+            magazzini_list = c.execute(text("""
+                SELECT m.magazzino_id, m.nome FROM magazzini m
+                JOIN operatori_magazzini om ON m.magazzino_id = om.magazzino_id
+                WHERE om.user_id = :uid
+                ORDER BY m.nome
+            """), {"uid": user.get("id")}).mappings().all()
+            
+        prefix = f"{anno}-{mese:02d}-%"
+        params = {"prefix": prefix}
+        
+        filter_sql = ""
+        if user.get("ruolo") != "admin":
+            user_mag_ids = [m["magazzino_id"] for m in magazzini_list]
+            if not user_mag_ids:
+                return templates.TemplateResponse(r, "magazzino_report.html", {
+                    "request": r, "cfg": CFG, "user": user,
+                    "righe": [], "magazzini": [], "anno": anno, "mese": mese,
+                    "filtri": {"magazzino_id": magazzino_id}
+                })
+            filter_sql += " AND sub.magazzino_id IN :user_mag_ids"
+            params["user_mag_ids"] = user_mag_ids
+            
+        if magazzino_id and magazzino_id.isdigit():
+            filter_sql += " AND sub.magazzino_id = :mag_id"
+            params["mag_id"] = int(magazzino_id)
+            
+        query = f"""
+            SELECT * FROM (
+                SELECT m.magazzino_id, m.nome AS magazzino_nome, 
+                       mat.materiale_id, mat.nome AS materiale_nome, c.nome AS categoria_nome,
+                       COALESCE(g.quantita, 0) AS disponibilita,
+                       COALESCE((
+                           SELECT SUM(mm.quantita)
+                           FROM movimenti_magazzino mm
+                           WHERE mm.magazzino_id = m.magazzino_id
+                             AND mm.materiale_id = mat.materiale_id
+                             AND mm.operazione = 'carico'
+                             AND mm.data_movimento LIKE :prefix
+                       ), 0) AS carichi_mese,
+                       COALESCE((
+                           SELECT SUM(mm.quantita)
+                           FROM movimenti_magazzino mm
+                           WHERE mm.magazzino_id = m.magazzino_id
+                             AND mm.materiale_id = mat.materiale_id
+                             AND mm.operazione = 'scarico'
+                             AND mm.data_movimento LIKE :prefix
+                       ), 0) AS consegne_mese
+                FROM magazzini m
+                JOIN materiali mat ON (m.categoria_id IS NULL OR m.categoria_id = mat.categoria_id)
+                LEFT JOIN giacenze g ON m.magazzino_id = g.magazzino_id AND mat.materiale_id = g.materiale_id
+                LEFT JOIN categorie c ON mat.categoria_id = c.categoria_id
+            ) sub
+            WHERE (sub.disponibilita > 0 OR sub.carichi_mese > 0 OR sub.consegne_mese > 0) {filter_sql}
+            ORDER BY sub.magazzino_nome, sub.categoria_nome, sub.materiale_nome
+        """
+        
+        stmt = text(query)
+        if "user_mag_ids" in params:
+            from sqlalchemy import bindparam
+            stmt = stmt.bindparams(bindparam("user_mag_ids", expanding=True))
+            
+        raw_rows = c.execute(stmt, params).mappings().all()
+        rows = []
+        for row in raw_rows:
+            rows.append({
+                "magazzino_id": row["magazzino_id"],
+                "magazzino_nome": row["magazzino_nome"],
+                "materiale_id": row["materiale_id"],
+                "materiale_nome": row["materiale_nome"],
+                "categoria_nome": row["categoria_nome"],
+                "disponibilita": int(row["disponibilita"]),
+                "carichi_mese": int(row["carichi_mese"]),
+                "consegne_mese": int(row["consegne_mese"])
+            })
+            
+    return templates.TemplateResponse(r, "magazzino_report.html", {
+        "request": r, "cfg": CFG, "user": user,
+        "righe": rows, "magazzini": magazzini_list, "anno": anno, "mese": mese,
+        "filtri": {"magazzino_id": magazzino_id}
+    })
+
+
 
