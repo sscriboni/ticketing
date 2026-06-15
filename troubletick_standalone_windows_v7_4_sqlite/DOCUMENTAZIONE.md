@@ -8,7 +8,7 @@ Il sistema prevede un controllo degli accessi basato su **4 livelli di ruolo**, 
 
 1. **Amministratore (`admin`)**
    * **Visibilità:** Globale.
-   * **Permessi:** Accesso completo al "Pannello Amministrativo". Può creare/modificare operatori, reparti, servizi, sedi, magazzini, categorie e materiali. Gestisce importazione/esportazione massiva in JSON, l'eliminazione massiva di ticket per data, le festività a calendario e gli avvisi globali in homepage.
+   * **Permessi:** Accesso completo al "Pannello Amministrativo". Può creare/modificare operatori (visualizzando i log di ultimo accesso ed IP), reparti, servizi, sedi, magazzini, categorie e materiali. Gestisce importazione/esportazione massiva in JSON, l'eliminazione massiva di ticket per data, le festività a calendario e gli avvisi globali in homepage. Monitora la sicurezza dell'accesso tramite l'elenco operatori riservato.
    * **Esempio pratico:** L'Amministratore esporta la configurazione anagrafica aziendale in JSON per backup, inserisce una nuova Festività nel calendario (es. "Festa Patronale"), e invia un Avviso in bacheca con gravità "Danger" ("Server offline per manutenzione") visibile a tutti.
 
 2. **Responsabile di Reparto (`responsabile`)**
@@ -68,6 +68,7 @@ Il modulo Magazzino permette di gestire in modo centralizzato e tracciabile tutt
 #### Gestione Carichi, Scarichi e Trasferimenti
 * **Carico Manuale:** Per registrare l'arrivo di nuova merce (es. da fornitore), l'operatore cerca il prodotto nell'Inventario Magazzini e clicca su **Carico**. Specifica la data, la quantità e soprattutto la posizione fisica (scaffale/lotto). Può anche allegare un DDT PDF o una foto dell'articolo.
 * **Scarico Manuale e Documento PDF:** Per prelievi rapidi slegati dai ticket, basta usare il bottone **Scarico**. Attivando l'opzione "Genera PDF", al termine dell'operazione viene fornito un **Documento di Consegna** stampabile per l'acquisizione della firma da parte di chi ritira il materiale.
+* **Scarico Multiplo:** Per prelievi simultanei di più materiali da magazzini e posizioni differenti, gli operatori possono cliccare su **Scarico Multiplo** nella pagina Inventario. La form consente di aggiungere/rimuovere righe dinamicamente con controlli di stock integrati. È possibile generare e stampare un **Buono di Movimento** cumulativo su singolo foglio A4, che include note uniche, pre-seleziona l'opzione *Trasferimento* (con date in formato italiano e campi *Centro di Costo* / *Codice di Reparto* vuoti per la compilazione manuale da parte dell'operatore).
 * **Log Movimenti (Scatola Nera):** Ogni carico, scarico o aggiornamento fotografico genera un log immutabile. La pagina "Log Magazzini" permette di filtrare l'intero storico aziendale per data, operatore, materiale o ricerca testuale (es. matricola).
 * **Trasferimenti Tra Magazzini:** Se in fase di "Scarico" si seleziona come destinazione un altro magazzino anziché una sede, il sistema genera un trasferimento "In Consegna". L'operatore del magazzino destinatario visualizzerà un avviso e dovrà confermare fisicamente la ricezione cliccando su "Segna Arrivato", allineando le due giacenze in modo sicuro e tracciato.
 
@@ -79,10 +80,11 @@ Il modulo Magazzino permette di gestire in modo centralizzato e tracciabile tutt
 ### 5. Reportistica e Statistiche
 * **Cruscotto Globale:** Grafico a torta degli stati di tutti i ticket (aperti, chiusi, ecc.).
 * **Report di Copertura:** Matrice mensile generata automaticamente che incrocia le competenze degli operatori (servizi assegnati) con il calendario assenze, fornendo per ogni giorno del mese il numero di operatori attivi in ogni singolo servizio.
+* **Report Stato Magazzini:** Consente ad amministratori e responsabili di reparto di monitorare lo stato delle scorte, incluse la disponibilità attuale, le consegne effettuate nel mese (scarichi) e i carichi effettuati nel mese. Permette la selezione dell'anno e del mese ed è protetto per escludere l'accesso agli operatori regolari o di assistenza.
 
 ### 6. Sicurezza e Amministrazione
 * **Export / Import JSON Completo:** Funzionalità a 1-click per esportare l'intera anagrafica aziendale (comuni, sedi, reparti, servizi, magazzini, categorie, materiali, operatori) in un file JSON. Permette backup, migrazioni veloci o il popolamento istantaneo in caso di prima installazione. Include l'opzione per svuotare preventivamente il database.
 * **Eliminazione Massiva Ticket:** Utilità GDPR-compliant per la pulizia selettiva dei database. L'amministratore può selezionare un intervallo di date ed eliminare in blocco tutti i ticket, le note e gli allegati ad essi associati.
 * **Impostazioni Globali:** Modifica del nome dell'azienda e dell'email di supporto (salvati in modo persistente su file JSON).
-* **Sicurezza Login:** Supporto login tramite *Username* o *Email*. Implementazione di un Log testuale automatico (`failed_logins.log`) per tracciare orario, IP e utente dei tentativi di accesso falliti.
+* **Sicurezza Login ed Elenco Operatori:** Supporto login tramite *Username* o *Email*. Implementazione di un Log testuale automatico (`failed_logins.log`) per tracciare i tentativi falliti. L'elenco operatori (`/operatori` o `/admin/operatori`) è riservato esclusivamente all'amministratore e traccia per ciascun operatore il timestamp del suo ultimo login (formato italiano) e l'indirizzo IP del client (`ultimo_ip`).
 * **Recupero Password ed Email Transazionali:** Sistema sicuro per la rigenerazione di password dimenticate tramite link temporizzato via email (scadenza 1 ora) e crittografia password (Bcrypt). Notifica asincrona via email anche in caso di abilitazione di un nuovo account da parte dell'Admin.
