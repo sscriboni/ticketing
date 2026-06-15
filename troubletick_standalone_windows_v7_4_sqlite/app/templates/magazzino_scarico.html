@@ -142,9 +142,18 @@
                     </ul>
                 </div>
 
-                <div>
+                <div class="mb-3">
                     <strong class="text-success"><i class="bi bi-file-earmark-pdf-fill"></i> Documentazione &amp; Note</strong>
                     <p class="text-muted mb-0 ps-3">L'inserimento di una nota/descrizione è obbligatorio per tracciare la causale dello scarico. Attivando la spunta <strong>"Genera PDF"</strong>, il sistema produrrà automaticamente un verbale di consegna stampabile da far firmare al destinatario al momento del ritiro.</p>
+                </div>
+
+                <div>
+                    <strong class="text-warning"><i class="bi bi-exclamation-triangle-fill"></i> Come correggere un errore di scarico</strong>
+                    <p class="text-muted mb-0 ps-3">I movimenti registrati sono immutabili per scopi di audit. Se commetti un errore di inserimento:</p>
+                    <ul class="text-muted ps-4 mb-0">
+                        <li><strong>Se hai scaricato una quantità eccessiva:</strong> Esegui un <strong>Carico</strong> di compensazione per la quantità in eccesso, specificando nelle note che si tratta di una rettifica (es. <em>"[Rettifica] Carico di storno per scarico errato"</em>).</li>
+                        <li><strong>Se hai scaricato dal magazzino o posizione sbagliata:</strong> Esegui un <strong>Carico</strong> per l'intera quantità errata nella posizione errata per ripristinare la giacenza, e ripeti lo <strong>Scarico</strong> dalla posizione corretta.</li>
+                    </ul>
                 </div>
             </div>
         </div>
