@@ -55,16 +55,16 @@
     </div>
     
     <div class="mb-4">
-      <label for="magazzino_id" class="form-label">Magazzino di prelievo</label>
-      <select name="magazzino_id" id="magazzino_id" class="form-select">
+      <label for="magazzinoSelect" class="form-label">Magazzino di prelievo</label>
+      <select name="magazzino_id" id="magazzinoSelect" class="form-select">
         <option value="">-- Nessun magazzino (Opzionale) --</option>
         {% for mag in magazzini %}
-        <option value="{{ mag.magazzino_id }}">{{ mag.nome }}</option>
+        <option value="{{ mag.magazzino_id }}" data-categoria="{{ mag.categoria_id or '' }}" data-nome-base="{{ mag.nome }}">{{ mag.nome }}</option>
         {% endfor %}
       </select>
     </div>
     
-    <button type="submit" class="btn btn-primary"><i class="bi bi-send"></i> Inoltra Richiesta</button>
+    <button type="submit" class="btn btn-primary"><i class="bi bi-check-lg"></i> Conferma</button>
   </form>
 </div></div>
 </div>
@@ -73,18 +73,50 @@
 document.addEventListener('DOMContentLoaded', function() {
     const catSelect = document.getElementById('categoriaSelect');
     const matSelect = document.getElementById('materialeSelect');
+    const magSelect = document.getElementById('magazzinoSelect');
+    const giacenze = {{ giacenze_json | safe }};
     
-    function filterMateriali() {
+    function filterMaterialiAndMagazzini() {
         const catId = parseInt(catSelect.value);
+        const matId = parseInt(matSelect.value);
+        
+        // Filtra i materiali
         Array.from(matSelect.options).forEach(opt => {
             if (opt.value === "") return;
             let isMatch = parseInt(opt.dataset.categoria) === catId;
             opt.style.display = isMatch ? '' : 'none';
             if (!isMatch && opt.selected) matSelect.value = "";
         });
+        
+        // Filtra i magazzini per categoria e aggiorna il testo con la giacenza del materiale
+        Array.from(magSelect.options).forEach(opt => {
+            if (opt.value === "") return;
+            const magCatId = opt.dataset.categoria;
+            
+            // Mostra solo i magazzini collegati alla categoria scelta
+            let isMatch = (parseInt(magCatId) === catId);
+            
+            opt.hidden = !isMatch;
+            opt.style.display = isMatch ? '' : 'none';
+            
+            if (isMatch) {
+                // Calcola la giacenza del materiale selezionato in questo magazzino
+                const giac = giacenze.find(g => g.magazzino_id === parseInt(opt.value) && g.materiale_id === matId);
+                const qta = giac ? giac.quantita : 0;
+                opt.textContent = isNaN(matId) ? opt.dataset.nomeBase : `${opt.dataset.nomeBase} (Giacenza: ${qta})`;
+            }
+            
+            if (!isMatch && opt.selected) {
+                magSelect.value = "";
+            }
+        });
     }
-    catSelect.addEventListener('change', filterMateriali);
-    filterMateriali();
+    
+    catSelect.addEventListener('change', filterMaterialiAndMagazzini);
+    matSelect.addEventListener('change', filterMaterialiAndMagazzini);
+    
+    // Esegui il filtro al caricamento
+    filterMaterialiAndMagazzini();
 });
 </script>
 </body></html>

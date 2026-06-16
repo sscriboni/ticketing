@@ -4,22 +4,18 @@
 {% include 'navbar.html' %}
 
 <div class="container flex-grow-1 mb-5">
-<h2 class="mb-4">{{ cfg.company_name }} — Richiedi assistenza</h2>
+<h2 class="mb-4">{{ cfg.company_name }} — Richiedi assistenza ad un Reparto</h2>
 <form method="post" action="/new" enctype="multipart/form-data">
   <div class="row g-3">
-    <div class="col-12">
-      <label class="form-label">Descrizione del problema <span class="text-danger">*</span></label>
-      <textarea name="descrizione" rows="5" class="form-control" required autofocus></textarea>
-      <div class="form-text text-danger mt-1">
-        <small>⚠️ <strong>Attenzione GDPR:</strong> Non inserire dati sensibili (es. informazioni sanitarie, diagnosi, dati clinici, password o dati personali non necessari) nella descrizione del ticket o nei file allegati.</small>
-      </div>
+    <div class="col-12 mb-2">
+      <h5 class="text-secondary"><i class="bi bi-file-earmark-text me-2"></i>Dati della Richiesta</h5>
     </div>
 
     <div class="col-md-6"><label class="form-label">Destinatario <span class="text-danger">*</span></label>
       <select name="reparto_id" class="form-select" id="repartoSelect" required>
         <option value="" disabled selected>A quale reparto inviare la richiesta?</option>
         {% for reparto in reparti_dest %}
-        <option value="{{ reparto.reparto_id }}">{{ reparto.nome }}</option>
+        <option value="{{ reparto.reparto_id }}">{{ reparto.nome }}{% if reparto.descrizione %} — {{ reparto.descrizione }}{% endif %}</option>
         {% endfor %}
       </select>
     </div>
@@ -27,7 +23,7 @@
       <select name="servizio_id" class="form-select" id="servizioSelect">
         <option value="">Nessun servizio</option>
         {% for servizio in servizi %}
-        <option value="{{ servizio.servizio_id }}" data-reparto="{{ servizio.reparto_id }}" data-description="{{ servizio.descrizione_lunga or '' }}">{{ servizio.descrizione }}</option>
+        <option value="{{ servizio.servizio_id }}" data-reparto="{{ servizio.reparto_id }}" data-description="{{ servizio.descrizione_lunga or '' }}">{{ servizio.descrizione }}{% if servizio.descrizione_lunga %} — {{ servizio.descrizione_lunga | truncate(50, False, '...') }}{% endif %}</option>
         {% endfor %}
       </select>
       <div class="form-text text-muted mt-1">
@@ -39,20 +35,40 @@
       </div>
     </div>
 
-    <div class="col-md-12"><label class="form-label">Nominativo <span class="text-danger">*</span></label><input name="nominativo" class="form-control" required placeholder="Nome e Cognome"></div>
-    <div class="col-md-6"><label class="form-label">Email</label><input type="email" name="email" id="emailInput" class="form-control" placeholder="es. mario.rossi@azienda.it" pattern="[a-zA-Z0-9._%+\-]+@[a-zA-Z0-9.\-]+\.[a-zA-Z]{2,}$" title="Inserisci un indirizzo email valido"><small class="text-muted">Obbligatorio se non si inserisce il telefono.</small></div>
-    <div class="col-md-6"><label class="form-label">Telefono</label><input type="tel" name="telefono" id="telefonoInput" class="form-control" placeholder="es. 3331234567" pattern="[0-9]{8,15}" title="Inserisci un numero di telefono valido (da 8 a 15 cifre)" oninput="this.value = this.value.replace(/[^0-9]/g, '')"><small class="text-muted">Obbligatorio se non si inserisce l'email.</small></div>
-    
-    <div class="col-md-12"><label class="form-label">Sede <span class="text-danger">*</span></label><input type="text" name="sede" class="form-control" required placeholder="es. Sede Centrale, Piano 1"></div>
+    <div class="col-12">
+      <label class="form-label">Richiesta <span class="text-danger">*</span></label>
+      <textarea name="descrizione" rows="5" class="form-control" required autofocus></textarea>
+      <div class="form-text text-danger mt-1">
+        <small>⚠️ <strong>Attenzione GDPR:</strong> Non inserire dati sensibili (es. informazioni sanitarie, diagnosi, dati clinici, password o dati personali non necessari) nella descrizione del ticket o nei file allegati.</small>
+      </div>
+    </div>
 
     <div class="col-12">
       <label class="form-label">Allegato (opzionale)</label>
       <input type="file" name="allegato" class="form-control">
       <small class="text-muted">Dimensione massima: 10MB. File eseguibili non consentiti.</small>
     </div>
+
+    <div class="col-12 mt-4 mb-2 border-top pt-3">
+      <h5 class="text-secondary"><i class="bi bi-person-fill me-2"></i>Dati del Richiedente</h5>
+    </div>
+
+    <div class="col-md-12"><label class="form-label">Nominativo <span class="text-danger">*</span></label><input name="nominativo" class="form-control" required placeholder="Nome e Cognome"></div>
+    <div class="col-md-6"><label class="form-label">Email</label><input type="email" name="email" id="emailInput" class="form-control" placeholder="es. mario.rossi@azienda.it" pattern="[a-zA-Z0-9._%+\-]+@[a-zA-Z0-9.\-]+\.[a-zA-Z]{2,}$" title="Inserisci un indirizzo email valido"><small class="text-muted">Obbligatorio se non si inserisce il telefono.</small></div>
+    <div class="col-md-6"><label class="form-label">Telefono</label><input type="tel" name="telefono" id="telefonoInput" class="form-control" placeholder="es. 3331234567" pattern="[0-9]{8,15}" title="Inserisci un numero di telefono valido (da 8 a 15 cifre)" oninput="this.value = this.value.replace(/[^0-9]/g, '')"><small class="text-muted">Obbligatorio se non si inserisce l'email.</small></div>
+    
+    <div class="col-md-12">
+      <label class="form-label">Sede di appartenenza del richiedente <span class="text-danger">*</span></label>
+      <select name="sede" class="form-select" required>
+        <option value="" disabled selected>Seleziona la tua sede...</option>
+        {% for s in sedi %}
+        <option value="{{ s.nome }}">{{ s.nome }}</option>
+        {% endfor %}
+      </select>
+    </div>
   </div>
   <div class="mt-3">
-    <small class="text-muted d-block mb-2">Inviando il ticket si accetta l'informativa sulla <a href="/static/PRIVACY.md" target="_blank">Privacy Policy</a> e i termini della <a href="/static/LICENSE.txt" target="_blank">Licenza d'Uso (EULA)</a>.</small>
+    <small class="text-muted d-block mb-2">Informativa sulla <a href="/static/PRIVACY.md" target="_blank">Privacy Policy</a> e i termini della <a href="/static/LICENSE.txt" target="_blank">Licenza d'Uso (EULA)</a>.</small>
     <button class="btn btn-primary">Invia richiesta</button>
     <a href="/" class="btn btn-outline-secondary">Annulla</a>
   </div>

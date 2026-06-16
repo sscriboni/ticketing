@@ -19,11 +19,12 @@
         <td>{{ servizio.descrizione_lunga or '—' }}</td>
         <td>{{ servizio.reparto_nome or '—' }}</td>
         <td>
-          {% if servizio.accetta_ticket %}
-          <span class="badge bg-success">Aperto al Pubblico</span>
-          {% else %}
-          <span class="badge bg-danger">Ad uso Interno</span>
-          {% endif %}
+          <div class="form-check form-switch">
+            <input type="checkbox" class="form-check-input toggle-accetta" data-id="{{ servizio.servizio_id }}" {% if servizio.accetta_ticket %}checked{% endif %}>
+            <label class="form-check-label small {% if servizio.accetta_ticket %}text-success fw-bold{% else %}text-danger fw-bold{% endif %}">
+              {% if servizio.accetta_ticket %}Aperto al Pubblico{% else %}Ad uso Interno{% endif %}
+            </label>
+          </div>
         </td>
         <td>
           <a href="/admin/servizio/{{ servizio.servizio_id }}/modifica" class="btn btn-sm btn-warning me-1">Modifica</a>
@@ -79,4 +80,40 @@
   </form>
 </div>
 
-</div></body></html>
+</div>
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    const toggles = document.querySelectorAll('.toggle-accetta');
+    toggles.forEach(toggle => {
+        toggle.addEventListener('change', function() {
+            const id = this.dataset.id;
+            const label = this.nextElementSibling;
+            
+            fetch(`/admin/servizio/${id}/toggle-accetta`, {
+                method: 'POST'
+            })
+            .then(res => res.json())
+            .then(data => {
+                if (data.status === 'success') {
+                    if (data.new_val === 1) {
+                        label.textContent = 'Aperto al Pubblico';
+                        label.className = 'form-check-label small text-success fw-bold';
+                    } else {
+                        label.textContent = 'Ad uso Interno';
+                        label.className = 'form-check-label small text-danger fw-bold';
+                    }
+                } else {
+                    alert('Errore durante l\'aggiornamento dello stato.');
+                    this.checked = !this.checked;
+                }
+            })
+            .catch(err => {
+                console.error(err);
+                alert('Errore durante la comunicazione con il server.');
+                this.checked = !this.checked;
+            });
+        });
+    });
+});
+</script>
+</body></html>

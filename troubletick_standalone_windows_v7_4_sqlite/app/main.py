@@ -259,6 +259,26 @@ try:
             
         # seed ruoli
         sql_insert_ignore("INSERT OR IGNORE INTO ruoli(ruolo_id,nome,descrizione) VALUES (1,'admin','Amministratore (massima visibilità)'),(2,'responsabile','Responsabile del reparto (vede operatori, ticket, report)'),(3,'assistenza','Operatore di assistenza (gestisce ticket dei propri servizi)'),(4,'normale','Operatore normale (non vede/gestisce ticket)')")
+        
+        # seed sedi se vuoto
+        try:
+            count_sedi = c.execute(text("SELECT COUNT(*) FROM sedi")).scalar() or 0
+            if count_sedi == 0:
+                sedi_default = [
+                    "Sede Centrale Alessandria",
+                    "Ospedale Santi Antonio e Biagio",
+                    "Distretto Acqui Terme",
+                    "Distretto Casale Monferrato",
+                    "Distretto Novi Ligure",
+                    "Distretto Tortona",
+                    "Distretto Ovada",
+                    "Distretto Valenza",
+                    "Smart Working"
+                ]
+                for s in sedi_default:
+                    sql_insert_ignore("INSERT OR IGNORE INTO sedi(nome) VALUES (:nome)", {"nome": s})
+        except Exception:
+            pass
         try:
             c.execute(text("UPDATE users SET ruolo = 'admin' WHERE ruolo = 'superuser'"))
             c.execute(text("UPDATE users SET ruolo = 'assistenza' WHERE ruolo = 'reparto'"))
@@ -384,9 +404,10 @@ def home(r: Request):
 def new_form(r: Request):
     with engine.connect() as c:
         reparti = c.execute(text("SELECT reparto_id, nome FROM reparti ORDER BY nome")).mappings().all()
-        reparti_dest = c.execute(text("SELECT reparto_id, nome FROM reparti WHERE accetta_ticket = 1 ORDER BY nome")).mappings().all()
+        reparti_dest = c.execute(text("SELECT reparto_id, nome, descrizione FROM reparti WHERE accetta_ticket = 1 ORDER BY nome")).mappings().all()
         servizi = c.execute(text("SELECT servizio_id, descrizione, descrizione_lunga, reparto_id FROM servizi WHERE accetta_ticket = 1 ORDER BY descrizione")).mappings().all()
-    return templates.TemplateResponse(r, "new_ticket.html", {"request": r, "cfg": CFG, "reparti": reparti, "reparti_dest": reparti_dest, "servizi": servizi})
+        sedi = c.execute(text("SELECT sede_id, nome FROM sedi ORDER BY nome")).mappings().all()
+    return templates.TemplateResponse(r, "new_ticket.html", {"request": r, "cfg": CFG, "reparti": reparti, "reparti_dest": reparti_dest, "servizi": servizi, "sedi": sedi})
 
 @app.post("/new")
 def create_ticket(r: Request,
@@ -478,7 +499,7 @@ def success(r: Request, codice: str = None, email: str = None):
                 WHERE t.codice_ticket = :cod ORDER BY t.ticket_id DESC LIMIT 1
             """), {"cod": codice}).mappings().first()
             
-    return templates.TemplateResponse(r, "success.html", {"request": r, "cfg": CFG, "codice": codice, "email_inviata": bool(email), "ticket": ticket_info})
+    return templates.TemplateResponse(r, "success.html", {"request": r, "cfg": CFG, "codice": codice, "email_inviata": bool(email), "ticket": ticket_info, "current_year": datetime.now().year})
 
 @app.get("/status-ticket", response_class=HTMLResponse)
 def status_ticket_form(r: Request):
@@ -1135,6 +1156,16 @@ def edit_servizio_action(r: Request, servizio_id: int, descrizione: str = Form(.
         c.execute(text("UPDATE servizi SET descrizione = :desc, descrizione_lunga = :desc_lunga, reparto_id = :rid, accetta_ticket = :at WHERE servizio_id = :id"),
                   {"desc": descrizione, "desc_lunga": descrizione_lunga, "rid": reparto_id, "at": accetta_ticket, "id": servizio_id})
     return RedirectResponse(url="/admin/servizi", status_code=303)
+
+@app.post("/admin/servizio/{servizio_id}/toggle-accetta")
+def toggle_servizio_accetta(r: Request, servizio_id: int):
+    user = require_superuser(r)
+    if isinstance(user, RedirectResponse): return user
+    with engine.begin() as c:
+        current = c.execute(text("SELECT accetta_ticket FROM servizi WHERE servizio_id = :id"), {"id": servizio_id}).scalar()
+        new_val = 0 if current else 1
+        c.execute(text("UPDATE servizi SET accetta_ticket = :new_val WHERE servizio_id = :id"), {"new_val": new_val, "id": servizio_id})
+    return {"status": "success", "new_val": new_val}
 
 @app.post("/admin/servizio/delete")
 def delete_servizio(r: Request, servizio_id: int = Form(...)):

@@ -10,14 +10,18 @@
       {% if user %}
       
       <ul class="navbar-nav me-auto mb-2 mb-lg-0">
-        <li class="nav-item">
-          <a class="nav-link {% if request.url.path == '/tickets' or request.url.path.startswith('/ticket/') %}active fw-bold{% endif %}" href="/tickets">
+        <li class="nav-item dropdown">
+          <a class="nav-link dropdown-toggle {% if request.url.path == '/tickets' or request.url.path.startswith('/ticket/') or request.url.path == '/new' %}active fw-bold{% endif %}" href="#" id="ticketDropdown" role="button" data-bs-toggle="dropdown" aria-expanded="false">
             <i class="bi bi-ticket-detailed"></i> Ticket
             {% set cnt_nuovi = get_new_tickets_count(user) %}
             {% if cnt_nuovi > 0 %}
             <span class="badge bg-danger rounded-pill ms-1">{{ cnt_nuovi }}</span>
             {% endif %}
           </a>
+          <ul class="dropdown-menu shadow" aria-labelledby="ticketDropdown">
+            <li><a class="dropdown-item" href="/tickets">Elenco Ticket</a></li>
+            <li><a class="dropdown-item" href="/new">Nuovo Ticket</a></li>
+          </ul>
         </li>
         
         {% if user.ruolo != 'normale' %}

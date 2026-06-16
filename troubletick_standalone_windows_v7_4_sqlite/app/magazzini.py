@@ -727,7 +727,7 @@ def nuova_richiesta_materiale_form(r: Request, ticket_id: str = None):
         sedi = c.execute(text("SELECT sede_id, nome FROM sedi ORDER BY nome")).mappings().all()
         categorie = c.execute(text("SELECT categoria_id, nome FROM categorie ORDER BY nome")).mappings().all()
         materiali = c.execute(text("SELECT materiale_id, nome, categoria_id FROM materiali ORDER BY nome")).mappings().all()
-        magazzini = c.execute(text("SELECT magazzino_id, nome FROM magazzini ORDER BY nome")).mappings().all()
+        magazzini = c.execute(text("SELECT magazzino_id, nome, categoria_id FROM magazzini ORDER BY nome")).mappings().all()
         
         giacenze_raw = c.execute(text("SELECT magazzino_id, materiale_id, quantita FROM giacenze")).mappings().all()
         giacenze_json = []
