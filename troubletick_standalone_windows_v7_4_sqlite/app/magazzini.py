@@ -104,9 +104,17 @@ def user_magazzini_list(r: Request, magazzino_id: List[str] = Query(None), sede_
         return RedirectResponse(url="/tickets")
         
     with engine.connect() as c:
-        if not any(k in r.query_params for k in ["magazzino_id", "sede_id", "q", "solo_positive"]):
-            solo_positive = "1"
-            
+        user_mag_ids = c.execute(text("SELECT magazzino_id FROM operatori_magazzini WHERE user_id = :uid"), {"uid": user.get("id")}).scalars().all()
+
+        is_initial_load = not any(k in r.query_params for k in ["magazzino_id", "sede_id", "q", "solo_positive"])
+        if is_initial_load:
+            if not user_mag_ids:
+                solo_positive = "1"
+                magazzino_id = []
+            else:
+                solo_positive = "0"
+                magazzino_id = [str(uid) for uid in user_mag_ids]
+
         where_clauses = []
         params = {}
         
@@ -148,10 +156,8 @@ def user_magazzini_list(r: Request, magazzino_id: List[str] = Query(None), sede_
         magazzini_list = c.execute(text("SELECT magazzino_id, nome FROM magazzini ORDER BY nome")).mappings().all()
         sedi_list = c.execute(text("SELECT sede_id, nome FROM sedi ORDER BY nome")).mappings().all()
 
-        user_mag_ids = []
         count_in_arrivo = 0
         if user.get("ruolo") in ("assistenza", "responsabile"):
-            user_mag_ids = c.execute(text("SELECT magazzino_id FROM operatori_magazzini WHERE user_id = :uid"), {"uid": user.get("id")}).scalars().all()
             if user_mag_ids:
                 from sqlalchemy import bindparam
                 stmt_arrivo = text("SELECT COUNT(*) FROM trasferimenti WHERE magazzino_dest_id IN :mids AND stato = 'in_consegna'").bindparams(bindparam("mids", expanding=True))
