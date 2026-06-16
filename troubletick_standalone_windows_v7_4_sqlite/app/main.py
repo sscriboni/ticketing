@@ -2065,6 +2065,15 @@ def delete_operatore(r: Request, user_id: int):
     
     return RedirectResponse(url="/admin/operatori", status_code=303)
 
+@app.post("/admin/operatore/{user_id}/reset-accesso")
+def reset_accesso_operatore(r: Request, user_id: int):
+    user = require_superuser(r)
+    if isinstance(user, RedirectResponse):
+        return user
+    with engine.begin() as c:
+        c.execute(text("UPDATE users SET ultimo_accesso = NULL, ultimo_ip = NULL WHERE user_id = :uid AND user_id != 1"), {"uid": user_id})
+    return RedirectResponse(url="/admin/operatori", status_code=303)
+
 # ===== GESTIONE AVVISI IN HOMEPAGE =====
 
 @app.get("/avvisi", response_class=HTMLResponse)

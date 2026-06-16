@@ -65,6 +65,15 @@
                                             {{ op.ultimo_accesso }}
                                         {% endif %}
                                         <br><small class="text-muted">IP: {{ op.ultimo_ip or '—' }}</small>
+                                        {% if user.ruolo == 'admin' %}
+                                        <div class="mt-1">
+                                            <form method="post" action="/admin/operatore/{{ op.user_id }}/reset-accesso" class="d-inline" onsubmit="return confirm('Sei sicuro di voler azzerare l\'ultimo accesso di questo operatore?');">
+                                                <button type="submit" class="btn btn-link p-0 text-decoration-none text-danger small" style="font-size: 0.8em;" title="Azzera Ultimo Accesso">
+                                                    <i class="bi bi-arrow-counterclockwise"></i> Azzera Accesso
+                                                </button>
+                                            </form>
+                                        </div>
+                                        {% endif %}
                                     {% else %}
                                         <span class="text-muted">Mai effettuato</span>
                                     {% endif %}
