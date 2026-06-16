@@ -8,6 +8,19 @@
 <div class="mb-3">
   <h2>Ticket #{{ ticket.ticket_id }} <span class="badge bg-primary fs-5" style="vertical-align: middle;">Codice: {{ ticket.codice_ticket }}</span>{% if ticket.is_test %} <span class="badge bg-secondary fs-6">TEST</span>{% endif %}</h2><p class="text-muted mb-0">{{ ticket.nome }} {{ ticket.cognome }}</p>
 </div>
+{% if ticket.stato == 'nuova' %}
+<div class="alert alert-info border-info shadow-sm mb-3">
+  <i class="bi bi-info-circle-fill me-1"></i> 
+  <strong>Ticket Nuovo:</strong> Questo ticket non è ancora stato preso in carico. Per poter aggiungere note, riassegnarlo o richiedere materiale, è necessario prima <strong>prenderlo in carico</strong> con il pulsante "Prendi in Carico" sotto.
+</div>
+{% endif %}
+{% if ticket.stato == 'chiusa' %}
+<div class="alert alert-warning border-warning shadow-sm mb-3">
+  <i class="bi bi-exclamation-triangle-fill me-1"></i> 
+  <strong>Ticket Chiuso:</strong> Questo ticket è stato chiuso e non può essere modificato. Per aggiungere note, riassegnarlo o richiedere materiale, è necessario prima <strong>riaprirlo</strong> utilizzando il pulsante "Riapri Ticket".
+</div>
+{% endif %}
+
 <div class="card mb-4"><div class="card-body">
   <div class="row gy-2">
     <div class="col-md-4"><strong>Codice Comunicato</strong><br><span class="badge bg-primary fs-6">{{ ticket.codice_ticket }}</span></div>
@@ -44,11 +57,18 @@
         </button>
     </form>
     {% endif %}
+    {% if ticket.stato == 'chiusa' %}
+    <form method="post" action="/ticket/{{ ticket.ticket_id }}/stato" class="d-inline">
+        <input type="hidden" name="stato" value="presa_in_carico">
+        <button type="submit" class="btn btn-sm btn-warning">
+            <i class="bi bi-arrow-counterclockwise"></i> Riapri Ticket
+        </button>
+    </form>
+    {% endif %}
     {% if user and user.ruolo == 'admin' %}
-<form action="/ticket/{{ ticket.ticket_id }}/delete" method="POST" class="d-inline" onsubmit="return confirm('⚠️ Sei sicuro di voler eliminare definitivamente questo ticket? L\'azione è irreversibile e cancellerà anche tutte le note e gli allegati.');">
-    <button type="submit" class="btn btn-danger">Elimina Ticket</button>
-</form>
-
+    <form action="/ticket/{{ ticket.ticket_id }}/delete" method="POST" class="d-inline" onsubmit="return confirm('⚠️ Sei sicuro di voler eliminare definitivamente questo ticket? L\'azione è irreversibile e cancellerà anche tutte le note e gli allegati.');">
+        <button type="submit" class="btn btn-danger btn-sm">Elimina Ticket</button>
+    </form>
     {% endif %}
   </div>
 </div></div>
@@ -78,6 +98,7 @@
   </div>
   </div>
   <div class="col-lg-6">
+    {% if ticket.stato == 'presa_in_carico' %}
     <div class="card mb-4"><div class="card-body">
       <h5 class="card-title">Aggiungi nota</h5>
       <form method="post" action="/ticket/{{ ticket.ticket_id }}/note" enctype="multipart/form-data">
@@ -90,6 +111,17 @@
         <button class="btn btn-primary">Salva nota</button>
       </form>
     </div></div>
+    {% elif ticket.stato == 'nuova' %}
+    <div class="card mb-4 bg-light text-muted border-0"><div class="card-body text-center py-4">
+      <i class="bi bi-lock-fill fs-3 mb-2 d-block text-secondary"></i>
+      <p class="mb-0">Prendi in carico il ticket per poter aggiungere note.</p>
+    </div></div>
+    {% else %}
+    <div class="card mb-4 bg-light text-muted border-0"><div class="card-body text-center py-4">
+      <i class="bi bi-chat-left-text-fill fs-3 mb-2 d-block text-secondary"></i>
+      <p class="mb-0">Impossibile aggiungere note a un ticket chiuso.</p>
+    </div></div>
+    {% endif %}
 
     <div class="card mb-4"><div class="card-body">
       <h5 class="card-title">Richieste Materiale</h5>
@@ -103,7 +135,7 @@
           </div>
           <div class="d-flex align-items-center gap-2">
             <span class="badge bg-{% if rm.stato == 'evasa' %}success{% elif rm.stato == 'pronta_per_scarico' %}warning text-dark{% elif rm.stato == 'annullata' %}danger{% else %}info{% endif %}">{{ rm.stato|replace('_', ' ')|title }}</span>
-            {% if rm.stato in ['nuova', 'pronta_per_scarico'] and (user.ruolo == 'admin' or user.id == rm.user_id) %}
+            {% if ticket.stato == 'presa_in_carico' and rm.stato in ['nuova', 'pronta_per_scarico'] and (user.ruolo == 'admin' or user.id == rm.user_id) %}
             <form action="/richiesta-materiale/{{ rm.richiesta_id }}/annulla" method="post" class="d-inline mb-0" onsubmit="return confirm('Sei sicuro di voler annullare questa richiesta?')">
                 <button type="submit" class="btn btn-sm btn-outline-danger py-0 px-1" title="Annulla Richiesta"><i class="bi bi-x-circle" style="font-size: 0.85rem;"></i></button>
             </form>
@@ -116,12 +148,15 @@
       <p class="text-muted small">Nessuna richiesta di materiale collegata a questo ticket.</p>
       {% endif %}
       
+      {% if ticket.stato == 'presa_in_carico' %}
       <form method="get" action="/richiesta-materiale/nuova">
         <input type="hidden" name="ticket_id" value="{{ ticket.ticket_id }}">
         <button type="submit" class="btn btn-outline-primary btn-sm"><i class="bi bi-box-seam"></i> Crea Nuova Richiesta</button>
       </form>
+      {% endif %}
     </div></div>
 
+    {% if ticket.stato == 'presa_in_carico' %}
     <div class="card mb-4"><div class="card-body">
       <h5 class="card-title">Cambia Reparto o Servizio</h5>
       <form method="post" action="/ticket/{{ ticket.ticket_id }}/riassegna">
@@ -146,6 +181,7 @@
         <button class="btn btn-warning"><i class="bi bi-arrow-left-right"></i> Riassegna e Trasferisci</button>
       </form>
     </div></div>
+    {% endif %}
   </div>
 </div>
 <div class="alert alert-info mt-4 small shadow-sm">

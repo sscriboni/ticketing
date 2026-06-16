@@ -454,6 +454,10 @@ async def magazzino_movimento_action(
             rid = int(richiesta_id)
             richiesta = c.execute(text("SELECT * FROM richieste_materiale WHERE richiesta_id = :id"), {"id": rid}).mappings().first()
             if richiesta:
+                if richiesta["ticket_id"]:
+                    ticket_stato = c.execute(text("SELECT stato FROM tickets WHERE ticket_id = :id"), {"id": richiesta["ticket_id"]}).scalar()
+                    if ticket_stato != 'presa_in_carico':
+                        return RedirectResponse(url=f"/ticket/{richiesta['ticket_id']}?error=not_taken_in_charge", status_code=303)
                 quantita = richiesta["quantita"]
                 sede_assegnazione_id = str(richiesta["sede_dest_id"])
                 magazzino_destinazione_id = None
@@ -833,9 +837,11 @@ def nuova_richiesta_materiale_form(r: Request, ticket_id: str = None):
         return RedirectResponse(url="/richieste-materiale")
         
     with engine.connect() as c:
-        ticket = c.execute(text("SELECT ticket_id FROM tickets WHERE ticket_id = :id"), {"id": int(ticket_id)}).mappings().first()
+        ticket = c.execute(text("SELECT ticket_id, stato FROM tickets WHERE ticket_id = :id"), {"id": int(ticket_id)}).mappings().first()
         if not ticket:
             return RedirectResponse(url="/richieste-materiale")
+        if ticket["stato"] != 'presa_in_carico':
+            return RedirectResponse(url=f"/ticket/{ticket_id}?error=not_taken_in_charge", status_code=303)
             
         sedi = c.execute(text("SELECT sede_id, nome FROM sedi ORDER BY nome")).mappings().all()
         categorie = c.execute(text("SELECT categoria_id, nome FROM categorie ORDER BY nome")).mappings().all()
@@ -868,9 +874,11 @@ def nuova_richiesta_materiale_action(r: Request, sede_dest_id: int = Form(...), 
     magazzino_id_val = int(magazzino_id) if magazzino_id and str(magazzino_id).isdigit() else None
     
     with engine.begin() as c:
-        ticket = c.execute(text("SELECT ticket_id FROM tickets WHERE ticket_id = :id"), {"id": ticket_id_val}).mappings().first()
+        ticket = c.execute(text("SELECT ticket_id, stato FROM tickets WHERE ticket_id = :id"), {"id": ticket_id_val}).mappings().first()
         if not ticket:
             return RedirectResponse(url="/richieste-materiale", status_code=303)
+        if ticket["stato"] != 'presa_in_carico':
+            return RedirectResponse(url=f"/ticket/{ticket_id_val}?error=not_taken_in_charge", status_code=303)
             
         stato = 'nuova'
         if magazzino_id_val:
@@ -907,6 +915,11 @@ def annulla_richiesta_action(r: Request, richiesta_id: int):
         richiesta = c.execute(text("SELECT * FROM richieste_materiale WHERE richiesta_id = :id"), {"id": richiesta_id}).mappings().first()
         if not richiesta:
             return RedirectResponse(url="/richieste-materiale", status_code=303)
+            
+        if richiesta["ticket_id"]:
+            ticket_stato = c.execute(text("SELECT stato FROM tickets WHERE ticket_id = :id"), {"id": richiesta["ticket_id"]}).scalar()
+            if ticket_stato != 'presa_in_carico':
+                return RedirectResponse(url=f"/ticket/{richiesta['ticket_id']}?error=not_taken_in_charge", status_code=303)
 
         # Check permissions
         can_cancel = False

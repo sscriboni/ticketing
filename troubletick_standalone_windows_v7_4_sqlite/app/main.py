@@ -758,6 +758,10 @@ def add_ticket_note(r: Request, ticket_id: int, testo: str = Form(...), allegato
     
     allegato_filename = save_upload(allegato)
     with engine.begin() as c:
+        stato = c.execute(text("SELECT stato FROM tickets WHERE ticket_id = :tid"), {"tid": ticket_id}).scalar()
+        if stato != 'presa_in_carico':
+            return RedirectResponse(url=f"/ticket/{ticket_id}?error=not_taken_in_charge", status_code=303)
+            
         c.execute(text("""INSERT INTO ticket_notes (ticket_id, autore, testo, allegato, is_internal) VALUES (:tid, :a, :t, :all, :is_int)"""),
                  {"tid": ticket_id, "a": autore, "t": testo, "all": allegato_filename, "is_int": is_internal})
     return RedirectResponse(url=f"/ticket/{ticket_id}", status_code=303)
@@ -795,6 +799,10 @@ def reassign_ticket(r: Request, ticket_id: int, background_tasks: BackgroundTask
     servizio_id_val = int(servizio_id) if servizio_id else None
     
     with engine.begin() as c:
+        stato = c.execute(text("SELECT stato FROM tickets WHERE ticket_id = :id"), {"id": ticket_id}).scalar()
+        if stato != 'presa_in_carico':
+            return RedirectResponse(url=f"/ticket/{ticket_id}?error=not_taken_in_charge", status_code=303)
+            
         vecchio = c.execute(text("""
             SELECT r.nome as rep_nome, s.descrizione as serv_desc, t.codice_ticket, t.nome, t.cognome, t.descrizione
               FROM tickets t
