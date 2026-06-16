@@ -1873,15 +1873,23 @@ def operatori(r: Request):
     return RedirectResponse(url="/admin/operatori", status_code=303)
 
 @app.get("/documentazione", response_class=HTMLResponse)
-def documentazione(r: Request):
+@app.get("/documentazione/{page}", response_class=HTMLResponse)
+def documentazione(r: Request, page: str = None):
     user = r.session.get("user")
-    doc_path = os.path.join(os.path.dirname(BASE_DIR), "DOCUMENTAZIONE.md")
+    
+    doc_filename = "DOCUMENTAZIONE.md"
+    if page == "magazzino":
+        doc_filename = "DOCUMENTAZIONE_MAGAZZINO.md"
+    elif page == "privacy":
+        doc_filename = "PRIVACY.md"
+        
+    doc_path = os.path.join(os.path.dirname(BASE_DIR), doc_filename)
     content = ""
     try:
         with open(doc_path, "r", encoding="utf-8") as f:
             content = f.read()
     except Exception:
-        content = "# Documentazione non trovata\nIl file DOCUMENTAZIONE.md non è presente nella cartella principale del progetto."
+        content = f"# Documentazione non trovata\nIl file {doc_filename} non è presente nella cartella principale del progetto."
         
     return templates.TemplateResponse(r, "documentazione.html", {"request": r, "cfg": CFG, "user": user, "content": content})
 

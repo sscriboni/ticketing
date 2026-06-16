@@ -393,12 +393,30 @@ def magazzino_movimento_form(r: Request, magazzino_id: int, materiale_id: int, o
             
         from datetime import date
         oggi = date.today().isoformat()
+
+        # Trova tutti i magazzini abilitati per questo operatore compatibili con la categoria del materiale
+        mat_cat = materiale.get("categoria_id")
+        if user.get("ruolo") == "admin":
+            magazzini_abilitati = c.execute(text("""
+                SELECT magazzino_id, nome FROM magazzini
+                WHERE (categoria_id IS NULL OR categoria_id = :mat_cat)
+                ORDER BY nome
+            """), {"mat_cat": mat_cat}).mappings().all()
+        else:
+            magazzini_abilitati = c.execute(text("""
+                SELECT m.magazzino_id, m.nome 
+                FROM magazzini m
+                JOIN operatori_magazzini om ON m.magazzino_id = om.magazzino_id
+                WHERE om.user_id = :uid AND (m.categoria_id IS NULL OR m.categoria_id = :mat_cat)
+                ORDER BY m.nome
+            """), {"uid": user.get("id"), "mat_cat": mat_cat}).mappings().all()
         
     template_file = "magazzino_carico.html" if operazione == "carico" else "magazzino_scarico.html"
     return templates.TemplateResponse(r, template_file, {
         "request": r, "cfg": CFG, "user": user, 
         "magazzino": magazzino, "materiale": materiale,
-        "operazione": operazione, "sedi": sedi, "magazzini_dest": magazzini_dest, "oggi": oggi, "posizioni": posizioni, "richiesta": richiesta, "error": error
+        "operazione": operazione, "sedi": sedi, "magazzini_dest": magazzini_dest, "oggi": oggi, "posizioni": posizioni, "richiesta": richiesta, "error": error,
+        "magazzini_abilitati": magazzini_abilitati
     })
 
 @router.post("/magazzino/{magazzino_id}/movimento/{materiale_id}")
@@ -497,7 +515,7 @@ async def magazzino_movimento_action(
             
         if operazione == "scarico" and richiesta_id and str(richiesta_id).isdigit():
             rid = int(richiesta_id)
-            c.execute(text("UPDATE richieste_materiale SET stato = 'evasa' WHERE richiesta_id = :id"), {"id": rid})
+            c.execute(text("UPDATE richieste_materiale SET stato = 'evasa', magazzino_id = :mag_id WHERE richiesta_id = :id"), {"id": rid, "mag_id": magazzino_id})
             richiesta_ticket = c.execute(text("SELECT ticket_id FROM richieste_materiale WHERE richiesta_id = :id"), {"id": rid}).mappings().first()
             if richiesta_ticket and richiesta_ticket["ticket_id"]:
                 autore = f"{user.get('nome','')} {user.get('cognome','')}".strip() or user.get('username')

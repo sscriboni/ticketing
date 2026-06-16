@@ -22,7 +22,17 @@
         <div class="col-12 col-md-8 col-lg-6 mx-auto bg-white p-4 rounded shadow-sm border-top border-danger border-4">
             <div class="mb-4 d-flex align-items-center gap-3">
                 <div>
-                    <strong>Magazzino:</strong> {{ magazzino.nome }}<br>
+                    <strong>Magazzino:</strong>
+                    {% if magazzini_abilitati|length > 1 %}
+                    <select class="form-select form-select-sm d-inline-block w-auto ms-1" onchange="changeWarehouse(this)">
+                        {% for mab in magazzini_abilitati %}
+                        <option value="{{ mab.magazzino_id }}" {% if mab.magazzino_id == magazzino.magazzino_id %}selected{% endif %}>{{ mab.nome }}</option>
+                        {% endfor %}
+                    </select>
+                    {% else %}
+                    {{ magazzino.nome }}
+                    {% endif %}
+                    <br>
                     <strong>Articolo in uscita:</strong> {{ materiale.nome }}<br>
                     <strong>Operatore:</strong> {{ user.nome }} {{ user.cognome }}
                 </div>
@@ -177,6 +187,15 @@
     </div>
 </div>
 <script>
+function changeWarehouse(selectElement) {
+    const newMagId = selectElement.value;
+    if (newMagId) {
+        const urlParams = new URLSearchParams(window.location.search);
+        const newUrl = `/magazzino/${newMagId}/movimento/{{ materiale.materiale_id }}?` + urlParams.toString();
+        window.location.href = newUrl;
+    }
+}
+
 function selectPosizione(nomePos) {
     const posSelect = document.getElementById('posizioneSelect');
     if (posSelect) {
