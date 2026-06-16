@@ -36,6 +36,7 @@ graph TD
 3. **Approvazione e Inserimento**: Se la richiesta è valida, il Supervisore clicca su **"Crea Nuova Richiesta"** direttamente all'interno della scheda di dettaglio del ticket.
 4. **Scelta del Magazzino**: Durante la creazione della richiesta, il Supervisore seleziona la tipologia di materiale e il **magazzino di prelievo** più idoneo (es. Magazzino Alessandria, Magazzino Milano).
 5. **Riassegnazione del Ticket**: Infine, il Supervisore riassegna il ticket al reparto o servizio associato al magazzino designato, in modo che gli operatori di magazzino abilitati ricevano la notifica e prendano in carico l'evasione.
+6. **Chiusura Vincolata del Ticket**: Il ticket non potrà essere chiuso finché rimangono richieste di materiale associate ad esso che non siano state ancora evase o annullate. L'operatore o il magazziniere dovranno quindi evadere o annullare tutte le richieste pendenti per poter procedere alla chiusura del ticket.
 
 ---
 
@@ -48,6 +49,7 @@ L'operatore di magazzino monitora costantemente le richieste in arrivo tramite i
   - Se il materiale richiesto è **disponibile** in giacenza, lo stato della richiesta passa automaticamente a **"Pronta per Scarico"** (evidenziato in giallo).
   - Se il materiale **non è disponibile**, la richiesta rimane nello stato **"In Attesa"** (evidenziato in azzurro) fino al carico di nuova merce.
 * **Tempistica di Evasione**: Il magazziniere può cliccare su **"Esegui Scarico"** per confermare la fornitura del materiale. Questa operazione va eseguita **subito prima o immediatamente dopo** la consegna fisica del bene all'interessato.
+* **Vincolo sulla Chiusura del Ticket**: Poiché la presenza di richieste in sospeso ("In Attesa" o "Pronta per Scarico") impedisce la chiusura del relativo ticket di supporto, l'operatore o il magazziniere devono completare l'evasione (o procedere all'annullamento delle richieste non più necessarie) per consentire la corretta chiusura della segnalazione.
 
 ---
 
@@ -94,7 +96,7 @@ Nel caso in cui sia necessario consegnare contemporaneamente più articoli di ti
 * **Operazione del Supervisore**: Il supervisore inserisce la richiesta per 1x Toner Nero nel ticket, assegnando il prelievo al Magazzino Alessandria.
 * **Operazione del Magazziniere (Richiesta Pendente)**: Il toner è esaurito nel magazzino di Alessandria. La richiesta compare nella lista in stato **"In Attesa"** (non è presente il tasto "Esegui Scarico").
 * **Rifornimento**: Due giorni dopo, arriva il corriere con i nuovi toner. Il magazziniere effettua un **Carico** di 5 toner indicando la posizione `Scaffale B2`.
-* **Evasione**: All'istante, la richiesta associata al ticket passa in stato **"Pronta per Scarico"**. Il magazziniere clicca su "Esegui Scarico", preleva 1 pezzo da `Scaffale B2` e consegna il toner.
+* **Evasione**: All'istante, la richiesta associata al ticket passa in stato **"Pronta per Scarico"**. Il magazziniere clicca su "Esegui Scarico", preleva 1 pezzo da `Scaffale B2` e consegna il toner. Una volta evasa questa richiesta, se non vi sono altri materiali pendenti, il ticket potrà finalmente essere chiuso.
 
 ### 🛠️ Esempio 3: Manutenzione Straordinaria (Scarico Diretto e Trasferimento)
 * **Scenario**: Viene riscontrato che un componente di rete nel Magazzino Centrale deve essere spedito al Magazzino Secondario di Torino per sostituire un pezzo guasto.

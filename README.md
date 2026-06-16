@@ -46,7 +46,7 @@ L'applicativo è strutturato in diversi moduli che coprono l'intero ciclo di vit
 ### 2. Gestione Operativa Ticket (Helpdesk)
 * **Dashboard Ticket:** Elenco interattivo con contatori in tempo reale ("Nuovi", "Presi in carico", "I Miei Ticket", "I Miei Servizi").
 * **Filtri Avanzati:** Ricerca per testo, stato, priorità, reparto, servizio o per ticket che includono richieste di materiali.
-* **Ciclo di vita:** Transizioni di stato tracciate (Nuova ➔ Presa in carico ➔ Chiusa).
+* **Ciclo di vita:** Transizioni di stato tracciate (Nuova ➔ Presa in carico ➔ Chiusa). **Vincolo di chiusura:** un ticket non può essere chiuso se vi sono richieste di materiale associate ancora da evadere (ovvero non ancora nello stato "evasa" o "annullata"). In tal caso, il pulsante di chiusura del ticket viene disabilitato e viene mostrato un avviso che invita ad evadere o annullare le richieste pendenti prima di procedere.
 * **Gestione Note e Allegati:** Log testuale per ogni ticket con indicazione dell'autore e orario. Supporto per **note interne** (visibili solo agli operatori) e possibilità di allegare file in corso d'opera.
 * **Trasferimento e Riassegnazione:** Riassegnazione di un ticket a un altro reparto/servizio con notifica automatica via email ai nuovi operatori incaricati.
 
