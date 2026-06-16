@@ -6,10 +6,11 @@
 {% include 'navbar.html' %}
 <div class="container py-4">
 <div class="mb-3">
-  <h2>Ticket #{{ ticket.ticket_id }}{% if ticket.is_test %} <span class="badge bg-secondary fs-6">TEST</span>{% endif %}</h2><p class="text-muted mb-0">{{ ticket.nome }} {{ ticket.cognome }}</p>
+  <h2>Ticket #{{ ticket.ticket_id }} <span class="badge bg-primary fs-5" style="vertical-align: middle;">Codice: {{ ticket.codice_ticket }}</span>{% if ticket.is_test %} <span class="badge bg-secondary fs-6">TEST</span>{% endif %}</h2><p class="text-muted mb-0">{{ ticket.nome }} {{ ticket.cognome }}</p>
 </div>
 <div class="card mb-4"><div class="card-body">
   <div class="row gy-2">
+    <div class="col-md-4"><strong>Codice Comunicato</strong><br><span class="badge bg-primary fs-6">{{ ticket.codice_ticket }}</span></div>
     <div class="col-md-4"><strong>Riferimento</strong><br>{{ ticket.riferimento or '—' }}</div>
     <div class="col-md-4"><strong>Reparto (Richiedente)</strong><br>{{ ticket.reparto_appartenenza_nome or '—' }}</div>
     <div class="col-md-4"><strong>Sede</strong><br>{{ ticket.sede or '—' }}</div>

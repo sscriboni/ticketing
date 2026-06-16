@@ -1,4 +1,4 @@
-import os, json, csv, io, shutil, uuid, traceback
+import os, json, csv, io, shutil, uuid, traceback, random
 from contextlib import asynccontextmanager
 from datetime import datetime
 from fastapi import FastAPI, Request, Form, UploadFile, File, BackgroundTasks
@@ -455,12 +455,14 @@ def create_ticket(r: Request,
     
     current_year = datetime.now().year
     with engine.begin() as c:
-        max_code_str = c.execute(text("SELECT MAX(codice_ticket) FROM tickets WHERE creato_il LIKE :yp"), {"yp": f"{current_year}-%"}).scalar()
-        if max_code_str and max_code_str.isdigit():
-            next_code = int(max_code_str) + 1
-        else:
-            next_code = 1
-        codice_ticket = f"{next_code:06d}"
+        while True:
+            candidate = f"{random.randint(100000, 999999)}"
+            # Verifica se questo codice esiste già per i ticket creati nell'anno corrente
+            exists = c.execute(text("SELECT COUNT(*) FROM tickets WHERE codice_ticket = :cod AND creato_il LIKE :yp"), 
+                               {"cod": candidate, "yp": f"{current_year}-%"}).scalar()
+            if exists == 0:
+                codice_ticket = candidate
+                break
         
         rep_nome = c.execute(text("SELECT nome FROM reparti WHERE reparto_id = :rid"), {"rid": reparto_id}).scalar()
         serv_desc = "Nessun servizio specifico"
@@ -621,7 +623,7 @@ def tickets(r: Request, reparto_id: str = None, servizio_id: str = None, stato: 
             where_clauses.append("t.priorita = :priorita")
             params["priorita"] = priorita
         if q:
-            where_clauses.append("(t.nome LIKE :q OR t.cognome LIKE :q OR t.descrizione LIKE :q)")
+            where_clauses.append("(t.nome LIKE :q OR t.cognome LIKE :q OR t.descrizione LIKE :q OR t.codice_ticket LIKE :q)")
             params["q"] = f"%{q}%"
         if con_materiale == "1":
             where_clauses.append("EXISTS(SELECT 1 FROM richieste_materiale rm WHERE rm.ticket_id = t.ticket_id AND rm.stato != 'annullata')")
