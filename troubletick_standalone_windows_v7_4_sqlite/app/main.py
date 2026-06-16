@@ -772,6 +772,12 @@ def update_ticket_status(r: Request, ticket_id: int, background_tasks: Backgroun
     user = r.session.get("user")
     with engine.begin() as c:
         if stato == "chiusa":
+            pending_requests = c.execute(text(
+                "SELECT COUNT(*) FROM richieste_materiale WHERE ticket_id = :tid AND stato NOT IN ('evasa', 'annullata')"
+            ), {"tid": ticket_id}).scalar() or 0
+            if pending_requests > 0:
+                return RedirectResponse(url=f"/ticket/{ticket_id}?error=pending_material_requests", status_code=303)
+                
             if not nota_chiusura or not nota_chiusura.strip():
                 return RedirectResponse(url=f"/ticket/{ticket_id}?error=missing_closing_note", status_code=303)
                 

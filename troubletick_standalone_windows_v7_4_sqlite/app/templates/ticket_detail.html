@@ -22,6 +22,13 @@
   <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
 </div>
 {% endif %}
+{% if request.query_params.get('error') == 'pending_material_requests' %}
+<div class="alert alert-danger border-danger shadow-sm mb-3 alert-dismissible fade show" role="alert">
+  <i class="bi bi-exclamation-triangle-fill me-1"></i> 
+  <strong>Errore:</strong> Impossibile chiudere il ticket poiché vi sono richieste di materiale ancora da evadere.
+  <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+</div>
+{% endif %}
 
 {% if ticket.stato == 'nuova' %}
 <div class="alert alert-info border-info shadow-sm mb-3">
@@ -64,10 +71,23 @@
         </button>
     </form>
     {% endif %}
+    {% set ns = namespace(has_pending = false) %}
+    {% for rm in richieste_mat %}
+      {% if rm.stato not in ['evasa', 'annullata'] %}
+        {% set ns.has_pending = true %}
+      {% endif %}
+    {% endfor %}
     {% if ticket.stato != 'chiusa' %}
-    <button type="button" class="btn btn-sm btn-success" data-bs-toggle="modal" data-bs-target="#closeTicketModal">
-        <i class="bi bi-check-circle"></i> Chiudi Ticket
-    </button>
+      {% if ns.has_pending %}
+      <button type="button" class="btn btn-sm btn-success" disabled title="Ci sono richieste di materiale ancora da evadere">
+          <i class="bi bi-check-circle"></i> Chiudi Ticket
+      </button>
+      <span class="text-danger small align-self-center"><i class="bi bi-exclamation-circle-fill"></i> Evadi o annulla le richieste di materiale per poter chiudere il ticket.</span>
+      {% else %}
+      <button type="button" class="btn btn-sm btn-success" data-bs-toggle="modal" data-bs-target="#closeTicketModal">
+          <i class="bi bi-check-circle"></i> Chiudi Ticket
+      </button>
+      {% endif %}
     {% endif %}
     {% if ticket.stato == 'chiusa' %}
     <form method="post" action="/ticket/{{ ticket.ticket_id }}/stato" class="d-inline">
