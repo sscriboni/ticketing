@@ -88,3 +88,13 @@ Il modulo Magazzino permette di gestire in modo centralizzato e tracciabile tutt
 * **Impostazioni Globali:** Modifica del nome dell'azienda e dell'email di supporto (salvati in modo persistente su file JSON).
 * **Sicurezza Login ed Elenco Operatori:** Supporto login tramite *Username* o *Email*. Implementazione di un Log testuale automatico (`failed_logins.log`) per tracciare i tentativi falliti. L'elenco operatori (`/operatori` o `/admin/operatori`) è riservato esclusivamente all'amministratore e traccia per ciascun operatore il timestamp del suo ultimo login (formato italiano) e l'indirizzo IP del client (`ultimo_ip`).
 * **Recupero Password ed Email Transazionali:** Sistema sicuro per la rigenerazione di password dimenticate tramite link temporizzato via email (scadenza 1 ora) e crittografia password (Bcrypt). Notifica asincrona via email anche in caso di abilitazione di un nuovo account da parte dell'Admin.
+
+---
+
+## ⚖️ Licenza d'Uso (EULA)
+
+Il software è distribuito in modalità **Freeware Proprietario** regolato dal contratto di licenza presente nel file [LICENSE.txt](file:///g:/Il%20mio%20Drive/Progetti/ticketing/troubletick_standalone_windows_v7_4_sqlite/LICENSE.txt):
+* **Gratuito:** Libero download e utilizzo per fini personali o interni aziendali.
+* **Proprietario:** Sono vietate la ridistribuzione a fini commerciali, la modifica e la decompilazione del software.
+* **Senza Responsabilità:** Fornito "così com'è" (AS IS) senza alcuna garanzia o responsabilità per danni diretti o indiretti.
+* **Supporto:** Non è incluso alcun servizio di assistenza gratuita. L'autore si riserva il diritto di offrire pacchetti di supporto tecnico o servizi professionali a pagamento in futuro.

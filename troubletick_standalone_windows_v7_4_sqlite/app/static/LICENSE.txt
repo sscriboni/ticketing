@@ -1,0 +1,36 @@
+CONTRATTO DI LICENZA CON L'UTENTE FINALE (EULA)
+SOFTWARE: Troubletick
+AUTORE: Stefano Scriboni - ASL Alessandria
+COPYRIGHT: Copyright (c) 2026 [ASL Alessandria]. Tutti i diritti riservati.
+
+IMPORTANTE – LEGGERE CON ATTENZIONE: Il presente Contratto di Licenza con l'Utente Finale ("EULA") è un accordo legale tra l'utente (persona fisica o giuridica, di seguito "Utente") e il detentore del copyright di Troubletick (di seguito "Autore") per l'utilizzo del software sopra menzionato, inclusi file associati, database sqlite, codice sorgente, documentazione e componenti software correlati (collettivamente, il "Software").
+
+Scaricando, installando, copiando o altrimenti utilizzando il Software, l'Utente accetta di essere vincolato dalle condizioni del presente EULA. Se l'Utente non accetta i termini di questo contratto, non deve scaricare, installare o utilizzare il Software.
+
+1. CONCESSIONE DELLA LICENZA
+Il Software viene concesso in licenza d'uso, non viene venduto. In base ai termini del presente EULA, l'Autore concede all'Utente una licenza limitata, personale, non esclusiva, non trasferibile e gratuita per scaricare, installare ed eseguire il Software su sistemi operativi compatibili per uso personale o interno aziendale.
+
+2. PROPRIETÀ INTELLETTUALE E RESTRIZIONI
+Il Software e tutti i diritti di proprietà intellettuale (inclusi, senza limitazione, diritti d'autore, brevetti e segreti commerciali) sono e rimangono di esclusiva proprietà dell'Autore.
+L'Utente si impegna a non:
+a) Modificare, alterare, adattare, tradurre o creare opere derivate basate sul Software, né decompilare, disassemblare, decodificare o tentare in altro modo di estrarre il codice sorgente del Software (fatta eccezione per le modifiche consentite o necessarie all'anagrafica e ai file di configurazione messi a disposizione per la normale esecuzione).
+b) Rimuovere o alterare qualsiasi avviso di copyright, marchio o indicazione di proprietà presente sul o nel Software.
+c) Vendere, noleggiare, concedere in locazione, ridistribuire a fini commerciali o sublicenziare il Software a terzi senza il preventivo consenso scritto dell'Autore.
+
+3. AGGIORNAMENTI E SUPPORTO TECNICO
+Il Software è fornito gratuitamente. L'Autore non ha alcun obbligo di fornire servizi di supporto tecnico, assistenza, manutenzione o aggiornamenti del Software in forma gratuita.
+L'Autore si riserva espressamente il diritto, a propria esclusiva discrezione, di:
+a) Rilasciare in futuro aggiornamenti o nuove versioni del Software, sia gratuitamente che a pagamento.
+b) Offrire all'Utente servizi di supporto tecnico, assistenza personalizzata, contratti di manutenzione o garanzie sui livelli di servizio (SLA) a pagamento, regolati da un separato accordo commerciale.
+
+4. ESCLUSIONE DI GARANZIA
+NELLA MISURA MASSIMA CONSENTITA DALLE LEGGI VIGENTI, IL SOFTWARE VIENE FORNITO "COSÌ COM'È" ("AS IS") E "COME DISPONIBILE", SENZA GARANZIE DI ALCUN TIPO, SIANO ESSE ESPRESSE O IMPLICITE, INCLUSE, A TITOLO ESEMPLIFICATIVO, GARANZIE IMPLICITE DI COMMERCIABILITÀ, IDONEITÀ A UNO SCOPO SPECIFICO O NON VIOLAZIONE DEI DRIITTI DI TERZI. L'AUTORE NON GARANTISCE CHE IL SOFTWARE SODDISFI LE ESIGENZE DELL'UTENTE O CHE IL SUO FUNZIONAMENTO SIA PRIVO DI ERRORI, INTERRUZIONI O DIFETTI. IL RISCHIO DERIVANTE DALL'USO DEL SOFTWARE RIMANE TOTALMENTE A CARICO DELL'UTENTE.
+
+5. LIMITAZIONE DI RESPONSABILITÀ
+IN NESSUN CASO E SOTTO NESSUNA TEORIA LEGALE (CONTRATTUALE, EXTRACONTRATTUALE O ALTRO) L'AUTORE SARÀ RESPONSABILE NEI CONFRONTI DELL'UTENTE O DI TERZI PER QUALSIASI DANNO DIRETTO, INDIRETTO, SPECIALE, ACCIDENTALE, PUNITIVO O CONSEQUENZIALE DI QUALSIASI TIPO, INCLUSI, A TITOLO ESEMPLIFICATIVO, DANNI PER PERDITA DI AVVIAMENTO, INTERRUZIONE DELL'ATTIVITÀ, MALFUNZIONAMENTO O GUASTO DEI COMPUTER, PERDITA DI INFORMAZIONI O DATI AZIENDALI, O QUALSIASI ALTRA PERDITA COMMERCIALE, ANCHE QUALORA L'AUTORE FOSSE STATO INFORMATO DELLA POSSIBILITÀ DI TALI DANNI.
+
+6. RISOLUZIONE
+Il presente EULA è valido fino alla sua risoluzione. I diritti concessi all'Utente ai sensi della presente licenza cesseranno automaticamente senza preavviso da parte dell'Autore in caso di inadempimento di uno qualsiasi dei termini qui stabiliti. In caso di risoluzione, l'Utente dovrà cessare immediatamente ogni utilizzo del Software e distruggere tutte le copie in suo possesso.
+
+7. LEGGE APPLICABILE E FORO COMPETENTE
+Il presente EULA è regolato e interpretato in conformità con le leggi dello Stato in cui risiede l'Autore. Qualsiasi controversia derivante da o in relazione al presente EULA sarà devoluta alla competenza esclusiva del foro della sede dell'Autore.

@@ -10,6 +10,9 @@
     <div class="col-12">
       <label class="form-label">Descrizione del problema <span class="text-danger">*</span></label>
       <textarea name="descrizione" rows="5" class="form-control" required autofocus></textarea>
+      <div class="form-text text-danger mt-1">
+        <small>⚠️ <strong>Attenzione GDPR:</strong> Non inserire dati sensibili (es. informazioni sanitarie, diagnosi, dati clinici, password o dati personali non necessari) nella descrizione del ticket o nei file allegati.</small>
+      </div>
     </div>
 
     <div class="col-md-6"><label class="form-label">Destinatario <span class="text-danger">*</span></label>
@@ -49,6 +52,7 @@
     </div>
   </div>
   <div class="mt-3">
+    <small class="text-muted d-block mb-2">Inviando il ticket si accetta l'informativa sulla <a href="/static/PRIVACY.md" target="_blank">Privacy Policy</a> e i termini della <a href="/static/LICENSE.txt" target="_blank">Licenza d'Uso (EULA)</a>.</small>
     <button class="btn btn-primary">Invia richiesta</button>
     <a href="/" class="btn btn-outline-secondary">Annulla</a>
   </div>
@@ -58,6 +62,10 @@
 <footer class="bg-dark text-white text-center py-3 mt-auto">
   <div class="container">
     <p class="mb-0 small">{{ cfg.footer_text }}</p>
+    <p class="mb-0 small mt-1">
+      <a href="/static/PRIVACY.md" class="text-white-50 text-decoration-none me-3" target="_blank">Privacy Policy</a>
+      <a href="/static/LICENSE.txt" class="text-white-50 text-decoration-none" target="_blank">Licenza d'Uso (EULA)</a>
+    </p>
   </div>
 </footer>
 <script>
