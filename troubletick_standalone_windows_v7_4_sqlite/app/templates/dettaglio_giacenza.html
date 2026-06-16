@@ -31,6 +31,16 @@
                 <i class="bi bi-exclamation-triangle-fill"></i> <strong>Posizione non valida!</strong><br>
                 La posizione deve contenere almeno 3 caratteri e NON contenere spazi.
             </div>
+            {% elif error == 'quantita_invalida' %}
+            <div class="alert alert-danger mb-4">
+                <i class="bi bi-exclamation-triangle-fill"></i> <strong>Quantità non valida!</strong><br>
+                La quantità da trasferire deve essere maggiore di zero.
+            </div>
+            {% elif error == 'insufficient_stock' %}
+            <div class="alert alert-danger mb-4">
+                <i class="bi bi-exclamation-triangle-fill"></i> <strong>Giacenza insufficiente!</strong><br>
+                La quantità selezionata supera quella disponibile nella posizione di origine.
+            </div>
             {% endif %}
             <h4 class="mb-4">Posizioni a magazzino</h4>
             <div class="table-responsive">
@@ -57,6 +67,7 @@
                                     <strong>{{ pos.posizione_fisica or 'Non specificata' }}</strong>
                                     {% if can_edit and pos.posizione_fisica %}
                                     <a href="#" class="small text-decoration-none ms-2" data-bs-toggle="modal" data-bs-target="#renamePosModal" data-pos="{{ pos.posizione_fisica }}" title="Rinomina Posizione"><i class="bi bi-pencil"></i></a>
+                                    <a href="#" class="small text-decoration-none ms-2 text-warning" data-bs-toggle="modal" data-bs-target="#transferPosModal" data-pos="{{ pos.posizione_fisica }}" data-max="{{ pos.quantita }}" title="Trasferisci Materiale"><i class="bi bi-arrow-left-right"></i></a>
                                     {% endif %}
                                     {% if can_edit %}<br><a href="#" class="small text-decoration-none" data-bs-toggle="modal" data-bs-target="#fotoModal" data-pos="{{ pos.posizione_fisica }}"><i class="bi bi-camera"></i> Carica Foto</a>{% endif %}
                                 </div>
@@ -144,6 +155,44 @@
     </div>
   </div>
 </div>
+
+<div class="modal fade" id="transferPosModal" tabindex="-1" aria-labelledby="transferPosModalLabel" aria-hidden="true">
+  <div class="modal-dialog">
+    <div class="modal-content">
+      <form method="post" action="/magazzino/{{ magazzino.magazzino_id }}/materiale/{{ materiale.materiale_id }}/trasferisci-posizione">
+        <div class="modal-header">
+          <h5 class="modal-title" id="transferPosModalLabel">Trasferisci Materiale tra Posizioni</h5>
+          <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+        </div>
+        <div class="modal-body">
+            <input type="hidden" name="from_posizione" id="modalFromPosizione">
+            <p>Trasferimento di <strong>{{ materiale.nome }}</strong> a partire da posizione: <strong id="modalFromPosizioneText"></strong></p>
+            
+            <div class="mb-3">
+                <label class="form-label fw-bold">Posizione di Destinazione</label>
+                <input type="text" name="to_posizione" id="modalToPosizione" class="form-control" placeholder="Digita o seleziona posizione" required list="existingPositions" minlength="3" pattern="^[^\s]{3,}$" title="La posizione deve essere di almeno 3 caratteri e non contenere spazi.">
+                <datalist id="existingPositions">
+                    {% for p in posizioni %}
+                        <option value="{{ p.posizione_fisica }}">
+                    {% endfor %}
+                </datalist>
+                <small class="text-muted d-block mt-1">Digita una nuova posizione (almeno 3 caratteri, senza spazi) o seleziona una esistente dal menu.</small>
+            </div>
+            
+            <div class="mb-3">
+                <label class="form-label fw-bold">Quantità da Trasferire</label>
+                <input type="number" name="quantita" id="modalTransferQuantita" class="form-control" required min="1" value="1">
+                <small class="text-muted d-block mt-1">Disponibili in questa posizione: <span id="modalMaxQuantitaText" class="badge bg-secondary"></span></small>
+            </div>
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Annulla</button>
+          <button type="submit" class="btn btn-warning"><i class="bi bi-arrow-left-right"></i> Trasferisci</button>
+        </div>
+      </form>
+    </div>
+  </div>
+</div>
 {% endif %}
 
 <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
@@ -172,6 +221,28 @@ document.addEventListener('DOMContentLoaded', function() {
             inputOldPos.value = pos;
             textOldPos.textContent = pos;
             inputNewPos.value = pos;
+        });
+    }
+
+    var transferPosModal = document.getElementById('transferPosModal');
+    if (transferPosModal) {
+        transferPosModal.addEventListener('show.bs.modal', function (event) {
+            var button = event.relatedTarget;
+            var pos = button.getAttribute('data-pos');
+            var maxVal = button.getAttribute('data-max');
+            
+            var inputFromPos = transferPosModal.querySelector('#modalFromPosizione');
+            var textFromPos = transferPosModal.querySelector('#modalFromPosizioneText');
+            var inputQty = transferPosModal.querySelector('#modalTransferQuantita');
+            var textMaxQty = transferPosModal.querySelector('#modalMaxQuantitaText');
+            var inputToPos = transferPosModal.querySelector('#modalToPosizione');
+            
+            inputFromPos.value = pos;
+            textFromPos.textContent = pos;
+            inputQty.value = 1;
+            inputQty.setAttribute('max', maxVal);
+            textMaxQty.textContent = maxVal;
+            inputToPos.value = '';
         });
     }
 });

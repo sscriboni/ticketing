@@ -261,6 +261,72 @@ def magazzino_rinomina_posizione(r: Request, magazzino_id: int, materiale_id: in
             
     return RedirectResponse(url=f"/magazzino/{magazzino_id}/giacenza/{materiale_id}", status_code=303)
 
+@router.post("/magazzino/{magazzino_id}/materiale/{materiale_id}/trasferisci-posizione")
+def magazzino_trasferisci_posizione(
+    r: Request, 
+    magazzino_id: int, 
+    materiale_id: int, 
+    from_posizione: str = Form(...), 
+    to_posizione: str = Form(...), 
+    quantita: int = Form(...)
+):
+    if "user" not in r.session: return RedirectResponse(url="/login")
+    user = r.session.get("user")
+    
+    with engine.begin() as c:
+        can_edit = False
+        if user.get("ruolo") == "admin":
+            can_edit = True
+        elif user.get("ruolo") in ("assistenza", "responsabile"):
+            user_mag_ids = c.execute(text("SELECT magazzino_id FROM operatori_magazzini WHERE user_id = :uid"), {"uid": user.get("id")}).scalars().all()
+            if magazzino_id in user_mag_ids: can_edit = True
+            
+        if not can_edit:
+            return RedirectResponse(url=f"/magazzino/{magazzino_id}/giacenza/{materiale_id}", status_code=303)
+            
+        from_pos_clean = (from_posizione or "").strip()
+        to_pos_clean = (to_posizione or "").strip()
+        
+        if len(to_pos_clean) < 3 or any(c.isspace() for c in to_pos_clean):
+            return RedirectResponse(url=f"/magazzino/{magazzino_id}/giacenza/{materiale_id}?error=posizione_invalida", status_code=303)
+            
+        if quantita <= 0:
+            return RedirectResponse(url=f"/magazzino/{magazzino_id}/giacenza/{materiale_id}?error=quantita_invalida", status_code=303)
+            
+        # Verify quantity available in from_posizione
+        disponibile = c.execute(text("""
+            SELECT SUM(CASE WHEN operazione = 'carico' THEN quantita ELSE -quantita END) as quantita
+            FROM movimenti_magazzino
+            WHERE magazzino_id = :mag AND materiale_id = :mat AND posizione_fisica = :pos
+            GROUP BY posizione_fisica
+        """), {"mag": magazzino_id, "mat": materiale_id, "pos": from_pos_clean}).scalar() or 0
+        
+        if quantita > disponibile:
+            return RedirectResponse(url=f"/magazzino/{magazzino_id}/giacenza/{materiale_id}?error=insufficient_stock", status_code=303)
+            
+        from datetime import date
+        oggi = date.today().isoformat()
+        
+        # 1. Scarico from the source position
+        c.execute(text("""
+            INSERT INTO movimenti_magazzino (magazzino_id, materiale_id, user_id, operazione, quantita, data_movimento, descrizione, posizione_fisica)
+            VALUES (:mag, :mat, :uid, 'scarico', :q, :dt, :desc, :pos)
+        """), {
+            "mag": magazzino_id, "mat": materiale_id, "uid": user["id"], "q": quantita, "dt": oggi,
+            "desc": f"Trasferimento interno verso posizione {to_pos_clean}", "pos": from_pos_clean
+        })
+        
+        # 2. Carico to the destination position
+        c.execute(text("""
+            INSERT INTO movimenti_magazzino (magazzino_id, materiale_id, user_id, operazione, quantita, data_movimento, descrizione, posizione_fisica)
+            VALUES (:mag, :mat, :uid, 'carico', :q, :dt, :desc, :pos)
+        """), {
+            "mag": magazzino_id, "mat": materiale_id, "uid": user["id"], "q": quantita, "dt": oggi,
+            "desc": f"Trasferimento interno da posizione {from_pos_clean}", "pos": to_pos_clean
+        })
+        
+    return RedirectResponse(url=f"/magazzino/{magazzino_id}/giacenza/{materiale_id}", status_code=303)
+
 @router.get("/magazzino/{magazzino_id}/movimento/{materiale_id}", response_class=HTMLResponse)
 def magazzino_movimento_form(r: Request, magazzino_id: int, materiale_id: int, operazione: str, richiesta_id: int = None, error: str = None):
     if "user" not in r.session: return RedirectResponse(url="/login")
