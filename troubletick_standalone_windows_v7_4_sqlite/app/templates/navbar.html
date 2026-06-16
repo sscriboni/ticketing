@@ -62,7 +62,17 @@
           </a>
         </li>
         {% endif %}
-        <li class="nav-item"><a class="nav-link {% if request.url.path.startswith('/documentazione') %}active fw-bold{% endif %}" href="/documentazione"><i class="bi bi-book"></i> Documentazione</a></li>
+        <li class="nav-item dropdown">
+          <a class="nav-link dropdown-toggle {% if request.url.path.startswith('/documentazione') %}active fw-bold{% endif %}" href="#" id="docDropdown" role="button" data-bs-toggle="dropdown" aria-expanded="false">
+            <i class="bi bi-book"></i> Documentazione
+          </a>
+          <ul class="dropdown-menu shadow" aria-labelledby="docDropdown">
+            <li><a class="dropdown-item" href="/documentazione">Guida Generale</a></li>
+            <li><a class="dropdown-item" href="/documentazione/magazzino">Guida Magazzino</a></li>
+            <li><hr class="dropdown-divider"></li>
+            <li><a class="dropdown-item" href="/documentazione/privacy">Privacy Policy</a></li>
+          </ul>
+        </li>
         
         {% if user.ruolo in ('admin', 'responsabile') %}
         <li class="nav-item dropdown">
