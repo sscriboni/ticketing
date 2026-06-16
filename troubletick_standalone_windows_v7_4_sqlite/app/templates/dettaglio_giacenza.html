@@ -99,6 +99,36 @@
                 <a href="/magazzino/{{ magazzino.magazzino_id }}/log" class="btn btn-info text-white"><i class="bi bi-list-ul"></i> Log</a>
             </div>
             {% endif %}
+
+            <!-- Detailed Help Card -->
+            <div class="card mt-4 border-light shadow-sm">
+                <div class="card-body">
+                    <h5 class="card-title text-secondary d-flex align-items-center gap-2">
+                        <i class="bi bi-question-circle-fill text-primary"></i> Guida Rapida alla Gestione della Giacenza
+                    </h5>
+                    <p class="card-text small text-muted">
+                        In questa pagina puoi monitorare e gestire i materiali stoccati nelle diverse aree fisiche del magazzino.
+                    </p>
+                    <div class="row small text-muted mt-3">
+                        <div class="col-md-6 mb-3">
+                            <h6 class="fw-bold text-dark mb-1"><i class="bi bi-plus-circle text-success"></i> Carico &amp; <i class="bi bi-dash-circle text-danger"></i> Scarico</h6>
+                            Utilizza i pulsanti in calce per registrare l'ingresso di nuovi materiali (Carico) o l'uscita/assegnazione ad una sede (Scarico).
+                        </div>
+                        <div class="col-md-6 mb-3">
+                            <h6 class="fw-bold text-dark mb-1"><i class="bi bi-arrow-left-right text-warning"></i> Trasferimento Posizione</h6>
+                            Sposta quantità di materiale da una posizione all'altra (es. da un lotto/scaffale all'altro) all'interno dello stesso magazzino senza alterare il totale complessivo.
+                        </div>
+                        <div class="col-md-6 mb-3">
+                            <h6 class="fw-bold text-dark mb-1"><i class="bi bi-pencil text-primary"></i> Rinomina Posizione</h6>
+                            Modifica il nome di un'area fisica o lotto di stoccaggio. Questa operazione aggiornerà retroattivamente la posizione per tutti i movimenti passati associati a questo specifico articolo.
+                        </div>
+                        <div class="col-md-6 mb-3">
+                            <h6 class="fw-bold text-dark mb-1"><i class="bi bi-camera text-info"></i> Carica Foto</h6>
+                            Associa un'immagine (es. foto dello scaffale, codice a barre o etichetta del lotto) a una specifica area di stoccaggio per facilitarne l'individuazione visiva.
+                        </div>
+                    </div>
+                </div>
+            </div>
         </div>
     </div>
 </div>
