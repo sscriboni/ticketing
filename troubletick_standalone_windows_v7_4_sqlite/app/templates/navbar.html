@@ -46,7 +46,7 @@
             <i class="bi bi-people"></i> Operatori
             {% set cnt_ops = get_operators_count(user) %}
             {% if cnt_ops > 0 %}
-            <span class="badge bg-secondary rounded-pill ms-1">{{ cnt_ops }}</span>
+            <span class="badge bg-warning text-dark rounded-pill ms-1" title="Richieste di attivazione in attesa">{{ cnt_ops }}</span>
             {% endif %}
           </a>
         </li>
