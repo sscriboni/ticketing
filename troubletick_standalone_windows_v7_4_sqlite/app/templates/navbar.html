@@ -28,10 +28,21 @@
         <li class="nav-item dropdown">
           <a class="nav-link dropdown-toggle {% if request.url.path.startswith('/magazzini') or request.url.path.startswith('/magazzino/') or request.url.path.startswith('/trasferimenti') or request.url.path.startswith('/stampa-consegna') or request.url.path.startswith('/richieste-materiale') or request.url.path.startswith('/richiesta-materiale') or request.url.path.startswith('/log-magazzini') %}active fw-bold{% endif %}" href="#" id="magazzinoDropdown" role="button" data-bs-toggle="dropdown" aria-expanded="false">
             <i class="bi bi-boxes"></i> Magazzino
+            {% set cnt_reqs = get_pending_requests_count(user) %}
+            {% if cnt_reqs > 0 %}
+            <span class="badge bg-danger rounded-pill ms-1">{{ cnt_reqs }}</span>
+            {% endif %}
           </a>
           <ul class="dropdown-menu shadow" aria-labelledby="magazzinoDropdown">
             <li><a class="dropdown-item" href="/magazzini">Inventario</a></li>
-            <li><a class="dropdown-item" href="/richieste-materiale">Richieste Materiale</a></li>
+            <li>
+              <a class="dropdown-item d-flex justify-content-between align-items-center" href="/richieste-materiale">
+                <span>Richieste Materiale</span>
+                {% if cnt_reqs > 0 %}
+                <span class="badge bg-danger rounded-pill ms-2">{{ cnt_reqs }}</span>
+                {% endif %}
+              </a>
+            </li>
             <li><a class="dropdown-item" href="/trasferimenti">Trasferimenti tra Magazzini</a></li>
             <li><a class="dropdown-item" href="/log-magazzini">Log Magazzini</a></li>
           </ul>

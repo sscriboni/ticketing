@@ -100,7 +100,14 @@
             <span class="badge bg-secondary me-2">{{ rm.quantita }}x</span> <strong>{{ rm.materiale_nome }}</strong><br>
             <small class="text-muted">Sede: {{ rm.sede_nome }} | Mag: {{ rm.magazzino_nome or 'Nessuno' }}</small>
           </div>
-          <span class="badge bg-{% if rm.stato == 'evasa' %}success{% elif rm.stato == 'pronta_per_scarico' %}warning text-dark{% elif rm.stato == 'annullata' %}danger{% else %}info{% endif %}">{{ rm.stato|replace('_', ' ')|title }}</span>
+          <div class="d-flex align-items-center gap-2">
+            <span class="badge bg-{% if rm.stato == 'evasa' %}success{% elif rm.stato == 'pronta_per_scarico' %}warning text-dark{% elif rm.stato == 'annullata' %}danger{% else %}info{% endif %}">{{ rm.stato|replace('_', ' ')|title }}</span>
+            {% if rm.stato in ['nuova', 'pronta_per_scarico'] and (user.ruolo == 'admin' or user.id == rm.user_id) %}
+            <form action="/richiesta-materiale/{{ rm.richiesta_id }}/annulla" method="post" class="d-inline mb-0" onsubmit="return confirm('Sei sicuro di voler annullare questa richiesta?')">
+                <button type="submit" class="btn btn-sm btn-outline-danger py-0 px-1" title="Annulla Richiesta"><i class="bi bi-x-circle" style="font-size: 0.85rem;"></i></button>
+            </form>
+            {% endif %}
+          </div>
         </li>
         {% endfor %}
       </ul>

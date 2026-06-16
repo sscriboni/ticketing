@@ -369,6 +369,27 @@ def get_operators_count(user):
 
 templates.env.globals["get_operators_count"] = get_operators_count
 
+def get_pending_requests_count(user):
+    if not user or user.get("ruolo") == "normale":
+        return 0
+    try:
+        with engine.connect() as c:
+            uid = user.get("id")
+            if user.get("ruolo") == "admin":
+                return c.execute(text("SELECT COUNT(*) FROM richieste_materiale WHERE stato NOT IN ('evasa', 'annullata')")).scalar() or 0
+            else:
+                user_mag_ids = c.execute(text("SELECT magazzino_id FROM operatori_magazzini WHERE user_id = :uid"), {"uid": uid}).scalars().all()
+                if not user_mag_ids:
+                    return 0
+                from sqlalchemy import bindparam
+                stmt = text("SELECT COUNT(*) FROM richieste_materiale WHERE stato NOT IN ('evasa', 'annullata') AND magazzino_id IN :mids").bindparams(bindparam("mids", expanding=True))
+                return c.execute(stmt, {"mids": list(user_mag_ids)}).scalar() or 0
+    except Exception:
+        pass
+    return 0
+
+templates.env.globals["get_pending_requests_count"] = get_pending_requests_count
+
 @app.exception_handler(Exception)
 async def global_exception_handler(request: Request, exc: Exception):
     now = datetime.now().strftime("%Y-%m-%d %H:%M:%S")

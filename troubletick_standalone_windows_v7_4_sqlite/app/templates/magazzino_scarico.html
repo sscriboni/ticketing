@@ -90,22 +90,39 @@
                 <div class="row mb-3">
                     <div class="col-md-6">
                         <label class="form-label fw-bold">Sede di destinazione</label>
+                        {% if richiesta %}
+                        <select class="form-select" disabled>
+                            {% for sede in sedi %}
+                            {% if richiesta.sede_dest_id == sede.sede_id %}
+                            <option value="{{ sede.sede_id }}" selected>{{ sede.nome }}</option>
+                            {% endif %}
+                            {% endfor %}
+                        </select>
+                        <input type="hidden" name="sede_assegnazione_id" value="{{ richiesta.sede_dest_id }}">
+                        {% else %}
                         <select name="sede_assegnazione_id" class="form-select">
                             <option value="">-- Nessuna / Uso generico --</option>
                             {% for sede in sedi %}
-                            <option value="{{ sede.sede_id }}" {% if richiesta and richiesta.sede_dest_id == sede.sede_id %}selected{% endif %}>{{ sede.nome }}</option>
+                            <option value="{{ sede.sede_id }}">{{ sede.nome }}</option>
                             {% endfor %}
                         </select>
+                        {% endif %}
                         <small class="text-muted">Assegna ad una sede aziendale.</small>
                     </div>
                     <div class="col-md-6">
                         <label class="form-label fw-bold text-primary">OPPURE Trasferisci a Magazzino</label>
+                        {% if richiesta %}
+                        <select name="magazzino_destinazione_id" class="form-select border-primary" disabled>
+                            <option value="" selected>-- Trasferimento disabilitato per richiesta materiale --</option>
+                        </select>
+                        {% else %}
                         <select name="magazzino_destinazione_id" class="form-select border-primary">
                             <option value="">-- Nessun trasferimento --</option>
                             {% for md in magazzini_dest %}
                             <option value="{{ md.magazzino_id }}">{{ md.nome }}</option>
                             {% endfor %}
                         </select>
+                        {% endif %}
                         <small class="text-primary">Invia la merce in un altro magazzino (richiederà conferma di ricezione).</small>
                     </div>
                 </div>

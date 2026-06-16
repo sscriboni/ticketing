@@ -432,6 +432,14 @@ async def magazzino_movimento_action(
     allegato_filename = save_upload(allegato)
 
     with engine.begin() as c:
+        if operazione == "scarico" and richiesta_id and str(richiesta_id).isdigit():
+            rid = int(richiesta_id)
+            richiesta = c.execute(text("SELECT * FROM richieste_materiale WHERE richiesta_id = :id"), {"id": rid}).mappings().first()
+            if richiesta:
+                quantita = richiesta["quantita"]
+                sede_assegnazione_id = str(richiesta["sede_dest_id"])
+                magazzino_destinazione_id = None
+
         can_edit = False
         if user.get("ruolo") == "admin":
             can_edit = True
@@ -771,12 +779,12 @@ def richieste_materiale_list(r: Request):
         if user.get("ruolo") != "admin":
             user_mag_ids = c.execute(text("SELECT magazzino_id FROM operatori_magazzini WHERE user_id = :uid"), {"uid": user.get("id")}).scalars().all()
             if user_mag_ids:
-                where_clause = "(rm.magazzino_id IN :mids OR rm.user_id = :uid)"
-                params = {"mids": list(user_mag_ids), "uid": user["id"]}
+                where_clause = "rm.magazzino_id IN :mids"
+                params = {"mids": list(user_mag_ids)}
                 use_expanding = True
             else:
-                where_clause = "rm.user_id = :uid"
-                params = {"uid": user["id"]}
+                where_clause = "1=0"
+                params = {}
                 
         stmt = text(f"""
             SELECT rm.*, m.nome as materiale_nome, c.nome as categoria_nome, s.nome as sede_nome, mag.nome as magazzino_nome,
@@ -803,7 +811,14 @@ def nuova_richiesta_materiale_form(r: Request, ticket_id: str = None):
     if "user" not in r.session: return RedirectResponse(url="/login")
     user = r.session.get("user")
     
+    if not ticket_id or not str(ticket_id).isdigit():
+        return RedirectResponse(url="/richieste-materiale")
+        
     with engine.connect() as c:
+        ticket = c.execute(text("SELECT ticket_id FROM tickets WHERE ticket_id = :id"), {"id": int(ticket_id)}).mappings().first()
+        if not ticket:
+            return RedirectResponse(url="/richieste-materiale")
+            
         sedi = c.execute(text("SELECT sede_id, nome FROM sedi ORDER BY nome")).mappings().all()
         categorie = c.execute(text("SELECT categoria_id, nome FROM categorie ORDER BY nome")).mappings().all()
         materiali = c.execute(text("SELECT materiale_id, nome, categoria_id FROM materiali ORDER BY nome")).mappings().all()
@@ -829,9 +844,16 @@ def nuova_richiesta_materiale_action(r: Request, sede_dest_id: int = Form(...), 
     user = r.session.get("user")
     
     ticket_id_val = int(ticket_id) if ticket_id and str(ticket_id).isdigit() else None
+    if not ticket_id_val:
+        return RedirectResponse(url="/richieste-materiale", status_code=303)
+        
     magazzino_id_val = int(magazzino_id) if magazzino_id and str(magazzino_id).isdigit() else None
     
     with engine.begin() as c:
+        ticket = c.execute(text("SELECT ticket_id FROM tickets WHERE ticket_id = :id"), {"id": ticket_id_val}).mappings().first()
+        if not ticket:
+            return RedirectResponse(url="/richieste-materiale", status_code=303)
+            
         stato = 'nuova'
         if magazzino_id_val:
             giacenza = c.execute(text("SELECT quantita FROM giacenze WHERE magazzino_id = :mag AND materiale_id = :mat"),
@@ -884,6 +906,7 @@ def annulla_richiesta_action(r: Request, richiesta_id: int):
             testo = f"Richiesta materiale annullata: {richiesta['quantita']}x {mat_nome}."
             c.execute(text("""INSERT INTO ticket_notes (ticket_id, autore, testo, is_internal) VALUES (:tid, :a, :t, 0)"""),
                      {"tid": richiesta["ticket_id"], "a": f"Sistema ({autore})", "t": testo})
+            return RedirectResponse(url=f"/ticket/{richiesta['ticket_id']}", status_code=303)
 
     return RedirectResponse(url="/richieste-materiale", status_code=303)
 

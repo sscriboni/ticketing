@@ -7,9 +7,6 @@
 <div class="container py-4">
 <div class="d-flex justify-content-between align-items-center mb-3">
   <h2 class="mb-0">Richieste Materiale</h2>
-  <div class="text-end">
-    <a href="/richiesta-materiale/nuova" class="btn btn-primary btn-sm"><i class="bi bi-plus-lg"></i> Nuova Richiesta</a>
-  </div>
 </div>
 
 <div class="bg-white rounded shadow-sm overflow-hidden">
@@ -53,11 +50,7 @@
             {% elif r.stato in ['evasa', 'annullata'] %}
                 <span class="text-muted small">—</span>
             {% endif %}
-            {% if r.stato in ['nuova', 'pronta_per_scarico'] and (user.ruolo == 'admin' or user.id == r.user_id) %}
-            <form action="/richiesta-materiale/{{ r.richiesta_id }}/annulla" method="post" class="d-inline" onsubmit="return confirm('Sei sicuro di voler annullare questa richiesta?')">
-                <button type="submit" class="btn btn-sm btn-outline-danger" title="Annulla Richiesta"><i class="bi bi-x-circle"></i></button>
-            </form>
-            {% endif %}
+
         </div>
       </td>
     </tr>
