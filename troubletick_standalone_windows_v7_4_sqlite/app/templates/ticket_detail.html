@@ -50,12 +50,9 @@
     </form>
     {% endif %}
     {% if ticket.stato != 'chiusa' %}
-    <form method="post" action="/ticket/{{ ticket.ticket_id }}/stato" class="d-inline">
-        <input type="hidden" name="stato" value="chiusa">
-        <button type="submit" class="btn btn-sm btn-success">
-            <i class="bi bi-check-circle"></i> Chiudi Ticket
-        </button>
-    </form>
+    <button type="button" class="btn btn-sm btn-success" data-bs-toggle="modal" data-bs-target="#closeTicketModal">
+        <i class="bi bi-check-circle"></i> Chiudi Ticket
+    </button>
     {% endif %}
     {% if ticket.stato == 'chiusa' %}
     <form method="post" action="/ticket/{{ ticket.ticket_id }}/stato" class="d-inline">
@@ -83,6 +80,13 @@
         <div class="list-group-item">
           <div class="d-flex justify-content-between align-items-start">
             <div><strong>{{ note.autore or 'Operatore' }}</strong><br><small>{{ note.creato_il }}</small></div>
+            <div>
+              {% if note.is_internal %}
+              <span class="badge bg-warning text-dark" title="Visibile solo agli operatori"><i class="bi bi-lock-fill"></i> Privata</span>
+              {% else %}
+              <span class="badge bg-success" title="Visibile all'utente"><i class="bi bi-globe"></i> Pubblica</span>
+              {% endif %}
+            </div>
           </div>
           <p class="mb-0 mt-2">{{ note.testo }}</p>
           {% if note.allegato %}
@@ -103,6 +107,13 @@
       <h5 class="card-title">Aggiungi nota</h5>
       <form method="post" action="/ticket/{{ ticket.ticket_id }}/note" enctype="multipart/form-data">
         <div class="mb-3"><label class="form-label">Testo nota</label><textarea name="testo" rows="4" class="form-control" required></textarea></div>
+        <div class="mb-3">
+          <label class="form-label">Visibilità Nota</label>
+          <select name="is_internal" class="form-select">
+            <option value="1" selected>Privata (Solo Operatori)</option>
+            <option value="0">Pubblica (Visibile all'Utente)</option>
+          </select>
+        </div>
         <div class="mb-3">
           <label class="form-label">Allegato (opzionale)</label>
           <input type="file" name="allegato" class="form-control">

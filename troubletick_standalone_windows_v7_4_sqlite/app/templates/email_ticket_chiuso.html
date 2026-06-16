@@ -13,7 +13,14 @@
         <p>Ciao <strong>{{ nome }}</strong>,<br>
         ti informiamo che la tua segnalazione <strong>#{{ codice_ticket }}</strong> è stata contrassegnata come risolta e chiusa dall'operatore <strong>{{ autore }}</strong>.</p>
         
-        <p style="margin-bottom: 0;">Puoi controllare le note finali in qualsiasi momento inserendo il tuo codice dal portale di stato.</p>
+        {% if nota_chiusura %}
+        <p><strong>Nota di chiusura:</strong></p>
+        <blockquote style="background-color: #ffffff; border-left: 4px solid #198754; padding: 10px 15px; margin: 10px 0; font-style: italic; border-radius: 4px;">
+            {{ nota_chiusura }}
+        </blockquote>
+        {% endif %}
+        
+        <p style="margin-bottom: 0;">Puoi controllare lo storico completo in qualsiasi momento inserendo il tuo codice dal portale di stato.</p>
     </div>
     <div style="text-align: center; margin-top: 20px; font-size: 0.8em; color: #6c757d;">
         <p>{{ cfg.footer_text }}</p>

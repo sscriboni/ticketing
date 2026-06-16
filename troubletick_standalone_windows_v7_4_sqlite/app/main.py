@@ -767,10 +767,14 @@ def add_ticket_note(r: Request, ticket_id: int, testo: str = Form(...), allegato
     return RedirectResponse(url=f"/ticket/{ticket_id}", status_code=303)
 
 @app.post("/ticket/{ticket_id}/stato")
-def update_ticket_status(r: Request, ticket_id: int, background_tasks: BackgroundTasks, stato: str = Form(...)):
+def update_ticket_status(r: Request, ticket_id: int, background_tasks: BackgroundTasks, stato: str = Form(...), nota_chiusura: str = Form(None)):
     if "user" not in r.session: return RedirectResponse(url="/login")
     user = r.session.get("user")
     with engine.begin() as c:
+        if stato == "chiusa":
+            if not nota_chiusura or not nota_chiusura.strip():
+                return RedirectResponse(url=f"/ticket/{ticket_id}?error=missing_closing_note", status_code=303)
+                
         c.execute(text("UPDATE tickets SET stato = :stato WHERE ticket_id = :id"), {"stato": stato, "id": ticket_id})
         
         autore = f"{user.get('nome','')} {user.get('cognome','')}".strip() or user.get('username')
@@ -780,6 +784,10 @@ def update_ticket_status(r: Request, ticket_id: int, background_tasks: Backgroun
                  {"tid": ticket_id, "a": f"Sistema ({autore})", "t": testo})
                  
         if stato == "chiusa":
+            # Inserisce la nota pubblica di chiusura dell'operatore
+            c.execute(text("""INSERT INTO ticket_notes (ticket_id, autore, testo, is_internal) VALUES (:tid, :a, :t, 0)"""),
+                     {"tid": ticket_id, "a": autore, "t": nota_chiusura.strip()})
+                     
             ticket = c.execute(text("SELECT codice_ticket, nome, email FROM tickets WHERE ticket_id = :id"), {"id": ticket_id}).mappings().first()
             if ticket and ticket["email"]:
                 subject = f"[{CFG.get('company_name', 'Helpdesk')}] Ticket #{ticket['codice_ticket']} Chiuso"
@@ -787,7 +795,8 @@ def update_ticket_status(r: Request, ticket_id: int, background_tasks: Backgroun
                     "cfg": CFG,
                     "nome": ticket["nome"],
                     "codice_ticket": ticket["codice_ticket"],
-                    "autore": autore
+                    "autore": autore,
+                    "nota_chiusura": nota_chiusura.strip()
                 })
                 background_tasks.add_task(send_email_async, ticket["email"], subject, body)
     return RedirectResponse(url=f"/ticket/{ticket_id}", status_code=303)
