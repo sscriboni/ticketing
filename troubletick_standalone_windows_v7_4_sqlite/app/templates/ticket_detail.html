@@ -8,6 +8,21 @@
 <div class="mb-3">
   <h2>Ticket #{{ ticket.ticket_id }} <span class="badge bg-primary fs-5" style="vertical-align: middle;">Codice: {{ ticket.codice_ticket }}</span>{% if ticket.is_test %} <span class="badge bg-secondary fs-6">TEST</span>{% endif %}</h2><p class="text-muted mb-0">{{ ticket.nome }} {{ ticket.cognome }}</p>
 </div>
+{% if request.query_params.get('error') == 'missing_closing_note' %}
+<div class="alert alert-danger border-danger shadow-sm mb-3 alert-dismissible fade show" role="alert">
+  <i class="bi bi-exclamation-triangle-fill me-1"></i> 
+  <strong>Errore:</strong> La nota di chiusura è obbligatoria per poter chiudere il ticket.
+  <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+</div>
+{% endif %}
+{% if request.query_params.get('error') == 'cannot_delete_open_ticket' %}
+<div class="alert alert-danger border-danger shadow-sm mb-3 alert-dismissible fade show" role="alert">
+  <i class="bi bi-exclamation-triangle-fill me-1"></i> 
+  <strong>Errore:</strong> Impossibile eliminare un ticket non ancora chiuso.
+  <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+</div>
+{% endif %}
+
 {% if ticket.stato == 'nuova' %}
 <div class="alert alert-info border-info shadow-sm mb-3">
   <i class="bi bi-info-circle-fill me-1"></i> 
@@ -62,7 +77,7 @@
         </button>
     </form>
     {% endif %}
-    {% if user and user.ruolo == 'admin' %}
+    {% if user and user.ruolo == 'admin' and ticket.stato == 'chiusa' %}
     <form action="/ticket/{{ ticket.ticket_id }}/delete" method="POST" class="d-inline" onsubmit="return confirm('⚠️ Sei sicuro di voler eliminare definitivamente questo ticket? L\'azione è irreversibile e cancellerà anche tutte le note e gli allegati.');">
         <button type="submit" class="btn btn-danger btn-sm">Elimina Ticket</button>
     </form>
@@ -222,4 +237,37 @@ document.addEventListener('DOMContentLoaded', function() {
     }
 });
 </script>
+
+<!-- Modal per Chiudere il Ticket con Nota Pubblica Obbligatoria -->
+<div class="modal fade" id="closeTicketModal" data-bs-backdrop="static" data-bs-keyboard="false" tabindex="-1" aria-labelledby="closeTicketModalLabel" aria-hidden="true">
+  <div class="modal-dialog modal-dialog-centered">
+    <div class="modal-content border-0 shadow">
+      <div class="modal-header bg-success text-white">
+        <h5 class="modal-title fw-bold" id="closeTicketModalLabel">
+          <i class="bi bi-check-circle-fill me-2"></i>Chiudi Ticket #{{ ticket.ticket_id }}
+        </h5>
+        <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
+      </div>
+      <form method="post" action="/ticket/{{ ticket.ticket_id }}/stato">
+        <input type="hidden" name="stato" value="chiusa">
+        <div class="modal-body">
+          <div class="alert alert-info py-2 px-3 small mb-3">
+            <i class="bi bi-info-circle-fill me-1"></i> La nota inserita qui sotto sarà salvata come <strong>nota pubblica</strong>. Verrà visualizzata dall'utente nel portale e inviata via email.
+          </div>
+          <div class="mb-3">
+            <label for="notaChiusura" class="form-label fw-semibold">Nota di chiusura (Pubblica) <span class="text-danger">*</span></label>
+            <textarea id="notaChiusura" name="nota_chiusura" class="form-control" rows="4" placeholder="Descrivi brevemente la soluzione fornita all'utente per chiudere questa richiesta..." required></textarea>
+          </div>
+        </div>
+        <div class="modal-footer bg-light border-0">
+          <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Annulla</button>
+          <button type="submit" class="btn btn-success fw-semibold">
+            <i class="bi bi-check-circle-fill me-1"></i> Conferma e Chiudi Ticket
+          </button>
+        </div>
+      </form>
+    </div>
+  </div>
+</div>
+
 </body></html>

@@ -858,7 +858,12 @@ def delete_ticket(r: Request, ticket_id: int):
         
     # Cancellazione file allegati dal disco
     with engine.connect() as c:
-        ticket = c.execute(text("SELECT allegato FROM tickets WHERE ticket_id = :id"), {"id": ticket_id}).mappings().first()
+        ticket = c.execute(text("SELECT stato, allegato FROM tickets WHERE ticket_id = :id"), {"id": ticket_id}).mappings().first()
+        if not ticket:
+            return RedirectResponse(url="/tickets", status_code=303)
+        if ticket["stato"] != "chiusa":
+            return RedirectResponse(url=f"/ticket/{ticket_id}?error=cannot_delete_open_ticket", status_code=303)
+            
         notes = c.execute(text("SELECT allegato FROM ticket_notes WHERE ticket_id = :id"), {"id": ticket_id}).mappings().all()
         
         files_to_delete = [n["allegato"] for n in notes if n["allegato"]]
