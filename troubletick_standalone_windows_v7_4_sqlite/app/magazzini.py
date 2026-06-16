@@ -1,7 +1,7 @@
 import os
 from datetime import datetime
 from typing import List
-from fastapi import APIRouter, Request, Form, UploadFile, File
+from fastapi import APIRouter, Request, Form, UploadFile, File, Query
 from fastapi.responses import HTMLResponse, RedirectResponse
 from sqlalchemy import text
 
@@ -96,7 +96,7 @@ def svuota_magazzino(r: Request, magazzino_id: int = Form(...)):
 # ===== GESTIONE MAGAZZINI LATO UTENTE =====
 
 @router.get("/magazzini", response_class=HTMLResponse)
-def user_magazzini_list(r: Request, magazzino_id: str = None, sede_id: str = None, q: str = None, solo_positive: str = None):
+def user_magazzini_list(r: Request, magazzino_id: List[str] = Query(None), sede_id: str = None, q: str = None, solo_positive: str = None):
     if "user" not in r.session: return RedirectResponse(url="/login")
     user = r.session.get("user")
     
@@ -110,9 +110,11 @@ def user_magazzini_list(r: Request, magazzino_id: str = None, sede_id: str = Non
         where_clauses = []
         params = {}
         
-        if magazzino_id and magazzino_id.isdigit():
-            where_clauses.append("m.magazzino_id = :mag_id")
-            params["mag_id"] = int(magazzino_id)
+        if magazzino_id:
+            mag_ids = [int(m) for m in magazzino_id if str(m).isdigit()]
+            if mag_ids:
+                where_clauses.append("m.magazzino_id IN :mag_ids")
+                params["mag_ids"] = mag_ids
         if sede_id and sede_id.isdigit():
             where_clauses.append("m.sede_id = :sede_id")
             params["sede_id"] = int(sede_id)
@@ -124,7 +126,7 @@ def user_magazzini_list(r: Request, magazzino_id: str = None, sede_id: str = Non
 
         where_sql = ("WHERE " + " AND ".join(where_clauses)) if where_clauses else ""
 
-        rows = c.execute(text(f"""
+        stmt = text(f"""
             SELECT m.magazzino_id, m.nome AS magazzino_nome, s.nome AS sede_nome,
                    mat.materiale_id, mat.nome AS materiale_nome, c.nome AS categoria_nome,
                    COALESCE(g.quantita, 0) AS quantita
@@ -135,7 +137,13 @@ def user_magazzini_list(r: Request, magazzino_id: str = None, sede_id: str = Non
             LEFT JOIN sedi s ON m.sede_id = s.sede_id
             {where_sql}
             ORDER BY m.nome, c.nome, mat.nome
-        """), params).mappings().all()
+        """)
+        
+        if "mag_ids" in params:
+            from sqlalchemy import bindparam
+            stmt = stmt.bindparams(bindparam("mag_ids", expanding=True))
+
+        rows = c.execute(stmt, params).mappings().all()
 
         magazzini_list = c.execute(text("SELECT magazzino_id, nome FROM magazzini ORDER BY nome")).mappings().all()
         sedi_list = c.execute(text("SELECT sede_id, nome FROM sedi ORDER BY nome")).mappings().all()
@@ -154,7 +162,7 @@ def user_magazzini_list(r: Request, magazzino_id: str = None, sede_id: str = Non
     return templates.TemplateResponse(r, "magazzini.html", {
         "request": r, "cfg": CFG, "user": user, 
         "righe": rows, "magazzini": magazzini_list, "sedi": sedi_list,
-        "filtri": {"magazzino_id": magazzino_id, "sede_id": sede_id, "q": q, "solo_positive": solo_positive},
+        "filtri": {"magazzino_id": magazzino_id or [], "sede_id": sede_id, "q": q, "solo_positive": solo_positive},
         "user_mag_ids": user_mag_ids, "count_in_arrivo": count_in_arrivo
     })
 

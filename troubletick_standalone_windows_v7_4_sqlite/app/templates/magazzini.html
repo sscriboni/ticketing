@@ -30,13 +30,15 @@
     <div class="bg-white p-4 rounded shadow-sm mb-4">
         <form method="get" action="/magazzini" class="row g-3 align-items-end">
             <div class="col-md-3">
-                <label class="form-label">Magazzino</label>
-                <select name="magazzino_id" class="form-select">
-                    <option value="">— Tutti i magazzini —</option>
+                <label class="form-label fw-bold">Magazzini</label>
+                <select name="magazzino_id" class="form-select" multiple size="3" title="Seleziona uno o più magazzini">
                     {% for m in magazzini %}
-                    <option value="{{ m.magazzino_id }}" {% if filtri.magazzino_id == m.magazzino_id|string %}selected{% endif %}>{{ m.nome }}</option>
+                    <option value="{{ m.magazzino_id }}" {% if m.magazzino_id|string in filtri.magazzino_id %}selected{% endif %}>{{ m.nome }}</option>
                     {% endfor %}
                 </select>
+                <div class="form-text text-muted mt-1" style="font-size: 0.7rem;">
+                    Usa <kbd>Ctrl</kbd> per selezione multipla.
+                </div>
             </div>
             <div class="col-md-3">
                 <label class="form-label">Sede</label>
