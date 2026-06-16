@@ -988,6 +988,82 @@ def save_impostazioni(r: Request,
         
     return RedirectResponse(url="/admin", status_code=303)
 
+@app.post("/admin/test-email")
+def test_email(r: Request,
+               smtp_server: str = Form(""),
+               smtp_port: str = Form(""),
+               smtp_user: str = Form(""),
+               smtp_password: str = Form(""),
+               smtp_tls: int = Form(0),
+               helpdesk_email: str = Form(""),
+               dest_email: str = Form("")):
+    user = require_superuser(r)
+    if isinstance(user, RedirectResponse):
+        return {"status": "error", "message": "Non autorizzato"}
+
+    if not dest_email:
+        return {"status": "error", "message": "Destinatario non specificato"}
+
+    import smtplib
+    from email.mime.text import MIMEText
+    from email.mime.multipart import MIMEMultipart
+
+    msg = MIMEMultipart()
+    msg['From'] = helpdesk_email or "noreply@troubletick.local"
+    msg['To'] = dest_email
+    msg['Subject'] = "TroubleTick - Email di Prova SMTP"
+
+    html_content = f"""
+    <html>
+    <body style="font-family: sans-serif; color: #333; line-height: 1.5;">
+        <div style="max-width: 600px; margin: 0 auto; padding: 20px; border: 1px solid #ddd; border-radius: 8px; background-color: #f9f9f9;">
+            <h2 style="color: #0d6efd; margin-top: 0;">TroubleTick - Email di Prova SMTP</h2>
+            <p>Se ricevi questa email, significa che la connessione al server SMTP configurato è avvenuta con successo!</p>
+            <hr style="border: 0; border-top: 1px solid #eee; margin: 20px 0;">
+            <p><strong>Configurazione testata:</strong></p>
+            <table style="width: 100%; border-collapse: collapse;">
+                <tr>
+                    <td style="padding: 6px 0; font-weight: bold; width: 40%;">Server SMTP:</td>
+                    <td style="padding: 6px 0;">{smtp_server or 'Non specificato'}</td>
+                </tr>
+                <tr>
+                    <td style="padding: 6px 0; font-weight: bold;">Porta SMTP:</td>
+                    <td style="padding: 6px 0;">{smtp_port or 'Non specificata'}</td>
+                </tr>
+                <tr>
+                    <td style="padding: 6px 0; font-weight: bold;">TLS/SSL:</td>
+                    <td style="padding: 6px 0;">{'Attivo' if smtp_tls else 'Non attivo'}</td>
+                </tr>
+                <tr>
+                    <td style="padding: 6px 0; font-weight: bold;">Utente SMTP:</td>
+                    <td style="padding: 6px 0;">{smtp_user or 'Nessuna autenticazione'}</td>
+                </tr>
+                <tr>
+                    <td style="padding: 6px 0; font-weight: bold;">Email Mittente:</td>
+                    <td style="padding: 6px 0;">{msg['From']}</td>
+                </tr>
+            </table>
+            <hr style="border: 0; border-top: 1px solid #eee; margin: 20px 0;">
+            <p style="font-size: 12px; color: #777; margin-bottom: 0;">Questa è un'email generata automaticamente da TroubleTick. Non rispondere a questo messaggio.</p>
+        </div>
+    </body>
+    </html>
+    """
+    msg.attach(MIMEText(html_content, 'html'))
+
+    try:
+        port = int(smtp_port) if smtp_port.isdigit() else 25
+        server = smtplib.SMTP(smtp_server, port, timeout=10)
+        if smtp_tls:
+            server.starttls()
+        if smtp_user and smtp_password:
+            server.login(smtp_user, smtp_password)
+        server.send_message(msg)
+        server.quit()
+        return {"status": "success", "message": "Email di prova inviata correttamente!"}
+    except Exception as e:
+        return {"status": "error", "message": str(e)}
+
 @app.get("/admin/report-copertura", response_class=HTMLResponse)
 def report_copertura(r: Request, mese: int = None, anno: int = None):
     user = current_user(r)
