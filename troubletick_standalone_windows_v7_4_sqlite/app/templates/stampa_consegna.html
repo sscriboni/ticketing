@@ -322,7 +322,7 @@
                                 {% endif %}
                                 <span class="text-muted" style="font-size: 0.65rem; font-style: italic;">(Mag: {{ item.magazzino_nome }})</span>
                             </td>
-                            <td class="text-center align-middle" style="font-family: monospace;">{{ item.posizione_fisica or '——' }}</td>
+                            <td class="text-center align-middle" style="font-family: monospace;">——</td>
                             <td class="text-center align-middle">——</td>
                         </tr>
                         {% endfor %}
@@ -345,8 +345,7 @@
                                     Modello: {{ mov.modello or '—' }}</span>
                                 {% endif %}
                             </td>
-                            <td class="text-center align-middle" style="font-family: monospace;">{{ mov.posizione_fisica or
-                                '——' }}</td>
+                            <td class="text-center align-middle" style="font-family: monospace;">——</td>
                             <td class="text-center align-middle">——</td>
                         </tr>
                         <!-- Righe vuote aggiuntive per riempire il foglio stampato come da modulo -->
