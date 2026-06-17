@@ -957,9 +957,11 @@ def calendario(r: Request):
     return templates.TemplateResponse(r, "calendario.html", {"request": r, "cfg": CFG, "user": user, "assenze": assenze, "festivita": festivita})
 
 @app.post("/calendario/nuova")
-def nuova_assenza(r: Request, data_inizio: str = Form(...), data_fine: str = Form(...), motivo: str = Form("")):
+def nuova_assenza(r: Request, data_inizio: str = Form(...), data_fine: str = Form(""), motivo: str = Form("")):
     if "user" not in r.session: return RedirectResponse(url="/login")
     user = r.session.get("user")
+    if not data_fine or not data_fine.strip():
+        data_fine = data_inizio
     with engine.begin() as c:
         c.execute(text("""INSERT INTO assenze (user_id, data_inizio, data_fine, motivo)
                           VALUES (:uid, :di, :df, :m)"""), 

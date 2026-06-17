@@ -61,8 +61,17 @@
             <h4 class="mb-3">Segnala Assenza</h4>
             <form method="post" action="/calendario/nuova">
                 <div class="mb-3"><label class="form-label fw-bold">Data Inizio <span class="text-danger">*</span></label><input type="date" name="data_inizio" class="form-control" required></div>
-                <div class="mb-3"><label class="form-label fw-bold">Data Fine <span class="text-danger">*</span></label><input type="date" name="data_fine" class="form-control" required></div>
-                <div class="mb-4"><label class="form-label fw-bold">Motivo (opzionale)</label><input type="text" name="motivo" class="form-control" placeholder="es. Ferie, Malattia"></div>
+                <div class="mb-3"><label class="form-label fw-bold">Data Fine</label><input type="date" name="data_fine" class="form-control"></div>
+                <div class="mb-4">
+                    <label class="form-label fw-bold">Motivo (opzionale)</label>
+                    <select name="motivo" class="form-select">
+                        <option value="">-- Seleziona motivo --</option>
+                        <option value="ferie">Ferie</option>
+                        <option value="malattia">Malattia</option>
+                        <option value="permessi vari">Permessi vari</option>
+                        <option value="fuori sede">Fuori sede</option>
+                    </select>
+                </div>
                 <button type="submit" class="btn btn-primary w-100">Salva Assenza</button>
             </form>
         </div>
