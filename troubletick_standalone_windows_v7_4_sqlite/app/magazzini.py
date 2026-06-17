@@ -137,7 +137,7 @@ def user_magazzini_list(r: Request, magazzino_id: List[str] = Query(None), sede_
         stmt = text(f"""
             SELECT m.magazzino_id, m.nome AS magazzino_nome, s.nome AS sede_nome,
                    mat.materiale_id, mat.nome AS materiale_nome, c.nome AS categoria_nome,
-                   COALESCE(g.quantita, 0) AS quantita
+                   COALESCE(g.quantita, 0) AS quantita, COALESCE(mat.soglia_attenzione, 0) AS soglia_attenzione
             FROM magazzini m
             JOIN materiali mat ON (m.categoria_id IS NULL OR m.categoria_id = mat.categoria_id)
             LEFT JOIN giacenze g ON m.magazzino_id = g.magazzino_id AND mat.materiale_id = g.materiale_id
@@ -1243,6 +1243,7 @@ def magazzini_report(r: Request, mese: int = None, anno: int = None, magazzino_i
                 SELECT m.magazzino_id, m.nome AS magazzino_nome, 
                        mat.materiale_id, mat.nome AS materiale_nome, c.nome AS categoria_nome,
                        COALESCE(g.quantita, 0) AS disponibilita,
+                       COALESCE(mat.soglia_attenzione, 0) AS soglia_attenzione,
                        COALESCE((
                            SELECT SUM(mm.quantita)
                            FROM movimenti_magazzino mm

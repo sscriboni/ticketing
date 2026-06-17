@@ -116,7 +116,8 @@ try:
         c.execute(text(f"""CREATE TABLE IF NOT EXISTS materiali (
             materiale_id {DB_PK},
             nome TEXT UNIQUE NOT NULL,
-            categoria_id INTEGER
+            categoria_id INTEGER,
+            soglia_attenzione INTEGER DEFAULT 0
         )"""))
         c.execute(text(f"""CREATE TABLE IF NOT EXISTS ticket_materiali (
             id {DB_PK},
@@ -243,6 +244,7 @@ try:
             "ALTER TABLE movimenti_magazzino ADD COLUMN modello TEXT",
             "ALTER TABLE movimenti_magazzino ADD COLUMN gruppo_scarico TEXT",
             "ALTER TABLE consegne_programmate ADD COLUMN quando_disponibile INTEGER DEFAULT 0",
+            "ALTER TABLE materiali ADD COLUMN soglia_attenzione INTEGER DEFAULT 0",
             "INSERT OR IGNORE INTO operatori_magazzini (user_id, magazzino_id) SELECT user_id, magazzino_id FROM users WHERE magazzino_id IS NOT NULL"
         ]:
             try:
@@ -1948,16 +1950,16 @@ def admin_materiali(r: Request, error: str = None):
     user = require_superuser(r)
     if isinstance(user, RedirectResponse): return user
     with engine.connect() as c:
-        materiali = c.execute(text("SELECT m.materiale_id, m.nome, c.nome as categoria_nome FROM materiali m LEFT JOIN categorie c ON m.categoria_id = c.categoria_id ORDER BY m.nome")).mappings().all()
+        materiali = c.execute(text("SELECT m.materiale_id, m.nome, m.soglia_attenzione, c.nome as categoria_nome FROM materiali m LEFT JOIN categorie c ON m.categoria_id = c.categoria_id ORDER BY m.nome")).mappings().all()
         categorie = c.execute(text("SELECT * FROM categorie ORDER BY nome")).mappings().all()
     return templates.TemplateResponse(r, "admin_materiali.html", {"request": r, "cfg": CFG, "user": user, "materiali": materiali, "categorie": categorie, "error": error})
 
 @app.post("/admin/materiale")
-def add_materiale(r: Request, nome: str = Form(...), categoria_id: int = Form(...)):
+def add_materiale(r: Request, nome: str = Form(...), categoria_id: int = Form(...), soglia_attenzione: int = Form(0)):
     user = require_superuser(r)
     if isinstance(user, RedirectResponse): return user
     with engine.begin() as c:
-        c.execute(text("INSERT INTO materiali (nome, categoria_id) VALUES (:nome, :cid)"), {"nome": nome, "cid": categoria_id})
+        c.execute(text("INSERT INTO materiali (nome, categoria_id, soglia_attenzione) VALUES (:nome, :cid, :soglia)"), {"nome": nome, "cid": categoria_id, "soglia": soglia_attenzione})
     return RedirectResponse(url="/admin/materiali", status_code=303)
 
 @app.get("/admin/materiale/{materiale_id}/modifica", response_class=HTMLResponse)
@@ -1970,11 +1972,11 @@ def edit_materiale_form(r: Request, materiale_id: int):
     return templates.TemplateResponse(r, "edit_materiale.html", {"request": r, "cfg": CFG, "user": user, "materiale": materiale, "categorie": categorie})
 
 @app.post("/admin/materiale/{materiale_id}/modifica")
-def edit_materiale_action(r: Request, materiale_id: int, nome: str = Form(...), categoria_id: int = Form(...)):
+def edit_materiale_action(r: Request, materiale_id: int, nome: str = Form(...), categoria_id: int = Form(...), soglia_attenzione: int = Form(0)):
     user = require_superuser(r)
     if isinstance(user, RedirectResponse): return user
     with engine.begin() as c:
-        c.execute(text("UPDATE materiali SET nome = :nome, categoria_id = :cid WHERE materiale_id = :id"), {"nome": nome, "cid": categoria_id, "id": materiale_id})
+        c.execute(text("UPDATE materiali SET nome = :nome, categoria_id = :cid, soglia_attenzione = :soglia WHERE materiale_id = :id"), {"nome": nome, "cid": categoria_id, "soglia": soglia_attenzione, "id": materiale_id})
     return RedirectResponse(url="/admin/materiali", status_code=303)
 
 @app.post("/admin/materiale/delete")

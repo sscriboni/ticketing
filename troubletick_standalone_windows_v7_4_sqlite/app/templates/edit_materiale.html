@@ -30,6 +30,10 @@
                     {% endfor %}
                 </select>
             </div>
+            <div class="mb-3">
+                <label class="form-label fw-bold">Soglia Attenzione (Giacenza Minima)</label>
+                <input type="number" name="soglia_attenzione" class="form-control" value="{{ materiale.soglia_attenzione or 0 }}" min="0" required>
+            </div>
             <div class="d-flex gap-2">
                 <button type="submit" class="btn btn-primary">Salva Modifiche</button>
                 <a href="/admin/materiali" class="btn btn-outline-secondary">Annulla</a>

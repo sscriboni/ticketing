@@ -83,10 +83,15 @@
                     <td>{{ row.categoria_nome or '—' }}</td>
                     <td>
                         <a href="/magazzino/{{ row.magazzino_id }}/giacenza/{{ row.materiale_id }}" class="text-decoration-none" title="Vedi dettaglio posizioni">
-                            <span class="badge {% if row.quantita > 0 %}bg-success{% else %}bg-secondary{% endif %} fs-6 shadow-sm">
+                            <span class="badge {% if row.soglia_attenzione > 0 and row.quantita < row.soglia_attenzione %}bg-danger{% elif row.quantita > 0 %}bg-success{% else %}bg-secondary{% endif %} fs-6 shadow-sm">
                                 {{ row.quantita }}
                             </span>
                         </a>
+                        {% if row.soglia_attenzione > 0 and row.quantita < row.soglia_attenzione %}
+                        <span class="text-danger ms-1" title="Sotto la soglia di attenzione (soglia: {{ row.soglia_attenzione }})">
+                            <i class="bi bi-exclamation-triangle-fill"></i>
+                        </span>
+                        {% endif %}
                     </td>
                     <td>
                         {% if can_edit %}

@@ -19,12 +19,13 @@
             {% endif %}
             <div class="table-responsive">
                 <table class="table table-sm table-striped mt-3">
-                    <thead><tr><th>Nome Articolo</th><th>Categoria</th><th>Azioni</th></tr></thead>
+                    <thead><tr><th>Nome Articolo</th><th>Categoria</th><th class="text-center">Soglia Attenzione</th><th>Azioni</th></tr></thead>
                     <tbody>
                     {% for m in materiali %}
                     <tr>
                         <td><strong>{{ m.nome }}</strong></td>
                         <td>{{ m.categoria_nome or '—' }}</td>
+                        <td class="text-center">{{ m.soglia_attenzione or '0' }}</td>
                         <td>
                             <a href="/admin/materiale/{{ m.materiale_id }}/modifica" class="btn btn-sm btn-warning me-1">Modifica</a>
                             <form method="post" action="/admin/materiale/delete" class="d-inline">
@@ -42,6 +43,10 @@
             <h5>Nuovo Articolo</h5>
             <form method="post" action="/admin/materiale" class="mt-3">
                 <div class="mb-3"><label class="form-label">Nome Prodotto</label><input name="nome" class="form-control" required placeholder="Es. Tastiera Wireless"></div>
+                <div class="mb-3">
+                    <label class="form-label">Soglia Attenzione (Giacenza Minima)</label>
+                    <input type="number" name="soglia_attenzione" class="form-control" min="0" value="0" required>
+                </div>
                 <div class="mb-4">
                     <label class="form-label">Categoria</label>
                     <select name="categoria_id" class="form-select" required>

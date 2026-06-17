@@ -91,7 +91,16 @@
                     <tfoot class="table-light">
                         <tr>
                             <th class="text-end">Totale in giacenza:</th>
-                            <th class="text-end"><span class="badge bg-primary fs-5">{{ totale }}</span></th>
+                            <th class="text-end">
+                                <span class="badge {% if materiale.soglia_attenzione > 0 and totale < materiale.soglia_attenzione %}bg-danger{% else %}bg-primary{% endif %} fs-5 shadow-sm">
+                                    {{ totale }}
+                                </span>
+                                {% if materiale.soglia_attenzione > 0 and totale < materiale.soglia_attenzione %}
+                                <span class="text-danger ms-1" title="Sotto la soglia di attenzione (soglia: {{ materiale.soglia_attenzione }})">
+                                    <i class="bi bi-exclamation-triangle-fill"></i>
+                                </span>
+                                {% endif %}
+                            </th>
                         </tr>
                     </tfoot>
                 </table>
