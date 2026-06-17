@@ -280,9 +280,8 @@ def magazzino_rinomina_posizione(
 
         if new_posizione and old_posizione:
             new_pos_clean = new_posizione.strip()
-            if new_pos_clean != old_posizione:
-                if len(new_pos_clean) < 3 or any(c.isspace() for c in new_pos_clean):
-                    return RedirectResponse(url=f"/magazzino/{magazzino_id}/giacenza/{materiale_id}?error=posizione_invalida", status_code=303)
+            if len(new_pos_clean) < 3:
+                return RedirectResponse(url=f"/magazzino/{magazzino_id}/giacenza/{materiale_id}?error=posizione_invalida", status_code=303)
             
             marca_clean = (marca or "").strip()
             modello_clean = (modello or "").strip()

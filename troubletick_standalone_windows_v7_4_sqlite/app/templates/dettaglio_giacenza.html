@@ -180,8 +180,8 @@
             <p>Stai modificando: <strong id="modalOldPosizioneText"></strong></p>
             <div class="mb-3">
                 <label class="form-label fw-bold">Nome Posizione</label>
-                <input type="text" name="new_posizione" id="modalNewPosizione" class="form-control" required minlength="3" pattern="^[^\s]{3,}$" title="La posizione deve essere di almeno 3 caratteri e non contenere spazi.">
-                <small class="text-muted d-block mt-1">Questa modifica cambierà il nome della posizione o del lotto per tutti i movimenti passati di questo articolo. Deve essere di almeno 3 caratteri e NON contenere spazi.</small>
+                <input type="text" name="new_posizione" id="modalNewPosizione" class="form-control" required minlength="3" pattern="^[^\s].+[^\s]$" title="La posizione deve essere di almeno 3 caratteri e non contenere spazi all'inizio o alla fine." onblur="this.value = this.value.trim()" onchange="this.value = this.value.trim()">
+                <small class="text-muted d-block mt-1">Questa modifica cambierà il nome della posizione o del lotto per tutti i movimenti passati di questo articolo. Verrà eseguito un trim automatico.</small>
             </div>
             <div class="mb-3">
                 <label class="form-label fw-bold">Marca</label>
