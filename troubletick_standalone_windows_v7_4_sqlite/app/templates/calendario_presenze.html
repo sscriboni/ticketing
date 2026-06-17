@@ -1,0 +1,219 @@
+<!doctype html>
+<html lang="it">
+<head>
+    <meta charset="utf-8">
+    <title>Calendario Presenze {% if reparto_nome %}({{ reparto_nome }}){% endif %} — {{ cfg.app_title }}</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css">
+    <style>
+        .calendar-table {
+            table-layout: fixed;
+            width: 100%;
+            border-collapse: collapse;
+        }
+        .calendar-table th {
+            text-align: center;
+            padding: 10px;
+            background-color: #0d6efd;
+            color: white;
+            font-weight: bold;
+            border: 1px solid #dee2e6;
+        }
+        .calendar-day-cell {
+            height: 180px;
+            vertical-align: top;
+            padding: 8px;
+            border: 1px solid #dee2e6;
+            background-color: #fff;
+            transition: background-color 0.2s;
+        }
+        .calendar-day-cell:hover {
+            background-color: #f8f9fa;
+        }
+        .calendar-day-cell.other-month {
+            background-color: #e9ecef;
+            color: #6c757d;
+        }
+        .calendar-day-cell.today {
+            background-color: #fff3cd;
+            border: 2px solid #ffc107;
+        }
+        .calendar-day-cell.uncovered {
+            background-color: #fff5f5 !important;
+            border: 2px dashed #dc3545 !important;
+        }
+        .day-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 6px;
+        }
+        .day-number {
+            font-size: 1.15rem;
+            font-weight: bold;
+        }
+        .holiday-badge {
+            font-size: 0.7rem;
+            padding: 3px 6px;
+            background-color: #f8d7da;
+            color: #842029;
+            border: 1px solid #f5c2c7;
+            border-radius: 4px;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            max-width: 100%;
+        }
+        .service-container {
+            font-size: 0.75rem;
+            margin-top: 6px;
+            padding: 4px;
+            border-radius: 4px;
+            background-color: #f1f3f5;
+            border-left: 3px solid #0d6efd;
+        }
+        .service-title {
+            font-weight: bold;
+            color: #495057;
+            margin-bottom: 2px;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+        .operator-list {
+            list-style: none;
+            padding-left: 0;
+            margin-bottom: 0;
+        }
+        .operator-item {
+            display: flex;
+            align-items: center;
+            gap: 4px;
+            margin-bottom: 1px;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+        .operator-presente {
+            color: #198754;
+        }
+        .operator-assente {
+            color: #dc3545;
+            text-decoration: line-through;
+        }
+        .motivo-tooltip {
+            font-size: 0.65rem;
+            font-style: italic;
+            color: #6c757d;
+            text-decoration: none !important;
+            display: inline-block;
+        }
+    </style>
+</head>
+<body class="bg-light">
+{% include 'navbar.html' %}
+<div class="container-fluid px-4 py-4">
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <div>
+            <h2 class="mb-0">Calendario Presenze {% if reparto_nome %}&mdash; {{ reparto_nome }}{% endif %}</h2>
+        </div>
+        <div class="d-flex align-items-center gap-3">
+            {% if user.ruolo == 'admin' and reparti %}
+            <div class="d-flex align-items-center gap-2">
+                <label class="form-label fw-bold mb-0 text-nowrap">Seleziona Reparto:</label>
+                <select class="form-select form-select-sm" id="repartoSelect" onchange="changeReparto(this)">
+                    {% for rep in reparti %}
+                    <option value="{{ rep.reparto_id }}" {% if rep.reparto_id == reparto_id %}selected{% endif %}>{{ rep.nome }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+            {% endif %}
+            <div class="btn-group btn-group-sm">
+                <a href="/calendario-presenze?mese={{ prev_mese }}&anno={{ prev_anno }}{% if user.ruolo == 'admin' %}&reparto_id={{ reparto_id }}{% endif %}" class="btn btn-outline-primary"><i class="bi bi-chevron-left"></i> Mese Prec.</a>
+                <span class="btn btn-primary disabled fw-bold text-white">{{ nome_mese }} {{ anno }}</span>
+                <a href="/calendario-presenze?mese={{ next_mese }}&anno={{ next_anno }}{% if user.ruolo == 'admin' %}&reparto_id={{ reparto_id }}{% endif %}" class="btn btn-outline-primary">Mese Succ. <i class="bi bi-chevron-right"></i></a>
+            </div>
+        </div>
+    </div>
+
+    {% if error %}
+    <div class="row">
+        <div class="col-12 col-md-6 mx-auto">
+            <div class="alert alert-warning text-center shadow-sm py-4">
+                <i class="bi bi-exclamation-triangle-fill fs-2 text-warning d-block mb-3"></i>
+                <h5>{{ error }}</h5>
+            </div>
+        </div>
+    </div>
+    {% else %}
+    <div class="card shadow-sm border-0 rounded overflow-hidden">
+        <div class="card-body p-0">
+            <table class="calendar-table">
+                <thead>
+                    <tr>
+                        <th style="width: 14.28%;">Lunedì</th>
+                        <th style="width: 14.28%;">Martedì</th>
+                        <th style="width: 14.28%;">Mercoledì</th>
+                        <th style="width: 14.28%;">Giovedì</th>
+                        <th style="width: 14.28%;">Venerdì</th>
+                        <th style="width: 14.28%; background-color: #6c757d;">Sabato</th>
+                        <th style="width: 14.28%; background-color: #6c757d;">Domenica</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for week in weeks %}
+                    <tr>
+                        {% for day in week %}
+                        <td class="calendar-day-cell {% if not day.is_current_month %}other-month{% endif %} {% if day.is_today %}today{% endif %} {% if day.uncovered and day.is_current_month %}uncovered{% endif %}">
+                            <div class="day-header">
+                                <span class="day-number">{{ day.day_num }}</span>
+                                {% if day.uncovered and day.is_current_month %}
+                                <span class="badge bg-danger" style="font-size: 0.65rem;" title="Servizi scoperti! Nessun operatore presente."><i class="bi bi-exclamation-triangle-fill"></i> Scoperto</span>
+                                {% endif %}
+                                {% if day.holiday %}
+                                <span class="holiday-badge" title="{{ day.holiday }}">🎉 {{ day.holiday }}</span>
+                                {% endif %}
+                            </div>
+                            
+                            <div class="day-content" style="max-height: 140px; overflow-y: auto;">
+                                {% for s in day.servizi %}
+                                    {% if s.operatori %}
+                                    <div class="service-container">
+                                        <div class="service-title" title="{{ s.descrizione }}">{{ s.descrizione }}</div>
+                                        <ul class="operator-list">
+                                            {% for op in s.operatori %}
+                                            <li class="operator-item" title="{{ op.nome_completo }}">
+                                                {% if op.assente %}
+                                                <span class="operator-assente"><i class="bi bi-x-circle-fill text-danger"></i> {{ op.nome_completo }}</span>
+                                                <span class="motivo-tooltip" title="Motivo dell'assenza: {{ op.motivo or '—' }}">({{ op.motivo or 'Assente' }})</span>
+                                                {% else %}
+                                                <span class="operator-presente"><i class="bi bi-check-circle-fill text-success"></i> {{ op.nome_completo }}</span>
+                                                {% endif %}
+                                            </li>
+                                            {% endfor %}
+                                        </ul>
+                                    </div>
+                                    {% endif %}
+                                {% endfor %}
+                            </div>
+                        </td>
+                        {% endfor %}
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+    {% endif %}
+</div>
+
+<script>
+function changeReparto(selectElement) {
+    const val = selectElement.value;
+    const urlParams = new URLSearchParams(window.location.search);
+    urlParams.set('reparto_id', val);
+    window.location.search = urlParams.toString();
+}
+</script>
+</body>
+</html>

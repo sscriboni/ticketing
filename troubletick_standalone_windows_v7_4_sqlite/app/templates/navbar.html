@@ -50,7 +50,15 @@
         <li class="nav-item"><a class="nav-link {% if request.url.path.startswith('/avvisi') %}active fw-bold{% endif %}" href="/avvisi"><i class="bi bi-megaphone"></i> Avvisi</a></li>
         {% endif %}
         
-        <li class="nav-item"><a class="nav-link {% if request.url.path.startswith('/calendario') %}active fw-bold{% endif %}" href="/calendario"><i class="bi bi-calendar3"></i> Calendario</a></li>
+        <li class="nav-item dropdown">
+          <a class="nav-link dropdown-toggle {% if request.url.path.startswith('/calendario') or request.url.path.startswith('/calendario-presenze') %}active fw-bold{% endif %}" href="#" id="serviziDropdown" role="button" data-bs-toggle="dropdown" aria-expanded="false">
+            <i class="bi bi-briefcase"></i> Servizi
+          </a>
+          <ul class="dropdown-menu shadow" aria-labelledby="serviziDropdown">
+            <li><a class="dropdown-item" href="/calendario"><i class="bi bi-calendar3 me-2"></i>Calendario Assenze</a></li>
+            <li><a class="dropdown-item" href="/calendario-presenze"><i class="bi bi-calendar-check me-2"></i>Calendario Presenze</a></li>
+          </ul>
+        </li>
         {% if user.ruolo == 'admin' %}
         <li class="nav-item">
           <a class="nav-link {% if request.url.path == '/operatori' or request.url.path.startswith('/admin/operatori') %}active fw-bold{% endif %}" href="/operatori">

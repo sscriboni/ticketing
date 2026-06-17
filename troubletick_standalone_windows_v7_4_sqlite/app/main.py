@@ -940,13 +940,15 @@ def calendario(r: Request):
     user = r.session.get("user")
     
     with engine.connect() as c:
+        uid = user.get("id")
         assenze = c.execute(text("""
             SELECT a.*, u.nome, u.cognome, u.username, r.nome as reparto_nome
             FROM assenze a
             JOIN users u ON a.user_id = u.user_id
             LEFT JOIN reparti r ON u.reparto_id = r.reparto_id
+            WHERE a.user_id = :uid
             ORDER BY a.data_inizio DESC
-        """)).mappings().all()
+        """), {"uid": uid}).mappings().all()
             
         festivita = c.execute(text("""
             SELECT * FROM festivita ORDER BY data DESC
@@ -974,6 +976,161 @@ def elimina_assenza(r: Request, assenza_id: int):
         else:
             c.execute(text("DELETE FROM assenze WHERE assenza_id = :id AND user_id = :uid"), {"id": assenza_id, "uid": user.get("id")})
     return RedirectResponse(url="/calendario", status_code=303)
+
+@app.get("/calendario-presenze", response_class=HTMLResponse)
+def calendario_presenze(r: Request, mese: int = None, anno: int = None, reparto_id: int = None):
+    if "user" not in r.session: return RedirectResponse(url="/login")
+    user = r.session.get("user")
+    
+    from datetime import date
+    import calendar
+    
+    today = date.today()
+    if mese is None:
+        mese = today.month
+    if anno is None:
+        anno = today.year
+        
+    with engine.connect() as c:
+        reparti_list = []
+        if user.get("ruolo") == "admin":
+            reparti_list = c.execute(text("SELECT reparto_id, nome FROM reparti ORDER BY nome")).mappings().all()
+            
+        if user.get("ruolo") == "admin":
+            if reparto_id is None:
+                if reparti_list:
+                    reparto_id = reparti_list[0]["reparto_id"]
+        else:
+            reparto_id = c.execute(text("SELECT reparto_id FROM users WHERE user_id = :uid"), {"uid": user.get("id")}).scalar()
+            
+        if reparto_id is None:
+            return templates.TemplateResponse(r, "calendario_presenze.html", {
+                "request": r, "cfg": CFG, "user": user, 
+                "error": "Non sei assegnato a nessun reparto. Contatta l'amministratore.", 
+                "mese": mese, "anno": anno, "reparto_id": None, "reparti": reparti_list
+            })
+            
+        reparto_nome = c.execute(text("SELECT nome FROM reparti WHERE reparto_id = :rid"), {"rid": reparto_id}).scalar()
+        
+        servizi = c.execute(text("""
+            SELECT servizio_id, descrizione 
+            FROM servizi 
+            WHERE reparto_id = :rid AND accetta_ticket = 1
+            ORDER BY descrizione
+        """), {"rid": reparto_id}).mappings().all()
+        
+        servizi_ops = {}
+        for s in servizi:
+            ops = c.execute(text("""
+                SELECT u.user_id, u.nome, u.cognome, u.username
+                FROM users u
+                JOIN operatori_servizi os ON u.user_id = os.user_id
+                WHERE os.servizio_id = :sid AND u.attivo = 1
+                ORDER BY u.cognome, u.nome
+            """), {"sid": s["servizio_id"]}).mappings().all()
+            servizi_ops[s["servizio_id"]] = ops
+            
+        first_day_of_month = date(anno, mese, 1)
+        last_day_of_month = date(anno, mese, calendar.monthrange(anno, mese)[1])
+        
+        festivita_list = c.execute(text("""
+            SELECT data, descrizione FROM festivita 
+            WHERE data >= :start AND data <= :end
+        """), {"start": first_day_of_month.isoformat(), "end": last_day_of_month.isoformat()}).mappings().all()
+        festivita_map = {f["data"]: f["descrizione"] for f in festivita_list}
+        
+        assenze_list = c.execute(text("""
+            SELECT a.user_id, a.data_inizio, a.data_fine, a.motivo
+            FROM assenze a
+            JOIN users u ON a.user_id = u.user_id
+            WHERE u.reparto_id = :rid AND a.data_inizio <= :end AND a.data_fine >= :start
+        """), {"rid": reparto_id, "start": first_day_of_month.isoformat(), "end": last_day_of_month.isoformat()}).mappings().all()
+        
+        cal = calendar.Calendar(firstweekday=0)
+        weeks_raw = cal.monthdatescalendar(anno, mese)
+        
+        weeks = []
+        for week_dates in weeks_raw:
+            week_days = []
+            for d in week_dates:
+                d_str = d.isoformat()
+                holiday = festivita_map.get(d_str)
+                
+                day_servizi = []
+                day_has_uncovered_service = False
+                for s in servizi:
+                    ops_status = []
+                    present_count = 0
+                    for op in servizi_ops[s["servizio_id"]]:
+                        absent_record = None
+                        for a in assenze_list:
+                            if a["user_id"] == op["user_id"]:
+                               if a["data_inizio"] <= d_str <= a["data_fine"]:
+                                    absent_record = a
+                                    break
+                                    
+                        is_absent = absent_record is not None
+                        if not is_absent:
+                            present_count += 1
+                            
+                        ops_status.append({
+                            "user_id": op["user_id"],
+                            "nome_completo": f"{op['nome']} {op['cognome']}".strip() or op['username'],
+                            "assente": is_absent,
+                            "motivo": absent_record["motivo"] if absent_record else None
+                        })
+                        
+                    if present_count == 0:
+                        day_has_uncovered_service = True
+                        
+                    day_servizi.append({
+                        "servizio_id": s["servizio_id"],
+                        "descrizione": s["descrizione"],
+                        "operatori": ops_status
+                    })
+                    
+                week_days.append({
+                    "date": d,
+                    "day_num": d.day,
+                    "is_current_month": d.month == mese,
+                    "is_today": d == today,
+                    "holiday": holiday,
+                    "servizi": day_servizi,
+                    "uncovered": day_has_uncovered_service
+                })
+            weeks.append(week_days)
+            
+        months_it = {
+            1: "Gennaio", 2: "Febbraio", 3: "Marzo", 4: "Aprile",
+            5: "Maggio", 6: "Giugno", 7: "Luglio", 8: "Agosto",
+            9: "Settembre", 10: "Ottobre", 11: "Novembre", 12: "Dicembre"
+        }
+        nome_mese = months_it.get(mese, "")
+        
+        if mese == 1:
+            prev_mese, prev_anno = 12, anno - 1
+        else:
+            prev_mese, prev_anno = mese - 1, anno
+            
+        if mese == 12:
+            next_mese, next_anno = 1, anno + 1
+        else:
+            next_mese, next_anno = mese + 1, anno
+
+    return templates.TemplateResponse(r, "calendario_presenze.html", {
+        "request": r, "cfg": CFG, "user": user,
+        "weeks": weeks,
+        "mese": mese,
+        "anno": anno,
+        "nome_mese": nome_mese,
+        "prev_mese": prev_mese,
+        "prev_anno": prev_anno,
+        "next_mese": next_mese,
+        "next_anno": next_anno,
+        "reparto_id": reparto_id,
+        "reparto_nome": reparto_nome,
+        "reparti": reparti_list
+    })
 
 @app.get("/admin", response_class=HTMLResponse)
 def admin(r: Request):
