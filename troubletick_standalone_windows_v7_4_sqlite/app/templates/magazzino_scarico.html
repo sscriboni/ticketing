@@ -75,7 +75,11 @@
                     <select name="posizione_fisica" class="form-select border-danger" id="posizioneSelect" required onchange="checkGiacenzaPosizione()">
                         <option value="">-- Seleziona Posizione / Lotto --</option>
                         {% for pos in posizioni %}
-                        <option value="{{ pos.posizione_fisica }}" data-qta="{{ pos.quantita }}" {% if pos.quantita <= 0 %}disabled{% endif %}>{{ pos.posizione_fisica }} (Giacenza: {{ pos.quantita }} pz)</option>
+                        <option value="{{ pos.posizione_fisica }}" data-qta="{{ pos.quantita }}" {% if pos.quantita <= 0 %}disabled{% endif %}>
+                            {{ pos.posizione_fisica }}
+                            {% if pos.marca or pos.modello %} [{{ pos.marca or '' }} {{ pos.modello or '' }}]{% endif %}
+                            (Giacenza: {{ pos.quantita }} pz)
+                        </option>
                         {% endfor %}
                     </select>
                     
@@ -84,7 +88,7 @@
                         {% for pos in posizioni %}
                         <span class="badge {% if pos.quantita > 5 %}bg-success{% elif pos.quantita > 0 %}bg-warning text-dark{% else %}bg-danger{% endif %} me-1 mb-1 p-2" 
                               onclick="selectPosizione('{{ pos.posizione_fisica }}')" style="font-size: 0.85rem; cursor: pointer;" title="Clicca per selezionare questa posizione">
-                            <i class="bi bi-geo-alt-fill"></i> {{ pos.posizione_fisica }}: <strong>{{ pos.quantita }}</strong> pz
+                            <i class="bi bi-geo-alt-fill"></i> {{ pos.posizione_fisica }}{% if pos.marca or pos.modello %} ({{ pos.marca or '' }} {{ pos.modello or '' }}){% endif %}: <strong>{{ pos.quantita }}</strong> pz
                         </span>
                         {% endfor %}
                     </div>

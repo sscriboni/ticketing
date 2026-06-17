@@ -196,6 +196,14 @@ def dettaglio_giacenza(r: Request, magazzino_id: int, materiale_id: int, error: 
 
         posizioni = c.execute(text("""
             SELECT p.posizione_fisica, p.quantita,
+                   (SELECT marca FROM movimenti_magazzino 
+                    WHERE magazzino_id = :mag_id AND materiale_id = :mat_id AND posizione_fisica = p.posizione_fisica
+                    AND marca IS NOT NULL AND marca != ''
+                    ORDER BY creato_il DESC LIMIT 1) as marca,
+                   (SELECT modello FROM movimenti_magazzino 
+                    WHERE magazzino_id = :mag_id AND materiale_id = :mat_id AND posizione_fisica = p.posizione_fisica
+                    AND modello IS NOT NULL AND modello != ''
+                    ORDER BY creato_il DESC LIMIT 1) as modello,
                    (SELECT allegato FROM movimenti_magazzino 
                     WHERE magazzino_id = :mag_id AND materiale_id = :mat_id AND posizione_fisica = p.posizione_fisica
                     AND allegato IS NOT NULL AND allegato != ''
@@ -247,7 +255,15 @@ async def magazzino_foto_posizione_action(r: Request, magazzino_id: int, materia
     return RedirectResponse(url=f"/magazzino/{magazzino_id}/giacenza/{materiale_id}", status_code=303)
 
 @router.post("/magazzino/{magazzino_id}/materiale/{materiale_id}/rinomina-posizione")
-def magazzino_rinomina_posizione(r: Request, magazzino_id: int, materiale_id: int, old_posizione: str = Form(...), new_posizione: str = Form(...)):
+def magazzino_rinomina_posizione(
+    r: Request, 
+    magazzino_id: int, 
+    materiale_id: int, 
+    old_posizione: str = Form(...), 
+    new_posizione: str = Form(...),
+    marca: str = Form(""),
+    modello: str = Form("")
+):
     if "user" not in r.session: return RedirectResponse(url="/login")
     user = r.session.get("user")
     
@@ -264,14 +280,25 @@ def magazzino_rinomina_posizione(r: Request, magazzino_id: int, materiale_id: in
 
         if new_posizione and old_posizione:
             new_pos_clean = new_posizione.strip()
-            if len(new_pos_clean) >= 3 and not any(c.isspace() for c in new_pos_clean):
-                c.execute(text("""
-                    UPDATE movimenti_magazzino 
-                    SET posizione_fisica = :new_pos 
-                    WHERE magazzino_id = :mag_id AND materiale_id = :mat_id AND posizione_fisica = :old_pos
-                """), {"new_pos": new_pos_clean, "mag_id": magazzino_id, "mat_id": materiale_id, "old_pos": old_posizione})
-            else:
-                return RedirectResponse(url=f"/magazzino/{magazzino_id}/giacenza/{materiale_id}?error=posizione_invalida", status_code=303)
+            if new_pos_clean != old_posizione:
+                if len(new_pos_clean) < 3 or any(c.isspace() for c in new_pos_clean):
+                    return RedirectResponse(url=f"/magazzino/{magazzino_id}/giacenza/{materiale_id}?error=posizione_invalida", status_code=303)
+            
+            marca_clean = (marca or "").strip()
+            modello_clean = (modello or "").strip()
+            
+            c.execute(text("""
+                UPDATE movimenti_magazzino 
+                SET posizione_fisica = :new_pos, marca = :marca, modello = :modello
+                WHERE magazzino_id = :mag_id AND materiale_id = :mat_id AND posizione_fisica = :old_pos
+            """), {
+                "new_pos": new_pos_clean, 
+                "marca": marca_clean, 
+                "modello": modello_clean, 
+                "mag_id": magazzino_id, 
+                "mat_id": materiale_id, 
+                "old_pos": old_posizione
+            })
             
     return RedirectResponse(url=f"/magazzino/{magazzino_id}/giacenza/{materiale_id}", status_code=303)
 
@@ -308,12 +335,24 @@ def magazzino_trasferisci_posizione(
             return RedirectResponse(url=f"/magazzino/{magazzino_id}/giacenza/{materiale_id}?error=quantita_invalida", status_code=303)
             
         # Verify quantity available in from_posizione
-        disponibile = c.execute(text("""
-            SELECT SUM(CASE WHEN operazione = 'carico' THEN quantita ELSE -quantita END) as quantita
+        pos_info = c.execute(text("""
+            SELECT SUM(CASE WHEN operazione = 'carico' THEN quantita ELSE -quantita END) as quantita,
+                   (SELECT marca FROM movimenti_magazzino 
+                    WHERE magazzino_id = :mag AND materiale_id = :mat AND posizione_fisica = :pos
+                    AND marca IS NOT NULL AND marca != ''
+                    ORDER BY creato_il DESC LIMIT 1) as marca,
+                   (SELECT modello FROM movimenti_magazzino 
+                    WHERE magazzino_id = :mag AND materiale_id = :mat AND posizione_fisica = :pos
+                    AND modello IS NOT NULL AND modello != ''
+                    ORDER BY creato_il DESC LIMIT 1) as modello
             FROM movimenti_magazzino
             WHERE magazzino_id = :mag AND materiale_id = :mat AND posizione_fisica = :pos
             GROUP BY posizione_fisica
-        """), {"mag": magazzino_id, "mat": materiale_id, "pos": from_pos_clean}).scalar() or 0
+        """), {"mag": magazzino_id, "mat": materiale_id, "pos": from_pos_clean}).mappings().first()
+        
+        disponibile = pos_info["quantita"] if pos_info else 0
+        from_marca = pos_info["marca"] if pos_info and pos_info["marca"] else ""
+        from_modello = pos_info["modello"] if pos_info and pos_info["modello"] else ""
         
         if quantita > disponibile:
             return RedirectResponse(url=f"/magazzino/{magazzino_id}/giacenza/{materiale_id}?error=insufficient_stock", status_code=303)
@@ -323,20 +362,22 @@ def magazzino_trasferisci_posizione(
         
         # 1. Scarico from the source position
         c.execute(text("""
-            INSERT INTO movimenti_magazzino (magazzino_id, materiale_id, user_id, operazione, quantita, data_movimento, descrizione, posizione_fisica)
-            VALUES (:mag, :mat, :uid, 'scarico', :q, :dt, :desc, :pos)
+            INSERT INTO movimenti_magazzino (magazzino_id, materiale_id, user_id, operazione, quantita, data_movimento, descrizione, posizione_fisica, marca, modello)
+            VALUES (:mag, :mat, :uid, 'scarico', :q, :dt, :desc, :pos, :marca, :modello)
         """), {
             "mag": magazzino_id, "mat": materiale_id, "uid": user["id"], "q": quantita, "dt": oggi,
-            "desc": f"Trasferimento interno verso posizione {to_pos_clean}", "pos": from_pos_clean
+            "desc": f"Trasferimento interno verso posizione {to_pos_clean}", "pos": from_pos_clean,
+            "marca": from_marca, "modello": from_modello
         })
         
         # 2. Carico to the destination position
         c.execute(text("""
-            INSERT INTO movimenti_magazzino (magazzino_id, materiale_id, user_id, operazione, quantita, data_movimento, descrizione, posizione_fisica)
-            VALUES (:mag, :mat, :uid, 'carico', :q, :dt, :desc, :pos)
+            INSERT INTO movimenti_magazzino (magazzino_id, materiale_id, user_id, operazione, quantita, data_movimento, descrizione, posizione_fisica, marca, modello)
+            VALUES (:mag, :mat, :uid, 'carico', :q, :dt, :desc, :pos, :marca, :modello)
         """), {
             "mag": magazzino_id, "mat": materiale_id, "uid": user["id"], "q": quantita, "dt": oggi,
-            "desc": f"Trasferimento interno da posizione {from_pos_clean}", "pos": to_pos_clean
+            "desc": f"Trasferimento interno da posizione {from_pos_clean}", "pos": to_pos_clean,
+            "marca": from_marca, "modello": from_modello
         })
         
     return RedirectResponse(url=f"/magazzino/{magazzino_id}/giacenza/{materiale_id}", status_code=303)
@@ -372,11 +413,22 @@ def magazzino_movimento_form(r: Request, magazzino_id: int, materiale_id: int, o
         posizioni = []
         if operazione == "scarico":
             posizioni = c.execute(text("""
-                SELECT posizione_fisica, 
-                       SUM(CASE WHEN operazione = 'carico' THEN quantita ELSE -quantita END) as quantita
-                FROM movimenti_magazzino 
-                WHERE magazzino_id = :mag_id AND materiale_id = :mat_id AND posizione_fisica IS NOT NULL AND posizione_fisica != ''
-                GROUP BY posizione_fisica
+                SELECT p.posizione_fisica, p.quantita,
+                       (SELECT marca FROM movimenti_magazzino 
+                        WHERE magazzino_id = :mag_id AND materiale_id = :mat_id AND posizione_fisica = p.posizione_fisica
+                        AND marca IS NOT NULL AND marca != ''
+                        ORDER BY creato_il DESC LIMIT 1) as marca,
+                       (SELECT modello FROM movimenti_magazzino 
+                        WHERE magazzino_id = :mag_id AND materiale_id = :mat_id AND posizione_fisica = p.posizione_fisica
+                        AND modello IS NOT NULL AND modello != ''
+                        ORDER BY creato_il DESC LIMIT 1) as modello
+                FROM (
+                    SELECT posizione_fisica, 
+                           SUM(CASE WHEN operazione = 'carico' THEN quantita ELSE -quantita END) as quantita
+                    FROM movimenti_magazzino 
+                    WHERE magazzino_id = :mag_id AND materiale_id = :mat_id AND posizione_fisica IS NOT NULL AND posizione_fisica != ''
+                    GROUP BY posizione_fisica
+                ) p
             """), {"mag_id": magazzino_id, "mat_id": materiale_id}).mappings().all()
         else:
             # Per il carico, selezioniamo tutte le posizioni attualmente attive in questo magazzino
@@ -471,6 +523,17 @@ async def magazzino_movimento_action(
             
         if not can_edit or quantita <= 0:
             return RedirectResponse(url="/magazzini", status_code=303)
+
+        if operazione == "scarico":
+            pos_info = c.execute(text("""
+                SELECT marca, modello FROM movimenti_magazzino
+                WHERE magazzino_id = :mag AND materiale_id = :mat AND posizione_fisica = :pos
+                AND (marca IS NOT NULL AND marca != '' OR modello IS NOT NULL AND modello != '')
+                ORDER BY creato_il DESC LIMIT 1
+            """), {"mag": magazzino_id, "mat": materiale_id, "pos": pos_clean}).mappings().first()
+            if pos_info:
+                marca = pos_info["marca"] or ""
+                modello = pos_info["modello"] or ""
 
         mag_cat = c.execute(text("SELECT categoria_id FROM magazzini WHERE magazzino_id = :id"), {"id": magazzino_id}).scalar()
         mat_cat = c.execute(text("SELECT categoria_id FROM materiali WHERE materiale_id = :id"), {"id": materiale_id}).scalar()
@@ -999,6 +1062,14 @@ def get_scarico_multiplo(r: Request, error: str = None):
         giacenze_raw = c.execute(text("""
             SELECT mm.magazzino_id, mm.materiale_id, mat.nome AS materiale_nome,
                    mm.posizione_fisica,
+                   (SELECT marca FROM movimenti_magazzino 
+                    WHERE magazzino_id = mm.magazzino_id AND materiale_id = mm.materiale_id AND posizione_fisica = mm.posizione_fisica
+                    AND marca IS NOT NULL AND marca != ''
+                    ORDER BY creato_il DESC LIMIT 1) as marca,
+                   (SELECT modello FROM movimenti_magazzino 
+                    WHERE magazzino_id = mm.magazzino_id AND materiale_id = mm.materiale_id AND posizione_fisica = mm.posizione_fisica
+                    AND modello IS NOT NULL AND modello != ''
+                    ORDER BY creato_il DESC LIMIT 1) as modello,
                    SUM(CASE WHEN mm.operazione = 'carico' THEN mm.quantita ELSE -mm.quantita END) AS quantita
             FROM movimenti_magazzino mm
             JOIN materiali mat ON mm.materiale_id = mat.materiale_id
@@ -1015,6 +1086,8 @@ def get_scarico_multiplo(r: Request, error: str = None):
             "materiale_id": g["materiale_id"],
             "materiale_nome": g["materiale_nome"],
             "posizione_fisica": g["posizione_fisica"],
+            "marca": g["marca"] or "",
+            "modello": g["modello"] or "",
             "quantita": int(g["quantita"]) if g["quantita"] is not None else 0
         })
         
@@ -1099,12 +1172,23 @@ async def post_scarico_multiplo(
                       
             sede_id_val = int(sede_assegnazione_id) if sede_assegnazione_id and str(sede_assegnazione_id).isdigit() else None
             
+            pos_info = c.execute(text("""
+                SELECT marca, modello FROM movimenti_magazzino
+                WHERE magazzino_id = :mag AND materiale_id = :mat AND posizione_fisica = :pos
+                AND (marca IS NOT NULL AND marca != '' OR modello IS NOT NULL AND modello != '')
+                ORDER BY creato_il DESC LIMIT 1
+            """), {"mag": m_id, "mat": mat_id, "pos": pos}).mappings().first()
+            m_marca = pos_info["marca"] if pos_info else ""
+            m_modello = pos_info["modello"] if pos_info else ""
+            
             c.execute(text("""
-                INSERT INTO movimenti_magazzino (magazzino_id, materiale_id, user_id, operazione, quantita, data_movimento, descrizione, sede_assegnazione_id, posizione_fisica, allegato, gruppo_scarico)
-                VALUES (:mag, :mat, :uid, 'scarico', :q, :dt, :desc, :sede, :pos, :all, :grp)
+                INSERT INTO movimenti_magazzino (magazzino_id, materiale_id, user_id, operazione, quantita, data_movimento, descrizione, sede_assegnazione_id, posizione_fisica, marca, modello, allegato, gruppo_scarico)
+                VALUES (:mag, :mat, :uid, 'scarico', :q, :dt, :desc, :sede, :pos, :marca, :modello, :all, :grp)
             """), {
                 "mag": m_id, "mat": mat_id, "uid": user["id"], "q": qta, "dt": data_movimento,
-                "desc": descrizione, "sede": sede_id_val, "pos": pos, "all": allegato_filename, "grp": gruppo_scarico_id
+                "desc": descrizione, "sede": sede_id_val, "pos": pos, 
+                "marca": m_marca, "modello": m_modello,
+                "all": allegato_filename, "grp": gruppo_scarico_id
             })
             
     if genera_pdf == "1":

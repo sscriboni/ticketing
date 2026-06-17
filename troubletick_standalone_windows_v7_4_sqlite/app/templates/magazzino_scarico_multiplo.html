@@ -260,7 +260,8 @@
             posSelect.disabled = true;
         } else {
             posizioniDisp.forEach(p => {
-                posSelect.insertAdjacentHTML('beforeend', `<option value="${p.posizione_fisica}" data-qta="${p.quantita}">${p.posizione_fisica} (Disponibile: ${p.quantita} pz)</option>`);
+                const labelMarcaModello = (p.marca || p.modello) ? ` [${p.marca || ''} ${p.modello || ''}]` : '';
+                posSelect.insertAdjacentHTML('beforeend', `<option value="${p.posizione_fisica}" data-qta="${p.quantita}">${p.posizione_fisica}${labelMarcaModello} (Disponibile: ${p.quantita} pz)</option>`);
             });
             posSelect.disabled = false;
         }

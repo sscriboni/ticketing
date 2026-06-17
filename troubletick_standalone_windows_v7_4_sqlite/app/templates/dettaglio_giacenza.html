@@ -66,10 +66,17 @@
                                 <div>
                                     <strong>{{ pos.posizione_fisica or 'Non specificata' }}</strong>
                                     {% if can_edit and pos.posizione_fisica %}
-                                    <a href="#" class="small text-decoration-none ms-2" data-bs-toggle="modal" data-bs-target="#renamePosModal" data-pos="{{ pos.posizione_fisica }}" title="Rinomina Posizione"><i class="bi bi-pencil"></i></a>
+                                    <a href="#" class="small text-decoration-none ms-2" data-bs-toggle="modal" data-bs-target="#renamePosModal" data-pos="{{ pos.posizione_fisica }}" data-marca="{{ pos.marca or '' }}" data-modello="{{ pos.modello or '' }}" title="Modifica Posizione, Marca e Modello"><i class="bi bi-pencil"></i></a>
                                     <a href="#" class="small text-decoration-none ms-2 text-warning" data-bs-toggle="modal" data-bs-target="#transferPosModal" data-pos="{{ pos.posizione_fisica }}" data-max="{{ pos.quantita }}" title="Trasferisci Materiale"><i class="bi bi-arrow-left-right"></i></a>
                                     {% endif %}
-                                    {% if can_edit %}<br><a href="#" class="small text-decoration-none" data-bs-toggle="modal" data-bs-target="#fotoModal" data-pos="{{ pos.posizione_fisica }}"><i class="bi bi-camera"></i> Carica Foto</a>{% endif %}
+                                    {% if pos.marca or pos.modello %}
+                                    <div class="small text-muted mt-1">
+                                        {% if pos.marca %}<span>Marca: <strong>{{ pos.marca }}</strong></span>{% endif %}
+                                        {% if pos.marca and pos.modello %}<span class="mx-1">|</span>{% endif %}
+                                        {% if pos.modello %}<span>Modello: <strong>{{ pos.modello }}</strong></span>{% endif %}
+                                    </div>
+                                    {% endif %}
+                                    {% if can_edit %}<div class="mt-1"><a href="#" class="small text-decoration-none" data-bs-toggle="modal" data-bs-target="#fotoModal" data-pos="{{ pos.posizione_fisica }}"><i class="bi bi-camera"></i> Carica Foto</a></div>{% endif %}
                                 </div>
                             </div>
                         </td>
@@ -165,21 +172,29 @@
     <div class="modal-content">
       <form method="post" action="/magazzino/{{ magazzino.magazzino_id }}/materiale/{{ materiale.materiale_id }}/rinomina-posizione">
         <div class="modal-header">
-          <h5 class="modal-title" id="renamePosModalLabel">Rinomina Posizione / Lotto</h5>
+          <h5 class="modal-title" id="renamePosModalLabel">Modifica Posizione / Marca / Modello</h5>
           <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
         </div>
         <div class="modal-body">
             <input type="hidden" name="old_posizione" id="modalOldPosizione">
-            <p>Stai rinominando: <strong id="modalOldPosizioneText"></strong></p>
+            <p>Stai modificando: <strong id="modalOldPosizioneText"></strong></p>
             <div class="mb-3">
-                <label class="form-label fw-bold">Nuovo Nome</label>
+                <label class="form-label fw-bold">Nome Posizione</label>
                 <input type="text" name="new_posizione" id="modalNewPosizione" class="form-control" required minlength="3" pattern="^[^\s]{3,}$" title="La posizione deve essere di almeno 3 caratteri e non contenere spazi.">
                 <small class="text-muted d-block mt-1">Questa modifica cambierà il nome della posizione o del lotto per tutti i movimenti passati di questo articolo. Deve essere di almeno 3 caratteri e NON contenere spazi.</small>
+            </div>
+            <div class="mb-3">
+                <label class="form-label fw-bold">Marca</label>
+                <input type="text" name="marca" id="modalMarca" class="form-control" placeholder="Es. Dell">
+            </div>
+            <div class="mb-3">
+                <label class="form-label fw-bold">Modello</label>
+                <input type="text" name="modello" id="modalModello" class="form-control" placeholder="Es. XPS 15">
             </div>
         </div>
         <div class="modal-footer">
           <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Annulla</button>
-          <button type="submit" class="btn btn-primary"><i class="bi bi-pencil"></i> Rinomina</button>
+          <button type="submit" class="btn btn-primary"><i class="bi bi-pencil"></i> Salva</button>
         </div>
       </form>
     </div>
@@ -245,12 +260,20 @@ document.addEventListener('DOMContentLoaded', function() {
         renamePosModal.addEventListener('show.bs.modal', function (event) {
             var button = event.relatedTarget;
             var pos = button.getAttribute('data-pos');
+            var marca = button.getAttribute('data-marca') || '';
+            var modello = button.getAttribute('data-modello') || '';
+            
             var inputOldPos = renamePosModal.querySelector('#modalOldPosizione');
             var textOldPos = renamePosModal.querySelector('#modalOldPosizioneText');
             var inputNewPos = renamePosModal.querySelector('#modalNewPosizione');
+            var inputMarca = renamePosModal.querySelector('#modalMarca');
+            var inputModello = renamePosModal.querySelector('#modalModello');
+            
             inputOldPos.value = pos;
             textOldPos.textContent = pos;
             inputNewPos.value = pos;
+            inputMarca.value = marca;
+            inputModello.value = modello;
         });
     }
 
