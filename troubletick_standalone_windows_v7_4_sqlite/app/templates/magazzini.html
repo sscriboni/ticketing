@@ -123,5 +123,47 @@
         </ul>
     </div>
 </div>
+
+{% if msg == 'trasferimento_avviato' %}
+<!-- Modal Informativo Trasferimento Avviato -->
+<div class="modal fade" id="transferModal" tabindex="-1" aria-labelledby="transferModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content border-0 shadow-lg">
+            <div class="modal-header bg-success text-white">
+                <h5 class="modal-title id="transferModalLabel"><i class="bi bi-truck me-2"></i> Trasferimento Avviato!</h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body p-4">
+                <p class="fs-6">Il trasferimento di merce è stato registrato ed avviato con successo.</p>
+                <p class="text-muted mb-0">I dettagli completi sono consultabili nella pagina dei <strong>Trasferimenti Merce</strong>, da cui è anche possibile ristampare il relativo <strong>Documento di Trasporto (DDT)</strong> in qualsiasi momento.</p>
+            </div>
+            <div class="modal-footer bg-light border-top-0">
+                {% if print_pdf == '1' and trsf_id %}
+                <a href="/stampa-consegna/trasferimento/{{ trsf_id }}" target="_blank" class="btn btn-success">
+                    <i class="bi bi-printer-fill me-1"></i> Stampa DDT
+                </a>
+                {% endif %}
+                <a href="/trasferimenti" class="btn btn-primary">Vai ai Trasferimenti</a>
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Chiudi</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+    document.addEventListener('DOMContentLoaded', function() {
+        var myModalElement = document.getElementById('transferModal');
+        if (myModalElement) {
+            var myModal = new bootstrap.Modal(myModalElement);
+            myModal.show();
+        }
+        
+        {% if print_pdf == '1' and trsf_id %}
+        window.open('/stampa-consegna/trasferimento/{{ trsf_id }}', '_blank');
+        {% endif %}
+    });
+</script>
+{% endif %}
+
 </body>
 </html>

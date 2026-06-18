@@ -165,11 +165,16 @@ def user_magazzini_list(r: Request, magazzino_id: List[str] = Query(None), sede_
         elif user.get("ruolo") == "admin":
             count_in_arrivo = c.execute(text("SELECT COUNT(*) FROM trasferimenti WHERE stato = 'in_consegna'")).scalar() or 0
 
+    msg = r.query_params.get("msg")
+    trsf_id = r.query_params.get("trsf_id")
+    print_pdf = r.query_params.get("print")
+
     return templates.TemplateResponse(r, "magazzini.html", {
         "request": r, "cfg": CFG, "user": user, 
         "righe": rows, "magazzini": magazzini_list, "sedi": sedi_list,
         "filtri": {"magazzino_id": magazzino_id or [], "sede_id": sede_id, "q": q, "solo_positive": solo_positive},
-        "user_mag_ids": user_mag_ids, "count_in_arrivo": count_in_arrivo
+        "user_mag_ids": user_mag_ids, "count_in_arrivo": count_in_arrivo,
+        "msg": msg, "trsf_id": trsf_id, "print_pdf": print_pdf
     })
 
 @router.get("/magazzino/{magazzino_id}/giacenza/{materiale_id}", response_class=HTMLResponse)
@@ -592,10 +597,11 @@ async def magazzino_movimento_action(
                 c.execute(text("""INSERT INTO ticket_notes (ticket_id, autore, testo, is_internal) VALUES (:tid, :a, :t, 0)"""),
                          {"tid": richiesta_ticket["ticket_id"], "a": f"Sistema ({autore})", "t": testo})
             
-        if operazione == "scarico" and genera_pdf == "1":
+        if operazione == "scarico":
             if mag_dest_id_val and trsf_id_val:
-                return RedirectResponse(url=f"/stampa-consegna/trasferimento/{trsf_id_val}", status_code=303)
-            else:
+                print_param = "&print=1" if genera_pdf == "1" else ""
+                return RedirectResponse(url=f"/magazzini?msg=trasferimento_avviato&trsf_id={trsf_id_val}{print_param}", status_code=303)
+            elif genera_pdf == "1":
                 mov_id = c.execute(text("""
                     SELECT movimento_id FROM movimenti_magazzino
                     WHERE user_id = :uid AND magazzino_id = :mag AND materiale_id = :mat AND operazione = 'scarico'
