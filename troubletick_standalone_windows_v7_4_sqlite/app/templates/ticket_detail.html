@@ -57,6 +57,17 @@
   </div>
   <hr>
   <div><strong>Descrizione</strong><p>{{ ticket.descrizione }}</p></div>
+  {% if ticket.servizio_note %}
+  <div class="alert alert-warning py-3 px-3 mt-3 shadow-sm border-0" style="font-size: 0.95rem; border-left: 4px solid #ffc107 !important; background-color: #fff3cd;">
+    <div class="fw-bold mb-2 text-warning-emphasis">
+      <i class="bi bi-exclamation-triangle-fill me-2"></i>Istruzioni fornite all'utente per questo servizio:
+    </div>
+    <div class="mb-2 bg-white p-2 rounded border text-dark">{{ ticket.servizio_note | safe }}</div>
+    <div class="small text-danger fw-bold border-top pt-2 mt-2">
+      ⚠️ Promemoria: Se l'utente non ha rispettato le indicazioni delle note, il ticket può essere chiuso immediatamente.
+    </div>
+  </div>
+  {% endif %}
   {% if ticket.allegato %}
   <hr>
   <div><strong>Allegato principale:</strong> <a href="/uploads/{{ ticket.allegato }}" target="_blank" class="btn btn-sm btn-outline-secondary ms-2"><i class="bi bi-paperclip"></i> Visualizza/Scarica allegato</a></div>

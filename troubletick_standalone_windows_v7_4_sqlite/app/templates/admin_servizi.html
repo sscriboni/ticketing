@@ -15,7 +15,12 @@
       <tbody>
       {% for servizio in servizi %}
       <tr>
-        <td><strong>{{ servizio.descrizione }}</strong></td>
+        <td>
+          <strong>{{ servizio.descrizione }}</strong>
+          {% if servizio.note %}
+          <span class="badge bg-info text-dark" style="font-size: 0.75rem;" title="Questo servizio contiene indicazioni/note per l'utente">Note</span>
+          {% endif %}
+        </td>
         <td>{{ servizio.descrizione_lunga or '—' }}</td>
         <td>{{ servizio.reparto_nome or '—' }}</td>
         <td>
@@ -46,6 +51,10 @@
       <div class="mb-3">
         <label class="form-label">Descrizione (max 250 car.)</label>
         <textarea name="descrizione_lunga" class="form-control" rows="3" maxlength="250" placeholder="Spiegazione sintetica del servizio..."></textarea>
+      </div>
+      <div class="mb-3">
+        <label class="form-label">Note / Istruzioni utente (HTML supportato)</label>
+        <textarea name="note" class="form-control" rows="3" placeholder="Spiega all'utente i dati da inserire (es. matricola, modello, ubicazione...)"></textarea>
       </div>
       <div class="mb-3"><label class="form-label">Reparto</label><select name="reparto_id" class="form-select" required>
         <option value="" disabled selected>Seleziona reparto</option>

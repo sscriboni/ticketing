@@ -28,7 +28,8 @@ try:
             descrizione TEXT NOT NULL,
             descrizione_lunga TEXT,
             reparto_id INTEGER NOT NULL,
-            accetta_ticket INTEGER DEFAULT 1
+            accetta_ticket INTEGER DEFAULT 1,
+            note TEXT
         )"""))
         c.execute(text(f"""CREATE TABLE IF NOT EXISTS users (
             user_id {DB_PK},
@@ -226,6 +227,7 @@ try:
             "ALTER TABLE reparti ADD COLUMN accetta_ticket INTEGER DEFAULT 1",
             "ALTER TABLE servizi ADD COLUMN accetta_ticket INTEGER DEFAULT 1",
             "ALTER TABLE servizi ADD COLUMN descrizione_lunga TEXT",
+            "ALTER TABLE servizi ADD COLUMN note TEXT",
             "ALTER TABLE users ADD COLUMN is_test INTEGER DEFAULT 0",
             "ALTER TABLE tickets ADD COLUMN is_test INTEGER DEFAULT 0",
             "ALTER TABLE users ADD COLUMN sede_id INTEGER",
@@ -428,7 +430,7 @@ def new_form(r: Request):
     with engine.connect() as c:
         reparti = c.execute(text("SELECT reparto_id, nome FROM reparti ORDER BY nome")).mappings().all()
         reparti_dest = c.execute(text("SELECT reparto_id, nome, descrizione FROM reparti WHERE accetta_ticket = 1 ORDER BY nome")).mappings().all()
-        servizi = c.execute(text("SELECT servizio_id, descrizione, descrizione_lunga, reparto_id FROM servizi WHERE accetta_ticket = 1 ORDER BY descrizione")).mappings().all()
+        servizi = c.execute(text("SELECT servizio_id, descrizione, descrizione_lunga, reparto_id, note FROM servizi WHERE accetta_ticket = 1 ORDER BY descrizione")).mappings().all()
         sedi = c.execute(text("SELECT sede_id, nome FROM sedi ORDER BY nome")).mappings().all()
     return templates.TemplateResponse(r, "new_ticket.html", {"request": r, "cfg": CFG, "reparti": reparti, "reparti_dest": reparti_dest, "servizi": servizi, "sedi": sedi})
 
@@ -704,7 +706,7 @@ def ticket_detail(r: Request, ticket_id: int):
     user = r.session.get("user")
     with engine.connect() as c:
         ticket = c.execute(text("""
-            SELECT t.*, r.nome AS reparto_nome, s.descrizione AS servizio_desc,
+            SELECT t.*, r.nome AS reparto_nome, s.descrizione AS servizio_desc, s.note AS servizio_note,
                    COALESCE(t.reparto_appartenenza, ra.nome) AS reparto_appartenenza_nome
               FROM tickets t
               LEFT JOIN reparti r ON t.reparto_id = r.reparto_id
@@ -1370,7 +1372,7 @@ def admin_servizi(r: Request, error: str = None):
     if isinstance(user, RedirectResponse):
         return user
     with engine.connect() as c:
-        servizi = c.execute(text("SELECT s.servizio_id, s.descrizione, s.descrizione_lunga, s.reparto_id, s.accetta_ticket, r.nome AS reparto_nome FROM servizi s LEFT JOIN reparti r ON s.reparto_id = r.reparto_id ORDER BY r.nome, s.descrizione")).mappings().all()
+        servizi = c.execute(text("SELECT s.servizio_id, s.descrizione, s.descrizione_lunga, s.reparto_id, s.accetta_ticket, s.note, r.nome AS reparto_nome FROM servizi s LEFT JOIN reparti r ON s.reparto_id = r.reparto_id ORDER BY r.nome, s.descrizione")).mappings().all()
         reparti = c.execute(text("SELECT reparto_id, nome FROM reparti ORDER BY nome")).mappings().all()
     return templates.TemplateResponse(r, "admin_servizi.html", {"request": r, "cfg": CFG, "user": user, "servizi": servizi, "reparti": reparti, "error": error})
 
@@ -1418,12 +1420,12 @@ def delete_reparto(r: Request, reparto_id: int = Form(...)):
     return RedirectResponse(url="/admin/reparti", status_code=303)
 
 @app.post("/admin/servizio")
-def add_servizio(r: Request, descrizione: str = Form(...), descrizione_lunga: str = Form(""), reparto_id: int = Form(...), accetta_ticket: int = Form(0)):
+def add_servizio(r: Request, descrizione: str = Form(...), descrizione_lunga: str = Form(""), note: str = Form(""), reparto_id: int = Form(...), accetta_ticket: int = Form(0)):
     user = require_superuser(r)
     if isinstance(user, RedirectResponse):
         return user
     with engine.begin() as c:
-        c.execute(text("INSERT INTO servizi (descrizione, descrizione_lunga, reparto_id, accetta_ticket) VALUES (:descrizione, :descrizione_lunga, :reparto_id, :at)"), {"descrizione": descrizione, "descrizione_lunga": descrizione_lunga, "reparto_id": reparto_id, "at": accetta_ticket})
+        c.execute(text("INSERT INTO servizi (descrizione, descrizione_lunga, reparto_id, accetta_ticket, note) VALUES (:descrizione, :descrizione_lunga, :reparto_id, :at, :note)"), {"descrizione": descrizione, "descrizione_lunga": descrizione_lunga, "reparto_id": reparto_id, "at": accetta_ticket, "note": note})
     return RedirectResponse(url="/admin/servizi", status_code=303)
 
 @app.get("/admin/servizio/{servizio_id}/modifica", response_class=HTMLResponse)
@@ -1437,12 +1439,12 @@ def edit_servizio_form(r: Request, servizio_id: int):
     return templates.TemplateResponse(r, "edit_servizio.html", {"request": r, "cfg": CFG, "user": user, "servizio": servizio, "reparti": reparti})
 
 @app.post("/admin/servizio/{servizio_id}/modifica")
-def edit_servizio_action(r: Request, servizio_id: int, descrizione: str = Form(...), descrizione_lunga: str = Form(""), reparto_id: int = Form(...), accetta_ticket: int = Form(0)):
+def edit_servizio_action(r: Request, servizio_id: int, descrizione: str = Form(...), descrizione_lunga: str = Form(""), note: str = Form(""), reparto_id: int = Form(...), accetta_ticket: int = Form(0)):
     user = require_superuser(r)
     if isinstance(user, RedirectResponse): return user
     with engine.begin() as c:
-        c.execute(text("UPDATE servizi SET descrizione = :desc, descrizione_lunga = :desc_lunga, reparto_id = :rid, accetta_ticket = :at WHERE servizio_id = :id"),
-                  {"desc": descrizione, "desc_lunga": descrizione_lunga, "rid": reparto_id, "at": accetta_ticket, "id": servizio_id})
+        c.execute(text("UPDATE servizi SET descrizione = :desc, descrizione_lunga = :desc_lunga, reparto_id = :rid, accetta_ticket = :at, note = :note WHERE servizio_id = :id"),
+                  {"desc": descrizione, "desc_lunga": descrizione_lunga, "rid": reparto_id, "at": accetta_ticket, "note": note, "id": servizio_id})
     return RedirectResponse(url="/admin/servizi", status_code=303)
 
 @app.post("/admin/servizio/{servizio_id}/toggle-accetta")
