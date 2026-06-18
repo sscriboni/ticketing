@@ -529,35 +529,13 @@ def success(r: Request, codice: str = None, email: str = None):
             
     return templates.TemplateResponse(r, "success.html", {"request": r, "cfg": CFG, "codice": codice, "email_inviata": bool(email), "ticket": ticket_info, "current_year": datetime.now().year})
 
-@app.get("/status-ticket", response_class=HTMLResponse)
+@app.get("/status-ticket")
 def status_ticket_form(r: Request):
-    current_year = datetime.now().year
-    return templates.TemplateResponse(r, "status_ticket.html", {"request": r, "cfg": CFG, "current_year": current_year})
+    return RedirectResponse(url="/", status_code=303)
 
-@app.post("/status-ticket", response_class=HTMLResponse)
+@app.post("/status-ticket")
 def status_ticket_action(r: Request, anno: str = Form(...), codice: str = Form(...)):
-    codice_formattato = codice.strip().zfill(6) if codice.strip().isdigit() else codice.strip()
-    with engine.connect() as c:
-        ticket = c.execute(text("""
-            SELECT t.ticket_id, t.codice_ticket, t.stato, t.creato_il, t.nome, t.cognome,
-                   r.nome AS reparto_nome, s.descrizione AS servizio_desc
-            FROM tickets t
-            LEFT JOIN reparti r ON t.reparto_id = r.reparto_id
-            LEFT JOIN servizi s ON t.servizio_id = s.servizio_id
-            WHERE t.codice_ticket = :cod AND t.creato_il LIKE :anno
-        """), {"cod": codice_formattato, "anno": f"{anno.strip()}-%"}).mappings().first()
-        
-        note = []
-        if ticket:
-            note = c.execute(text("""
-                SELECT autore, testo, creato_il 
-                FROM ticket_notes 
-                WHERE ticket_id = :tid AND (is_internal = 0 OR is_internal IS NULL)
-                ORDER BY creato_il DESC 
-                LIMIT 3
-            """), {"tid": ticket["ticket_id"]}).mappings().all()
-        
-    return templates.TemplateResponse(r, "status_ticket.html", {"request": r, "cfg": CFG, "ticket": ticket, "note": note, "cercato": True, "anno": anno, "codice": codice, "current_year": datetime.now().year})
+    return RedirectResponse(url="/", status_code=303)
 
 
 @app.get("/tickets", response_class=HTMLResponse)
