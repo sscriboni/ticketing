@@ -1,0 +1,51 @@
+<script>
+  (function() {
+    const pathname = window.location.pathname;
+    const firstSegment = pathname.split('/')[1];
+    const knownRoutes = [
+      'admin', 'new', 'login', 'logout', 'register', 'forgot-password', 
+      'reset-password', 'tickets', 'ticket', 'status-ticket', 
+      'magazzini', 'uploads', 'static', 'richieste-materiale', 
+      'richiesta-materiale', 'consegna', 'profilo', 'calendario', 
+      'report-copertura', 'comuni', 'comune', 'reparti', 'reparto', 
+      'servizi', 'servizio', 'sedi', 'sede', 'categorie', 'categoria', 
+      'materiali', 'materiale', 'giacenze', 'giacenza'
+    ];
+    
+    // Rileva automaticamente se il primo segmento è un path relativo (es. /ticketing)
+    const basePath = (firstSegment && !knownRoutes.includes(firstSegment)) ? '/' + firstSegment : '';
+    
+    if (basePath) {
+      // 1. Riscrittura delle chiamate fetch()
+      const originalFetch = window.fetch;
+      window.fetch = function(input, init) {
+        if (typeof input === 'string' && input.startsWith('/') && !input.startsWith(basePath + '/')) {
+          input = basePath + input;
+        }
+        return originalFetch(input, init);
+      };
+
+      // 2. Riscrittura al click dei link <a>
+      document.addEventListener('click', function(e) {
+        const a = e.target.closest('a');
+        if (a) {
+          const href = a.getAttribute('href');
+          if (href && href.startsWith('/') && !href.startsWith(basePath + '/')) {
+            a.setAttribute('href', basePath + href);
+          }
+        }
+      }, true);
+
+      // 3. Riscrittura all'invio dei form <form>
+      document.addEventListener('submit', function(e) {
+        const form = e.target.closest('form');
+        if (form) {
+          const action = form.getAttribute('action');
+          if (action && action.startsWith('/') && !action.startsWith(basePath + '/')) {
+            form.setAttribute('action', basePath + action);
+          }
+        }
+      }, true);
+    }
+  })();
+</script>
