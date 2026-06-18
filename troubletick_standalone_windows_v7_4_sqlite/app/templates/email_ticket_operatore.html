@@ -2,23 +2,80 @@
 <html lang="it">
 <head>
     <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Notifica Servizio — {{ cfg.company_name }}</title>
 </head>
-<body style="font-family: Arial, sans-serif; color: #333; line-height: 1.6; max-width: 600px; margin: 0 auto; padding: 20px;">
-    <div style="text-align: center; margin-bottom: 20px;">
-        <h1 style="color: #0d6efd; margin-bottom: 5px;">{{ cfg.logo_emoji }} {{ cfg.company_name }}</h1>
-        <p style="color: #6c757d; margin-top: 0; font-size: 14px;">Portale Assistenza</p>
-    </div>
-    <div style="background-color: #f8f9fa; padding: 20px; border-radius: 8px; border: 1px solid #dee2e6;">
-        <h3 style="margin-top: 0; color: #333;">{{ titolo }}</h3>
-        <p>Il ticket <strong>#{{ codice_ticket }}</strong> (richiesto da {{ nome_richiedente }}) è stato assegnato al tuo servizio (<strong>{{ serv_desc }}</strong>).</p>
-        
-        <p><strong>Descrizione:</strong><br>
-        <div style="background-color: white; padding: 10px; border-radius: 4px; border: 1px solid #ced4da; margin-top: 5px; white-space: pre-wrap;">{{ descrizione }}</div></p>
-        
-        <p style="margin-bottom: 0; margin-top: 15px;">Accedi al portale operatori per prenderlo in carico.</p>
-    </div>
-    <div style="text-align: center; margin-top: 20px; font-size: 0.8em; color: #6c757d;">
-        <p>{{ cfg.footer_text }}</p>
-    </div>
+<body style="margin: 0; padding: 0; background-color: #f4f6f8; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; -webkit-font-smoothing: antialiased;">
+    <table border="0" cellpadding="0" cellspacing="0" width="100%" style="background-color: #f4f6f8; padding: 20px 0;">
+        <tr>
+            <td align="center">
+                <!-- Wrapper Table -->
+                <table border="0" cellpadding="0" cellspacing="0" width="100%" style="max-width: 600px; background-color: #ffffff; border-radius: 12px; box-shadow: 0 4px 12px rgba(0,0,0,0.05); overflow: hidden;">
+                    <!-- Header -->
+                    <tr>
+                        <td align="center" style="background: linear-gradient(135deg, #7c3aed, #5b21b6); padding: 35px 20px; text-align: center;">
+                            <span style="font-size: 40px; margin-bottom: 10px; display: block;">⚡</span>
+                            <h1 style="color: #ffffff; margin: 0; font-size: 24px; font-weight: 800; letter-spacing: -0.5px;">{{ cfg.company_name }}</h1>
+                            <p style="color: #ddd6fe; margin: 5px 0 0 0; font-size: 13px; text-transform: uppercase; font-weight: 600; letter-spacing: 1px;">Notifica Interna Operatore</p>
+                        </td>
+                    </tr>
+                    
+                    <!-- Content -->
+                    <tr>
+                        <td style="padding: 40px 30px;">
+                            <h2 style="color: #111827; margin-top: 0; font-size: 20px; font-weight: 700; border-bottom: 2px solid #f3f4f6; padding-bottom: 15px;">{{ titolo or 'Nuovo Ticket Assegnato' }}</h2>
+                            <p style="color: #4b5563; font-size: 15px; line-height: 1.6;">
+                                Attenzione,
+                            </p>
+                            <p style="color: #4b5563; font-size: 15px; line-height: 1.6; margin-bottom: 25px;">
+                                il ticket <strong style="color: #7c3aed;">#{{ codice_ticket }}</strong> (inviato da <strong>{{ nome_richiedente }}</strong>) è stato assegnato o trasferito al tuo servizio (<strong>{{ serv_desc }}</strong>).
+                            </p>
+                            
+                            <!-- Ticket Details Box -->
+                            <table border="0" cellpadding="0" cellspacing="0" width="100%" style="background-color: #f9fafb; border: 1px solid #e5e7eb; border-radius: 8px; margin-bottom: 25px; padding: 20px;">
+                                <tr>
+                                    <td style="padding-bottom: 10px; font-size: 13px; color: #6b7280; font-weight: 600; width: 35%;">Codice Unico:</td>
+                                    <td style="padding-bottom: 10px; font-size: 13px; color: #111827; font-weight: 700; font-family: monospace;">{{ codice_ticket }}</td>
+                                </tr>
+                                <tr>
+                                    <td style="padding-bottom: 10px; font-size: 13px; color: #6b7280; font-weight: 600;">Richiedente:</td>
+                                    <td style="padding-bottom: 10px; font-size: 13px; color: #111827; font-weight: 600;">{{ nome_richiedente }}</td>
+                                </tr>
+                                <tr>
+                                    <td style="padding-bottom: 10px; font-size: 13px; color: #6b7280; font-weight: 600;">Servizio Target:</td>
+                                    <td style="padding-bottom: 10px; font-size: 13px; color: #111827; font-weight: 600;">{{ serv_desc }}</td>
+                                </tr>
+                                <tr>
+                                    <td colspan="2" style="padding-top: 10px; border-top: 1px dashed #e5e7eb;">
+                                        <div style="font-size: 13px; color: #6b7280; font-weight: 600; margin-bottom: 8px;">Descrizione del problema:</div>
+                                        <div style="background-color: #ffffff; border: 1px solid #e5e7eb; border-radius: 6px; padding: 15px; font-size: 14px; color: #374151; white-space: pre-wrap; line-height: 1.5; font-family: inherit;">{{ descrizione }}</div>
+                                    </td>
+                                </tr>
+                            </table>
+                            
+                            <!-- Call to Action Link placeholder or button styling -->
+                            <table border="0" cellpadding="0" cellspacing="0" width="100%" style="margin-top: 30px;">
+                                <tr>
+                                    <td align="center">
+                                        <div style="font-size: 14px; color: #4b5563; margin-bottom: 15px;">Accedi subito alla dashboard per prenderlo in carico e iniziare a lavorarci:</div>
+                                        <div style="background-color: #7c3aed; color: #ffffff; padding: 12px 24px; border-radius: 8px; font-size: 14px; font-weight: bold; text-decoration: none; display: inline-block;">
+                                            Apri Portale Operatori
+                                        </div>
+                                    </td>
+                                </tr>
+                            </table>
+                        </td>
+                    </tr>
+                    
+                    <!-- Footer -->
+                    <tr>
+                        <td align="center" style="background-color: #f9fafb; padding: 25px 20px; border-top: 1px solid #f3f4f6; border-bottom-left-radius: 12px; border-bottom-right-radius: 12px;">
+                            <p style="margin: 0; font-size: 12px; color: #9ca3af;">{{ cfg.footer_text }}</p>
+                        </td>
+                    </tr>
+                </table>
+            </td>
+        </tr>
+    </table>
 </body>
 </html>
