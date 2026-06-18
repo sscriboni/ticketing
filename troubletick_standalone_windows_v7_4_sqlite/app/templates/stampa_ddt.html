@@ -1,0 +1,317 @@
+<!doctype html>
+<html lang="it">
+
+<head>
+    <meta charset="utf-8">
+    <title>DDT Trasferimento - {{ cfg.company_name }}</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css">
+    <style>
+        body {
+            background-color: #f8f9fa;
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+            color: #000;
+        }
+
+        .ddt-container {
+            max-width: 820px;
+            background-color: #fff;
+            border: 1px solid #dee2e6;
+            box-shadow: 0 0.5rem 1rem rgba(0, 0, 0, 0.05);
+            padding: 40px;
+            margin: 40px auto;
+        }
+
+        .form-section-title {
+            background-color: #e9ecef;
+            font-size: 0.85rem;
+            font-weight: bold;
+            padding: 6px 12px;
+            border: 1px solid #ced4da;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+
+        .field-label {
+            font-size: 0.75rem;
+            font-weight: bold;
+            color: #495057;
+            text-transform: uppercase;
+        }
+
+        .field-value {
+            font-size: 0.85rem;
+            border-bottom: 1px dotted #495057;
+            padding-bottom: 2px;
+            min-height: 20px;
+        }
+
+        @media print {
+            .no-print {
+                display: none !important;
+            }
+
+            body {
+                background-color: #fff !important;
+            }
+
+            .ddt-container {
+                border: none !important;
+                box-shadow: none !important;
+                padding: 0 !important;
+                margin: 0 !important;
+                max-width: 100% !important;
+            }
+
+            html,
+            body {
+                height: 99%;
+                font-size: 13px !important;
+            }
+
+            .table th,
+            .table td {
+                padding: 4px 8px !important;
+            }
+        }
+    </style>
+</head>
+
+<body>
+
+    {% set creato_date = t.creato_il.split(' ')[0] %}
+    {% set creato_time = t.creato_il.split(' ')[1] if t.creato_il.split(' ')|length > 1 else '' %}
+    {% set creato_ita = t.creato_il %}
+    {% if '-' in creato_date %}
+    {% set c_parts = creato_date.split('-') %}
+    {% if c_parts|length == 3 %}
+    {% set creato_ita = c_parts[2] ~ '/' ~ c_parts[1] ~ '/' ~ c_parts[0] ~ (' ' ~ creato_time if creato_time else '') %}
+    {% endif %}
+    {% endif %}
+
+    <div class="ddt-container">
+        <!-- Intestazione ASL AL -->
+        <div class="row align-items-center mb-3">
+            <div class="col-4 border-end border-secondary pe-3 d-flex align-items-center gap-2">
+                <img src="/static/asl-al-logo.png" alt="Logo Azienda" width="65" height="65">
+
+                <div>
+                    <div class="fw-bold" style="font-size: 1.1rem; line-height: 1.1; color: #005C8A;">ASL AL</div>
+                    <div style="font-size: 0.6rem; font-weight: 900; color: #5A6B7C; letter-spacing: 0.5px;">REGIONE
+                        PIEMONTE</div>
+                </div>
+            </div>
+            <div class="col-8 ps-3" style="font-size: 0.7rem; line-height: 1.3;">
+                <strong class="text-uppercase" style="color: #005C8A;">S.C. Economato Logistica Approvvigionamenti
+                    Patrimoniale</strong><br>
+                <strong>S.S. Patrimoniale</strong><br>
+                <span class="text-muted">
+                    piazza Antico Borgo del Loreto - 15057 Tortona (AL)<br>
+                    Tel. 0131.865443/865641/865704/865333/865767/865717 | Fax 0131.865450<br>
+                    E-mail: patrimonio@aslal.it - patrimonio@pec.aslal.it - www.aslal.it
+                </span>
+            </div>
+        </div>
+
+        <!-- Titolo Documento -->
+        <div class="text-center my-3 p-2 border-top border-bottom border-secondary border-2"
+            style="background-color: #f8f9fa;">
+            <h4 class="mb-1 fw-bold" style="letter-spacing: 1px;">DOCUMENTO DI TRASPORTO (D.D.T.)</h4>
+            <div class="small" style="font-size: 0.7rem; font-style: italic; color: #495057;">
+                Rif. D.P.R. 14 Agosto 1996, n. 472 — Trasferimento Interno tra Magazzini
+            </div>
+        </div>
+
+        <!-- DETTAGLI DOCUMENTO -->
+        <div class="row mb-3">
+            <div class="col-6">
+                <div class="border border-secondary p-2 bg-light h-100">
+                    <div class="field-label">Numero DDT</div>
+                    <div class="field-value fw-bold text-primary" style="font-size: 0.95rem;">DDT-TRF-{{ t.trasferimento_id }}</div>
+                    <div class="field-label mt-2">Data e Ora di Spedizione</div>
+                    <div class="field-value">{{ creato_ita }}</div>
+                </div>
+            </div>
+            <div class="col-6">
+                <div class="border border-secondary p-2 bg-light h-100">
+                    <div class="field-label">Causale Trasporto</div>
+                    <div class="field-value">Trasferimento Interno</div>
+                    <div class="field-label mt-2">Stato Spedizione</div>
+                    <div class="field-value fw-semibold">
+                        {% if t.stato == 'in_consegna' %}
+                        <span class="text-warning"><i class="bi bi-truck"></i> IN CONSEGNA</span>
+                        {% else %}
+                        <span class="text-success"><i class="bi bi-check-circle-fill"></i> RICEVUTO (Completato)</span>
+                        {% endif %}
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- SENDER & RECEIVER -->
+        <div class="row mb-3">
+            <!-- MITTENTE (ORIGINE) -->
+            <div class="col-6">
+                <div class="form-section-title">Magazzino di Origine (Mittente)</div>
+                <div class="border border-secondary p-3 h-100" style="background-color: #fcfcfc;">
+                    <div class="mb-2">
+                        <div class="field-label">Magazzino Partenza</div>
+                        <div class="field-value fw-semibold">{{ t.magazzino_partenza_nome }}</div>
+                    </div>
+                    <div class="mb-2">
+                        <div class="field-label">Sede Associata</div>
+                        <div class="field-value">{{ t.magazzino_partenza_sede or 'Sede Centrale' }}</div>
+                    </div>
+                    <div>
+                        <div class="field-label">Operatore Speditore</div>
+                        <div class="field-value">{{ t.user_partenza_nome }} {{ t.user_partenza_cognome }}</div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- DESTINATARIO (ARRIVO) -->
+            <div class="col-6">
+                <div class="form-section-title">Magazzino di Arrivo (Destinatario)</div>
+                <div class="border border-secondary p-3 h-100" style="background-color: #fcfcfc;">
+                    <div class="mb-2">
+                        <div class="field-label">Magazzino Destinazione</div>
+                        <div class="field-value fw-semibold">{{ t.magazzino_dest_nome }}</div>
+                    </div>
+                    <div class="mb-2">
+                        <div class="field-label">Sede Associata</div>
+                        <div class="field-value">{{ t.magazzino_dest_sede or 'Sede Centrale' }}</div>
+                    </div>
+                    <div>
+                        <div class="field-label">Operatore Ricevente</div>
+                        <div class="field-value">
+                            {% if t.user_arrivo_id %}
+                            {{ t.user_arrivo_nome }} {{ t.user_arrivo_cognome }}
+                            {% else %}
+                            <span class="text-muted italic">In attesa di presa in carico</span>
+                            {% endif %}
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- DETAILS OF TRANSPORT -->
+        <div class="row border border-secondary rounded p-3 mx-0 mb-3"
+            style="font-size: 0.8rem; background-color: #fff;">
+            <div class="col-4">
+                <div class="field-label">Aspetto dei Beni</div>
+                <div class="field-value">COLLO / SFUSO</div>
+            </div>
+            <div class="col-4">
+                <div class="field-label">Porto</div>
+                <div class="field-value">FRANCO</div>
+            </div>
+            <div class="col-4">
+                <div class="field-label">Vettore</div>
+                <div class="field-value">TRASFERIMENTO DIRETTO</div>
+            </div>
+        </div>
+
+        <!-- TABELLA BENI TRASFERITI -->
+        <div class="mb-3">
+            <div class="form-section-title">Elenco Completo Materiali</div>
+            <table class="table table-bordered border-secondary mb-0" style="font-size: 0.75rem;">
+                <thead class="text-center table-light align-middle" style="font-size: 0.7rem;">
+                    <tr style="border-bottom: 2px solid #495057;">
+                        <th style="width: 50%;" class="p-1">DESCRIZIONE ARTICOLO / MATERIALE</th>
+                        <th style="width: 10%;" class="p-1">U.M.</th>
+                        <th style="width: 15%;" class="p-1">QUANTITÀ</th>
+                        <th style="width: 25%;" class="p-1">NOTE / CAUSALE</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <tr style="height: 50px; vertical-align: middle;">
+                        <td class="px-2">
+                            <strong>{{ t.materiale_nome }}</strong>
+                        </td>
+                        <td class="text-center">PZ</td>
+                        <td class="text-center fw-bold fs-6">{{ t.quantita }}</td>
+                        <td class="px-2" style="font-size: 0.7rem;">{{ t.note or 'Trasferimento magazzino' }}</td>
+                    </tr>
+                    <!-- Righe vuote di cortesia per riempire il layout DDT -->
+                    {% for i in range(3) %}
+                    <tr style="height: 32px;">
+                        <td></td>
+                        <td></td>
+                        <td></td>
+                        <td></td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+
+        <!-- FIRME -->
+        <div class="border border-secondary p-3 mb-3 bg-light" style="font-size: 0.7rem;">
+            <div class="row text-center mt-1">
+                <div class="col-4">
+                    <div class="border border-dark p-2 bg-white rounded"
+                        style="min-height: 95px; border-style: dashed !important;">
+                        <div class="fw-bold mb-1" style="font-size: 0.6rem; color: #495057;">OPERATORE CEDENTE (MITTENTE)</div>
+                        <div class="fw-semibold text-dark mb-3" style="font-size: 0.75rem;">{{ t.user_partenza_nome }} {{ t.user_partenza_cognome }}</div>
+                        <div class="border-top border-dark mx-auto"
+                            style="width: 70%; font-size: 0.55rem; padding-top: 1px;">Firma</div>
+                    </div>
+                </div>
+                <div class="col-4">
+                    <div class="border border-dark p-2 bg-white rounded"
+                        style="min-height: 95px; border-style: dashed !important;">
+                        <div class="fw-bold mb-1" style="font-size: 0.6rem; color: #495057;">CONDUCENTE / VETTORE</div>
+                        <div class="text-muted mb-4" style="font-size: 0.55rem;"></div>
+                        <div class="border-top border-dark mx-auto"
+                            style="width: 70%; font-size: 0.55rem; padding-top: 1px; margin-top: 25px;">Firma</div>
+                    </div>
+                </div>
+                <div class="col-4">
+                    <div class="border border-dark p-2 bg-white rounded"
+                        style="min-height: 95px; border-style: dashed !important;">
+                        <div class="fw-bold mb-1" style="font-size: 0.6rem; color: #495057;">OPERATORE RICEVENTE (DESTINATARIO)</div>
+                        <div class="fw-semibold text-dark mb-3" style="font-size: 0.75rem;">
+                            {% if t.user_arrivo_id %}
+                            {{ t.user_arrivo_nome }} {{ t.user_arrivo_cognome }}
+                            {% else %}
+                            &nbsp;
+                            {% endif %}
+                        </div>
+                        <div class="border-top border-dark mx-auto"
+                            style="width: 70%; font-size: 0.55rem; padding-top: 1px; {% if not t.user_arrivo_id %}margin-top: 15px;{% endif %}">Firma per Ricezione</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Piè di Pagina -->
+        <div class="d-flex justify-content-between align-items-center border-top border-secondary pt-3 mt-4"
+            style="font-size: 0.75rem;">
+            <div>
+                DDT generato automaticamente dal sistema in data: <strong>{{ creato_ita }}</strong>
+            </div>
+            <div>
+                Codice Riferimento: <strong>TRF-{{ t.trasferimento_id }}</strong>
+            </div>
+        </div>
+
+        <!-- Bottoni di Stampa e Navigazione (Non verranno stampati) -->
+        <div class="text-center mt-5 no-print border-top pt-4">
+            <button class="btn btn-primary btn-lg px-4 shadow-sm" onclick="window.print()">
+                <i class="bi bi-printer-fill"></i> Stampa o Salva PDF
+            </button>
+            <a href="/trasferimenti" class="btn btn-outline-secondary btn-lg ms-2">
+                Torna ai Trasferimenti
+            </a>
+        </div>
+    </div>
+
+    <script>
+        window.onload = function () {
+            setTimeout(function () { window.print(); }, 500);
+        };
+    </script>
+</body>
+
+</html>

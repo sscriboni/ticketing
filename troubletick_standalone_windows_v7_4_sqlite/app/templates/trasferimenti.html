@@ -44,18 +44,21 @@
                         {% endif %}
                     </td>
                     <td>
-                        {% if t.stato == 'in_consegna' %}
-                            {% if user.ruolo == 'admin' or t.magazzino_dest_id in user_mag_ids %}
-                            <form method="post" action="/trasferimenti/{{ t.trasferimento_id }}/ricevi" onsubmit="return confirm('Confermi di aver ricevuto fisicamente questo materiale nel tuo magazzino?');">
-                                <button type="submit" class="btn btn-success btn-sm"><i class="bi bi-box-arrow-in-down"></i> Segna Arrivato</button>
-                            </form>
+                        <div class="d-flex flex-wrap gap-1 align-items-center">
+                            {% if t.stato == 'in_consegna' %}
+                                {% if user.ruolo == 'admin' or t.magazzino_dest_id in user_mag_ids %}
+                                <form method="post" action="/trasferimenti/{{ t.trasferimento_id }}/ricevi" onsubmit="return confirm('Confermi di aver ricevuto fisicamente questo materiale nel tuo magazzino?');" class="m-0">
+                                    <button type="submit" class="btn btn-success btn-sm"><i class="bi bi-box-arrow-in-down"></i> Segna Arrivato</button>
+                                </form>
+                                {% else %}
+                                <span class="text-muted small">In attesa ricezione</span>
+                                {% endif %}
                             {% else %}
-                            <span class="text-muted small">In attesa ricezione</span>
+                                <span class="text-muted small">Operazione conclusa</span>
                             {% endif %}
-                        {% else %}
-                            <span class="text-muted small">Operazione conclusa</span>
-                        {% endif %}
-                        {% if t.allegato %}<a href="/uploads/{{ t.allegato }}" target="_blank" class="btn btn-sm btn-outline-secondary mt-1" title="Vedi Allegato"><i class="bi bi-paperclip"></i></a>{% endif %}
+                            <a href="/stampa-consegna/trasferimento/{{ t.trasferimento_id }}" target="_blank" class="btn btn-sm btn-outline-primary" title="Stampa DDT"><i class="bi bi-printer"></i> DDT</a>
+                            {% if t.allegato %}<a href="/uploads/{{ t.allegato }}" target="_blank" class="btn btn-sm btn-outline-secondary" title="Vedi Allegato"><i class="bi bi-paperclip"></i></a>{% endif %}
+                        </div>
                     </td>
                 </tr>
                 {% else %}

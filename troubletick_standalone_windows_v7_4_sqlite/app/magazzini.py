@@ -570,6 +570,7 @@ async def magazzino_movimento_action(
             "sede": sede_id_val, "pos": pos_clean, "marca": marca, "modello": modello, "all": allegato_filename
         })
         
+        trsf_id_val = None
         if operazione == "scarico" and mag_dest_id_val:
             c.execute(text("""
                 INSERT INTO trasferimenti (magazzino_partenza_id, magazzino_dest_id, materiale_id, quantita, user_partenza_id, note, allegato)
@@ -578,6 +579,7 @@ async def magazzino_movimento_action(
                 "partenza": magazzino_id, "dest": mag_dest_id_val, "mat": materiale_id,
                 "q": quantita, "uid": user["id"], "note": descrizione, "all": allegato_filename
             })
+            trsf_id_val = c.execute(text("SELECT last_insert_rowid()")).scalar()
             
         if operazione == "scarico" and richiesta_id and str(richiesta_id).isdigit():
             rid = int(richiesta_id)
@@ -591,13 +593,16 @@ async def magazzino_movimento_action(
                          {"tid": richiesta_ticket["ticket_id"], "a": f"Sistema ({autore})", "t": testo})
             
         if operazione == "scarico" and genera_pdf == "1":
-            mov_id = c.execute(text("""
-                SELECT movimento_id FROM movimenti_magazzino
-                WHERE user_id = :uid AND magazzino_id = :mag AND materiale_id = :mat AND operazione = 'scarico'
-                ORDER BY movimento_id DESC LIMIT 1
-            """), {"uid": user["id"], "mag": magazzino_id, "mat": materiale_id}).scalar()
-            if mov_id:
-                return RedirectResponse(url=f"/stampa-consegna/scarico/{mov_id}", status_code=303)
+            if mag_dest_id_val and trsf_id_val:
+                return RedirectResponse(url=f"/stampa-consegna/trasferimento/{trsf_id_val}", status_code=303)
+            else:
+                mov_id = c.execute(text("""
+                    SELECT movimento_id FROM movimenti_magazzino
+                    WHERE user_id = :uid AND magazzino_id = :mag AND materiale_id = :mat AND operazione = 'scarico'
+                    ORDER BY movimento_id DESC LIMIT 1
+                """), {"uid": user["id"], "mag": magazzino_id, "mat": materiale_id}).scalar()
+                if mov_id:
+                    return RedirectResponse(url=f"/stampa-consegna/scarico/{mov_id}", status_code=303)
             
     if operazione == "scarico" and richiesta_id:
         return RedirectResponse(url="/richieste-materiale", status_code=303)
@@ -646,6 +651,48 @@ def stampa_consegna_multiplo(r: Request, gruppo_scarico: str):
         "movements": movements,
         "is_multiplo": True,
         "tipo": "scarico"
+    })
+
+@router.get("/stampa-consegna/trasferimento/{trasferimento_id}", response_class=HTMLResponse)
+def stampa_ddt(r: Request, trasferimento_id: int):
+    if "user" not in r.session: return RedirectResponse(url="/login")
+    user = r.session.get("user")
+    if user.get("ruolo") == "normale": return RedirectResponse(url="/tickets")
+    
+    with engine.connect() as c:
+        t = c.execute(text("""
+            SELECT t.*, 
+                   mp.nome AS magazzino_partenza_nome,
+                   sp.nome AS magazzino_partenza_sede,
+                   md.nome AS magazzino_dest_nome,
+                   sd.nome AS magazzino_dest_sede,
+                   mat.nome AS materiale_nome,
+                   u_part.nome AS user_partenza_nome, u_part.cognome AS user_partenza_cognome,
+                   u_arr.nome AS user_arrivo_nome, u_arr.cognome AS user_arrivo_cognome
+            FROM trasferimenti t
+            JOIN magazzini mp ON t.magazzino_partenza_id = mp.magazzino_id
+            LEFT JOIN sedi sp ON mp.sede_id = sp.sede_id
+            JOIN magazzini md ON t.magazzino_dest_id = md.magazzino_id
+            LEFT JOIN sedi sd ON md.sede_id = sd.sede_id
+            JOIN materiali mat ON t.materiale_id = mat.materiale_id
+            JOIN users u_part ON t.user_partenza_id = u_part.user_id
+            LEFT JOIN users u_arr ON t.user_arrivo_id = u_arr.user_id
+            WHERE t.trasferimento_id = :id
+        """), {"id": trasferimento_id}).mappings().first()
+        
+        if not t:
+            return RedirectResponse(url="/trasferimenti")
+            
+        if user.get("ruolo") != "admin":
+            user_mag_ids = c.execute(text("SELECT magazzino_id FROM operatori_magazzini WHERE user_id = :uid"), {"uid": user["id"]}).scalars().all()
+            if t["magazzino_partenza_id"] not in user_mag_ids and t["magazzino_dest_id"] not in user_mag_ids:
+                return RedirectResponse(url="/trasferimenti")
+                
+    return templates.TemplateResponse(r, "stampa_ddt.html", {
+        "request": r,
+        "cfg": CFG,
+        "user": user,
+        "t": t
     })
 
 @router.get("/stampa-consegna/{tipo}/{doc_id}", response_class=HTMLResponse)
