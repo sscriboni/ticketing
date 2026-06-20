@@ -12,7 +12,12 @@
         <h3 style="margin-top: 0; color: #198754;">Account Approvato</h3>
         <p>Ciao <strong>{{ nome }}</strong>,<br>
         ti informiamo che il tuo account (Username: <strong>{{ username }}</strong>) è stato verificato e attivato con successo da un amministratore.</p>
-        <p style="margin-bottom: 0;">Ora puoi effettuare il login e accedere al portale per visualizzare e gestire i ticket assegnati.</p>
+        <p>Ora puoi accedere al portale per iniziare a lavorare.</p>
+        <div style="text-align: center; margin: 25px 0;">
+            <a href="{{ login_url }}" style="background-color: #0d6efd; color: white; padding: 10px 20px; text-decoration: none; border-radius: 5px; font-weight: bold; display: inline-block;">Accedi al Portale</a>
+        </div>
+        <p style="margin-bottom: 0; font-size: 0.9em; color: #6c757d;">Se il pulsante non funziona, copia e incolla questo indirizzo nel browser:<br>
+        <a href="{{ login_url }}" style="color: #0d6efd;">{{ login_url }}</a></p>
     </div>
     <div style="text-align: center; margin-top: 20px; font-size: 0.8em; color: #6c757d;">
         <p>{{ cfg.footer_text }}</p>

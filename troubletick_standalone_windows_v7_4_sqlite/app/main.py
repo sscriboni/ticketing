@@ -2234,7 +2234,13 @@ def edit_operatore(r: Request, user_id: int, background_tasks: BackgroundTasks, 
                 
         if attivo == 1 and op_prev and op_prev["attivo"] == 0 and op_prev["email"]:
             subject = f"[{CFG.get('company_name', 'Helpdesk')}] Account Attivato"
-            body = templates.get_template("email_operatore_attivo.html").render({"cfg": CFG, "nome": nome, "username": op_prev["username"]})
+            login_url = f"{r.base_url}login"
+            body = templates.get_template("email_operatore_attivo.html").render({
+                "cfg": CFG,
+                "nome": nome,
+                "username": op_prev["username"],
+                "login_url": login_url
+            })
             background_tasks.add_task(send_email_async, op_prev["email"], subject, body)
     
     return RedirectResponse(url="/admin/operatori", status_code=303)
@@ -2253,7 +2259,13 @@ def toggle_operatore(r: Request, user_id: int, background_tasks: BackgroundTasks
             
             if new_status == 1 and op["attivo"] == 0 and op["email"]:
                 subject = f"[{CFG.get('company_name', 'Helpdesk')}] Account Attivato"
-                body = templates.get_template("email_operatore_attivo.html").render({"cfg": CFG, "nome": op["nome"], "username": op["username"]})
+                login_url = f"{r.base_url}login"
+                body = templates.get_template("email_operatore_attivo.html").render({
+                    "cfg": CFG,
+                    "nome": op["nome"],
+                    "username": op["username"],
+                    "login_url": login_url
+                })
                 background_tasks.add_task(send_email_async, op["email"], subject, body)
     
     return RedirectResponse(url="/admin/operatori", status_code=303)
