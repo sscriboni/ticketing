@@ -925,7 +925,7 @@ def delete_tickets_massivo(r: Request, data_inizio: str = Form(...), data_fine: 
     return RedirectResponse(url="/admin/impostazioni?msg=delete_ok", status_code=303)
 
 @app.get("/calendario", response_class=HTMLResponse)
-def calendario(r: Request):
+def calendario(r: Request, copertura_alert: str = None, servizi_scoperti: str = None):
     if "user" not in r.session: return RedirectResponse(url="/login")
     user = r.session.get("user")
     
@@ -944,7 +944,10 @@ def calendario(r: Request):
             SELECT * FROM festivita ORDER BY data DESC
         """)).mappings().all()
             
-    return templates.TemplateResponse(r, "calendario.html", {"request": r, "cfg": CFG, "user": user, "assenze": assenze, "festivita": festivita})
+    return templates.TemplateResponse(r, "calendario.html", {
+        "request": r, "cfg": CFG, "user": user, "assenze": assenze, "festivita": festivita,
+        "copertura_alert": copertura_alert, "servizi_scoperti": servizi_scoperti
+    })
 
 @app.post("/calendario/nuova")
 def nuova_assenza(r: Request, data_inizio: str = Form(...), data_fine: str = Form(""), motivo: str = Form("")):
@@ -956,6 +959,82 @@ def nuova_assenza(r: Request, data_inizio: str = Form(...), data_fine: str = For
         c.execute(text("""INSERT INTO assenze (user_id, data_inizio, data_fine, motivo)
                           VALUES (:uid, :di, :df, :m)"""), 
                   {"uid": user.get("id"), "di": data_inizio, "df": data_fine, "m": motivo})
+        
+        # Recupera il reparto dell'operatore
+        reparto_id = c.execute(text("SELECT reparto_id FROM users WHERE user_id = :uid"), {"uid": user.get("id")}).scalar()
+        
+    copertura_alert = None
+    servizi_scoperti_str = None
+    if reparto_id:
+        from datetime import datetime, timedelta
+        try:
+            di_dt = datetime.strptime(data_inizio, "%Y-%m-%d")
+            df_dt = datetime.strptime(data_fine, "%Y-%m-%d")
+            
+            dates_to_check = []
+            curr_dt = di_dt
+            while curr_dt <= df_dt:
+                dates_to_check.append(curr_dt.strftime("%Y-%m-%d"))
+                curr_dt += timedelta(days=1)
+                
+            with engine.connect() as c_read:
+                servizi = c_read.execute(text("""
+                    SELECT servizio_id, descrizione 
+                    FROM servizi 
+                    WHERE reparto_id = :rid AND accetta_ticket = 1
+                """), {"rid": reparto_id}).mappings().all()
+                
+                servizi_ops = {}
+                for s in servizi:
+                    ops = c_read.execute(text("""
+                        SELECT u.user_id
+                        FROM users u
+                        JOIN operatori_servizi os ON u.user_id = os.user_id
+                        WHERE os.servizio_id = :sid AND u.attivo = 1
+                    """), {"sid": s["servizio_id"]}).mappings().all()
+                    servizi_ops[s["servizio_id"]] = ops
+                    
+                assenze_overlaps = c_read.execute(text("""
+                    SELECT a.user_id, a.data_inizio, a.data_fine
+                    FROM assenze a
+                    JOIN users u ON a.user_id = u.user_id
+                    WHERE u.reparto_id = :rid AND a.data_inizio <= :end AND a.data_fine >= :start
+                """), {"rid": reparto_id, "start": data_inizio, "end": data_fine}).mappings().all()
+                
+            uncovered_services = []
+            for d_str in dates_to_check:
+                for s in servizi:
+                    sid = s["servizio_id"]
+                    ops = servizi_ops[sid]
+                    if len(ops) > 0:
+                        present_count = 0
+                        for op in ops:
+                            is_absent = False
+                            for a in assenze_overlaps:
+                                if a["user_id"] == op["user_id"]:
+                                    if a["data_inizio"] <= d_str <= a["data_fine"]:
+                                        is_absent = True
+                                        break
+                            if not is_absent:
+                                present_count += 1
+                        if present_count == 0:
+                            uncovered_services.append((s["descrizione"], d_str))
+                            
+            if uncovered_services:
+                copertura_alert = "1"
+                details = []
+                for name, d_str in uncovered_services:
+                    d_formatted = datetime.strptime(d_str, "%Y-%m-%d").strftime("%d/%m/%Y")
+                    details.append(f"{name} ({d_formatted})")
+                servizi_scoperti_str = ", ".join(details)
+        except Exception as e:
+            print("Error checking coverage:", e)
+            
+    if copertura_alert:
+        import urllib.parse
+        params = urllib.parse.urlencode({"copertura_alert": "1", "servizi_scoperti": servizi_scoperti_str})
+        return RedirectResponse(url=f"/calendario?{params}", status_code=303)
+        
     return RedirectResponse(url="/calendario", status_code=303)
 
 @app.post("/calendario/{assenza_id}/elimina")
