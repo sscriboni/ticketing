@@ -1203,6 +1203,148 @@ def copertura_servizi(r: Request, mese: int = None, anno: int = None, reparto_id
         "reparti": reparti_list
     })
 
+@app.get("/assenze-mese", response_class=HTMLResponse)
+def assenze_mese(r: Request, mese: int = None, anno: int = None, reparto_id: int = None):
+    if "user" not in r.session: return RedirectResponse(url="/login")
+    user = r.session.get("user")
+    
+    from datetime import date
+    import calendar
+    
+    today = date.today()
+    if mese is None:
+        mese = today.month
+    if anno is None:
+        anno = today.year
+        
+    with engine.connect() as c:
+        reparti_list = []
+        if user.get("ruolo") == "admin":
+            reparti_list = c.execute(text("SELECT reparto_id, nome FROM reparti ORDER BY nome")).mappings().all()
+            
+        if user.get("ruolo") == "admin":
+            if reparto_id is None:
+                if reparti_list:
+                    reparto_id = reparti_list[0]["reparto_id"]
+        else:
+            reparto_id = c.execute(text("SELECT reparto_id FROM users WHERE user_id = :uid"), {"uid": user.get("id")}).scalar()
+            
+        if reparto_id is None:
+            return templates.TemplateResponse(r, "matrice_assenze.html", {
+                "request": r, "cfg": CFG, "user": user, 
+                "error": "Non sei assegnato a nessun reparto. Contatta l'amministratore.", 
+                "mese": mese, "anno": anno, "reparto_id": None, "reparti": reparti_list
+            })
+            
+        reparto_nome = c.execute(text("SELECT nome FROM reparti WHERE reparto_id = :rid"), {"rid": reparto_id}).scalar()
+        
+        # Query active operators in this department
+        operators = c.execute(text("""
+            SELECT user_id, nome, cognome, username, ruolo
+            FROM users
+            WHERE reparto_id = :rid AND attivo = 1
+            ORDER BY cognome, nome
+        """), {"rid": reparto_id}).mappings().all()
+        
+        _, num_days = calendar.monthrange(anno, mese)
+        first_day_of_month = date(anno, mese, 1)
+        last_day_of_month = date(anno, mese, num_days)
+        
+        festivita_list = c.execute(text("""
+            SELECT data, descrizione FROM festivita 
+            WHERE data >= :start AND data <= :end
+        """), {"start": first_day_of_month.isoformat(), "end": last_day_of_month.isoformat()}).mappings().all()
+        festivita_map = {f["data"]: f["descrizione"] for f in festivita_list}
+        
+        assenze_list = c.execute(text("""
+            SELECT a.user_id, a.data_inizio, a.data_fine, a.motivo
+            FROM assenze a
+            JOIN users u ON a.user_id = u.user_id
+            WHERE u.reparto_id = :rid AND a.data_inizio <= :end AND a.data_fine >= :start
+        """), {"rid": reparto_id, "start": first_day_of_month.isoformat(), "end": last_day_of_month.isoformat()}).mappings().all()
+        
+        giorni = []
+        wd_names = ["Lunedì", "Martedì", "Mercoledì", "Giovedì", "Venerdì", "Sabato", "Domenica"]
+        for day_num in range(1, num_days + 1):
+            d = date(anno, mese, day_num)
+            d_str = d.isoformat()
+            is_weekend = d.weekday() in (5, 6)
+            holiday = festivita_map.get(d_str)
+            giorni.append({
+                "day_num": day_num,
+                "is_weekend": is_weekend,
+                "holiday": holiday,
+                "weekday_name": wd_names[d.weekday()]
+            })
+            
+        matrix = []
+        for op in operators:
+            giorni_stato = []
+            op_id = op["user_id"]
+            for day_num in range(1, num_days + 1):
+                d = date(anno, mese, day_num)
+                d_str = d.isoformat()
+                
+                absent_record = None
+                for a in assenze_list:
+                    if a["user_id"] == op_id:
+                        if a["data_inizio"] <= d_str <= a["data_fine"]:
+                            absent_record = a
+                            break
+                            
+                is_absent = absent_record is not None
+                motivo = absent_record["motivo"] if is_absent else None
+                is_weekend = d.weekday() in (5, 6)
+                holiday = festivita_map.get(d_str)
+                
+                giorni_stato.append({
+                    "absent": is_absent,
+                    "motivo": motivo,
+                    "holiday": holiday,
+                    "is_weekend": is_weekend
+                })
+                
+            matrix.append({
+                "operator_nome": f"{op['nome']} {op['cognome']}".strip() or op['username'],
+                "operator_ruolo": op["ruolo"] or "operatore",
+                "giorni_stato": giorni_stato
+            })
+            
+        months_it = {
+            1: "Gennaio", 2: "Febbraio", 3: "Marzo", 4: "Aprile",
+            5: "Maggio", 6: "Giugno", 7: "Luglio", 8: "Agosto",
+            9: "Settembre", 10: "Ottobre", 11: "Novembre", 12: "Dicembre"
+        }
+        nome_mese = months_it.get(mese, "")
+        
+        if mese == 1:
+            prev_mese, prev_anno = 12, anno - 1
+        else:
+            prev_mese, prev_anno = mese - 1, anno
+            
+        if mese == 12:
+            next_mese, next_anno = 1, anno + 1
+        else:
+            next_mese, next_anno = mese + 1, anno
+            
+    return templates.TemplateResponse(r, "matrice_assenze.html", {
+        "request": r,
+        "cfg": CFG,
+        "user": user,
+        "giorni": giorni,
+        "matrix": matrix,
+        "mese": mese,
+        "anno": anno,
+        "nome_mese": nome_mese,
+        "prev_mese": prev_mese,
+        "prev_anno": prev_anno,
+        "next_mese": next_mese,
+        "next_anno": next_anno,
+        "reparto_id": reparto_id,
+        "reparto_nome": reparto_nome,
+        "reparti": reparti_list
+    })
+
 @app.get("/admin", response_class=HTMLResponse)
 def admin(r: Request):
     user = require_superuser(r)

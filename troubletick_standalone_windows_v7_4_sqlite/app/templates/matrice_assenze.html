@@ -1,0 +1,204 @@
+<!doctype html>
+<html lang="it">
+<head>
+    <meta charset="utf-8">
+    <title>Matrice Assenze {% if reparto_nome %}({{ reparto_nome }}){% endif %} — {{ cfg.app_title }}</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css">
+    <style>
+        .matrix-container {
+            background-color: #fff;
+            padding: 20px;
+            border-radius: 8px;
+            box-shadow: 0 0.125rem 0.25rem rgba(0, 0, 0, 0.075);
+        }
+        .matrix-table {
+            border-collapse: separate;
+            border-spacing: 0;
+            width: 100%;
+        }
+        .matrix-table th, .matrix-table td {
+            border: 1px solid #dee2e6;
+            text-align: center;
+            vertical-align: middle;
+            padding: 6px 4px;
+            font-size: 0.85rem;
+        }
+        .matrix-table th {
+            background-color: #f8f9fa;
+            font-weight: bold;
+        }
+        .operator-col {
+            position: -webkit-sticky;
+            position: sticky;
+            left: 0;
+            background-color: #f8f9fa !important;
+            font-weight: bold;
+            text-align: left !important;
+            padding-left: 12px !important;
+            min-width: 180px;
+            z-index: 10;
+            box-shadow: 2px 0 5px rgba(0,0,0,0.05);
+        }
+        .day-header {
+            width: 35px;
+            min-width: 35px;
+        }
+        .weekend-cell {
+            background-color: #e9ecef !important;
+            color: #6c757d;
+        }
+        .holiday-cell {
+            background-color: #f8d7da !important;
+            color: #842029;
+            font-weight: bold;
+        }
+        /* Color shorthands */
+        .cell-presente {
+            background-color: #ffffff;
+        }
+        .cell-absent-ferie {
+            background-color: #198754 !important;
+            color: #ffffff !important;
+            font-weight: bold;
+            cursor: pointer;
+        }
+        .cell-absent-malattia {
+            background-color: #dc3545 !important;
+            color: #ffffff !important;
+            font-weight: bold;
+            cursor: pointer;
+        }
+        .cell-absent-permesso {
+            background-color: #ffc107 !important;
+            color: #212529 !important;
+            font-weight: bold;
+            cursor: pointer;
+        }
+        .cell-absent-fuori-sede {
+            background-color: #0d6efd !important;
+            color: #ffffff !important;
+            font-weight: bold;
+            cursor: pointer;
+        }
+        .cell-absent-altro {
+            background-color: #6c757d !important;
+            color: #ffffff !important;
+            font-weight: bold;
+            cursor: pointer;
+        }
+    </style>
+</head>
+<body class="bg-light">
+{% include 'navbar.html' %}
+<div class="container-fluid px-4 py-4">
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <div>
+            <h2 class="mb-0">Matrice Assenze {% if reparto_nome %}&mdash; {{ reparto_nome }}{% endif %}</h2>
+            <p class="text-muted mb-0 small">Visualizzazione mensile delle assenze pianificate degli operatori di reparto.</p>
+        </div>
+        <div class="d-flex align-items-center gap-3">
+            {% if user.ruolo == 'admin' and reparti %}
+            <div class="d-flex align-items-center gap-2">
+                <label class="form-label fw-bold mb-0 text-nowrap">Seleziona Reparto:</label>
+                <select class="form-select form-select-sm" id="repartoSelect" onchange="changeReparto(this)">
+                    {% for rep in reparti %}
+                    <option value="{{ rep.reparto_id }}" {% if rep.reparto_id == reparto_id %}selected{% endif %}>{{ rep.nome }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+            {% endif %}
+            <div class="btn-group btn-group-sm">
+                <a href="/assenze-mese?mese={{ prev_mese }}&anno={{ prev_anno }}{% if user.ruolo == 'admin' %}&reparto_id={{ reparto_id }}{% endif %}" class="btn btn-outline-primary"><i class="bi bi-chevron-left"></i> Mese Prec.</a>
+                <span class="btn btn-primary disabled fw-bold text-white">{{ nome_mese }} {{ anno }}</span>
+                <a href="/assenze-mese?mese={{ next_mese }}&anno={{ next_anno }}{% if user.ruolo == 'admin' %}&reparto_id={{ reparto_id }}{% endif %}" class="btn btn-outline-primary">Mese Succ. <i class="bi bi-chevron-right"></i></a>
+            </div>
+        </div>
+    </div>
+
+    {% if error %}
+    <div class="row">
+        <div class="col-12 col-md-6 mx-auto">
+            <div class="alert alert-warning text-center shadow-sm py-4">
+                <i class="bi bi-exclamation-triangle-fill fs-2 text-warning d-block mb-3"></i>
+                <h5>{{ error }}</h5>
+            </div>
+        </div>
+    </div>
+    {% else %}
+    <div class="matrix-container mb-4">
+        <div class="table-responsive">
+            <table class="matrix-table">
+                <thead>
+                    <tr>
+                        <th class="operator-col" style="z-index: 11;">Operatore</th>
+                        {% for day in giorni %}
+                        <th class="day-header {% if day.holiday %}holiday-cell{% elif day.is_weekend %}weekend-cell{% endif %}" title="{% if day.holiday %}{{ day.holiday }}{% else %}{{ day.weekday_name }}{% endif %}">
+                            {{ day.day_num }}<br>
+                            <small style="font-size: 0.6rem; font-weight: normal;">{{ day.weekday_name[:2] }}</small>
+                        </th>
+                        {% endfor %}
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for row in matrix %}
+                    <tr>
+                        <td class="operator-col">
+                            <strong>{{ row.operator_nome }}</strong><br>
+                            <small class="text-muted" style="font-size: 0.7rem;">{{ row.operator_ruolo|capitalize }}</small>
+                        </td>
+                        {% for cell in row.giorni_stato %}
+                        <td class="{% if cell.holiday %}holiday-cell{% elif cell.is_weekend %}weekend-cell{% endif %} 
+                                   {% if cell.absent %}
+                                       {% if cell.motivo == 'ferie' %}cell-absent-ferie
+                                       {% elif cell.motivo == 'malattia' %}cell-absent-malattia
+                                       {% elif cell.motivo == 'permessi vari' %}cell-absent-permesso
+                                       {% elif cell.motivo == 'fuori sede' %}cell-absent-fuori-sede
+                                       {% else %}cell-absent-altro
+                                       {% endif %}
+                                   {% else %}cell-presente{% endif %}"
+                            {% if cell.absent %}title="{{ row.operator_nome }}: {{ cell.motivo|capitalize }}"{% endif %}>
+                            {% if cell.absent %}
+                                {% if cell.motivo == 'ferie' %}F
+                                {% elif cell.motivo == 'malattia' %}M
+                                {% elif cell.motivo == 'permessi vari' %}P
+                                {% elif cell.motivo == 'fuori sede' %}FS
+                                {% else %}A
+                                {% endif %}
+                            {% endif %}
+                        </td>
+                        {% endfor %}
+                    </tr>
+                    {% else %}
+                    <tr>
+                        <td colspan="{{ giorni|length + 1 }}" class="text-muted text-center py-4">Nessun operatore attivo in questo reparto.</td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+
+        <div class="mt-4 pt-3 border-top d-flex flex-wrap gap-4 align-items-center">
+            <div class="fw-bold me-2"><i class="bi bi-info-circle-fill text-primary me-1"></i> Legenda Assenze:</div>
+            <div class="d-flex align-items-center gap-1"><span class="badge bg-success px-2 py-1">F</span> <small class="text-muted">Ferie</small></div>
+            <div class="d-flex align-items-center gap-1"><span class="badge bg-danger px-2 py-1">M</span> <small class="text-muted">Malattia</small></div>
+            <div class="d-flex align-items-center gap-1"><span class="badge bg-warning text-dark px-2 py-1">P</span> <small class="text-muted">Permesso</small></div>
+            <div class="d-flex align-items-center gap-1"><span class="badge bg-primary px-2 py-1">FS</span> <small class="text-muted">Fuori Sede</small></div>
+            <div class="d-flex align-items-center gap-1"><span class="badge bg-secondary px-2 py-1">A</span> <small class="text-muted">Altro / Non Specificato</small></div>
+            <div class="d-flex align-items-center gap-1"><span class="badge bg-light text-dark border px-2 py-1" style="background-color: #e9ecef !important;">S / D</span> <small class="text-muted">Fine Settimana</small></div>
+            <div class="d-flex align-items-center gap-1"><span class="badge bg-light text-dark border px-2 py-1" style="background-color: #f8d7da !important;">Festa</span> <small class="text-muted">Festività Nazionali</small></div>
+        </div>
+    </div>
+    {% endif %}
+</div>
+
+<script>
+function changeReparto(selectElement) {
+    const val = selectElement.value;
+    const urlParams = new URLSearchParams(window.location.search);
+    urlParams.set('reparto_id', val);
+    window.location.search = urlParams.toString();
+}
+</script>
+</body>
+</html>
