@@ -969,8 +969,8 @@ def elimina_assenza(r: Request, assenza_id: int):
             c.execute(text("DELETE FROM assenze WHERE assenza_id = :id AND user_id = :uid"), {"id": assenza_id, "uid": user.get("id")})
     return RedirectResponse(url="/calendario", status_code=303)
 
-@app.get("/calendario-presenze", response_class=HTMLResponse)
-def calendario_presenze(r: Request, mese: int = None, anno: int = None, reparto_id: int = None):
+@app.get("/copertura-servizi", response_class=HTMLResponse)
+def copertura_servizi(r: Request, mese: int = None, anno: int = None, reparto_id: int = None):
     if "user" not in r.session: return RedirectResponse(url="/login")
     user = r.session.get("user")
     
@@ -996,7 +996,7 @@ def calendario_presenze(r: Request, mese: int = None, anno: int = None, reparto_
             reparto_id = c.execute(text("SELECT reparto_id FROM users WHERE user_id = :uid"), {"uid": user.get("id")}).scalar()
             
         if reparto_id is None:
-            return templates.TemplateResponse(r, "calendario_presenze.html", {
+            return templates.TemplateResponse(r, "copertura_servizi.html", {
                 "request": r, "cfg": CFG, "user": user, 
                 "error": "Non sei assegnato a nessun reparto. Contatta l'amministratore.", 
                 "mese": mese, "anno": anno, "reparto_id": None, "reparti": reparti_list
@@ -1109,7 +1109,7 @@ def calendario_presenze(r: Request, mese: int = None, anno: int = None, reparto_
         else:
             next_mese, next_anno = mese + 1, anno
 
-    return templates.TemplateResponse(r, "calendario_presenze.html", {
+    return templates.TemplateResponse(r, "copertura_servizi.html", {
         "request": r, "cfg": CFG, "user": user,
         "weeks": weeks,
         "mese": mese,

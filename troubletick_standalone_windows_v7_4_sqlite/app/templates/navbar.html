@@ -52,12 +52,12 @@
         {% endif %}
         
         <li class="nav-item dropdown">
-          <a class="nav-link dropdown-toggle {% if request.url.path.startswith('/calendario') or request.url.path.startswith('/calendario-presenze') %}active fw-bold{% endif %}" href="#" id="serviziDropdown" role="button" data-bs-toggle="dropdown" aria-expanded="false">
+          <a class="nav-link dropdown-toggle {% if request.url.path.startswith('/calendario') or request.url.path.startswith('/copertura-servizi') %}active fw-bold{% endif %}" href="#" id="serviziDropdown" role="button" data-bs-toggle="dropdown" aria-expanded="false">
             <i class="bi bi-briefcase"></i> Servizi
           </a>
           <ul class="dropdown-menu shadow" aria-labelledby="serviziDropdown">
             <li><a class="dropdown-item" href="/calendario"><i class="bi bi-calendar3 me-2"></i>Calendario Assenze</a></li>
-            <li><a class="dropdown-item" href="/calendario-presenze"><i class="bi bi-calendar-check me-2"></i>Calendario Presenze</a></li>
+            <li><a class="dropdown-item" href="/copertura-servizi"><i class="bi bi-calendar-check me-2"></i>Copertura Servizi</a></li>
           </ul>
         </li>
         {% if user.ruolo == 'admin' %}
