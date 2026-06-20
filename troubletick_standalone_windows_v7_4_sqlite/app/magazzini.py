@@ -387,7 +387,12 @@ def magazzino_trasferisci_posizione(
     return RedirectResponse(url=f"/magazzino/{magazzino_id}/giacenza/{materiale_id}", status_code=303)
 
 @router.get("/magazzino/{magazzino_id}/movimento/{materiale_id}", response_class=HTMLResponse)
-def magazzino_movimento_form(r: Request, magazzino_id: int, materiale_id: int, operazione: str, richiesta_id: int = None, error: str = None):
+def magazzino_movimento_form(
+    r: Request, magazzino_id: int, materiale_id: int, operazione: str,
+    richiesta_id: int = None, error: str = None,
+    quantita: int = None, marca: str = None, modello: str = None,
+    descrizione: str = None, trasferimento_id: int = None
+):
     if "user" not in r.session: return RedirectResponse(url="/login")
     user = r.session.get("user")
     
@@ -472,7 +477,9 @@ def magazzino_movimento_form(r: Request, magazzino_id: int, materiale_id: int, o
         "request": r, "cfg": CFG, "user": user, 
         "magazzino": magazzino, "materiale": materiale,
         "operazione": operazione, "sedi": sedi, "magazzini_dest": magazzini_dest, "oggi": oggi, "posizioni": posizioni, "richiesta": richiesta, "error": error,
-        "magazzini_abilitati": magazzini_abilitati
+        "magazzini_abilitati": magazzini_abilitati,
+        "quantita": quantita, "marca": marca, "modello": modello,
+        "descrizione": descrizione, "trasferimento_id": trasferimento_id
     })
 
 @router.post("/magazzino/{magazzino_id}/movimento/{materiale_id}")
@@ -484,7 +491,8 @@ async def magazzino_movimento_action(
     magazzino_destinazione_id: str = Form(None),
     allegato: UploadFile = File(None),
     genera_pdf: str = Form(None),
-    richiesta_id: str = Form(None)
+    richiesta_id: str = Form(None),
+    trasferimento_id: str = Form(None)
 ):
     if "user" not in r.session: return RedirectResponse(url="/login")
     user = r.session.get("user")
@@ -556,6 +564,15 @@ async def magazzino_movimento_action(
             c.execute(text("UPDATE giacenze SET quantita = :q WHERE magazzino_id = :mag AND materiale_id = :mat"),
                       {"q": nuova_qta, "mag": magazzino_id, "mat": materiale_id})
 
+        if operazione == "carico" and trasferimento_id and str(trasferimento_id).isdigit():
+            trsf_id = int(trasferimento_id)
+            if not allegato_filename:
+                trsf_all = c.execute(text("SELECT allegato FROM trasferimenti WHERE trasferimento_id = :id"), {"id": trsf_id}).scalar()
+                if trsf_all:
+                    allegato_filename = trsf_all
+            c.execute(text("UPDATE trasferimenti SET stato = 'completato', data_arrivo = :now, user_arrivo_id = :uid WHERE trasferimento_id = :id"),
+                      {"now": datetime.now().strftime("%Y-%m-%d %H:%M:%S"), "uid": user["id"], "id": trsf_id})
+
         mag_dest_id_val = int(magazzino_destinazione_id) if magazzino_destinazione_id and str(magazzino_destinazione_id).isdigit() else None
         desc_source = descrizione
         
@@ -578,11 +595,12 @@ async def magazzino_movimento_action(
         trsf_id_val = None
         if operazione == "scarico" and mag_dest_id_val:
             c.execute(text("""
-                INSERT INTO trasferimenti (magazzino_partenza_id, magazzino_dest_id, materiale_id, quantita, user_partenza_id, note, allegato)
-                VALUES (:partenza, :dest, :mat, :q, :uid, :note, :all)
+                INSERT INTO trasferimenti (magazzino_partenza_id, magazzino_dest_id, materiale_id, quantita, user_partenza_id, note, allegato, marca, modello, posizione_partenza)
+                VALUES (:partenza, :dest, :mat, :q, :uid, :note, :all, :marca, :modello, :pos)
             """), {
                 "partenza": magazzino_id, "dest": mag_dest_id_val, "mat": materiale_id,
-                "q": quantita, "uid": user["id"], "note": descrizione, "all": allegato_filename
+                "q": quantita, "uid": user["id"], "note": descrizione, "all": allegato_filename,
+                "marca": marca, "modello": modello, "pos": pos_clean
             })
             trsf_id_val = c.execute(text("SELECT last_insert_rowid()")).scalar()
             
@@ -612,6 +630,8 @@ async def magazzino_movimento_action(
             
     if operazione == "scarico" and richiesta_id:
         return RedirectResponse(url="/richieste-materiale", status_code=303)
+    if operazione == "carico" and trasferimento_id:
+        return RedirectResponse(url="/trasferimenti", status_code=303)
     return RedirectResponse(url="/magazzini", status_code=303)
 
 @router.get("/stampa-consegna/multiplo/{gruppo_scarico}", response_class=HTMLResponse)
@@ -771,8 +791,8 @@ def trasferimenti_list(r: Request):
         
     return templates.TemplateResponse(r, "trasferimenti.html", {"request": r, "cfg": CFG, "user": user, "trasferimenti": trasferimenti, "user_mag_ids": user_mag_ids})
 
-@router.post("/trasferimenti/{trasferimento_id}/ricevi")
-def ricevi_trasferimento(r: Request, trasferimento_id: int):
+@router.post("/trasferimenti/{trasferimento_id}/annulla")
+def annulla_trasferimento(r: Request, trasferimento_id: int):
     if "user" not in r.session: return RedirectResponse(url="/login")
     user = r.session.get("user")
     if user.get("ruolo") == "normale": return RedirectResponse(url="/tickets")
@@ -782,43 +802,51 @@ def ricevi_trasferimento(r: Request, trasferimento_id: int):
         if not t:
             return RedirectResponse(url="/trasferimenti", status_code=303)
             
-        if user.get("ruolo") != "admin":
+        can_cancel = False
+        if user.get("ruolo") == "admin":
+            can_cancel = True
+        else:
             user_mag_ids = c.execute(text("SELECT magazzino_id FROM operatori_magazzini WHERE user_id = :uid"), {"uid": user.get("id")}).scalars().all()
-            if t["magazzino_dest_id"] not in user_mag_ids:
-                return RedirectResponse(url="/trasferimenti", status_code=303)
+            if t["magazzino_partenza_id"] in user_mag_ids or t["magazzino_dest_id"] in user_mag_ids:
+                can_cancel = True
                 
-        from datetime import datetime
-        now = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+        if not can_cancel:
+            return RedirectResponse(url="/trasferimenti", status_code=303)
+            
+        now_str = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+        oggi = datetime.now().strftime("%Y-%m-%d")
         
-        # Aggiorna giacenza magazzino di arrivo
+        # 1. Update transfer status to 'annullato'
+        c.execute(text("UPDATE trasferimenti SET stato = 'annullato', data_arrivo = :now, user_arrivo_id = :uid WHERE trasferimento_id = :id"),
+                  {"now": now_str, "uid": user["id"], "id": trasferimento_id})
+                  
+        # 2. Restore inventory at departure warehouse
         qta_attuale = c.execute(text("SELECT quantita FROM giacenze WHERE magazzino_id = :mag AND materiale_id = :mat"), 
-                                {"mag": t["magazzino_dest_id"], "mat": t["materiale_id"]}).scalar() or 0
+                                {"mag": t["magazzino_partenza_id"], "mat": t["materiale_id"]}).scalar() or 0
         nuova_qta = qta_attuale + t["quantita"]
         
         if qta_attuale == 0:
             c.execute(text("INSERT INTO giacenze (magazzino_id, materiale_id, quantita) VALUES (:mag, :mat, :q)"),
-                      {"mag": t["magazzino_dest_id"], "mat": t["materiale_id"], "q": nuova_qta})
+                      {"mag": t["magazzino_partenza_id"], "mat": t["materiale_id"], "q": nuova_qta})
         else:
             c.execute(text("UPDATE giacenze SET quantita = :q WHERE magazzino_id = :mag AND materiale_id = :mat"),
-                      {"q": nuova_qta, "mag": t["magazzino_dest_id"], "mat": t["materiale_id"]})
+                      {"q": nuova_qta, "mag": t["magazzino_partenza_id"], "mat": t["materiale_id"]})
                       
-        # Crea movimento di log
-        mp_nome = c.execute(text("SELECT nome FROM magazzini WHERE magazzino_id = :id"), {"id": t["magazzino_partenza_id"]}).scalar()
-        desc_dest = f"[Ricezione da {mp_nome}] {t['note']}"
-        
+        # 3. Create compensating carico movement in movimenti_magazzino
+        desc_cancel = f"[Annullamento Trasferimento #{trasferimento_id}]"
+        if t["note"]:
+            desc_cancel += f" {t['note']}"
+            
         c.execute(text("""
-            INSERT INTO movimenti_magazzino (magazzino_id, materiale_id, user_id, operazione, quantita, data_movimento, descrizione, allegato)
-            VALUES (:mag, :mat, :uid, 'carico', :q, :dt, :desc, :all)
+            INSERT INTO movimenti_magazzino (magazzino_id, materiale_id, user_id, operazione, quantita, data_movimento, descrizione, posizione_fisica, marca, modello, allegato)
+            VALUES (:mag, :mat, :uid, 'carico', :q, :dt, :desc, :pos, :marca, :modello, :all)
         """), {
-            "mag": t["magazzino_dest_id"], "mat": t["materiale_id"], "uid": user["id"], 
-            "q": t["quantita"], "dt": now.split(" ")[0], "desc": desc_dest, "all": t["allegato"]
+            "mag": t["magazzino_partenza_id"], "mat": t["materiale_id"], "uid": user["id"], 
+            "q": t["quantita"], "dt": oggi, "desc": desc_cancel, 
+            "pos": t["posizione_partenza"], "marca": t["marca"], "modello": t["modello"], "all": t["allegato"]
         })
         
-        # Aggiorna trasferimento come completato
-        c.execute(text("UPDATE trasferimenti SET stato = 'completato', data_arrivo = :now, user_arrivo_id = :uid WHERE trasferimento_id = :id"),
-                  {"now": now, "uid": user["id"], "id": trasferimento_id})
-                  
-    return RedirectResponse(url="/trasferimenti", status_code=303)
+    return RedirectResponse(url="/trasferimenti?msg=annullato", status_code=303)
 
 @router.get("/log-magazzini", response_class=HTMLResponse)
 def log_magazzini(r: Request, magazzino_id: str = None, categoria_id: str = None, materiale_id: str = None, operazione: str = None, data_dal: str = None, data_al: str = None, q: str = None):

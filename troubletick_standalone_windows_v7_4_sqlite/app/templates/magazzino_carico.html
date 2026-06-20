@@ -34,6 +34,9 @@
             
             <form method="post" action="/magazzino/{{ magazzino.magazzino_id }}/movimento/{{ materiale.materiale_id }}" enctype="multipart/form-data">
                 <input type="hidden" name="operazione" value="carico">
+                {% if trasferimento_id %}
+                <input type="hidden" name="trasferimento_id" value="{{ trasferimento_id }}">
+                {% endif %}
                 
                 <div class="row mb-3">
                     <div class="col-md-6">
@@ -42,18 +45,18 @@
                     </div>
                     <div class="col-md-6">
                         <label class="form-label fw-bold">Quantità <span class="text-danger">*</span></label>
-                        <input type="number" name="quantita" class="form-control border-success" min="1" value="1" required>
+                        <input type="number" name="quantita" class="form-control border-success" min="1" value="{{ quantita if quantita is not none else 1 }}" required>
                     </div>
                 </div>
                 
                 <div class="row mb-3">
                     <div class="col-md-6">
                         <label class="form-label fw-bold">Marca</label>
-                        <input type="text" name="marca" class="form-control" placeholder="Es. Dell">
+                        <input type="text" name="marca" class="form-control" placeholder="Es. Dell" value="{{ marca or '' }}">
                     </div>
                     <div class="col-md-6">
                         <label class="form-label fw-bold">Modello</label>
-                        <input type="text" name="modello" class="form-control" placeholder="Es. XPS 15">
+                        <input type="text" name="modello" class="form-control" placeholder="Es. XPS 15" value="{{ modello or '' }}">
                     </div>
                 </div>
                 <div class="mb-3">
@@ -77,7 +80,7 @@
                     {% endif %}
                     <small class="text-muted d-block mt-1">È un breve codice che raggruppa gli articoli caricati. Puoi digitarne uno nuovo o selezionarlo tra quelli già esistenti. Deve essere di almeno 3 caratteri (gli spazi interni sono consentiti, ma non all'inizio o alla fine. Verrà eseguito un trim automatico).</small>
                 </div>
-                <div class="mb-3"><label class="form-label fw-bold">Note / Dettagli</label><input type="text" name="descrizione" class="form-control" placeholder="Es. Arrivo merce, reso fornitore..."></div>
+                <div class="mb-3"><label class="form-label fw-bold">Note / Dettagli</label><input type="text" name="descrizione" class="form-control" placeholder="Es. Arrivo merce, reso fornitore..." value="{{ descrizione or '' }}"></div>
                 
                 <div class="mb-4">
                     <label class="form-label fw-bold">Foto o Allegato (opzionale)</label>

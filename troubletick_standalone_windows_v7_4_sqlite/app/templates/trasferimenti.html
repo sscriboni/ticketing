@@ -13,6 +13,12 @@
         <h2>Trasferimenti Merce</h2>
     </div>
     
+    {% if request.query_params.get('msg') == 'annullato' %}
+    <div class="alert alert-success mb-4 shadow-sm">
+        <i class="bi bi-check-circle-fill me-2"></i> Il trasferimento è stato annullato con successo e la quantità di merce è stata riaccreditata nel magazzino di partenza.
+    </div>
+    {% endif %}
+    
     <div class="bg-white p-4 rounded shadow-sm">
         <div class="table-responsive">
             <table class="table table-striped table-hover align-middle">
@@ -38,6 +44,9 @@
                     <td>
                         {% if t.stato == 'in_consegna' %}
                         <span class="badge bg-warning text-dark"><i class="bi bi-truck"></i> In Consegna</span>
+                        {% elif t.stato == 'annullato' %}
+                        <span class="badge bg-danger"><i class="bi bi-x-circle"></i> Annullato</span>
+                        <br><small class="text-muted">{{ t.data_arrivo }}</small>
                         {% else %}
                         <span class="badge bg-success"><i class="bi bi-check-circle"></i> Ricevuto</span>
                         <br><small class="text-muted">{{ t.data_arrivo }}</small>
@@ -47,11 +56,15 @@
                         <div class="d-flex flex-wrap gap-1 align-items-center">
                             {% if t.stato == 'in_consegna' %}
                                 {% if user.ruolo == 'admin' or t.magazzino_dest_id in user_mag_ids %}
-                                <form method="post" action="/trasferimenti/{{ t.trasferimento_id }}/ricevi" onsubmit="return confirm('Confermi di aver ricevuto fisicamente questo materiale nel tuo magazzino?');" class="m-0">
-                                    <button type="submit" class="btn btn-success btn-sm"><i class="bi bi-box-arrow-in-down"></i> Segna Arrivato</button>
-                                </form>
+                                <a href="/magazzino/{{ t.magazzino_dest_id }}/movimento/{{ t.materiale_id }}?operazione=carico&quantita={{ t.quantita }}&marca={{ t.marca or '' }}&modello={{ t.modello or '' }}&descrizione={{ t.note or '' }}&trasferimento_id={{ t.trasferimento_id }}" class="btn btn-success btn-sm"><i class="bi bi-box-arrow-in-down"></i> Segna Arrivato</a>
                                 {% else %}
                                 <span class="text-muted small">In attesa ricezione</span>
+                                {% endif %}
+                                
+                                {% if user.ruolo == 'admin' or t.magazzino_partenza_id in user_mag_ids or t.magazzino_dest_id in user_mag_ids %}
+                                <form method="post" action="/trasferimenti/{{ t.trasferimento_id }}/annulla" onsubmit="return confirm('Sei sicuro di voler annullare questo trasferimento? La merce verrà caricata nuovamente nel magazzino di partenza.');" class="m-0">
+                                    <button type="submit" class="btn btn-danger btn-sm"><i class="bi bi-x-circle"></i> Annulla</button>
+                                </form>
                                 {% endif %}
                             {% else %}
                                 <span class="text-muted small">Operazione conclusa</span>
