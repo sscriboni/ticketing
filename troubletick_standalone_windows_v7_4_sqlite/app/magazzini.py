@@ -553,12 +553,13 @@ async def magazzino_movimento_action(
         if mag_cat and mag_cat != mat_cat:
             return RedirectResponse(url="/magazzini", status_code=303)
 
-        qta_attuale = c.execute(text("SELECT quantita FROM giacenze WHERE magazzino_id = :mag AND materiale_id = :mat"), 
-                                {"mag": magazzino_id, "mat": materiale_id}).scalar() or 0
+        row = c.execute(text("SELECT quantita FROM giacenze WHERE magazzino_id = :mag AND materiale_id = :mat"), 
+                        {"mag": magazzino_id, "mat": materiale_id}).first()
+        qta_attuale = row[0] if row is not None else 0
 
         nuova_qta = max(0, qta_attuale - quantita) if operazione == "scarico" else qta_attuale + quantita
 
-        if qta_attuale == 0 and nuova_qta > 0:
+        if row is None:
             c.execute(text("INSERT INTO giacenze (magazzino_id, materiale_id, quantita) VALUES (:mag, :mat, :q)"),
                       {"mag": magazzino_id, "mat": materiale_id, "q": nuova_qta})
         else:
@@ -822,14 +823,14 @@ def annulla_trasferimento(r: Request, trasferimento_id: int):
                   {"now": now_str, "uid": user["id"], "id": trasferimento_id})
                   
         # 2. Restore inventory at departure warehouse
-        qta_attuale = c.execute(text("SELECT quantita FROM giacenze WHERE magazzino_id = :mag AND materiale_id = :mat"), 
-                                {"mag": t["magazzino_partenza_id"], "mat": t["materiale_id"]}).scalar() or 0
-        nuova_qta = qta_attuale + t["quantita"]
+        row = c.execute(text("SELECT quantita FROM giacenze WHERE magazzino_id = :mag AND materiale_id = :mat"), 
+                        {"mag": t["magazzino_partenza_id"], "mat": t["materiale_id"]}).first()
         
-        if qta_attuale == 0:
+        if row is None:
             c.execute(text("INSERT INTO giacenze (magazzino_id, materiale_id, quantita) VALUES (:mag, :mat, :q)"),
-                      {"mag": t["magazzino_partenza_id"], "mat": t["materiale_id"], "q": nuova_qta})
+                      {"mag": t["magazzino_partenza_id"], "mat": t["materiale_id"], "q": t["quantita"]})
         else:
+            nuova_qta = row[0] + t["quantita"]
             c.execute(text("UPDATE giacenze SET quantita = :q WHERE magazzino_id = :mag AND materiale_id = :mat"),
                       {"q": nuova_qta, "mag": t["magazzino_partenza_id"], "mat": t["materiale_id"]})
                       
