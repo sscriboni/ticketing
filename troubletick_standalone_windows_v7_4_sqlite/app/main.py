@@ -501,7 +501,7 @@ def create_ticket(r: Request,
             "serv_desc": serv_desc,
             "descrizione": descrizione
         })
-        background_tasks.add_task(send_email_async, email, subject, body)
+        background_tasks.add_task(send_email_async, email, subject, body, "Conferma apertura ticket")
         
     # Per ora non inviare mail agli operatori
     # if operatori_emails:
@@ -796,7 +796,7 @@ def update_ticket_status(r: Request, ticket_id: int, background_tasks: Backgroun
                     "autore": autore,
                     "nota_chiusura": nota_chiusura.strip()
                 })
-                background_tasks.add_task(send_email_async, ticket["email"], subject, body)
+                background_tasks.add_task(send_email_async, ticket["email"], subject, body, "Notifica chiusura ticket")
     return RedirectResponse(url=f"/ticket/{ticket_id}", status_code=303)
 
 @app.post("/ticket/{ticket_id}/riassegna")
@@ -2465,7 +2465,7 @@ def edit_operatore(r: Request, user_id: int, background_tasks: BackgroundTasks, 
                 "username": op_prev["username"],
                 "login_url": login_url
             })
-            background_tasks.add_task(send_email_async, op_prev["email"], subject, body)
+            background_tasks.add_task(send_email_async, op_prev["email"], subject, body, "Attivazione account operatore")
     
     return RedirectResponse(url="/admin/operatori", status_code=303)
 
@@ -2490,7 +2490,7 @@ def toggle_operatore(r: Request, user_id: int, background_tasks: BackgroundTasks
                     "username": op["username"],
                     "login_url": login_url
                 })
-                background_tasks.add_task(send_email_async, op["email"], subject, body)
+                background_tasks.add_task(send_email_async, op["email"], subject, body, "Attivazione account operatore")
     
     return RedirectResponse(url="/admin/operatori", status_code=303)
 
