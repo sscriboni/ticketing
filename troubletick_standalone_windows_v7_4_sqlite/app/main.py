@@ -488,7 +488,7 @@ def create_ticket(r: Request,
 
         c.execute(text("""INSERT INTO tickets (codice_ticket, nome,cognome,email,telefono,riferimento,sede,reparto_appartenenza,reparto_id,servizio_id,descrizione,priorita,ip,allegato)
                           VALUES (:codice, :n,:c,:e,:tel,:r,:sede,:rep_app,:rid,:sid,:d,:p,:ip,:all)"""),
-                 {"codice": codice_ticket, "n":nome,"c":cognome,"e":email,"tel":telefono,"riferimento":riferimento,"sede":sede,"rep_app":reparto_appartenenza.strip(),"rid":reparto_id,"sid":servizio_id,
+                 {"codice": codice_ticket, "n":nome,"c":cognome,"e":email,"tel":telefono,"r":riferimento,"sede":sede,"rep_app":reparto_appartenenza.strip(),"rid":reparto_id,"sid":servizio_id,
                   "d":descrizione,"p":priorita,"ip":ip,"all":allegato_filename})
                   
     if email:
