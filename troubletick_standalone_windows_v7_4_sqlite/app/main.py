@@ -952,6 +952,14 @@ def calendario(r: Request, copertura_alert: str = None, servizi_scoperti: str = 
         "copertura_alert": copertura_alert, "servizi_scoperti": servizi_scoperti
     })
 
+@app.get("/calendario-presenze", response_class=HTMLResponse)
+def calendario_presenze(r: Request):
+    if "user" not in r.session: return RedirectResponse(url="/login")
+    user = r.session.get("user")
+    return templates.TemplateResponse(r, "calendario_presenze.html", {
+        "request": r, "cfg": CFG, "user": user
+    })
+
 @app.post("/calendario/nuova")
 def nuova_assenza(r: Request, data_inizio: str = Form(...), data_fine: str = Form(""), motivo: str = Form("")):
     if "user" not in r.session: return RedirectResponse(url="/login")

@@ -24,8 +24,18 @@
     <!-- LISTA ASSENZE -->
     <div class="col-12 col-lg-8">
         <div class="bg-white p-4 rounded shadow-sm">
-            <div id="calendar" class="mb-5"></div>
-            <hr>
+            <div class="form-check form-switch mb-4">
+                <input class="form-check-input" type="checkbox" id="toggleCalendar">
+                <label class="form-check-label fw-bold" for="toggleCalendar">
+                    <i class="bi bi-calendar3 me-1"></i> Visualizza Calendario Grafico
+                </label>
+            </div>
+            
+            <div id="calendar-container" style="display: none;">
+                <div id="calendar" class="mb-5"></div>
+                <hr>
+            </div>
+            
             <h4 class="mb-3">Assenze Programmate</h4>
             <div class="table-responsive">
                 <table class="table table-striped align-middle">
@@ -80,7 +90,6 @@
                         <option value="ferie">Ferie</option>
                         <option value="malattia">Malattia</option>
                         <option value="permessi vari">Permessi vari</option>
-                        <option value="fuori sede">Fuori sede</option>
                     </select>
                 </div>
                 <button type="submit" class="btn btn-primary w-100">Salva Assenza</button>
@@ -132,7 +141,21 @@ document.addEventListener('DOMContentLoaded', function() {
             {% endfor %}
         ]
     });
-    calendar.render();
+    
+    var toggleCalendar = document.getElementById('toggleCalendar');
+    var calendarContainer = document.getElementById('calendar-container');
+    
+    toggleCalendar.addEventListener('change', function() {
+        if (this.checked) {
+            calendarContainer.style.display = 'block';
+            calendar.render();
+            setTimeout(function() {
+                calendar.updateSize();
+            }, 50);
+        } else {
+            calendarContainer.style.display = 'none';
+        }
+    });
 });
 </script>
 </body></html>
