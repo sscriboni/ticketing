@@ -992,7 +992,7 @@ def nuova_assenza(r: Request, data_inizio: str = Form(...), data_fine: str = For
                 servizi = c_read.execute(text("""
                     SELECT servizio_id, descrizione 
                     FROM servizi 
-                    WHERE reparto_id = :rid AND accetta_ticket = 1
+                    WHERE reparto_id = :rid
                 """), {"rid": reparto_id}).mappings().all()
                 
                 servizi_ops = {}
@@ -1097,7 +1097,7 @@ def copertura_servizi(r: Request, mese: int = None, anno: int = None, reparto_id
         servizi = c.execute(text("""
             SELECT servizio_id, descrizione 
             FROM servizi 
-            WHERE reparto_id = :rid AND accetta_ticket = 1
+            WHERE reparto_id = :rid
             ORDER BY descrizione
         """), {"rid": reparto_id}).mappings().all()
         
@@ -1162,7 +1162,7 @@ def copertura_servizi(r: Request, mese: int = None, anno: int = None, reparto_id
                             "motivo": absent_record["motivo"] if absent_record else None
                         })
                         
-                    if present_count == 0:
+                    if len(servizi_ops[s["servizio_id"]]) > 0 and present_count == 0:
                         day_has_uncovered_service = True
                         
                     day_servizi.append({

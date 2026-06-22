@@ -177,7 +177,6 @@
                             
                             <div class="day-content" style="max-height: 140px; overflow-y: auto;">
                                 {% for s in day.servizi %}
-                                    {% if s.operatori %}
                                     <div class="service-container">
                                         <div class="service-title" title="{{ s.descrizione }}">{{ s.descrizione }}</div>
                                         <ul class="operator-list">
@@ -190,10 +189,13 @@
                                                 <span class="operator-presente"><i class="bi bi-check-circle-fill text-success"></i> {{ op.nome_completo }}</span>
                                                 {% endif %}
                                             </li>
+                                            {% else %}
+                                            <li class="operator-item text-muted small" style="font-style: italic;">
+                                                <i class="bi bi-exclamation-circle text-warning"></i> Nessun operatore
+                                            </li>
                                             {% endfor %}
                                         </ul>
                                     </div>
-                                    {% endif %}
                                 {% endfor %}
                             </div>
                         </td>
