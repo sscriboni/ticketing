@@ -484,7 +484,7 @@ def create_ticket(r: Request,
             
         operatori_emails = []
         if servizio_id:
-            operatori_emails = c.execute(text("SELECT u.email FROM users u JOIN operatori_servizi os ON u.user_id = os.user_id WHERE os.servizio_id = :sid AND u.email IS NOT NULL AND u.email != '' AND u.attivo = 1"), {"sid": servicio_id}).scalars().all()
+            operatori_emails = c.execute(text("SELECT u.email FROM users u JOIN operatori_servizi os ON u.user_id = os.user_id WHERE os.servizio_id = :sid AND u.email IS NOT NULL AND u.email != '' AND u.attivo = 1"), {"sid": servizio_id}).scalars().all()
 
         c.execute(text("""INSERT INTO tickets (codice_ticket, nome,cognome,email,telefono,riferimento,sede,reparto_appartenenza,reparto_id,servizio_id,descrizione,priorita,ip,allegato)
                           VALUES (:codice, :n,:c,:e,:tel,:r,:sede,:rep_app,:rid,:sid,:d,:p,:ip,:all)"""),
