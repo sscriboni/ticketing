@@ -5,7 +5,7 @@ from fastapi import APIRouter, Request, Form, UploadFile, File, Query
 from fastapi.responses import HTMLResponse, RedirectResponse
 from sqlalchemy import text
 
-from core import engine, CFG, templates, BASE_DIR
+from core import engine, CFG, templates, BASE_DIR, DB_DRIVER
 from utils import require_superuser, save_upload
 
 router = APIRouter()
@@ -604,7 +604,12 @@ async def magazzino_movimento_action(
                 "q": quantita, "uid": user["id"], "note": descrizione, "all": allegato_filename,
                 "marca": marca, "modello": modello, "pos": pos_clean
             })
-            trsf_id_val = c.execute(text("SELECT last_insert_rowid()")).scalar()
+            if DB_DRIVER.startswith("sqlite"):
+                trsf_id_val = c.execute(text("SELECT last_insert_rowid()")).scalar()
+            elif DB_DRIVER.startswith("mysql"):
+                trsf_id_val = c.execute(text("SELECT LAST_INSERT_ID()")).scalar()
+            else:
+                trsf_id_val = c.execute(text("SELECT LASTVAL()")).scalar()
             
         if operazione == "scarico" and richiesta_id and str(richiesta_id).isdigit():
             rid = int(richiesta_id)
