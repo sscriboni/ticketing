@@ -4,6 +4,7 @@
     <meta charset="utf-8">
     <title>Log Movimenti: {{ magazzino.nome }} — {{ cfg.app_title }}</title>
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css">
 </head>
 <body class="bg-light">
 <div class="container py-4">
@@ -20,6 +21,30 @@
             <a href="/logout" class="btn btn-outline-secondary btn-sm">Logout</a>
         </div>
     </div>
+    
+    {% if request.query_params.get('success') == 'annullato' %}
+    <div class="alert alert-success mb-4 shadow-sm">
+        <i class="bi bi-check-circle-fill me-2"></i> Movimento annullato con successo. La giacenza è stata aggiornata.
+    </div>
+    {% endif %}
+    
+    {% if request.query_params.get('error') == 'non_ultimo_movimento' %}
+    <div class="alert alert-danger mb-4 shadow-sm">
+        <i class="bi bi-exclamation-triangle-fill me-2"></i> Impossibile annullare: sono già state effettuate altre operazioni su questo magazzino successivamente a questo movimento.
+    </div>
+    {% elif request.query_params.get('error') == 'giacenza_insufficiente' %}
+    <div class="alert alert-danger mb-4 shadow-sm">
+        <i class="bi bi-exclamation-triangle-fill me-2"></i> Impossibile annullare: la giacenza attuale del materiale nel magazzino sarebbe negativa.
+    </div>
+    {% elif request.query_params.get('error') == 'non_autorizzato' %}
+    <div class="alert alert-danger mb-4 shadow-sm">
+        <i class="bi bi-exclamation-triangle-fill me-2"></i> Operazione non autorizzata: non disponi dei permessi necessari per questo magazzino.
+    </div>
+    {% elif request.query_params.get('error') %}
+    <div class="alert alert-danger mb-4 shadow-sm">
+        <i class="bi bi-exclamation-triangle-fill me-2"></i> Si è verificato un errore durante l'annullamento del movimento.
+    </div>
+    {% endif %}
     
     <div class="bg-white p-4 rounded shadow-sm">
         <div class="table-responsive">
@@ -40,17 +65,30 @@
                 <tr>
                     <td>{{ mov.data_movimento }}<br><small class="text-muted">{{ mov.creato_il.split(' ')[1] if ' ' in mov.creato_il else '' }}</small></td>
                     <td>{{ mov.user_nome }} {{ mov.user_cognome }}</td>
-                    <td>{% if mov.operazione == 'carico' %}<span class="badge bg-success">Carico</span>{% else %}<span class="badge bg-danger">Scarico</span>{% endif %}</td>
+                    <td>
+                        {% if mov.operazione == 'carico' %}<span class="badge bg-success">Carico</span>
+                        {% elif mov.operazione == 'scarico' %}<span class="badge bg-danger">Scarico</span>
+                        {% else %}<span class="badge bg-secondary text-capitalize">{{ mov.operazione }}</span>{% endif %}
+                    </td>
                     <td><strong>{{ mov.materiale_nome }}</strong></td>
                     <td>{% if mov.marca %}<strong>{{ mov.marca }}</strong><br>{% endif %}<small class="text-muted">{{ mov.modello or '—' }}</small></td>
                     <td>{{ mov.quantita }}</td>
                     <td>
-                        <small>
-                        {% if mov.descrizione %}<strong>Note:</strong> {{ mov.descrizione }}<br>{% endif %}
-                        {% if mov.sede_nome %}<strong>Sede:</strong> {{ mov.sede_nome }}<br>{% endif %}
-                        {% if mov.posizione_fisica %}<strong>Posizione:</strong> {{ mov.posizione_fisica }}{% endif %}
-                        </small>
-                        {% if mov.allegato %}<a href="/uploads/{{ mov.allegato }}" target="_blank" class="badge bg-secondary text-decoration-none mt-1">Allegato</a>{% endif %}
+                        <div class="d-flex justify-content-between align-items-start">
+                            <div>
+                                <small>
+                                {% if mov.descrizione %}<strong>Note:</strong> {{ mov.descrizione }}<br>{% endif %}
+                                {% if mov.sede_nome %}<strong>Sede:</strong> {{ mov.sede_nome }}<br>{% endif %}
+                                {% if mov.posizione_fisica %}<strong>Posizione:</strong> {{ mov.posizione_fisica }}{% endif %}
+                                </small>
+                                {% if mov.allegato %}<br><a href="/uploads/{{ mov.allegato }}" target="_blank" class="badge bg-secondary text-decoration-none mt-1">Allegato</a>{% endif %}
+                            </div>
+                            {% if mov.movimento_id == latest_mov_id and mov.operazione in ('carico', 'scarico') %}
+                            <form method="post" action="/magazzino/{{ magazzino.magazzino_id }}/movimento/{{ mov.movimento_id }}/annulla" onsubmit="return confirm('Sei sicuro di voler annullare questo {{ mov.operazione }}? La giacenza verrà ripristinata e questo record eliminato.');" class="m-0 ms-2">
+                                <button type="submit" class="btn btn-outline-danger btn-sm py-0 px-2 fw-bold" style="font-size: 0.75rem;"><i class="bi bi-x-circle"></i> Annulla</button>
+                            </form>
+                            {% endif %}
+                        </div>
                     </td>
                 </tr>
                 {% else %}

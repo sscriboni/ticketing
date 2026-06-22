@@ -1113,13 +1113,108 @@ def magazzino_log(r: Request, magazzino_id: int):
             JOIN users u ON mm.user_id = u.user_id
             LEFT JOIN sedi s ON mm.sede_assegnazione_id = s.sede_id
             WHERE mm.magazzino_id = :mag_id
-            ORDER BY mm.creato_il DESC
+            ORDER BY mm.creato_il DESC, mm.movimento_id DESC
         """), {"mag_id": magazzino_id}).mappings().all()
+
+        latest_mov_id = c.execute(text("""
+            SELECT movimento_id FROM movimenti_magazzino
+            WHERE magazzino_id = :mag_id AND operazione IN ('carico', 'scarico')
+            ORDER BY creato_il DESC, movimento_id DESC LIMIT 1
+        """), {"mag_id": magazzino_id}).scalar()
         
     return templates.TemplateResponse(r, "magazzino_log.html", {
         "request": r, "cfg": CFG, "user": user, 
-        "magazzino": magazzino, "movimenti": movimenti
+        "magazzino": magazzino, "movimenti": movimenti, "latest_mov_id": latest_mov_id
     })
+
+@router.post("/magazzino/{magazzino_id}/movimento/{movimento_id}/annulla")
+def annulla_movimento_action(r: Request, magazzino_id: int, movimento_id: int):
+    if "user" not in r.session: return RedirectResponse(url="/login")
+    user = r.session.get("user")
+    if user.get("ruolo") == "normale": return RedirectResponse(url="/tickets")
+    
+    with engine.begin() as c:
+        can_edit = False
+        if user.get("ruolo") == "admin":
+            can_edit = True
+        elif user.get("ruolo") in ("assistenza", "responsabile"):
+            user_mag_ids = c.execute(text("SELECT magazzino_id FROM operatori_magazzini WHERE user_id = :uid"), {"uid": user.get("id")}).scalars().all()
+            if magazzino_id in user_mag_ids: can_edit = True
+            
+        if not can_edit:
+            return RedirectResponse(url=f"/magazzino/{magazzino_id}/log?error=non_autorizzato", status_code=303)
+            
+        mov = c.execute(text("SELECT * FROM movimenti_magazzino WHERE movimento_id = :mid AND magazzino_id = :mag_id"), 
+                        {"mid": movimento_id, "mag_id": magazzino_id}).mappings().first()
+        if not mov:
+            return RedirectResponse(url=f"/magazzino/{magazzino_id}/log?error=movimento_non_trovato", status_code=303)
+            
+        latest_mov_id = c.execute(text("""
+            SELECT movimento_id FROM movimenti_magazzino
+            WHERE magazzino_id = :mag_id AND operazione IN ('carico', 'scarico')
+            ORDER BY creato_il DESC, movimento_id DESC LIMIT 1
+        """), {"mag_id": magazzino_id}).scalar()
+        
+        if latest_mov_id != movimento_id:
+            return RedirectResponse(url=f"/magazzino/{magazzino_id}/log?error=non_ultimo_movimento", status_code=303)
+            
+        op = mov["operazione"]
+        mat_id = mov["materiale_id"]
+        qta = mov["quantita"]
+        
+        if op not in ("carico", "scarico"):
+            return RedirectResponse(url=f"/magazzino/{magazzino_id}/log?error=operazione_non_annullabile", status_code=303)
+            
+        row = c.execute(text("SELECT quantita FROM giacenze WHERE magazzino_id = :mag AND materiale_id = :mat"), 
+                        {"mag": magazzino_id, "mat": mat_id}).first()
+        qta_attuale = row[0] if row is not None else 0
+        
+        if op == "carico":
+            if qta_attuale < qta:
+                return RedirectResponse(url=f"/magazzino/{magazzino_id}/log?error=giacenza_insufficiente", status_code=303)
+            nuova_qta = qta_attuale - qta
+        else:  # scarico
+            nuova_qta = qta_attuale + qta
+            
+        if row is None:
+            c.execute(text("INSERT INTO giacenze (magazzino_id, materiale_id, quantita) VALUES (:mag, :mat, :q)"),
+                      {"mag": magazzino_id, "mat": mat_id, "q": nuova_qta})
+        else:
+            c.execute(text("UPDATE giacenze SET quantita = :q WHERE magazzino_id = :mag AND materiale_id = :mat"),
+                      {"q": nuova_qta, "mag": magazzino_id, "mat": mat_id})
+                      
+        # Gestione euristica per ripristinare le richieste materiale evase collegate
+        if op == "scarico":
+            req = c.execute(text("""
+                SELECT richiesta_id FROM richieste_materiale
+                WHERE magazzino_id = :mag_id AND materiale_id = :mat_id AND quantita = :qta AND stato = 'evasa'
+                ORDER BY creato_il DESC LIMIT 1
+            """), {"mag_id": magazzino_id, "mat_id": mat_id, "qta": qta}).mappings().first()
+            if req:
+                c.execute(text("UPDATE richieste_materiale SET stato = 'pronta_per_scarico' WHERE richiesta_id = :rid"), {"rid": req["richiesta_id"]})
+                
+            # Cerca e cancella trasferimenti in consegna generati da questo scarico
+            trsf_out = c.execute(text("""
+                SELECT trasferimento_id FROM trasferimenti
+                WHERE magazzino_partenza_id = :mag_id AND materiale_id = :mat_id AND quantita = :qta AND stato = 'in_consegna'
+                ORDER BY creato_il DESC LIMIT 1
+            """), {"mag_id": magazzino_id, "mat_id": mat_id, "qta": qta}).mappings().first()
+            if trsf_out:
+                c.execute(text("DELETE FROM trasferimenti WHERE trasferimento_id = :tid"), {"tid": trsf_out["trasferimento_id"]})
+        
+        elif op == "carico":
+            # Cerca trasferimenti completati col carico e ripristinali a in consegna
+            trsf_in = c.execute(text("""
+                SELECT trasferimento_id FROM trasferimenti
+                WHERE magazzino_dest_id = :mag_id AND materiale_id = :mat_id AND quantita = :qta AND stato = 'completato'
+                ORDER BY creato_il DESC LIMIT 1
+            """), {"mag_id": magazzino_id, "mat_id": mat_id, "qta": qta}).mappings().first()
+            if trsf_in:
+                c.execute(text("UPDATE trasferimenti SET stato = 'in_consegna', data_arrivo = NULL, user_arrivo_id = NULL WHERE trasferimento_id = :tid"), {"tid": trsf_in["trasferimento_id"]})
+                
+        c.execute(text("DELETE FROM movimenti_magazzino WHERE movimento_id = :mid"), {"mid": movimento_id})
+        
+    return RedirectResponse(url=f"/magazzino/{magazzino_id}/log?success=annullato", status_code=303)
 
 @router.get("/magazzini/scarico-multiplo", response_class=HTMLResponse)
 def get_scarico_multiplo(r: Request, error: str = None):
