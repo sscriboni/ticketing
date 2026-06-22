@@ -83,9 +83,14 @@
                     <td>{{ row.sede_nome or '—' }}</td>
                     <td>
                         <strong>{{ row.materiale_nome }}</strong>
-                        {% if row.trsf_pendenti > 0 %}
-                        <a href="/trasferimenti" class="btn btn-warning btn-sm py-0 px-2 ms-2 text-dark border border-warning-subtle shadow-sm" title="Vedi trasferimenti pendenti per questo materiale" style="font-size: 0.75rem; border-radius: 4px;">
-                            <i class="bi bi-truck me-1"></i> TRF Pendente
+                        {% if row.trsf_in > 0 %}
+                        <a href="/trasferimenti" class="btn btn-info btn-sm py-0 px-2 ms-2 text-dark border border-info-subtle shadow-sm" title="Vedi trasferimenti in arrivo per questo materiale" style="font-size: 0.75rem; border-radius: 4px;">
+                            <i class="bi bi-box-arrow-in-down me-1"></i> TRF In Arrivo
+                        </a>
+                        {% endif %}
+                        {% if row.trsf_out > 0 %}
+                        <a href="/trasferimenti" class="btn btn-warning btn-sm py-0 px-2 ms-2 text-dark border border-warning-subtle shadow-sm" title="Vedi trasferimenti in partenza per questo materiale" style="font-size: 0.75rem; border-radius: 4px;">
+                            <i class="bi bi-truck me-1"></i> TRF In Partenza
                         </a>
                         {% endif %}
                     </td>
