@@ -138,7 +138,7 @@ def user_magazzini_list(r: Request, magazzino_id: List[str] = Query(None), sede_
             SELECT m.magazzino_id, m.nome AS magazzino_nome, s.nome AS sede_nome,
                    mat.materiale_id, mat.nome AS materiale_nome, c.nome AS categoria_nome,
                    COALESCE(g.quantita, 0) AS quantita, COALESCE(mat.soglia_attenzione, 0) AS soglia_attenzione,
-                   (SELECT COUNT(*) FROM trasferimenti WHERE stato = 'in_consegna' AND (magazzino_dest_id = m.magazzino_id OR magazzino_partenza_id = m.magazzino_id)) AS trsf_pendenti
+                   (SELECT COUNT(*) FROM trasferimenti WHERE stato = 'in_consegna' AND (magazzino_dest_id = m.magazzino_id OR magazzino_partenza_id = m.magazzino_id) AND materiale_id = mat.materiale_id) AS trsf_pendenti
             FROM magazzini m
             JOIN materiali mat ON (m.categoria_id IS NULL OR m.categoria_id = mat.categoria_id)
             LEFT JOIN giacenze g ON m.magazzino_id = g.magazzino_id AND mat.materiale_id = g.materiale_id

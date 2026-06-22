@@ -79,14 +79,16 @@
                 <tr>
                     <td>
                         <strong>{{ row.magazzino_nome }}</strong>
+                    </td>
+                    <td>{{ row.sede_nome or '—' }}</td>
+                    <td>
+                        <strong>{{ row.materiale_nome }}</strong>
                         {% if row.trsf_pendenti > 0 %}
-                        <a href="/trasferimenti" class="btn btn-warning btn-sm py-0 px-2 ms-2 text-dark border border-warning-subtle shadow-sm" title="Vedi trasferimenti pendenti per questo magazzino" style="font-size: 0.75rem; border-radius: 4px;">
+                        <a href="/trasferimenti" class="btn btn-warning btn-sm py-0 px-2 ms-2 text-dark border border-warning-subtle shadow-sm" title="Vedi trasferimenti pendenti per questo materiale" style="font-size: 0.75rem; border-radius: 4px;">
                             <i class="bi bi-truck me-1"></i> TRF Pendente
                         </a>
                         {% endif %}
                     </td>
-                    <td>{{ row.sede_nome or '—' }}</td>
-                    <td><strong>{{ row.materiale_nome }}</strong></td>
                     <td>{{ row.categoria_nome or '—' }}</td>
                     <td>
                         <a href="/magazzino/{{ row.magazzino_id }}/giacenza/{{ row.materiale_id }}" class="text-decoration-none" title="Vedi dettaglio posizioni">
