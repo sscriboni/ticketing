@@ -7,6 +7,11 @@
 <div class="container flex-grow-1 mb-5">
 <h2 class="mb-4">{{ cfg.company_name }} — Richiedi assistenza ad un Reparto</h2>
 <form method="post" action="/new" enctype="multipart/form-data">
+  {% if error == 'contatti_obbligatori' or error == 'campi_obbligatori' %}
+  <div class="alert alert-danger mb-3 shadow-sm">
+    <i class="bi bi-exclamation-triangle-fill me-2"></i> <strong>Errore:</strong> Tutti i campi obbligatori (contrassegnati con *) devono essere compilati correttamente.
+  </div>
+  {% endif %}
   <div class="row g-3">
     <div class="col-12 mb-2">
       <h5 class="text-secondary"><i class="bi bi-file-earmark-text me-2"></i>Dati della Richiesta</h5>
@@ -62,8 +67,9 @@
     </div>
 
     <div class="col-md-12"><label class="form-label">Nominativo <span class="text-danger">*</span></label><input name="nominativo" class="form-control" required placeholder="Nome e Cognome"></div>
-    <div class="col-md-6"><label class="form-label">Email</label><input type="email" name="email" id="emailInput" class="form-control" placeholder="es. mario.rossi@azienda.it" pattern="[a-zA-Z0-9._%+\-]+@[a-zA-Z0-9.\-]+\.[a-zA-Z]{2,}$" title="Inserisci un indirizzo email valido"><small class="text-muted">Obbligatorio se non si inserisce il telefono.</small></div>
-    <div class="col-md-6"><label class="form-label">Telefono</label><input type="tel" name="telefono" id="telefonoInput" class="form-control" placeholder="es. 3331234567" pattern="[0-9]{8,15}" title="Inserisci un numero di telefono valido (da 8 a 15 cifre)" oninput="this.value = this.value.replace(/[^0-9]/g, '')"><small class="text-muted">Obbligatorio se non si inserisce l'email.</small></div>
+    <div class="col-md-12"><label class="form-label">Reparto di appartenenza <span class="text-danger">*</span></label><input name="reparto_appartenenza" class="form-control" required placeholder="Es. Amministrazione, Radiologia, ecc."></div>
+    <div class="col-md-6"><label class="form-label">Email <span class="text-danger">*</span></label><input type="email" name="email" id="emailInput" class="form-control" placeholder="es. mario.rossi@azienda.it" pattern="[a-zA-Z0-9._%+\-]+@[a-zA-Z0-9.\-]+\.[a-zA-Z]{2,}$" title="Inserisci un indirizzo email valido" required></div>
+    <div class="col-md-6"><label class="form-label">Telefono <span class="text-danger">*</span></label><input type="tel" name="telefono" id="telefonoInput" class="form-control" placeholder="es. 3331234567" pattern="[0-9]{8,15}" title="Inserisci un numero di telefono valido (da 8 a 15 cifre)" oninput="this.value = this.value.replace(/[^0-9]/g, '')" required></div>
     
     <div class="col-md-12">
       <label class="form-label">Sede di appartenenza del richiedente <span class="text-danger">*</span></label>
@@ -170,22 +176,6 @@ document.addEventListener('DOMContentLoaded', function() {
         filterServizi(); // Avvia il filtro al caricamento iniziale della pagina
     }
 
-    const emailInput = document.getElementById('emailInput');
-    const telefonoInput = document.getElementById('telefonoInput');
-    
-    if (emailInput && telefonoInput) {
-        function checkContactFields() {
-            if (emailInput.value.trim() === '' && telefonoInput.value.trim() === '') {
-                emailInput.required = true;
-                telefonoInput.required = true;
-            } else {
-                emailInput.required = false;
-                telefonoInput.required = false;
-            }
-        }
-        emailInput.addEventListener('input', checkContactFields);
-        telefonoInput.addEventListener('input', checkContactFields);
-        checkContactFields(); // Controllo iniziale
     }
 });
 </script>

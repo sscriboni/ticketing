@@ -432,22 +432,25 @@ def home(r: Request):
     return templates.TemplateResponse(r, "home.html", {"request": r, "cfg": CFG, "avvisi": avvisi, "user": user})
 
 @app.get("/new", response_class=HTMLResponse)
-def new_form(r: Request):
+def new_form(r: Request, error: str = None):
     with engine.connect() as c:
         reparti = c.execute(text("SELECT reparto_id, nome FROM reparti ORDER BY nome")).mappings().all()
         reparti_dest = c.execute(text("SELECT reparto_id, nome, descrizione FROM reparti WHERE accetta_ticket = 1 ORDER BY nome")).mappings().all()
         servizi = c.execute(text("SELECT servizio_id, descrizione, descrizione_lunga, reparto_id, note FROM servizi WHERE accetta_ticket = 1 ORDER BY descrizione")).mappings().all()
         sedi = c.execute(text("SELECT sede_id, nome FROM sedi ORDER BY nome")).mappings().all()
-    return templates.TemplateResponse(r, "new_ticket.html", {"request": r, "cfg": CFG, "reparti": reparti, "reparti_dest": reparti_dest, "servizi": servizi, "sedi": sedi})
+    return templates.TemplateResponse(r, "new_ticket.html", {"request": r, "cfg": CFG, "reparti": reparti, "reparti_dest": reparti_dest, "servizi": servizi, "sedi": sedi, "error": error})
 
 @app.post("/new")
 def create_ticket(r: Request,
                   background_tasks: BackgroundTasks,
                   nominativo: str=Form(...), email: str=Form(""), telefono: str=Form(""),
                   sede: str=Form(""),
+                  reparto_appartenenza: str=Form(...),
                   reparto_id: int=Form(...), servizio_id: str = Form(None),
                   descrizione: str=Form(...),
                   allegato: UploadFile = File(None)):
+    if not email.strip() or not telefono.strip() or not reparto_appartenenza.strip() or not nominativo.strip() or not sede.strip() or not descrizione.strip():
+        return RedirectResponse(url="/new?error=campi_obbligatori", status_code=303)
     priorita = "media"
     ip = r.client.host if r.client else None
     servizio_id = int(servizio_id) if servizio_id else None
@@ -481,11 +484,11 @@ def create_ticket(r: Request,
             
         operatori_emails = []
         if servizio_id:
-            operatori_emails = c.execute(text("SELECT u.email FROM users u JOIN operatori_servizi os ON u.user_id = os.user_id WHERE os.servizio_id = :sid AND u.email IS NOT NULL AND u.email != '' AND u.attivo = 1"), {"sid": servizio_id}).scalars().all()
+            operatori_emails = c.execute(text("SELECT u.email FROM users u JOIN operatori_servizi os ON u.user_id = os.user_id WHERE os.servizio_id = :sid AND u.email IS NOT NULL AND u.email != '' AND u.attivo = 1"), {"sid": servicio_id}).scalars().all()
 
-        c.execute(text("""INSERT INTO tickets (codice_ticket, nome,cognome,email,telefono,riferimento,sede,reparto_id,servizio_id,descrizione,priorita,ip,allegato)
-                          VALUES (:codice, :n,:c,:e,:tel,:r,:sede,:rid,:sid,:d,:p,:ip,:all)"""),
-                 {"codice": codice_ticket, "n":nome,"c":cognome,"e":email,"tel":telefono,"r":riferimento,"sede":sede,"rid":reparto_id,"sid":servizio_id,
+        c.execute(text("""INSERT INTO tickets (codice_ticket, nome,cognome,email,telefono,riferimento,sede,reparto_appartenenza,reparto_id,servizio_id,descrizione,priorita,ip,allegato)
+                          VALUES (:codice, :n,:c,:e,:tel,:r,:sede,:rep_app,:rid,:sid,:d,:p,:ip,:all)"""),
+                 {"codice": codice_ticket, "n":nome,"c":cognome,"e":email,"tel":telefono,"riferimento":riferimento,"sede":sede,"rep_app":reparto_appartenenza.strip(),"rid":reparto_id,"sid":servizio_id,
                   "d":descrizione,"p":priorita,"ip":ip,"all":allegato_filename})
                   
     if email:
