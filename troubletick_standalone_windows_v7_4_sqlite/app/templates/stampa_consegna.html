@@ -419,10 +419,40 @@
         </div>
     </div>
 
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js" defer></script>
+
+    {% if request.query_params.get('msg') == 'consegna_effettuata' or msg == 'consegna_effettuata' %}
+    <!-- Modal Informativo Consegna Effettuata -->
+    <div class="modal fade no-print" id="consegnaModal" tabindex="-1" aria-labelledby="consegnaModalLabel" aria-hidden="true">
+        <div class="modal-dialog modal-dialog-centered">
+            <div class="modal-content shadow-lg border-0">
+                <div class="modal-header bg-success text-white">
+                    <h5 class="modal-title" id="consegnaModalLabel"><i class="bi bi-check-circle-fill me-2"></i> Consegna Effettuata!</h5>
+                    <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <div class="modal-body text-center p-4 text-dark">
+                    <i class="bi bi-envelope-check-fill text-success" style="font-size: 4rem;"></i>
+                    <p class="fs-5 mt-3 fw-bold">Materiale consegnato con successo!</p>
+                    <p class="text-muted">Il materiale è stato consegnato ed è stata inviata una e-mail di riepilogo al destinatario (con copia agli operatori abilitati al magazzino di partenza).</p>
+                    <button type="button" class="btn btn-success px-4 mt-2" data-bs-dismiss="modal">Ok</button>
+                </div>
+            </div>
+        </div>
+    </div>
+    {% endif %}
+
     <script>
         // Avvia automaticamente la finestra di stampa dopo mezzo secondo dal caricamento della pagina
         window.onload = function () {
             setTimeout(function () { window.print(); }, 500);
+            
+            {% if request.query_params.get('msg') == 'consegna_effettuata' or msg == 'consegna_effettuata' %}
+            var myModalElement = document.getElementById('consegnaModal');
+            if (myModalElement) {
+                var myModal = new bootstrap.Modal(myModalElement);
+                myModal.show();
+            }
+            {% endif %}
         };
     </script>
 </body>

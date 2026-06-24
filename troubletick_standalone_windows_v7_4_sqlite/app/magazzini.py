@@ -625,6 +625,16 @@ async def magazzino_movimento_action(
             reparto_nome = ""
             if reparto_id_val:
                 reparto_nome = c.execute(text("SELECT nome FROM reparti WHERE reparto_id = :id"), {"id": reparto_id_val}).scalar() or ""
+            
+            # Get the emails of all active operators enabled for this warehouse
+            mag_ops_emails = c.execute(text("""
+                SELECT u.email FROM users u
+                JOIN operatori_magazzini om ON u.user_id = om.user_id
+                WHERE om.magazzino_id = :mag_id AND u.email IS NOT NULL AND u.email != '' AND u.attivo = 1
+            """), {"mag_id": magazzino_id}).scalars().all()
+            
+            cc_list = list(set([e.strip() for e in mag_ops_emails if e.strip()]))
+            cc_emails_str = ", ".join(cc_list) if cc_list else None
                 
             subject = f"[{CFG.get('company_name', 'Helpdesk')}] Riepilogo Consegna Materiale - Ricevuta"
             body = templates.get_template("email_riepilogo_consegna.html").render({
@@ -639,7 +649,7 @@ async def magazzino_movimento_action(
                 "descrizione": descrizione,
                 "operatore_nome": f"{user.get('nome', '')} {user.get('cognome', '')}".strip() or user.get("username")
             })
-            background_tasks.add_task(send_email_async, email_consegna_clean, subject, body, "Riepilogo consegna materiale")
+            background_tasks.add_task(send_email_async, email_consegna_clean, subject, body, "Riepilogo consegna materiale", cc_email=cc_emails_str)
         
         trsf_id_val = None
         if operazione == "scarico" and mag_dest_id_val:
@@ -680,13 +690,13 @@ async def magazzino_movimento_action(
                     ORDER BY movimento_id DESC LIMIT 1
                 """), {"uid": user["id"], "mag": magazzino_id, "mat": materiale_id}).scalar()
                 if mov_id:
-                    return RedirectResponse(url=f"/stampa-consegna/scarico/{mov_id}", status_code=303)
+                    return RedirectResponse(url=f"/stampa-consegna/scarico/{mov_id}?msg=consegna_effettuata", status_code=303)
             
     if operazione == "scarico" and richiesta_id:
-        return RedirectResponse(url="/richieste-materiale", status_code=303)
+        return RedirectResponse(url="/richieste-materiale?msg=consegna_effettuata", status_code=303)
     if operazione == "carico" and trasferimento_id:
         return RedirectResponse(url="/trasferimenti", status_code=303)
-    return RedirectResponse(url="/magazzini", status_code=303)
+    return RedirectResponse(url="/magazzini?msg=consegna_effettuata", status_code=303)
 
 @router.get("/stampa-consegna/multiplo/{gruppo_scarico}", response_class=HTMLResponse)
 def stampa_consegna_multiplo(r: Request, gruppo_scarico: str):

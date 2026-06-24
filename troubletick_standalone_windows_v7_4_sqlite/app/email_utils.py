@@ -6,15 +6,16 @@ from email.mime.multipart import MIMEMultipart
 
 from core import CFG, BASE_DIR
 
-def send_email_async(dest_email: str, subject: str, body: str, reason: str = None):
+def send_email_async(dest_email: str, subject: str, body: str, reason: str = None, cc_email: str = None):
     log_file_path = os.path.join(BASE_DIR, "emails.log")
     now_str = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
     motivazione = reason if reason else subject
+    cc_log = f" (CC: {cc_email})" if cc_email else ""
     
     if not CFG.get("smtp_server"):
         try:
             with open(log_file_path, "a", encoding="utf-8") as f:
-                f.write(f"[{now_str}] SKIPPED - Dest: {dest_email} - Motivo: {motivazione} (SMTP non configurato)\n")
+                f.write(f"[{now_str}] SKIPPED - Dest: {dest_email}{cc_log} - Motivo: {motivazione} (SMTP non configurato)\n")
         except Exception:
             pass
         return
@@ -22,6 +23,8 @@ def send_email_async(dest_email: str, subject: str, body: str, reason: str = Non
     msg = MIMEMultipart()
     msg['From'] = CFG.get("helpdesk_email", "noreply@troubletick.local")
     msg['To'] = dest_email
+    if cc_email:
+        msg['Cc'] = cc_email
     msg['Subject'] = subject
     msg.attach(MIMEText(body, 'html'))
     
@@ -39,13 +42,13 @@ def send_email_async(dest_email: str, subject: str, body: str, reason: str = Non
         
         try:
             with open(log_file_path, "a", encoding="utf-8") as f:
-                f.write(f"[{now_str}] SUCCESS - Dest: {dest_email} - Motivo: {motivazione}\n")
+                f.write(f"[{now_str}] SUCCESS - Dest: {dest_email}{cc_log} - Motivo: {motivazione}\n")
         except Exception:
             pass
     except Exception as e:
         print(f"Errore invio email ticket: {e}")
         try:
             with open(log_file_path, "a", encoding="utf-8") as f:
-                f.write(f"[{now_str}] FAILURE - Dest: {dest_email} - Motivo: {motivazione} - Errore: {str(e)}\n")
+                f.write(f"[{now_str}] FAILURE - Dest: {dest_email}{cc_log} - Motivo: {motivazione} - Errore: {str(e)}\n")
         except Exception:
             pass
