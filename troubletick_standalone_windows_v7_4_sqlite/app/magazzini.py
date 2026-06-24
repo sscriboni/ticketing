@@ -997,7 +997,21 @@ def nuova_richiesta_materiale_form(r: Request, ticket_id: str = None):
         sedi = c.execute(text("SELECT sede_id, nome FROM sedi ORDER BY nome")).mappings().all()
         categorie = c.execute(text("SELECT categoria_id, nome FROM categorie ORDER BY nome")).mappings().all()
         materiali = c.execute(text("SELECT materiale_id, nome, categoria_id FROM materiali ORDER BY nome")).mappings().all()
-        magazzini = c.execute(text("SELECT magazzino_id, nome, categoria_id FROM magazzini ORDER BY nome")).mappings().all()
+        if user.get("ruolo") != "admin":
+            user_mag_ids = c.execute(text("SELECT magazzino_id FROM operatori_magazzini WHERE user_id = :uid"), {"uid": user.get("id")}).scalars().all()
+            if user_mag_ids:
+                from sqlalchemy import bindparam
+                stmt = text("""
+                    SELECT magazzino_id, nome, categoria_id 
+                    FROM magazzini 
+                    WHERE magazzino_id IN :mids 
+                    ORDER BY nome
+                """).bindparams(bindparam("mids", expanding=True))
+                magazzini = c.execute(stmt, {"mids": list(user_mag_ids)}).mappings().all()
+            else:
+                magazzini = []
+        else:
+            magazzini = c.execute(text("SELECT magazzino_id, nome, categoria_id FROM magazzini ORDER BY nome")).mappings().all()
         
         giacenze_raw = c.execute(text("SELECT magazzino_id, materiale_id, quantita FROM giacenze")).mappings().all()
         giacenze_json = []
@@ -1024,6 +1038,15 @@ def nuova_richiesta_materiale_action(r: Request, sede_dest_id: int = Form(...), 
         
     magazzino_id_val = int(magazzino_id) if magazzino_id and str(magazzino_id).isdigit() else None
     
+    if user.get("ruolo") != "admin" and magazzino_id_val:
+        with engine.connect() as c_sec:
+            is_valid = c_sec.execute(text("""
+                SELECT 1 FROM operatori_magazzini 
+                WHERE user_id = :uid AND magazzino_id = :mid
+            """), {"uid": user.get("id"), "mid": magazzino_id_val}).scalar()
+            if not is_valid:
+                magazzino_id_val = None
+                
     with engine.begin() as c:
         ticket = c.execute(text("SELECT ticket_id, stato FROM tickets WHERE ticket_id = :id"), {"id": ticket_id_val}).mappings().first()
         if not ticket:
