@@ -1364,6 +1364,77 @@ def assenze_mese(r: Request, mese: int = None, anno: int = None, reparto_id: int
         "reparti": reparti_list
     })
 
+@app.get("/servizi-assegnati", response_class=HTMLResponse)
+def servizi_assegnati(r: Request):
+    if "user" not in r.session: return RedirectResponse(url="/login")
+    user = r.session.get("user")
+    
+    with engine.connect() as c:
+        operators_raw = c.execute(text("""
+            SELECT u.user_id, u.nome, u.cognome, u.ruolo, r.nome AS reparto_nome,
+                   s.servizio_id, s.descrizione AS servizio_nome
+            FROM users u
+            LEFT JOIN operatori_servizi os ON u.user_id = os.user_id
+            LEFT JOIN servizi s ON os.servizio_id = s.servizio_id
+            LEFT JOIN reparti r ON u.reparto_id = r.reparto_id
+            WHERE u.ruolo != 'normale' AND u.user_id != 1 AND u.attivo = 1
+            ORDER BY u.nome, u.cognome, s.descrizione
+        """)).mappings().all()
+        
+        operators = {}
+        for row in operators_raw:
+            uid = row["user_id"]
+            if uid not in operators:
+                operators[uid] = {
+                    "user_id": uid,
+                    "nome": row["nome"],
+                    "cognome": row["cognome"],
+                    "ruolo": row["ruolo"],
+                    "reparto_nome": row["reparto_nome"],
+                    "servizi": []
+                }
+            if row["servizio_id"]:
+                operators[uid]["servizi"].append({
+                    "servizio_id": row["servizio_id"],
+                    "nome": row["servizio_nome"]
+                })
+        operators_list = list(operators.values())
+        
+        services_raw = c.execute(text("""
+            SELECT s.servizio_id, s.descrizione AS servizio_nome, r.nome AS reparto_nome,
+                   u.user_id, u.nome AS operatore_nome, u.cognome AS operatore_cognome, u.ruolo AS operatore_ruolo
+            FROM servizi s
+            LEFT JOIN reparti r ON s.reparto_id = r.reparto_id
+            LEFT JOIN operatori_servizi os ON s.servizio_id = os.servizio_id
+            LEFT JOIN users u ON os.user_id = u.user_id AND u.attivo = 1
+            ORDER BY r.nome, s.descrizione, u.nome, u.cognome
+        """)).mappings().all()
+        
+        services = {}
+        for row in services_raw:
+            sid = row["servizio_id"]
+            if sid not in services:
+                services[sid] = {
+                    "servizio_id": sid,
+                    "nome": row["servizio_nome"],
+                    "reparto_nome": row["reparto_nome"],
+                    "operatori": []
+                }
+            if row["user_id"]:
+                services[sid]["operatori"].append({
+                    "user_id": row["user_id"],
+                    "nome": row["operatore_nome"],
+                    "cognome": row["operatore_cognome"],
+                    "ruolo": row["operatore_ruolo"]
+                })
+        services_list = list(services.values())
+        
+    return templates.TemplateResponse(r, "servizi_assegnati.html", {
+        "request": r, "cfg": CFG, "user": user,
+        "operatori": operators_list,
+        "servizi": services_list
+    })
+
 @app.get("/admin", response_class=HTMLResponse)
 def admin(r: Request):
     user = require_superuser(r)
