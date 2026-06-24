@@ -1370,16 +1370,23 @@ def servizi_assegnati(r: Request):
     user = r.session.get("user")
     
     with engine.connect() as c:
+        user_reparto_id = c.execute(text("SELECT reparto_id FROM users WHERE user_id = :uid"), {"uid": user.get("id")}).scalar()
+        
+        reparto_nome = None
+        if user_reparto_id:
+            reparto_nome = c.execute(text("SELECT nome FROM reparti WHERE reparto_id = :rid"), {"rid": user_reparto_id}).scalar()
+            
         operators_raw = c.execute(text("""
             SELECT u.user_id, u.nome, u.cognome, u.ruolo, r.nome AS reparto_nome,
                    s.servizio_id, s.descrizione AS servizio_nome
             FROM users u
             LEFT JOIN operatori_servizi os ON u.user_id = os.user_id
-            LEFT JOIN servizi s ON os.servizio_id = s.servizio_id
+            LEFT JOIN servizi s ON os.servizio_id = s.servizio_id AND (:reparto_id IS NULL OR s.reparto_id = :reparto_id)
             LEFT JOIN reparti r ON u.reparto_id = r.reparto_id
             WHERE u.ruolo != 'normale' AND u.user_id != 1 AND u.attivo = 1
+              AND (:reparto_id IS NULL OR u.reparto_id = :reparto_id)
             ORDER BY u.nome, u.cognome, s.descrizione
-        """)).mappings().all()
+        """), {"reparto_id": user_reparto_id}).mappings().all()
         
         operators = {}
         for row in operators_raw:
@@ -1406,9 +1413,10 @@ def servizi_assegnati(r: Request):
             FROM servizi s
             LEFT JOIN reparti r ON s.reparto_id = r.reparto_id
             LEFT JOIN operatori_servizi os ON s.servizio_id = os.servizio_id
-            LEFT JOIN users u ON os.user_id = u.user_id AND u.attivo = 1
+            LEFT JOIN users u ON os.user_id = u.user_id AND u.attivo = 1 AND (:reparto_id IS NULL OR u.reparto_id = :reparto_id)
+            WHERE (:reparto_id IS NULL OR s.reparto_id = :reparto_id)
             ORDER BY r.nome, s.descrizione, u.nome, u.cognome
-        """)).mappings().all()
+        """), {"reparto_id": user_reparto_id}).mappings().all()
         
         services = {}
         for row in services_raw:
@@ -1432,7 +1440,8 @@ def servizi_assegnati(r: Request):
     return templates.TemplateResponse(r, "servizi_assegnati.html", {
         "request": r, "cfg": CFG, "user": user,
         "operatori": operators_list,
-        "servizi": services_list
+        "servizi": services_list,
+        "reparto_nome": reparto_nome
     })
 
 @app.get("/admin", response_class=HTMLResponse)
