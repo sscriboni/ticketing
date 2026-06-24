@@ -1,4 +1,4 @@
-﻿{
+{
   "app_title": "Troubletick",
   "logo_emoji": "⚙️",
   "company_name": "TechSoluzioni S.r.l.",
@@ -17,5 +17,6 @@
   "db_port": "",
   "db_name": "",
   "db_user": "",
-  "db_password": ""
+  "db_password": "",
+  "app_url": ""
 }

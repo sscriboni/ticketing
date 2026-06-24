@@ -27,9 +27,14 @@
                     <label class="form-label fw-bold">Nome Azienda</label>
                     <input type="text" name="company_name" class="form-control" value="{{ cfg.company_name }}" required>
                 </div>
-                <div class="mb-4">
+                <div class="mb-3">
                     <label class="form-label fw-bold">Email di Supporto</label>
                     <input type="email" name="helpdesk_email" class="form-control" value="{{ cfg.helpdesk_email }}" required>
+                </div>
+                <div class="mb-4">
+                    <label class="form-label fw-bold">URL Assoluto Applicazione</label>
+                    <input type="url" name="app_url" class="form-control" value="{{ cfg.app_url or '' }}" placeholder="es. https://esempio.com/ticketing">
+                    <div class="form-text text-muted">Indirizzo web completo utilizzato per i link nelle email (es. per l'attivazione degli operatori).</div>
                 </div>
 
                 <hr class="my-4">

@@ -1381,6 +1381,7 @@ def admin_impostazioni(r: Request):
 def save_impostazioni(r: Request, 
                       company_name: str = Form(...), 
                       helpdesk_email: str = Form(...),
+                      app_url: str = Form(""),
                       smtp_server: str = Form(""),
                       smtp_port: str = Form(""),
                       smtp_user: str = Form(""),
@@ -1398,6 +1399,7 @@ def save_impostazioni(r: Request,
     
     CFG["company_name"] = company_name
     CFG["helpdesk_email"] = helpdesk_email
+    CFG["app_url"] = app_url.strip()
     
     CFG["smtp_server"] = smtp_server
     CFG["smtp_port"] = int(smtp_port) if smtp_port.isdigit() else (587 if smtp_server else "")
@@ -2466,7 +2468,10 @@ def edit_operatore(r: Request, user_id: int, background_tasks: BackgroundTasks, 
                 
         if attivo == 1 and op_prev and op_prev["attivo"] == 0 and op_prev["email"]:
             subject = f"[{CFG.get('company_name', 'Helpdesk')}] Account Attivato"
-            login_url = f"{r.base_url}login"
+            base_url = CFG.get("app_url", "").strip() or str(r.base_url)
+            if not base_url.endswith("/"):
+                base_url += "/"
+            login_url = f"{base_url}login"
             body = templates.get_template("email_operatore_attivo.html").render({
                 "cfg": CFG,
                 "nome": nome,
@@ -2491,7 +2496,10 @@ def toggle_operatore(r: Request, user_id: int, background_tasks: BackgroundTasks
             
             if new_status == 1 and op["attivo"] == 0 and op["email"]:
                 subject = f"[{CFG.get('company_name', 'Helpdesk')}] Account Attivato"
-                login_url = f"{r.base_url}login"
+                base_url = CFG.get("app_url", "").strip() or str(r.base_url)
+                if not base_url.endswith("/"):
+                    base_url += "/"
+                login_url = f"{base_url}login"
                 body = templates.get_template("email_operatore_attivo.html").render({
                     "cfg": CFG,
                     "nome": op["nome"],
