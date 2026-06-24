@@ -140,7 +140,44 @@
                         <small class="text-primary">Invia la merce in un altro magazzino (richiederà conferma di ricezione).</small>
                     </div>
                 </div>
-                <div class="mb-4"><label class="form-label fw-bold">Note / Dettagli <span class="text-danger">*</span></label><input type="text" name="descrizione" class="form-control border-danger" value="{% if richiesta %}[Evasione Richiesta #{{ richiesta.richiesta_id }}]{% endif %}" placeholder="Obbligatorio: Es. Consegnato a Mario, Spostamento..." required></div>
+                <!-- Sezione Dati Consegna (Obbligatori per consegna, nascosti per trasferimento) -->
+                <div id="consegnaFieldsSection" class="p-3 bg-light rounded border mb-3">
+                    <h5 class="mb-3 text-secondary"><i class="bi bi-person-fill-check"></i> Dati Ricevente Consegna</h5>
+                    
+                    {% if error == 'dati_consegna_obbligatori' %}
+                    <div class="alert alert-danger py-2">
+                        <strong>Errore:</strong> I campi Reparto, Nominativo ed Email sono obbligatori per la consegna.
+                    </div>
+                    {% endif %}
+                    
+                    <div class="mb-3">
+                        <label class="form-label fw-bold">Reparto <span class="text-danger">*</span></label>
+                        <select name="reparto_id" class="form-select border-danger" data-required-if-consegna="true">
+                            <option value="">-- Seleziona Reparto --</option>
+                            {% for rep in reparti %}
+                            <option value="{{ rep.reparto_id }}">{{ rep.nome }}</option>
+                            {% endfor %}
+                        </select>
+                        <small class="text-muted">Reparto a cui viene consegnato il materiale.</small>
+                    </div>
+                    <div class="row mb-3">
+                        <div class="col-md-6">
+                            <label class="form-label fw-bold">Nominativo Ricevente <span class="text-danger">*</span></label>
+                            <input type="text" name="nominativo_consegna" class="form-control border-danger" placeholder="Es. Mario Rossi" data-required-if-consegna="true">
+                            <small class="text-muted">Chi ritira fisicamente la merce.</small>
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label fw-bold">E-mail Ricevente (Riepilogo) <span class="text-danger">*</span></label>
+                            <input type="email" name="email_consegna" class="form-control border-danger" placeholder="mario.rossi@azienda.com" data-required-if-consegna="true">
+                            <small class="text-muted">Indirizzo a cui inviare la ricevuta.</small>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="mb-4">
+                    <label class="form-label fw-bold">Note / Dettagli</label>
+                    <input type="text" name="descrizione" class="form-control" value="{% if richiesta %}[Evasione Richiesta #{{ richiesta.richiesta_id }}]{% endif %}" placeholder="Es. Consegnato a Mario, Spostamento...">
+                </div>
                 <div class="mb-4"><label class="form-label fw-bold">Allegato (opzionale)</label><input type="file" name="allegato" class="form-control"></div>
                 
                 <button type="submit" id="submitBtn" class="btn btn-danger w-100 fw-bold">Conferma Scarico</button>
@@ -225,8 +262,33 @@ function checkGiacenzaPosizione() {
     }
 }
 
+function toggleConsegnaFields() {
+    const magDestSelect = document.querySelector('select[name="magazzino_destinazione_id"]');
+    const consegnaSection = document.getElementById('consegnaFieldsSection');
+    if (!consegnaSection) return;
+    
+    if (magDestSelect && magDestSelect.value !== "") {
+        consegnaSection.classList.add('d-none');
+        consegnaSection.querySelectorAll('input, select').forEach(el => {
+            el.removeAttribute('required');
+        });
+    } else {
+        consegnaSection.classList.remove('d-none');
+        consegnaSection.querySelectorAll('input, select').forEach(el => {
+            if (el.dataset.requiredIfConsegna === "true") {
+                el.setAttribute('required', 'required');
+            }
+        });
+    }
+}
+
 document.addEventListener('DOMContentLoaded', function() {
     checkGiacenzaPosizione();
+    toggleConsegnaFields();
+    const magDestSelect = document.querySelector('select[name="magazzino_destinazione_id"]');
+    if (magDestSelect) {
+        magDestSelect.addEventListener('change', toggleConsegnaFields);
+    }
 });
 </script>
 </body>

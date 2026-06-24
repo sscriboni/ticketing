@@ -154,8 +154,16 @@ try:
             creato_il TEXT DEFAULT CURRENT_TIMESTAMP,
             marca TEXT,
             modello TEXT,
-            allegato TEXT
+            allegato TEXT,
+            reparto_id INTEGER,
+            nominativo_consegna TEXT,
+            email_consegna TEXT
         )"""))
+        for col, col_type in [("reparto_id", "INTEGER"), ("nominativo_consegna", "TEXT"), ("email_consegna", "TEXT")]:
+            try:
+                c.execute(text(f"ALTER TABLE movimenti_magazzino ADD COLUMN {col} {col_type}"))
+            except Exception:
+                pass
         c.execute(text(f"""CREATE TABLE IF NOT EXISTS trasferimenti (
             trasferimento_id {DB_PK},
             magazzino_partenza_id INTEGER NOT NULL,

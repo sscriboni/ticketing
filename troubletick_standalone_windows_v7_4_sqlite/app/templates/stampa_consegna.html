@@ -93,7 +93,7 @@
     {% endif %}
     {% endif %}
 
-    {% set entry_servizio = dest_servizio if is_transfer else (mov.sede_nome or 'Uso Generico') %}
+    {% set entry_servizio = dest_servizio if is_transfer else (mov.reparto_nome or 'Uso Generico') %}
 
     {% set data_mov_ita = mov.data_movimento %}
     {% if '-' in mov.data_movimento %}
@@ -279,11 +279,11 @@
                     </div>
                     <div class="col-6">
                         <div class="field-label">Referente</div>
-                        <div class="field-value">——</div>
+                        <div class="field-value">{{ mov.nominativo_consegna or '——' }}</div>
                     </div>
                     <div class="col-6">
-                        <div class="field-label">Telefono</div>
-                        <div class="field-value">——</div>
+                        <div class="field-label">E-mail / Telefono</div>
+                        <div class="field-value">{{ mov.email_consegna or '——' }}</div>
                     </div>
                 </div>
             </div>

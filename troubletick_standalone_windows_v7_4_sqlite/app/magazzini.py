@@ -1,12 +1,13 @@
 import os
 from datetime import datetime
 from typing import List
-from fastapi import APIRouter, Request, Form, UploadFile, File, Query
+from fastapi import APIRouter, Request, Form, UploadFile, File, Query, BackgroundTasks
 from fastapi.responses import HTMLResponse, RedirectResponse
 from sqlalchemy import text
 
 from core import engine, CFG, templates, BASE_DIR, DB_DRIVER
 from utils import require_superuser, save_upload
+from email_utils import send_email_async
 
 router = APIRouter()
 
@@ -415,6 +416,7 @@ def magazzino_movimento_form(
         if magazzino.get("categoria_id") and magazzino["categoria_id"] != materiale.get("categoria_id"):
             return RedirectResponse(url="/magazzini")
         sedi = c.execute(text("SELECT sede_id, nome FROM sedi ORDER BY nome")).mappings().all()
+        reparti = c.execute(text("SELECT reparto_id, nome FROM reparti ORDER BY nome")).mappings().all()
         magazzini_dest = c.execute(text("""
             SELECT magazzino_id, nome FROM magazzini 
             WHERE magazzino_id != :id AND (categoria_id IS NULL OR categoria_id = :mat_cat)
@@ -478,7 +480,7 @@ def magazzino_movimento_form(
     return templates.TemplateResponse(r, template_file, {
         "request": r, "cfg": CFG, "user": user, 
         "magazzino": magazzino, "materiale": materiale,
-        "operazione": operazione, "sedi": sedi, "magazzini_dest": magazzini_dest, "oggi": oggi, "posizioni": posizioni, "richiesta": richiesta, "error": error,
+        "operazione": operazione, "sedi": sedi, "reparti": reparti, "magazzini_dest": magazzini_dest, "oggi": oggi, "posizioni": posizioni, "richiesta": richiesta, "error": error,
         "magazzini_abilitati": magazzini_abilitati,
         "quantita": quantita, "marca": marca, "modello": modello,
         "descrizione": descrizione, "trasferimento_id": trasferimento_id
@@ -486,7 +488,8 @@ def magazzino_movimento_form(
 
 @router.post("/magazzino/{magazzino_id}/movimento/{materiale_id}")
 async def magazzino_movimento_action(
-    r: Request, magazzino_id: int, materiale_id: int, operazione: str = Form(...), quantita: int = Form(...),
+    r: Request, magazzino_id: int, materiale_id: int, background_tasks: BackgroundTasks,
+    operazione: str = Form(...), quantita: int = Form(...),
     data_movimento: str = Form(...), descrizione: str = Form(""), 
     sede_assegnazione_id: str = Form(None), posizione_fisica: str = Form(""),
     marca: str = Form(""), modello: str = Form(""),
@@ -494,11 +497,27 @@ async def magazzino_movimento_action(
     allegato: UploadFile = File(None),
     genera_pdf: str = Form(None),
     richiesta_id: str = Form(None),
-    trasferimento_id: str = Form(None)
+    trasferimento_id: str = Form(None),
+    reparto_id: str = Form(None),
+    nominativo_consegna: str = Form(None),
+    email_consegna: str = Form(None)
 ):
     if "user" not in r.session: return RedirectResponse(url="/login")
     user = r.session.get("user")
     
+    reparto_id_val = int(reparto_id) if (reparto_id and str(reparto_id).isdigit()) else None
+    nom_consegna_clean = (nominativo_consegna or "").strip()
+    email_consegna_clean = (email_consegna or "").strip()
+    mag_dest_id_val = int(magazzino_destinazione_id) if magazzino_destinazione_id and str(magazzino_destinazione_id).isdigit() else None
+    
+    if operazione == "scarico" and not mag_dest_id_val:
+        if not reparto_id_val or not nom_consegna_clean or not email_consegna_clean:
+            richiesta_clause = f"&richiesta_id={richiesta_id}" if (richiesta_id and str(richiesta_id).isdigit()) else ""
+            return RedirectResponse(
+                url=f"/magazzino/{magazzino_id}/movimento/{materiale_id}?operazione={operazione}&error=dati_consegna_obbligatori{richiesta_clause}",
+                status_code=303
+            )
+
     pos_clean = (posizione_fisica or "").strip()
     if len(pos_clean) < 3:
         richiesta_clause = f"&richiesta_id={richiesta_id}" if (richiesta_id and str(richiesta_id).isdigit()) else ""
@@ -576,7 +595,6 @@ async def magazzino_movimento_action(
             c.execute(text("UPDATE trasferimenti SET stato = 'completato', data_arrivo = :now, user_arrivo_id = :uid WHERE trasferimento_id = :id"),
                       {"now": datetime.now().strftime("%Y-%m-%d %H:%M:%S"), "uid": user["id"], "id": trsf_id})
 
-        mag_dest_id_val = int(magazzino_destinazione_id) if magazzino_destinazione_id and str(magazzino_destinazione_id).isdigit() else None
         desc_source = descrizione
         
         if operazione == "scarico" and mag_dest_id_val:
@@ -587,13 +605,41 @@ async def magazzino_movimento_action(
 
         sede_id_val = int(sede_assegnazione_id) if sede_assegnazione_id and str(sede_assegnazione_id).isdigit() else None
         c.execute(text("""
-            INSERT INTO movimenti_magazzino (magazzino_id, materiale_id, user_id, operazione, quantita, data_movimento, descrizione, sede_assegnazione_id, posizione_fisica, marca, modello, allegato)
-            VALUES (:mag, :mat, :uid, :op, :q, :dt, :desc, :sede, :pos, :marca, :modello, :all)
+            INSERT INTO movimenti_magazzino (magazzino_id, materiale_id, user_id, operazione, quantita, data_movimento, descrizione, sede_assegnazione_id, posizione_fisica, marca, modello, allegato, reparto_id, nominativo_consegna, email_consegna)
+            VALUES (:mag, :mat, :uid, :op, :q, :dt, :desc, :sede, :pos, :marca, :modello, :all, :reparto, :nom, :email)
         """), {
             "mag": magazzino_id, "mat": materiale_id, "uid": user["id"], "op": operazione, 
             "q": quantita, "dt": data_movimento, "desc": desc_source, 
-            "sede": sede_id_val, "pos": pos_clean, "marca": marca, "modello": modello, "all": allegato_filename
+            "sede": sede_id_val, "pos": pos_clean, "marca": marca, "modello": modello, "all": allegato_filename,
+            "reparto": reparto_id_val if (operazione == "scarico" and not mag_dest_id_val) else None,
+            "nom": nom_consegna_clean if (operazione == "scarico" and not mag_dest_id_val) else None,
+            "email": email_consegna_clean if (operazione == "scarico" and not mag_dest_id_val) else None
         })
+        
+        if operazione == "scarico" and not mag_dest_id_val:
+            materiale_nome = c.execute(text("SELECT nome FROM materiali WHERE materiale_id = :id"), {"id": materiale_id}).scalar() or ""
+            magazzino_nome = c.execute(text("SELECT nome FROM magazzini WHERE magazzino_id = :id"), {"id": magazzino_id}).scalar() or ""
+            sede_nome = ""
+            if sede_id_val:
+                sede_nome = c.execute(text("SELECT nome FROM sedi WHERE sede_id = :id"), {"id": sede_id_val}).scalar() or ""
+            reparto_nome = ""
+            if reparto_id_val:
+                reparto_nome = c.execute(text("SELECT nome FROM reparti WHERE reparto_id = :id"), {"id": reparto_id_val}).scalar() or ""
+                
+            subject = f"[{CFG.get('company_name', 'Helpdesk')}] Riepilogo Consegna Materiale - Ricevuta"
+            body = templates.get_template("email_riepilogo_consegna.html").render({
+                "cfg": CFG,
+                "materiale_nome": materiale_nome,
+                "quantita": quantita,
+                "magazzino_nome": magazzino_nome,
+                "sede_nome": sede_nome,
+                "reparto_nome": reparto_nome,
+                "nominativo_consegna": nom_consegna_clean,
+                "data_movimento": data_movimento,
+                "descrizione": descrizione,
+                "operatore_nome": f"{user.get('nome', '')} {user.get('cognome', '')}".strip() or user.get("username")
+            })
+            background_tasks.add_task(send_email_async, email_consegna_clean, subject, body, "Riepilogo consegna materiale")
         
         trsf_id_val = None
         if operazione == "scarico" and mag_dest_id_val:
@@ -737,13 +783,14 @@ def stampa_consegna(r: Request, tipo: str, doc_id: int):
     with engine.connect() as c:
         if tipo == 'scarico':
             mov = c.execute(text("""
-                SELECT m.*, mag.nome AS magazzino_nome, s.nome AS sede_nome,
+                SELECT m.*, mag.nome AS magazzino_nome, s.nome AS sede_nome, rep.nome AS reparto_nome,
                        mat.nome AS materiale_nome, u.nome AS user_nome, u.cognome AS user_cognome,
                        u.telefono AS user_telefono, s_orig.nome AS magazzino_sede_nome
                 FROM movimenti_magazzino m
                 JOIN magazzini mag ON m.magazzino_id = mag.magazzino_id
                 LEFT JOIN sedi s_orig ON mag.sede_id = s_orig.sede_id
                 LEFT JOIN sedi s ON m.sede_assegnazione_id = s.sede_id
+                LEFT JOIN reparti rep ON m.reparto_id = rep.reparto_id
                 JOIN materiali mat ON m.materiale_id = mat.materiale_id
                 JOIN users u ON m.user_id = u.user_id
                 WHERE m.movimento_id = :id AND m.operazione = 'scarico'

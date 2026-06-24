@@ -1,0 +1,98 @@
+<!doctype html>
+<html lang="it">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Ricevuta di Consegna Materiale — {{ cfg.company_name }}</title>
+</head>
+<body style="margin: 0; padding: 0; background-color: #f4f6f8; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; -webkit-font-smoothing: antialiased;">
+    <table border="0" cellpadding="0" cellspacing="0" width="100%" style="background-color: #f4f6f8; padding: 20px 0;">
+        <tr>
+            <td align="center">
+                <!-- Wrapper Table -->
+                <table border="0" cellpadding="0" cellspacing="0" width="100%" style="max-width: 600px; background-color: #ffffff; border-radius: 12px; box-shadow: 0 4px 12px rgba(0,0,0,0.05); overflow: hidden;">
+                    <!-- Header -->
+                    <tr>
+                        <td align="center" style="background: linear-gradient(135deg, #0d6efd, #0a58ca); padding: 35px 20px; text-align: center;">
+                            <span style="font-size: 40px; margin-bottom: 10px; display: block;">📦</span>
+                            <h1 style="color: #ffffff; margin: 0; font-size: 24px; font-weight: 800; letter-spacing: -0.5px;">{{ cfg.company_name }}</h1>
+                            <p style="color: #bfdbfe; margin: 5px 0 0 0; font-size: 13px; text-transform: uppercase; font-weight: 600; letter-spacing: 1px;">Ricevuta Consegna Materiale</p>
+                        </td>
+                    </tr>
+                    
+                    <!-- Content -->
+                    <tr>
+                        <td style="padding: 40px 30px;">
+                            <h2 style="color: #1f2937; margin-top: 0; font-size: 20px; font-weight: 700; border-bottom: 2px solid #f3f4f6; padding-bottom: 15px;">Dettaglio della Consegna</h2>
+                            <p style="color: #4b5563; font-size: 15px; line-height: 1.6;">
+                                Gentile <strong>{{ nominativo_consegna }}</strong>,
+                            </p>
+                            <p style="color: #4b5563; font-size: 15px; line-height: 1.6; margin-bottom: 25px;">
+                                ti inviamo il riepilogo completo del materiale ritirato / consegnato in data <strong>{{ data_movimento }}</strong>.
+                            </p>
+                            
+                            <!-- Delivery Details Box -->
+                            <table border="0" cellpadding="0" cellspacing="0" width="100%" style="background-color: #f9fafb; border: 1px solid #e5e7eb; border-radius: 8px; margin-bottom: 25px; padding: 20px;">
+                                <tr>
+                                    <td style="padding-bottom: 12px; font-size: 14px; color: #6b7280; font-weight: 600; width: 40%;">Articolo:</td>
+                                    <td style="padding-bottom: 12px; font-size: 14px; color: #111827; font-weight: 700;">
+                                        {{ materiale_nome }}
+                                    </td>
+                                </tr>
+                                <tr>
+                                    <td style="padding-bottom: 12px; font-size: 14px; color: #6b7280; font-weight: 600;">Quantità Consegnata:</td>
+                                    <td style="padding-bottom: 12px; font-size: 14px; color: #111827; font-weight: 700;">
+                                        <span style="background-color: #0d6efd; color: #ffffff; padding: 4px 10px; border-radius: 6px; font-size: 13px; font-weight: bold;">{{ quantita }} pz</span>
+                                    </td>
+                                </tr>
+                                <tr>
+                                    <td style="padding-bottom: 12px; font-size: 14px; color: #6b7280; font-weight: 600;">Magazzino di Origine:</td>
+                                    <td style="padding-bottom: 12px; font-size: 14px; color: #111827; font-weight: 600;">{{ magazzino_nome }}</td>
+                                </tr>
+                                <tr>
+                                    <td style="padding-bottom: 12px; font-size: 14px; color: #6b7280; font-weight: 600;">Sede di Destinazione:</td>
+                                    <td style="padding-bottom: 12px; font-size: 14px; color: #111827; font-weight: 600;">{{ sede_nome or '—' }}</td>
+                                </tr>
+                                <tr>
+                                    <td style="padding-bottom: 12px; font-size: 14px; color: #6b7280; font-weight: 600;">Reparto Destinatario:</td>
+                                    <td style="padding-bottom: 12px; font-size: 14px; color: #111827; font-weight: 600;">{{ reparto_nome }}</td>
+                                </tr>
+                                <tr>
+                                    <td style="padding-bottom: 12px; font-size: 14px; color: #6b7280; font-weight: 600;">Assegnato a (Nominativo):</td>
+                                    <td style="padding-bottom: 12px; font-size: 14px; color: #111827; font-weight: 600;">{{ nominativo_consegna }}</td>
+                                </tr>
+                                <tr>
+                                    <td style="padding-bottom: 12px; font-size: 14px; color: #6b7280; font-weight: 600;">Consegnato da (Operatore):</td>
+                                    <td style="padding-bottom: 12px; font-size: 14px; color: #111827; font-weight: 600;">{{ operatore_nome }}</td>
+                                </tr>
+                                {% if descrizione %}
+                                <tr>
+                                    <td colspan="2" style="padding-top: 10px; border-top: 1px dashed #e5e7eb;">
+                                        <div style="font-size: 14px; color: #6b7280; font-weight: 600; margin-bottom: 8px;">Note / Causale:</div>
+                                        <div style="background-color: #ffffff; border: 1px solid #e5e7eb; border-radius: 6px; padding: 15px; font-size: 14px; color: #374151; white-space: pre-wrap; line-height: 1.5; font-family: inherit;">{{ descrizione }}</div>
+                                    </td>
+                                </tr>
+                                {% endif %}
+                            </table>
+                            
+                            <p style="color: #4b5563; font-size: 14px; line-height: 1.6; margin-bottom: 0;">
+                                ℹ️ Questa ricevuta attesta il corretto prelievo del materiale descritto per conto della sede e reparto indicati.
+                            </p>
+                        </td>
+                    </tr>
+                    
+                    <!-- Footer -->
+                    <tr>
+                        <td align="center" style="background-color: #f9fafb; padding: 25px 20px; border-top: 1px solid #f3f4f6; border-bottom-left-radius: 12px; border-bottom-right-radius: 12px;">
+                            <p style="margin: 0; font-size: 12px; color: #9ca3af;">{{ cfg.footer_text }}</p>
+                            <p style="margin: 8px 0 0 0; font-size: 11px; color: #9ca3af;">
+                                Questa è un'email automatica di riepilogo generata da Troubletick.
+                            </p>
+                        </td>
+                    </tr>
+                </table>
+            </td>
+        </tr>
+    </table>
+</body>
+</html>
