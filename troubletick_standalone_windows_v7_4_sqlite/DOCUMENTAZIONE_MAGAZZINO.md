@@ -20,23 +20,22 @@ Il flusso standard di fornitura segue un processo strutturato per garantire trac
 
 ```mermaid
 graph TD
-    A[Utente/Operatore descrive il bisogno nel Ticket] --> B[Operatore 'Supervisore' prende in carico il Ticket]
+    A[Utente/Operatore descrive il bisogno nel Ticket] --> B[Operatore del servizio prende in carico il Ticket]
     B --> C{Verifica e Approva?}
     C -- NO --> D[Ticket Rifiutato/Chiuso]
-    C -- SI --> E[Supervisore aggiunge i Materiali al Ticket]
-    E --> F[Supervisore pre-seleziona il Magazzino idoneo]
-    F --> G[Supervisore assegna il Ticket agli operatori abilitati al Magazzino]
-    G --> H[Magazziniere evade la richiesta ed esegue lo scarico]
+    C -- SI --> E[Operatore aggiunge i Materiali al Ticket]
+    E --> F[Operatore seleziona il Magazzino idoneo]
+    F --> H[Magazziniere evade la richiesta ed esegue lo scarico]
 ```
 
 ### I Passaggi del Flusso:
 
 1. **La Segnalazione Testuale**: Un utente descrive nel corpo di un ticket la necessità di materiale (es. *"La stampante al secondo piano ha finito il toner"* oppure *"Ho bisogno di una tastiera nuova"*).
-2. **Presa in Carico del "Supervisore"**: Un operatore con funzioni di coordinamento prende in carico la segnalazione. Valuta la richiesta dell'utente.
-3. **Approvazione e Inserimento**: Se la richiesta è valida, il Supervisore clicca su **"Crea Nuova Richiesta"** direttamente all'interno della scheda di dettaglio del ticket.
-4. **Scelta del Magazzino**: Durante la creazione della richiesta, il Supervisore seleziona la tipologia di materiale e il **magazzino di prelievo** più idoneo (es. Magazzino Alessandria, Magazzino Milano).
-5. **Riassegnazione del Ticket**: Infine, il Supervisore riassegna il ticket al reparto o servizio associato al magazzino designato, in modo che gli operatori di magazzino abilitati ricevano la notifica e prendano in carico l'evasione.
-6. **Chiusura Vincolata del Ticket**: Il ticket non potrà essere chiuso finché rimangono richieste di materiale associate ad esso che non siano state ancora evase o annullate. L'operatore o il magazziniere dovranno quindi evadere o annullare tutte le richieste pendenti per poter procedere alla chiusura del ticket.
+2. **Presa in Carico**: L'operatore abilitato al servizio prende in carico la segnalazione e valuta la richiesta dell'utente.
+3. **Approvazione e Inserimento**: Se la richiesta è valida, l'operatore clicca su **"Crea Nuova Richiesta"** direttamente all'interno della scheda di dettaglio del ticket per aggiungere i materiali necessari.
+4. **Scelta del Magazzino**: Durante la creazione della richiesta, l'operatore seleziona la tipologia di materiale e il **magazzino di prelievo** più idoneo (es. Magazzino Alessandria, Magazzino Milano).
+5. **Evasione da parte del Magazzino**: La richiesta compare automaticamente nella coda del magazzino selezionato, così che gli operatori di magazzino abilitati (magazzinieri) possano vederla, preparare il materiale ed eseguire lo scarico.
+6. **Chiusura Vincolata del Ticket**: Il ticket non potrà essere chiuso finché rimangono richieste di materiale associate ad esso che non siano state ancora evase o annullate. Gli operatori dovranno quindi evadere o annullare tutte le richieste pendenti per poter procedere alla chiusura del ticket.
 
 ---
 
@@ -57,7 +56,7 @@ L'operatore di magazzino monitora costantemente le richieste in arrivo tramite i
 
 Quando si clicca su **"Esegui Scarico"** per una richiesta associata ad un ticket:
 
-* **Campi Bloccati**: Per garantire la conformità con quanto autorizzato dal Supervisore, la **quantità** e la **sede di destinazione** sono pre-compilate dalla richiesta e **non possono essere modificate**. Anche la spedizione/trasferimento ad altri magazzini è disabilitata.
+* **Campi Bloccati**: Per garantire la conformità con quanto inserito nella richiesta dall'operatore, la **quantità** e la **sede di destinazione** sono pre-compilate dalla richiesta e **non possono essere modificate**. Anche la spedizione/trasferimento ad altri magazzini è disabilitata.
 * **Selezione Posizione**: Il magazziniere deve unicamente selezionare la **posizione fisica** (scaffale/lotto) da cui prelevare i pezzi.
 * **Note Automatiche**: Il sistema imposta una descrizione predefinita e, ad operazione avvenuta, inserisce in automatico una nota di servizio nel ticket (es. *"Richiesta materiale evasa dal magazzino: 1x Toner HP"*).
 * **Verbale di Consegna PDF**: Attivando la spunta **"Genera PDF (Documento di Consegna)"**, il sistema apre una pagina di stampa ottimizzata in formato A4 che funge da verbale di consegna da far firmare al destinatario al ritiro del materiale.
@@ -88,12 +87,12 @@ Nel caso in cui sia necessario consegnare contemporaneamente più articoli di ti
 
 ### 🏢 Esempio 1: Allestimento Postazione Nuovo Dipendente (Flusso Standard con Ticket)
 * **Scenario**: Le Risorse Umane aprono un ticket chiedendo la preparazione del materiale per un nuovo assunto presso la sede di Milano.
-* **Operazione del Supervisore**: Il supervisore IT prende in carico il ticket, verifica la richiesta e aggiunge formalmente ad esso tre richieste di materiale: 1x PC Desktop, 1x Monitor 24", 1x Kit Tastiera/Mouse, impostando come magazzino di prelievo "IT Milano". Successivamente, riassegna il ticket al servizio "Logistica Milano".
+* **Operazione dell'Operatore Abilitato**: L'operatore IT abilitato al servizio prende in carico il ticket, verifica la richiesta e aggiunge formalmente ad esso tre richieste di materiale: 1x PC Desktop, 1x Monitor 24", 1x Kit Tastiera/Mouse, impostando come magazzino di prelievo "IT Milano".
 * **Operazione del Magazziniere**: L'operatore del magazzino di Milano vede le tre richieste in stato "Pronta per scarico". Prepara il materiale, clicca su "Esegui Scarico" per ciascuno selezionando le rispettive posizioni fisiche, genera i PDF di consegna e fa firmare i fogli al dipendente al momento del ritiro.
 
 ### 📦 Esempio 2: Richiesta di Toner Esaurito (Gestione Pendenza/Backorder)
 * **Scenario**: La segreteria di Alessandria segnala che la stampante multifunzione ha terminato il toner nero.
-* **Operazione del Supervisore**: Il supervisore inserisce la richiesta per 1x Toner Nero nel ticket, assegnando il prelievo al Magazzino Alessandria.
+* **Operazione dell'Operatore Abilitato**: L'operatore abilitato inserisce la richiesta per 1x Toner Nero nel ticket, assegnando il prelievo al Magazzino Alessandria.
 * **Operazione del Magazziniere (Richiesta Pendente)**: Il toner è esaurito nel magazzino di Alessandria. La richiesta compare nella lista in stato **"In Attesa"** (non è presente il tasto "Esegui Scarico").
 * **Rifornimento**: Due giorni dopo, arriva il corriere con i nuovi toner. Il magazziniere effettua un **Carico** di 5 toner indicando la posizione `Scaffale B2`.
 * **Evasione**: All'istante, la richiesta associata al ticket passa in stato **"Pronta per Scarico"**. Il magazziniere clicca su "Esegui Scarico", preleva 1 pezzo da `Scaffale B2` e consegna il toner. Una volta evasa questa richiesta, se non vi sono altri materiali pendenti, il ticket potrà finalmente essere chiuso.
