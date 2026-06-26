@@ -354,12 +354,11 @@ def get_new_tickets_count(user):
     try:
         with engine.connect() as c:
             uid = user.get("id")
-            if user.get("ruolo") == "admin":
-                return c.execute(text("SELECT COUNT(*) FROM tickets WHERE stato = 'nuova'")).scalar() or 0
-            elif user.get("ruolo") == "responsabile":
-                return c.execute(text("SELECT COUNT(*) FROM tickets WHERE stato = 'nuova' AND reparto_id = (SELECT reparto_id FROM users WHERE user_id = :uid)"), {"uid": uid}).scalar() or 0
-            elif user.get("ruolo") == "assistenza":
-                return c.execute(text("SELECT COUNT(*) FROM tickets WHERE stato = 'nuova' AND (reparto_id = (SELECT reparto_id FROM users WHERE user_id = :uid) OR servizio_id IN (SELECT servizio_id FROM operatori_servizi WHERE user_id = :uid))"), {"uid": uid}).scalar() or 0
+            return c.execute(text("""
+                SELECT COUNT(*) FROM tickets 
+                 WHERE stato = 'nuova' 
+                   AND servizio_id IN (SELECT servizio_id FROM operatori_servizi WHERE user_id = :uid)
+            """), {"uid": uid}).scalar() or 0
     except Exception:
         pass
     return 0
