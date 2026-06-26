@@ -458,11 +458,11 @@ def create_ticket(r: Request,
                   background_tasks: BackgroundTasks,
                   nominativo: str=Form(...), email: str=Form(""), telefono: str=Form(""),
                   sede: str=Form(""),
-                  reparto_appartenenza: str=Form(None),
+                  reparto_appartenenza: str=Form(...),
                   reparto_id: int=Form(...), servizio_id: str = Form(None),
                   descrizione: str=Form(...),
                   allegato: UploadFile = File(None)):
-    if not email.strip() or not telefono.strip() or not nominativo.strip() or not sede.strip() or not descrizione.strip():
+    if not email.strip() or not telefono.strip() or not reparto_appartenenza.strip() or not nominativo.strip() or not sede.strip() or not descrizione.strip():
         return RedirectResponse(url="/new?error=campi_obbligatori", status_code=303)
     priorita = "media"
     ip = r.client.host if r.client else None
@@ -501,7 +501,7 @@ def create_ticket(r: Request,
 
         c.execute(text("""INSERT INTO tickets (codice_ticket, nome,cognome,email,telefono,riferimento,sede,reparto_appartenenza,reparto_id,servizio_id,descrizione,priorita,ip,allegato)
                           VALUES (:codice, :n,:c,:e,:tel,:r,:sede,:rep_app,:rid,:sid,:d,:p,:ip,:all)"""),
-                 {"codice": codice_ticket, "n":nome,"c":cognome,"e":email,"tel":telefono,"r":riferimento,"sede":sede,"rep_app":reparto_appartenenza.strip() if reparto_appartenenza else "","rid":reparto_id,"sid":servizio_id,
+                 {"codice": codice_ticket, "n":nome,"c":cognome,"e":email,"tel":telefono,"r":riferimento,"sede":sede,"rep_app":reparto_appartenenza.strip(),"rid":reparto_id,"sid":servizio_id,
                   "d":descrizione,"p":priorita,"ip":ip,"all":allegato_filename})
                   
     if email:
