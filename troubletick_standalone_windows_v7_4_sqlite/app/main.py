@@ -444,7 +444,12 @@ def new_form(r: Request, error: str = None):
         reparti = c.execute(text("SELECT reparto_id, nome FROM reparti ORDER BY nome")).mappings().all()
         reparti_dest = c.execute(text("SELECT reparto_id, nome, descrizione FROM reparti WHERE accetta_ticket = 1 ORDER BY nome")).mappings().all()
         servizi = c.execute(text("SELECT servizio_id, descrizione, descrizione_lunga, reparto_id, note FROM servizi WHERE accetta_ticket = 1 ORDER BY descrizione")).mappings().all()
-        sedi = c.execute(text("SELECT sede_id, nome FROM sedi ORDER BY nome")).mappings().all()
+        sedi = c.execute(text("""
+            SELECT s.sede_id, s.nome, c.nome as comune_nome 
+            FROM sedi s 
+            LEFT JOIN comuni c ON s.comune_id = c.comune_id 
+            ORDER BY c.nome, s.nome
+        """)).mappings().all()
     return templates.TemplateResponse(r, "new_ticket.html", {"request": r, "cfg": CFG, "reparti": reparti, "reparti_dest": reparti_dest, "servizi": servizi, "sedi": sedi, "error": error})
 
 @app.post("/new")

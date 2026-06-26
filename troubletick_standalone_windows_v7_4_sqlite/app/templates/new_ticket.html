@@ -76,7 +76,7 @@
       <select name="sede" class="form-select" required>
         <option value="" disabled selected>Seleziona la tua sede...</option>
         {% for s in sedi %}
-        <option value="{{ s.nome }}">{{ s.nome }}</option>
+        <option value="{% if s.comune_nome %}{{ s.comune_nome }} - {% endif %}{{ s.nome }}">{% if s.comune_nome %}{{ s.comune_nome }} - {% endif %}{{ s.nome }}</option>
         {% endfor %}
       </select>
     </div>
