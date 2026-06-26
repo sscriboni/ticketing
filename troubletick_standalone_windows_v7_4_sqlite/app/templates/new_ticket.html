@@ -67,10 +67,6 @@
     </div>
 
     <div class="col-md-12"><label class="form-label">Nominativo <span class="text-danger">*</span></label><input name="nominativo" class="form-control" required placeholder="Nome e Cognome"></div>
-    <div class="col-md-12"><label class="form-label">Reparto di appartenenza <span class="text-danger">*</span></label><input name="reparto_appartenenza" class="form-control" required placeholder="Es. Amministrazione, Radiologia, ecc."></div>
-    <div class="col-md-6"><label class="form-label">Email <span class="text-danger">*</span></label><input type="email" name="email" id="emailInput" class="form-control" placeholder="es. mario.rossi@azienda.it" pattern="[a-zA-Z0-9._%+\-]+@[a-zA-Z0-9.\-]+\.[a-zA-Z]{2,}$" title="Inserisci un indirizzo email valido" required></div>
-    <div class="col-md-6"><label class="form-label">Telefono <span class="text-danger">*</span></label><input type="tel" name="telefono" id="telefonoInput" class="form-control" placeholder="es. 3331234567" pattern="[0-9]{8,15}" title="Inserisci un numero di telefono valido (da 8 a 15 cifre)" oninput="this.value = this.value.replace(/[^0-9]/g, '')" required></div>
-    
     <div class="col-md-12">
       <label class="form-label">Sede di appartenenza del richiedente <span class="text-danger">*</span></label>
       <select name="sede" class="form-select" required>
@@ -80,6 +76,9 @@
         {% endfor %}
       </select>
     </div>
+    <div class="col-md-12"><label class="form-label">Reparto di appartenenza <span class="text-danger">*</span></label><input name="reparto_appartenenza" class="form-control" required placeholder="Es. Amministrazione, Radiologia, ecc."></div>
+    <div class="col-md-6"><label class="form-label">Email <span class="text-danger">*</span></label><input type="email" name="email" id="emailInput" class="form-control" placeholder="es. mario.rossi@azienda.it" pattern="[a-zA-Z0-9._%+\-]+@[a-zA-Z0-9.\-]+\.[a-zA-Z]{2,}$" title="Inserisci un indirizzo email valido" required></div>
+    <div class="col-md-6"><label class="form-label">Telefono <span class="text-danger">*</span></label><input type="tel" name="telefono" id="telefonoInput" class="form-control" placeholder="es. 3331234567" pattern="[0-9]{8,15}" title="Inserisci un numero di telefono valido (da 8 a 15 cifre)" oninput="this.value = this.value.replace(/[^0-9]/g, '')" required></div>
   </div>
   <div class="mt-3">
     <small class="text-muted d-block mb-2">Informativa sulla <a href="/static/PRIVACY.md" target="_blank">Privacy Policy</a> e i termini della <a href="/static/LICENSE.txt" target="_blank">Licenza d'Uso (EULA)</a>.</small>
