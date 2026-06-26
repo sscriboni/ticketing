@@ -535,6 +535,12 @@ async def magazzino_movimento_action(
     allegato_filename = save_upload(allegato)
 
     with engine.begin() as c:
+        if operazione == "carico" and trasferimento_id and str(trasferimento_id).isdigit():
+            trsf_id = int(trasferimento_id)
+            trsf = c.execute(text("SELECT quantita FROM trasferimenti WHERE trasferimento_id = :id"), {"id": trsf_id}).mappings().first()
+            if trsf:
+                quantita = trsf["quantita"]
+
         if operazione == "scarico" and richiesta_id and str(richiesta_id).isdigit():
             rid = int(richiesta_id)
             richiesta = c.execute(text("SELECT * FROM richieste_materiale WHERE richiesta_id = :id"), {"id": rid}).mappings().first()

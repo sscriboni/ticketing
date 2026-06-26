@@ -45,7 +45,11 @@
                     </div>
                     <div class="col-md-6">
                         <label class="form-label fw-bold">Quantità <span class="text-danger">*</span></label>
+                        {% if trasferimento_id %}
+                        <input type="number" name="quantita" class="form-control border-success bg-light" min="1" value="{{ quantita }}" readonly required>
+                        {% else %}
                         <input type="number" name="quantita" class="form-control border-success" min="1" value="{{ quantita if quantita is not none else 1 }}" required>
+                        {% endif %}
                     </div>
                 </div>
                 
