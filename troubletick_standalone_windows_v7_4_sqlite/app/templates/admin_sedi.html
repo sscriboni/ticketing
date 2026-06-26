@@ -18,12 +18,13 @@
             <div class="alert alert-danger py-2 mt-2">Impossibile eliminare: la sede è associata a uno o più operatori attivi.</div>
             {% endif %}
             <table class="table table-sm table-striped mt-3">
-                <thead><tr><th>Nome</th><th>Comune</th><th>Azioni</th></tr></thead>
+                <thead><tr><th>Nome</th><th>Comune</th><th>Indirizzo</th><th>Azioni</th></tr></thead>
                 <tbody>
                 {% for sede in sedi %}
                 <tr>
                     <td><strong>{{ sede.nome }}</strong></td>
                     <td>{{ sede.comune_nome or '—' }}</td>
+                    <td>{{ sede.indirizzo or '—' }}</td>
                     <td>
                         <a href="/admin/sede/{{ sede.sede_id }}/modifica" class="btn btn-sm btn-warning me-1">Modifica</a>
                         <form method="post" action="/admin/sede/delete" class="d-inline">
@@ -40,6 +41,7 @@
             <h5>Nuova Sede</h5>
             <form method="post" action="/admin/sede" class="mt-3">
                 <div class="mb-3"><label class="form-label">Nome</label><input name="nome" class="form-control" required></div>
+                <div class="mb-3"><label class="form-label">Indirizzo</label><input name="indirizzo" class="form-control"></div>
                 <div class="mb-3">
                     <label class="form-label">Comune</label>
                     <select name="comune_id" class="form-select">

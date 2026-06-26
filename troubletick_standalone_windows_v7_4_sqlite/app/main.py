@@ -253,6 +253,7 @@ try:
             "ALTER TABLE movimenti_magazzino ADD COLUMN allegato TEXT",
             "ALTER TABLE users ADD COLUMN telefono TEXT",
             "ALTER TABLE sedi ADD COLUMN comune_id INTEGER",
+            "ALTER TABLE sedi ADD COLUMN indirizzo TEXT",
             "ALTER TABLE movimenti_magazzino ADD COLUMN marca TEXT",
             "ALTER TABLE movimenti_magazzino ADD COLUMN modello TEXT",
             "ALTER TABLE movimenti_magazzino ADD COLUMN gruppo_scarico TEXT",
@@ -1791,7 +1792,7 @@ def admin_sedi(r: Request, error: str = None):
         return user
     with engine.connect() as c:
         sedi = c.execute(text("""
-            SELECT s.sede_id, s.nome, c.nome as comune_nome 
+            SELECT s.sede_id, s.nome, s.indirizzo, c.nome as comune_nome 
             FROM sedi s 
             LEFT JOIN comuni c ON s.comune_id = c.comune_id 
             ORDER BY s.nome
@@ -1800,13 +1801,14 @@ def admin_sedi(r: Request, error: str = None):
     return templates.TemplateResponse(r, "admin_sedi.html", {"request": r, "cfg": CFG, "user": user, "sedi": sedi, "comuni": comuni, "error": error})
 
 @app.post("/admin/sede")
-def add_sede(r: Request, nome: str = Form(...), comune_id: str = Form(None)):
+def add_sede(r: Request, nome: str = Form(...), comune_id: str = Form(None), indirizzo: str = Form(None)):
     user = require_superuser(r)
     if isinstance(user, RedirectResponse):
         return user
     comune_id_val = int(comune_id) if comune_id and str(comune_id).isdigit() else None
+    indirizzo_val = indirizzo.strip() if indirizzo else None
     with engine.begin() as c:
-        c.execute(text("INSERT INTO sedi (nome, comune_id) VALUES (:nome, :cid)"), {"nome": nome, "cid": comune_id_val})
+        c.execute(text("INSERT INTO sedi (nome, comune_id, indirizzo) VALUES (:nome, :cid, :indirizzo)"), {"nome": nome, "cid": comune_id_val, "indirizzo": indirizzo_val})
     return RedirectResponse(url="/admin/sedi", status_code=303)
 
 @app.get("/admin/sede/{sede_id}/modifica", response_class=HTMLResponse)
@@ -1820,13 +1822,14 @@ def edit_sede_form(r: Request, sede_id: int):
     return templates.TemplateResponse(r, "edit_sede.html", {"request": r, "cfg": CFG, "user": user, "sede": sede, "comuni": comuni})
 
 @app.post("/admin/sede/{sede_id}/modifica")
-def edit_sede_action(r: Request, sede_id: int, nome: str = Form(...), comune_id: str = Form(None)):
+def edit_sede_action(r: Request, sede_id: int, nome: str = Form(...), comune_id: str = Form(None), indirizzo: str = Form(None)):
     user = require_superuser(r)
     if isinstance(user, RedirectResponse): return user
     comune_id_val = int(comune_id) if comune_id and str(comune_id).isdigit() else None
+    indirizzo_val = indirizzo.strip() if indirizzo else None
     with engine.begin() as c:
-        c.execute(text("UPDATE sedi SET nome = :nome, comune_id = :cid WHERE sede_id = :id"),
-                  {"nome": nome, "cid": comune_id_val, "id": sede_id})
+        c.execute(text("UPDATE sedi SET nome = :nome, comune_id = :cid, indirizzo = :indirizzo WHERE sede_id = :id"),
+                  {"nome": nome, "cid": comune_id_val, "indirizzo": indirizzo_val, "id": sede_id})
     return RedirectResponse(url="/admin/sedi", status_code=303)
 
 @app.post("/admin/sede/delete")

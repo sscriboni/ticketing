@@ -24,6 +24,10 @@
                     <input type="text" name="nome" class="form-control" value="{{ sede.nome }}" required>
                 </div>
                 <div class="mb-4">
+                    <label class="form-label fw-bold">Indirizzo</label>
+                    <input type="text" name="indirizzo" class="form-control" value="{{ sede.indirizzo or '' }}">
+                </div>
+                <div class="mb-4">
                     <label class="form-label fw-bold">Comune</label>
                     <select name="comune_id" class="form-select">
                         <option value="">Nessun comune</option>
