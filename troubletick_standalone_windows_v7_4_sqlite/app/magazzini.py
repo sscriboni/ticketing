@@ -784,11 +784,22 @@ def stampa_ddt(r: Request, trasferimento_id: int):
             if t["magazzino_partenza_id"] not in user_mag_ids and t["magazzino_dest_id"] not in user_mag_ids:
                 return RedirectResponse(url="/trasferimenti")
                 
+        transfers = []
+        if t["gruppo_scarico"]:
+            transfers = c.execute(text("""
+                SELECT t.*, mat.nome AS materiale_nome
+                FROM trasferimenti t
+                JOIN materiali mat ON t.materiale_id = mat.materiale_id
+                WHERE t.gruppo_scarico = :grp
+                ORDER BY t.trasferimento_id ASC
+            """), {"grp": t["gruppo_scarico"]}).mappings().all()
+
     return templates.TemplateResponse(r, "stampa_ddt.html", {
         "request": r,
         "cfg": CFG,
         "user": user,
-        "t": t
+        "t": t,
+        "transfers": transfers
     })
 
 @router.get("/stampa-consegna/{tipo}/{doc_id}", response_class=HTMLResponse)
@@ -1329,6 +1340,7 @@ def get_scarico_multiplo(r: Request, error: str = None):
             """), {"uid": user.get("id")}).mappings().all()
             
         sedi = c.execute(text("SELECT sede_id, nome FROM sedi ORDER BY nome")).mappings().all()
+        magazzini_dest = c.execute(text("SELECT magazzino_id, nome FROM magazzini ORDER BY nome")).mappings().all()
         
         giacenze_raw = c.execute(text("""
             SELECT mm.magazzino_id, mm.materiale_id, mat.nome AS materiale_nome,
@@ -1370,6 +1382,7 @@ def get_scarico_multiplo(r: Request, error: str = None):
     return templates.TemplateResponse(r, "magazzino_scarico_multiplo.html", {
         "request": r, "cfg": CFG, "user": user,
         "sedi": sedi,
+        "magazzini_dest": magazzini_dest,
         "giacenze_json": json.dumps(giacenze_json),
         "magazzini_json": json.dumps(magazzini_json),
         "oggi": oggi,
@@ -1387,7 +1400,8 @@ async def post_scarico_multiplo(
     magazzino_id: List[int] = Form(...),
     materiale_id: List[int] = Form(...),
     posizione_fisica: List[str] = Form(...),
-    quantita: List[int] = Form(...)
+    quantita: List[int] = Form(...),
+    magazzino_destinazione_id: str = Form(None)
 ):
     if "user" not in r.session: return RedirectResponse(url="/login")
     user = r.session.get("user")
@@ -1415,7 +1429,14 @@ async def post_scarico_multiplo(
         
     allegato_filename = save_upload(allegato)
     
+    mag_dest_id_val = int(magazzino_destinazione_id) if magazzino_destinazione_id and str(magazzino_destinazione_id).isdigit() else None
+
     with engine.begin() as c:
+        dest_mag_name = None
+        if mag_dest_id_val:
+            dest_mag_name = c.execute(text("SELECT nome FROM magazzini WHERE magazzino_id = :id"), {"id": mag_dest_id_val}).scalar()
+        first_trsf_id = None
+
         for i in range(len(magazzino_id)):
             m_id = magazzino_id[i]
             mat_id = materiale_id[i]
@@ -1424,6 +1445,9 @@ async def post_scarico_multiplo(
             
             if qta <= 0:
                 continue
+
+            if mag_dest_id_val and m_id == mag_dest_id_val:
+                return RedirectResponse(url="/magazzini/scarico-multiplo?error=destinazione_invalida", status_code=303)
                 
             qta_pos = c.execute(text("""
                 SELECT SUM(CASE WHEN operazione = 'carico' THEN quantita ELSE -quantita END)
@@ -1441,7 +1465,12 @@ async def post_scarico_multiplo(
             c.execute(text("UPDATE giacenze SET quantita = :q WHERE magazzino_id = :mag AND materiale_id = :mat"),
                       {"q": nuova_qta, "mag": m_id, "mat": mat_id})
                       
-            sede_id_val = int(sede_assegnazione_id) if sede_assegnazione_id and str(sede_assegnazione_id).isdigit() else None
+            if mag_dest_id_val:
+                sede_id_val = None
+                desc_mov = f"[Spedizione verso {dest_mag_name}] {descrizione}" if dest_mag_name else descrizione
+            else:
+                sede_id_val = int(sede_assegnazione_id) if sede_assegnazione_id and str(sede_assegnazione_id).isdigit() else None
+                desc_mov = descrizione
             
             pos_info = c.execute(text("""
                 SELECT marca, modello FROM movimenti_magazzino
@@ -1457,11 +1486,32 @@ async def post_scarico_multiplo(
                 VALUES (:mag, :mat, :uid, 'scarico', :q, :dt, :desc, :sede, :pos, :marca, :modello, :all, :grp)
             """), {
                 "mag": m_id, "mat": mat_id, "uid": user["id"], "q": qta, "dt": data_movimento,
-                "desc": descrizione, "sede": sede_id_val, "pos": pos, 
+                "desc": desc_mov, "sede": sede_id_val, "pos": pos, 
                 "marca": m_marca, "modello": m_modello,
                 "all": allegato_filename, "grp": gruppo_scarico_id
             })
+
+            if mag_dest_id_val:
+                c.execute(text("""
+                    INSERT INTO trasferimenti (magazzino_partenza_id, magazzino_dest_id, materiale_id, quantita, user_partenza_id, note, allegato, marca, modello, posizione_partenza, gruppo_scarico)
+                    VALUES (:partenza, :dest, :mat, :q, :uid, :note, :all, :marca, :modello, :pos, :grp)
+                """), {
+                    "partenza": m_id, "dest": mag_dest_id_val, "mat": mat_id,
+                    "q": qta, "uid": user["id"], "note": descrizione, "all": allegato_filename,
+                    "marca": m_marca, "modello": m_modello, "pos": pos, "grp": gruppo_scarico_id
+                })
+                if first_trsf_id is None:
+                    if DB_DRIVER.startswith("sqlite"):
+                        first_trsf_id = c.execute(text("SELECT last_insert_rowid()")).scalar()
+                    elif DB_DRIVER.startswith("mysql"):
+                        first_trsf_id = c.execute(text("SELECT LAST_INSERT_ID()")).scalar()
+                    else:
+                        first_trsf_id = c.execute(text("SELECT LASTVAL()")).scalar()
             
+    if mag_dest_id_val and first_trsf_id:
+        print_param = "&print=1" if genera_pdf == "1" else ""
+        return RedirectResponse(url=f"/magazzini?msg=trasferimento_avviato&trsf_id={first_trsf_id}{print_param}", status_code=303)
+
     if genera_pdf == "1":
         return RedirectResponse(url=f"/stampa-consegna/multiplo/{gruppo_scarico_id}", status_code=303)
     return RedirectResponse(url="/magazzini", status_code=303)

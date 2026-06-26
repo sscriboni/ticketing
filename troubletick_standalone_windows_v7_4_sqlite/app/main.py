@@ -181,6 +181,10 @@ try:
             modello TEXT,
             posizione_partenza TEXT
         )"""))
+        try:
+            c.execute(text("ALTER TABLE trasferimenti ADD COLUMN gruppo_scarico TEXT"))
+        except Exception:
+            pass
         c.execute(text(f"""CREATE TABLE IF NOT EXISTS avvisi (
             avviso_id {DB_PK},
             user_id INTEGER NOT NULL,

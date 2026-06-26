@@ -127,7 +127,13 @@
             <div class="col-6">
                 <div class="border border-secondary p-2 bg-light h-100">
                     <div class="field-label">Numero DDT</div>
-                    <div class="field-value fw-bold text-primary" style="font-size: 0.95rem;">DDT-TRF-{{ t.trasferimento_id }}</div>
+                    <div class="field-value fw-bold text-primary" style="font-size: 0.95rem;">
+                        {% if t.gruppo_scarico %}
+                        DDT-{{ t.gruppo_scarico }}
+                        {% else %}
+                        DDT-TRF-{{ t.trasferimento_id }}
+                        {% endif %}
+                    </div>
                     <div class="field-label mt-2">Data e Ora di Spedizione</div>
                     <div class="field-value">{{ creato_ita }}</div>
                 </div>
@@ -225,6 +231,18 @@
                     </tr>
                 </thead>
                 <tbody>
+                    {% if transfers %}
+                    {% for tr in transfers %}
+                    <tr style="height: 50px; vertical-align: middle;">
+                        <td class="px-2">
+                            <strong>{{ tr.materiale_nome }}</strong>
+                        </td>
+                        <td class="text-center">PZ</td>
+                        <td class="text-center fw-bold fs-6">{{ tr.quantita }}</td>
+                        <td class="px-2" style="font-size: 0.7rem;">{{ tr.note or 'Trasferimento magazzino' }}</td>
+                    </tr>
+                    {% endfor %}
+                    {% else %}
                     <tr style="height: 50px; vertical-align: middle;">
                         <td class="px-2">
                             <strong>{{ t.materiale_nome }}</strong>
@@ -233,6 +251,7 @@
                         <td class="text-center fw-bold fs-6">{{ t.quantita }}</td>
                         <td class="px-2" style="font-size: 0.7rem;">{{ t.note or 'Trasferimento magazzino' }}</td>
                     </tr>
+                    {% endif %}
                     <!-- Righe vuote di cortesia per riempire il layout DDT -->
                     {% for i in range(3) %}
                     <tr style="height: 32px;">
@@ -292,7 +311,7 @@
                 DDT generato automaticamente dal sistema in data: <strong>{{ creato_ita }}</strong>
             </div>
             <div>
-                Codice Riferimento: <strong>TRF-{{ t.trasferimento_id }}</strong>
+                Codice Riferimento: <strong>{% if t.gruppo_scarico %}{{ t.gruppo_scarico }}{% else %}TRF-{{ t.trasferimento_id }}{% endif %}</strong>
             </div>
         </div>
 

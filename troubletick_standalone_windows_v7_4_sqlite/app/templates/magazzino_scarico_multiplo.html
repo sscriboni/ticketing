@@ -28,6 +28,20 @@
         </div>
     </div>
     
+    {% if request.query_params.get('error') == 'destinazione_invalida' %}
+    <div class="alert alert-danger mb-4 shadow-sm">
+        <i class="bi bi-exclamation-triangle-fill me-2"></i> Impossibile completare il trasferimento: il magazzino di partenza non può coincidere con il magazzino di destinazione.
+    </div>
+    {% elif request.query_params.get('error') == 'giacenza_insufficiente' %}
+    <div class="alert alert-danger mb-4 shadow-sm">
+        <i class="bi bi-exclamation-triangle-fill me-2"></i> Impossibile completare lo scarico: la quantità richiesta supera la giacenza disponibile in una delle righe.
+    </div>
+    {% elif request.query_params.get('error') %}
+    <div class="alert alert-danger mb-4 shadow-sm">
+        <i class="bi bi-exclamation-triangle-fill me-2"></i> Si è verificato un errore durante la registrazione dell'operazione.
+    </div>
+    {% endif %}
+    
     <form method="post" action="/magazzini/scarico-multiplo" enctype="multipart/form-data" id="multiScaricoForm">
         <div class="row g-4">
             <!-- Colonna Sinistra: Dati Generali -->
@@ -42,13 +56,24 @@
 
                     <div class="mb-3">
                         <label class="form-label fw-bold">Sede di destinazione</label>
-                        <select name="sede_assegnazione_id" class="form-select">
+                        <select name="sede_assegnazione_id" id="sedeSelect" class="form-select" onchange="onSedeSelectChange()">
                             <option value="">-- Nessuna / Uso generico --</option>
                             {% for sede in sedi %}
                             <option value="{{ sede.sede_id }}">{{ sede.nome }}</option>
                             {% endfor %}
                         </select>
                         <small class="text-muted d-block mt-1">Assegna il materiale a una sede aziendale.</small>
+                    </div>
+
+                    <div class="mb-3">
+                        <label class="form-label fw-bold text-primary">OPPURE Trasferisci a Magazzino</label>
+                        <select name="magazzino_destinazione_id" id="magazzinoDestSelect" class="form-select border-primary" onchange="toggleDestinationFields()">
+                            <option value="">-- Nessun trasferimento --</option>
+                            {% for md in magazzini_dest %}
+                            <option value="{{ md.magazzino_id }}">{{ md.nome }}</option>
+                            {% endfor %}
+                        </select>
+                        <small class="text-primary d-block mt-1">Invia la merce in un altro magazzino (richiederà conferma di ricezione).</small>
                     </div>
 
                     <div class="form-check form-switch mb-3 bg-light border rounded p-3">
@@ -288,6 +313,35 @@
         qtaInput.disabled = false;
     }
 
+    function toggleDestinationFields() {
+        const magDestSelect = document.getElementById('magazzinoDestSelect');
+        const sedeSelect = document.getElementById('sedeSelect');
+        const generaPdfSwitch = document.getElementById('generaPdfSwitch');
+        
+        if (magDestSelect && magDestSelect.value !== "") {
+            if (sedeSelect) sedeSelect.value = "";
+            if (generaPdfSwitch) {
+                generaPdfSwitch.checked = false;
+                generaPdfSwitch.disabled = true;
+            }
+        } else {
+            if (generaPdfSwitch) {
+                generaPdfSwitch.disabled = false;
+            }
+        }
+    }
+
+    function onSedeSelectChange() {
+        const magDestSelect = document.getElementById('magazzinoDestSelect');
+        const sedeSelect = document.getElementById('sedeSelect');
+        if (sedeSelect && sedeSelect.value !== "") {
+            if (magDestSelect) {
+                magDestSelect.value = "";
+                toggleDestinationFields();
+            }
+        }
+    }
+
     // Validazione del form prima dell'invio
     document.getElementById('multiScaricoForm').addEventListener('submit', function(e) {
         const tbody = document.getElementById('itemsTableBody');
@@ -301,6 +355,7 @@
         // Controllo duplicati (stesso magazzino, materiale e posizione nella stessa form)
         const righe = tbody.getElementsByClassName('row-item');
         const visti = new Set();
+        const magDest = document.getElementById('magazzinoDestSelect').value;
         
         for (let i = 0; i < righe.length; i++) {
             const rowId = righe[i].id.split('-')[1];
@@ -312,6 +367,12 @@
 
             if (!mag || !mat || !pos || !qta) {
                 alert(`Errore: Compila tutti i campi richiesti nella riga ${i+1}.`);
+                e.preventDefault();
+                return;
+            }
+
+            if (magDest && mag === magDest) {
+                alert(`Errore nella riga ${i+1}: Il magazzino di partenza non può coincidere con il magazzino di destinazione.`);
                 e.preventDefault();
                 return;
             }
@@ -335,6 +396,7 @@
     // Avvia con una riga già pronta all'avvio
     document.addEventListener('DOMContentLoaded', function() {
         addNewRow();
+        toggleDestinationFields();
     });
 </script>
 </body>
