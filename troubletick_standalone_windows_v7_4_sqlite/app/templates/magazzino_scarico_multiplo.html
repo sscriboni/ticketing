@@ -78,8 +78,8 @@
 
                     <div class="form-check form-switch mb-3 bg-light border rounded p-3">
                         <input class="form-check-input ms-0 me-2" type="checkbox" name="genera_pdf" value="1" id="generaPdfSwitch" checked>
-                        <label class="form-check-label fw-bold" for="generaPdfSwitch">Genera PDF (Buono di Movimento)</label>
-                        <small class="d-block text-muted">Verrà generato il Buono di Movimento firmato da stampare.</small>
+                        <label class="form-check-label fw-bold" for="generaPdfSwitch" id="generaPdfLabel">Genera PDF (Buono di Movimento)</label>
+                        <small class="d-block text-muted" id="generaPdfHelp">Verrà generato il Buono di Movimento firmato da stampare.</small>
                     </div>
 
                     <div class="mb-3">
@@ -316,18 +316,16 @@
     function toggleDestinationFields() {
         const magDestSelect = document.getElementById('magazzinoDestSelect');
         const sedeSelect = document.getElementById('sedeSelect');
-        const generaPdfSwitch = document.getElementById('generaPdfSwitch');
+        const generaPdfLabel = document.getElementById('generaPdfLabel');
+        const generaPdfHelp = document.getElementById('generaPdfHelp');
         
         if (magDestSelect && magDestSelect.value !== "") {
             if (sedeSelect) sedeSelect.value = "";
-            if (generaPdfSwitch) {
-                generaPdfSwitch.checked = false;
-                generaPdfSwitch.disabled = true;
-            }
+            if (generaPdfLabel) generaPdfLabel.textContent = "Stampa DDT (Documento di Trasporto)";
+            if (generaPdfHelp) generaPdfHelp.textContent = "Verrà aperto il Documento di Trasporto (DDT) da stampare.";
         } else {
-            if (generaPdfSwitch) {
-                generaPdfSwitch.disabled = false;
-            }
+            if (generaPdfLabel) generaPdfLabel.textContent = "Genera PDF (Buono di Movimento)";
+            if (generaPdfHelp) generaPdfHelp.textContent = "Verrà generato il Buono di Movimento firmato da stampare.";
         }
     }
 
