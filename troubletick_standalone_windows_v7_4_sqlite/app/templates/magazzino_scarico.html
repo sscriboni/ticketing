@@ -52,12 +52,7 @@
                 {% elif error == 'posizione_invalida' %}
                 <div class="alert alert-danger"><strong>Posizione non valida!</strong> La posizione deve contenere almeno 3 caratteri e non contenere spazi all'inizio o alla fine.</div>
                 {% endif %}
-                
-                <div class="form-check form-switch mb-4 bg-light border rounded p-3">
-                    <input class="form-check-input" type="checkbox" name="genera_pdf" value="1" id="generaPdfSwitch">
-                    <label class="form-check-label fw-bold" for="generaPdfSwitch">Genera PDF (Documento di Consegna)</label>
-                    <small class="d-block text-muted">Verrà generato un documento da stampare o salvare come PDF da far firmare a chi ritira il materiale.</small>
-                </div>
+
 
                 <div class="row mb-3">
                     <div class="col-md-6">
@@ -142,7 +137,13 @@
                 </div>
                 <!-- Sezione Dati Consegna (Obbligatori per consegna, nascosti per trasferimento) -->
                 <div id="consegnaFieldsSection" class="p-3 bg-light rounded border mb-3">
-                    <h5 class="mb-3 text-secondary"><i class="bi bi-person-fill-check"></i> Dati Ricevente Consegna</h5>
+                    <h5 class="mb-3 text-secondary"><i class="bi bi-person-fill-check"></i> Ricevente</h5>
+                    
+                    <div class="form-check form-switch mb-3 bg-white border rounded p-3">
+                        <input class="form-check-input" type="checkbox" name="genera_pdf" value="1" id="generaPdfSwitch">
+                        <label class="form-check-label fw-bold" for="generaPdfSwitch">Crea documento di consegna</label>
+                        <small class="d-block text-muted">Verrà generato un documento da stampare o salvare come PDF da far firmare a chi ritira il materiale.</small>
+                    </div>
                     
                     {% if error == 'dati_consegna_obbligatori' %}
                     <div class="alert alert-danger py-2">
