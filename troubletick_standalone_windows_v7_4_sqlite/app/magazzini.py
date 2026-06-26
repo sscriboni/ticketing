@@ -1251,23 +1251,15 @@ def annulla_movimento_action(r: Request, magazzino_id: int, movimento_id: int):
         if op not in ("carico", "scarico"):
             return RedirectResponse(url=f"/magazzino/{magazzino_id}/log?error=operazione_non_annullabile", status_code=303)
             
-        row = c.execute(text("SELECT quantita FROM giacenze WHERE magazzino_id = :mag AND materiale_id = :mat"), 
-                        {"mag": magazzino_id, "mat": mat_id}).first()
-        qta_attuale = row[0] if row is not None else 0
+        # Verify if cancellation would lead to negative stock
+        recalculated_qta = c.execute(text("""
+            SELECT COALESCE(SUM(CASE WHEN operazione = 'carico' THEN quantita ELSE -quantita END), 0)
+            FROM movimenti_magazzino
+            WHERE magazzino_id = :mag AND materiale_id = :mat AND movimento_id != :mid
+        """), {"mag": magazzino_id, "mat": mat_id, "mid": movimento_id}).scalar()
         
-        if op == "carico":
-            if qta_attuale < qta:
-                return RedirectResponse(url=f"/magazzino/{magazzino_id}/log?error=giacenza_insufficiente", status_code=303)
-            nuova_qta = qta_attuale - qta
-        else:  # scarico
-            nuova_qta = qta_attuale + qta
-            
-        if row is None:
-            c.execute(text("INSERT INTO giacenze (magazzino_id, materiale_id, quantita) VALUES (:mag, :mat, :q)"),
-                      {"mag": magazzino_id, "mat": mat_id, "q": nuova_qta})
-        else:
-            c.execute(text("UPDATE giacenze SET quantita = :q WHERE magazzino_id = :mag AND materiale_id = :mat"),
-                      {"q": nuova_qta, "mag": magazzino_id, "mat": mat_id})
+        if recalculated_qta < 0:
+            return RedirectResponse(url=f"/magazzino/{magazzino_id}/log?error=giacenza_insufficiente", status_code=303)
                       
         # Gestione euristica per ripristinare le richieste materiale evase collegate
         if op == "scarico":
@@ -1299,6 +1291,16 @@ def annulla_movimento_action(r: Request, magazzino_id: int, movimento_id: int):
                 c.execute(text("UPDATE trasferimenti SET stato = 'in_consegna', data_arrivo = NULL, user_arrivo_id = NULL WHERE trasferimento_id = :tid"), {"tid": trsf_in["trasferimento_id"]})
                 
         c.execute(text("DELETE FROM movimenti_magazzino WHERE movimento_id = :mid"), {"mid": movimento_id})
+        
+        # Update or insert the recalculated quantity into giacenze
+        row_exists = c.execute(text("SELECT 1 FROM giacenze WHERE magazzino_id = :mag AND materiale_id = :mat"),
+                               {"mag": magazzino_id, "mat": mat_id}).first()
+        if row_exists:
+            c.execute(text("UPDATE giacenze SET quantita = :q WHERE magazzino_id = :mag AND materiale_id = :mat"),
+                      {"q": recalculated_qta, "mag": magazzino_id, "mat": mat_id})
+        else:
+            c.execute(text("INSERT INTO giacenze (magazzino_id, materiale_id, quantita) VALUES (:mag, :mat, :q)"),
+                      {"mag": magazzino_id, "mat": mat_id, "q": recalculated_qta})
         
     return RedirectResponse(url=f"/magazzino/{magazzino_id}/log?success=annullato", status_code=303)
 
