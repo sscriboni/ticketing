@@ -59,7 +59,7 @@ Quando si clicca su **"Esegui Scarico"** per una richiesta associata ad un ticke
 * **Campi Bloccati**: Per garantire la conformità con quanto inserito nella richiesta dall'operatore, la **quantità** e la **sede di destinazione** sono pre-compilate dalla richiesta e **non possono essere modificate**. Anche la spedizione/trasferimento ad altri magazzini è disabilitata.
 * **Selezione Posizione**: Il magazziniere deve unicamente selezionare la **posizione fisica** (scaffale/lotto) da cui prelevare i pezzi.
 * **Note Automatiche**: Il sistema imposta una descrizione predefinita e, ad operazione avvenuta, inserisce in automatico una nota di servizio nel ticket (es. *"Richiesta materiale evasa dal magazzino: 1x Toner HP"*).
-* **Verbale di Consegna PDF**: Attivando la spunta **"Genera PDF (Documento di Consegna)"**, il sistema apre una pagina di stampa ottimizzata in formato A4 che funge da verbale di consegna da far firmare al destinatario al ritiro del materiale.
+* **Verbale di Consegna PDF**: Attivando la spunta **"Crea documento di consegna"** (posizionata all'interno del box **"Ricevente"**), il sistema apre una pagina di stampa ottimizzata in formato A4 che funge da verbale di consegna da far firmare al destinatario al ritiro del materiale.
 
 ---
 
