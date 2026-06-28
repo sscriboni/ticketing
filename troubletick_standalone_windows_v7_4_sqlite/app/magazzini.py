@@ -1374,21 +1374,23 @@ def get_scarico_multiplo(r: Request, error: str = None):
         
         giacenze_raw = c.execute(text("""
             SELECT mm.magazzino_id, mm.materiale_id, mat.nome AS materiale_nome,
-                   mm.posizione_fisica,
-                   (SELECT marca FROM movimenti_magazzino 
-                    WHERE magazzino_id = mm.magazzino_id AND materiale_id = mm.materiale_id AND posizione_fisica = mm.posizione_fisica
-                    AND marca IS NOT NULL AND marca != ''
-                    ORDER BY creato_il DESC LIMIT 1) as marca,
-                   (SELECT modello FROM movimenti_magazzino 
-                    WHERE magazzino_id = mm.magazzino_id AND materiale_id = mm.materiale_id AND posizione_fisica = mm.posizione_fisica
-                    AND modello IS NOT NULL AND modello != ''
-                    ORDER BY creato_il DESC LIMIT 1) as modello,
+                   COALESCE(mm.posizione_fisica, '') AS posizione_fisica,
+                   (SELECT mm2.marca FROM movimenti_magazzino mm2
+                    WHERE mm2.magazzino_id = mm.magazzino_id AND mm2.materiale_id = mm.materiale_id 
+                      AND COALESCE(mm2.posizione_fisica, '') = COALESCE(mm.posizione_fisica, '')
+                    AND mm2.marca IS NOT NULL AND mm2.marca != ''
+                    ORDER BY mm2.creato_il DESC LIMIT 1) as marca,
+                   (SELECT mm3.modello FROM movimenti_magazzino mm3
+                    WHERE mm3.magazzino_id = mm.magazzino_id AND mm3.materiale_id = mm.materiale_id 
+                      AND COALESCE(mm3.posizione_fisica, '') = COALESCE(mm.posizione_fisica, '')
+                    AND mm3.modello IS NOT NULL AND mm3.modello != ''
+                    ORDER BY mm3.creato_il DESC LIMIT 1) as modello,
                    SUM(CASE WHEN mm.operazione = 'carico' THEN mm.quantita ELSE -mm.quantita END) AS quantita
             FROM movimenti_magazzino mm
             JOIN materiali mat ON mm.materiale_id = mat.materiale_id
-            GROUP BY mm.magazzino_id, mm.materiale_id, mm.posizione_fisica
+            GROUP BY mm.magazzino_id, mm.materiale_id, COALESCE(mm.posizione_fisica, '')
             HAVING SUM(CASE WHEN mm.operazione = 'carico' THEN mm.quantita ELSE -mm.quantita END) > 0
-            ORDER BY mm.magazzino_id, mat.nome, mm.posizione_fisica
+            ORDER BY mm.magazzino_id, mat.nome, COALESCE(mm.posizione_fisica, '')
         """)).mappings().all()
         
     import json
@@ -1472,7 +1474,9 @@ async def post_scarico_multiplo(
         for i in range(len(magazzino_id)):
             m_id = magazzino_id[i]
             mat_id = materiale_id[i]
-            pos = posizione_fisica[i].strip()
+            pos = (posizione_fisica[i] or "").strip()
+            if pos.lower() in ("null", "none", "undefined"):
+                pos = ""
             qta = quantita[i]
             
             if qta <= 0:
@@ -1484,7 +1488,8 @@ async def post_scarico_multiplo(
             qta_pos = c.execute(text("""
                 SELECT SUM(CASE WHEN operazione = 'carico' THEN quantita ELSE -quantita END)
                 FROM movimenti_magazzino
-                WHERE magazzino_id = :mag AND materiale_id = :mat AND posizione_fisica = :pos
+                WHERE magazzino_id = :mag AND materiale_id = :mat 
+                  AND (posizione_fisica = :pos OR (:pos = '' AND (posizione_fisica IS NULL OR posizione_fisica = '')))
             """), {"mag": m_id, "mat": mat_id, "pos": pos}).scalar() or 0
             
             if qta > qta_pos:

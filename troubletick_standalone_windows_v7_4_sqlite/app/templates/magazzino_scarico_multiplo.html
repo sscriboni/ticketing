@@ -279,7 +279,7 @@
         // Trova le posizioni fisiche e le quantità per questo materiale nel magazzino
         const posizioniDisp = giacenze.filter(g => g.magazzino_id === magId && g.materiale_id === matId);
 
-        posizioniDisp.sort((a, b) => a.posizione_fisica.localeCompare(b.posizione_fisica));
+        posizioniDisp.sort((a, b) => (a.posizione_fisica || "").localeCompare(b.posizione_fisica || ""));
 
         if (posizioniDisp.length === 0) {
             posSelect.innerHTML = '<option value="">Nessuna posizione trovata</option>';
@@ -290,6 +290,12 @@
                 posSelect.insertAdjacentHTML('beforeend', `<option value="${p.posizione_fisica}" data-qta="${p.quantita}">${p.posizione_fisica}${labelMarcaModello} (Disponibile: ${p.quantita} pz)</option>`);
             });
             posSelect.disabled = false;
+            
+            // Se c'è una sola posizione disponibile, selezionala automaticamente
+            if (posizioniDisp.length === 1) {
+                posSelect.selectedIndex = 1;
+                onPosizioneChange(id);
+            }
         }
     }
 
@@ -300,7 +306,7 @@
 
         qtaInput.value = '';
 
-        if (posSelect.value === "") {
+        if (posSelect.selectedIndex === 0) {
             qtaInput.disabled = true;
             return;
         }
@@ -425,6 +431,13 @@
                 
                 const magSelect = document.getElementById(`mag-${currentId}`);
                 if (magSelect) {
+                    if (qta) {
+                        const qtaInput = document.getElementById(`qta-${currentId}`);
+                        if (qtaInput) {
+                            qtaInput.dataset.prefillQta = qta;
+                        }
+                    }
+                    
                     magSelect.value = m_id;
                     onMagazzinoChange(currentId);
                     
@@ -433,13 +446,6 @@
                         if (matSelect) {
                             matSelect.value = mat_id;
                             onMaterialeChange(currentId);
-                        }
-                    }
-                    
-                    if (qta) {
-                        const qtaInput = document.getElementById(`qta-${currentId}`);
-                        if (qtaInput) {
-                            qtaInput.dataset.prefillQta = qta;
                         }
                     }
                     
