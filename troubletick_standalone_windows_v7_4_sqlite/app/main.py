@@ -226,8 +226,15 @@ try:
             user_consegna_id INTEGER,
             creato_il TEXT DEFAULT CURRENT_TIMESTAMP
         )"""))
+
+        c.execute(text(f"""CREATE TABLE IF NOT EXISTS argomenti (
+            argomento_id {DB_PK},
+            descrizione TEXT NOT NULL,
+            servizio_id INTEGER NOT NULL
+        )"""))
     
         for stmt in [
+            "ALTER TABLE tickets ADD COLUMN argomento_id INTEGER",
             "ALTER TABLE tickets ADD COLUMN codice_ticket TEXT",
             "ALTER TABLE tickets ADD COLUMN riferimento TEXT",
             "ALTER TABLE tickets ADD COLUMN reparto_id INTEGER",
@@ -453,13 +460,14 @@ def new_form(r: Request, error: str = None):
         reparti = c.execute(text("SELECT reparto_id, nome FROM reparti ORDER BY nome")).mappings().all()
         reparti_dest = c.execute(text("SELECT reparto_id, nome, descrizione FROM reparti WHERE accetta_ticket = 1 ORDER BY nome")).mappings().all()
         servizi = c.execute(text("SELECT servizio_id, descrizione, descrizione_lunga, reparto_id, note FROM servizi WHERE accetta_ticket = 1 ORDER BY descrizione")).mappings().all()
+        argomenti = c.execute(text("SELECT argomento_id, descrizione, servizio_id FROM argomenti ORDER BY descrizione")).mappings().all()
         sedi = c.execute(text("""
             SELECT s.sede_id, s.nome, c.nome as comune_nome 
             FROM sedi s 
             LEFT JOIN comuni c ON s.comune_id = c.comune_id 
             ORDER BY c.nome, s.nome
         """)).mappings().all()
-    return templates.TemplateResponse(r, "new_ticket.html", {"request": r, "cfg": CFG, "reparti": reparti, "reparti_dest": reparti_dest, "servizi": servizi, "sedi": sedi, "error": error})
+    return templates.TemplateResponse(r, "new_ticket.html", {"request": r, "cfg": CFG, "reparti": reparti, "reparti_dest": reparti_dest, "servizi": servizi, "argomenti": argomenti, "sedi": sedi, "error": error})
 
 @app.post("/new")
 def create_ticket(r: Request,
@@ -468,6 +476,7 @@ def create_ticket(r: Request,
                   sede: str=Form(""),
                   reparto_appartenenza: str=Form(...),
                   reparto_id: int=Form(...), servizio_id: str = Form(None),
+                  argomento_id: str = Form(None),
                   descrizione: str=Form(...),
                   allegato: UploadFile = File(None)):
     if not email.strip() or not telefono.strip() or not reparto_appartenenza.strip() or not nominativo.strip() or not sede.strip() or not descrizione.strip():
@@ -475,6 +484,7 @@ def create_ticket(r: Request,
     priorita = "media"
     ip = r.client.host if r.client else None
     servizio_id = int(servizio_id) if servizio_id else None
+    argomento_id = int(argomento_id) if argomento_id else None
     
     allegato_filename = save_upload(allegato)
 
@@ -507,9 +517,9 @@ def create_ticket(r: Request,
         if servizio_id:
             operatori_emails = c.execute(text("SELECT u.email FROM users u JOIN operatori_servizi os ON u.user_id = os.user_id WHERE os.servizio_id = :sid AND u.email IS NOT NULL AND u.email != '' AND u.attivo = 1"), {"sid": servizio_id}).scalars().all()
 
-        c.execute(text("""INSERT INTO tickets (codice_ticket, nome,cognome,email,telefono,riferimento,sede,reparto_appartenenza,reparto_id,servizio_id,descrizione,priorita,ip,allegato)
-                          VALUES (:codice, :n,:c,:e,:tel,:r,:sede,:rep_app,:rid,:sid,:d,:p,:ip,:all)"""),
-                 {"codice": codice_ticket, "n":nome,"c":cognome,"e":email,"tel":telefono,"r":riferimento,"sede":sede,"rep_app":reparto_appartenenza.strip(),"rid":reparto_id,"sid":servizio_id,
+        c.execute(text("""INSERT INTO tickets (codice_ticket, nome,cognome,email,telefono,riferimento,sede,reparto_appartenenza,reparto_id,servizio_id,argomento_id,descrizione,priorita,ip,allegato)
+                          VALUES (:codice, :n,:c,:e,:tel,:r,:sede,:rep_app,:rid,:sid,:arg_id,:d,:p,:ip,:all)"""),
+                 {"codice": codice_ticket, "n":nome,"c":cognome,"e":email,"tel":telefono,"r":riferimento,"sede":sede,"rep_app":reparto_appartenenza.strip(),"rid":reparto_id,"sid":servizio_id,"arg_id":argomento_id,
                   "d":descrizione,"p":priorita,"ip":ip,"all":allegato_filename})
                   
     if email:
@@ -648,7 +658,7 @@ def tickets(r: Request, reparto_id: str = None, servizio_id: str = None, stato: 
         rows = c.execute(text(f"""
             SELECT t.ticket_id, t.codice_ticket, t.nome, t.cognome, t.riferimento, t.priorita, t.stato,
                    t.creato_il, t.ip, t.reparto_id, t.servizio_id, t.sede, t.is_test,
-                   r.nome AS reparto_nome, s.descrizione AS servizio_desc,
+                   r.nome AS reparto_nome, s.descrizione AS servizio_desc, a.descrizione AS argomento_desc,
                    t.descrizione,
                    (SELECT autore FROM ticket_notes tn WHERE tn.ticket_id = t.ticket_id ORDER BY tn.creato_il DESC LIMIT 1) AS ultimo_operatore,
                    (SELECT COUNT(*) FROM richieste_materiale rm WHERE rm.ticket_id = t.ticket_id AND rm.stato != 'annullata') AS req_totali,
@@ -656,6 +666,7 @@ def tickets(r: Request, reparto_id: str = None, servizio_id: str = None, stato: 
               FROM tickets t
               LEFT JOIN reparti r ON t.reparto_id = r.reparto_id
               LEFT JOIN servizi s ON t.servizio_id = s.servizio_id
+              LEFT JOIN argomenti a ON t.argomento_id = a.argomento_id
               {where_clause}
              ORDER BY t.creato_il DESC
         """), params).mappings().all()
@@ -716,11 +727,13 @@ def ticket_detail(r: Request, ticket_id: int):
     with engine.connect() as c:
         ticket = c.execute(text("""
             SELECT t.*, r.nome AS reparto_nome, s.descrizione AS servizio_desc, s.note AS servizio_note,
-                   COALESCE(t.reparto_appartenenza, ra.nome) AS reparto_appartenenza_nome
+                   COALESCE(t.reparto_appartenenza, ra.nome) AS reparto_appartenenza_nome,
+                   a.descrizione AS argomento_desc
               FROM tickets t
               LEFT JOIN reparti r ON t.reparto_id = r.reparto_id
               LEFT JOIN reparti ra ON t.reparto_appartenenza_id = ra.reparto_id
               LEFT JOIN servizi s ON t.servizio_id = s.servizio_id
+              LEFT JOIN argomenti a ON t.argomento_id = a.argomento_id
              WHERE t.ticket_id = :id
         """), {"id": ticket_id}).mappings().first()
         if not ticket:
@@ -856,7 +869,7 @@ def reassign_ticket(r: Request, ticket_id: int, background_tasks: BackgroundTask
              WHERE t.ticket_id = :id
         """), {"id": ticket_id}).mappings().first()
         
-        c.execute(text("UPDATE tickets SET reparto_id = :rid, servizio_id = :sid WHERE ticket_id = :id"), 
+        c.execute(text("UPDATE tickets SET reparto_id = :rid, servizio_id = :sid, argomento_id = NULL WHERE ticket_id = :id"), 
                   {"rid": reparto_id, "sid": servizio_id_val, "id": ticket_id})
         
         nuovo_rep = c.execute(text("SELECT nome FROM reparti WHERE reparto_id = :rid"), {"rid": reparto_id}).scalar()
@@ -1712,7 +1725,8 @@ def admin_servizi(r: Request, error: str = None):
     with engine.connect() as c:
         servizi = c.execute(text("SELECT s.servizio_id, s.descrizione, s.descrizione_lunga, s.reparto_id, s.accetta_ticket, s.note, r.nome AS reparto_nome FROM servizi s LEFT JOIN reparti r ON s.reparto_id = r.reparto_id ORDER BY r.nome, s.descrizione")).mappings().all()
         reparti = c.execute(text("SELECT reparto_id, nome FROM reparti ORDER BY nome")).mappings().all()
-    return templates.TemplateResponse(r, "admin_servizi.html", {"request": r, "cfg": CFG, "user": user, "servizi": servizi, "reparti": reparti, "error": error})
+        argomenti = c.execute(text("SELECT a.argomento_id, a.descrizione, a.servizio_id, s.descrizione AS servizio_nome FROM argomenti a JOIN servizi s ON a.servizio_id = s.servizio_id ORDER BY s.descrizione, a.descrizione")).mappings().all()
+    return templates.TemplateResponse(r, "admin_servizi.html", {"request": r, "cfg": CFG, "user": user, "servizi": servizi, "reparti": reparti, "argomenti": argomenti, "error": error})
 
 @app.post("/admin/reparto")
 def add_reparto(r: Request, nome: str = Form(...), descrizione: str = Form(""), accetta_ticket: int = Form(0)):
@@ -1808,6 +1822,27 @@ def delete_servizio(r: Request, servizio_id: int = Form(...)):
             return RedirectResponse(url="/admin/servizi?error=in_uso", status_code=303)
             
         c.execute(text("DELETE FROM servizi WHERE servizio_id = :id"), {"id": servizio_id})
+    return RedirectResponse(url="/admin/servizi", status_code=303)
+
+@app.post("/admin/argomento")
+def add_argomento(r: Request, descrizione: str = Form(...), servizio_id: int = Form(...)):
+    user = require_superuser(r)
+    if isinstance(user, RedirectResponse): return user
+    with engine.begin() as c:
+        c.execute(text("INSERT INTO argomenti (descrizione, servizio_id) VALUES (:descrizione, :servizio_id)"),
+                  {"descrizione": descrizione.strip(), "servizio_id": servizio_id})
+    return RedirectResponse(url="/admin/servizi", status_code=303)
+
+@app.post("/admin/argomento/delete")
+def delete_argomento(r: Request, argomento_id: int = Form(...)):
+    user = require_superuser(r)
+    if isinstance(user, RedirectResponse): return user
+    with engine.begin() as c:
+        # Prevenzione eliminazione se in uso
+        t_count = c.execute(text("SELECT COUNT(*) FROM tickets WHERE argomento_id = :id"), {"id": argomento_id}).scalar() or 0
+        if t_count > 0:
+            return RedirectResponse(url="/admin/servizi?error=argomento_in_uso", status_code=303)
+        c.execute(text("DELETE FROM argomenti WHERE argomento_id = :id"), {"id": argomento_id})
     return RedirectResponse(url="/admin/servizi", status_code=303)
 
 @app.get("/admin/sedi", response_class=HTMLResponse)

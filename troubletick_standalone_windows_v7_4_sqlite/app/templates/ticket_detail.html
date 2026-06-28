@@ -51,6 +51,9 @@
     <div class="col-md-4"><strong>Sede</strong><br>{{ ticket.sede or '—' }}</div>
     <div class="col-md-4"><strong>Reparto (Assegnato)</strong><br>{{ ticket.reparto_nome or '—' }}</div>
     <div class="col-md-4"><strong>Servizio</strong><br>{{ ticket.servizio_desc or 'Nessuno' }}</div>
+    {% if ticket.argomento_desc %}
+    <div class="col-md-4"><strong>Argomento</strong><br>{{ ticket.argomento_desc }}</div>
+    {% endif %}
     <div class="col-md-4"><strong>Priorità</strong><br>{{ ticket.priorita }}</div>
     <div class="col-md-4"><strong>Stato</strong><br>{{ ticket.stato }}</div>
     <div class="col-md-4"><strong>Creato il</strong><br>{{ ticket.creato_il }}<br><small>{{ ticket.ip or 'IP non disponibile' }}</small></div>

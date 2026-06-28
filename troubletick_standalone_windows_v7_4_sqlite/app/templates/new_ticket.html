@@ -44,8 +44,17 @@
         <div id="serviceNoteText" class="mb-2"></div>
         <div class="small text-danger fw-bold border-top pt-2">
           ⚠️ Attenzione: Se non vengono rispettate le indicazioni riportate nelle note, il ticket potrebbe essere chiuso immediatamente.
-        </div>
       </div>
+    </div>
+
+    <div class="col-md-6 d-none" id="argomentoContainer">
+      <label class="form-label">Argomento (opzionale)</label>
+      <select name="argomento_id" class="form-select" id="argomentoSelect">
+        <option value="">-- Seleziona Argomento (Opzionale) --</option>
+        {% for argomento in argomenti %}
+        <option value="{{ argomento.argomento_id }}" data-servizio="{{ argomento.servizio_id }}">{{ argomento.descrizione }}</option>
+        {% endfor %}
+      </select>
     </div>
 
     <div class="col-12">
@@ -158,6 +167,40 @@ document.addEventListener('DOMContentLoaded', function() {
             }
         }
 
+        const argomentoContainer = document.getElementById('argomentoContainer');
+        const argomentoSelect = document.getElementById('argomentoSelect');
+
+        function updateArgomenti() {
+            if (!argomentoContainer || !argomentoSelect) return;
+            const servId = servizioSelect.value;
+            
+            if (servId === "") {
+                argomentoContainer.classList.add('d-none');
+                argomentoSelect.value = "";
+                return;
+            }
+
+            let hasArgomenti = false;
+            Array.from(argomentoSelect.options).forEach(opt => {
+                if (opt.value === "") return;
+                let isMatch = opt.dataset.servizio === servId;
+                opt.hidden = !isMatch;
+                opt.style.display = isMatch ? '' : 'none';
+                if (isMatch) {
+                    hasArgomenti = true;
+                } else {
+                    if (opt.selected) argomentoSelect.value = "";
+                }
+            });
+
+            if (hasArgomenti) {
+                argomentoContainer.classList.remove('d-none');
+            } else {
+                argomentoContainer.classList.add('d-none');
+                argomentoSelect.value = "";
+            }
+        }
+
         function filterServizi() {
             const repId = parseInt(repartoSelect.value);
             Array.from(servizioSelect.options).forEach(opt => {
@@ -169,9 +212,13 @@ document.addEventListener('DOMContentLoaded', function() {
                 if (!isMatch && opt.selected) servizioSelect.value = "";
             });
             updateServiceDescription();
+            updateArgomenti();
         }
         repartoSelect.addEventListener('change', filterServizi);
-        servizioSelect.addEventListener('change', updateServiceDescription);
+        servizioSelect.addEventListener('change', function() {
+            updateServiceDescription();
+            updateArgomenti();
+        });
         filterServizi(); // Avvia il filtro al caricamento iniziale della pagina
     }
 });
