@@ -2,7 +2,7 @@ import os, json, csv, io, shutil, uuid, traceback, random
 from contextlib import asynccontextmanager
 from datetime import datetime
 from fastapi import FastAPI, Request, Form, UploadFile, File, BackgroundTasks
-from fastapi.responses import HTMLResponse, RedirectResponse, Response
+from fastapi.responses import HTMLResponse, RedirectResponse, Response, FileResponse
 from fastapi.templating import Jinja2Templates
 from fastapi.staticfiles import StaticFiles
 from starlette.middleware.sessions import SessionMiddleware
@@ -352,6 +352,10 @@ app = FastAPI(title=f"{CFG.get('app_title','Troubletick')} v7.4 ({DB_TYPE})", li
 app.add_middleware(SessionMiddleware, secret_key="supersecretkey")
 app.mount("/static", StaticFiles(directory=os.path.join(BASE_DIR,"static")), name="static")
 app.mount("/uploads", StaticFiles(directory=UPLOAD_DIR), name="uploads")
+
+@app.get("/favicon.ico", include_in_schema=False)
+async def favicon():
+    return FileResponse(os.path.join(BASE_DIR, "static", "favicon.png"))
 
 def get_new_tickets_count(user):
     if not user or user.get("ruolo") == "normale":
@@ -752,7 +756,7 @@ def ticket_detail(r: Request, ticket_id: int):
             FROM richieste_materiale rm
             JOIN materiali m ON rm.materiale_id = m.materiale_id
             JOIN categorie c ON rm.categoria_id = c.categoria_id
-            JOIN sedi s ON rm.sede_dest_id = s.sede_id
+            LEFT JOIN sedi s ON rm.sede_dest_id = s.sede_id
             LEFT JOIN magazzini mag ON rm.magazzino_id = mag.magazzino_id
             WHERE rm.ticket_id = :id
             ORDER BY rm.creato_il DESC
@@ -803,7 +807,7 @@ def update_ticket_status(r: Request, ticket_id: int, background_tasks: Backgroun
             c.execute(text("""INSERT INTO ticket_notes (ticket_id, autore, testo, is_internal) VALUES (:tid, :a, :t, 0)"""),
                      {"tid": ticket_id, "a": autore, "t": nota_chiusura.strip()})
                      
-            ticket = c.execute(text("SELECT codice_ticket, nome, email FROM tickets WHERE ticket_id = :id"), {"id": ticket_id}).mappings().first()
+            ticket = c.execute(text("SELECT codice_ticket, nome, email, servizio_id FROM tickets WHERE ticket_id = :id"), {"id": ticket_id}).mappings().first()
             if ticket and ticket["email"]:
                 subject = f"[{CFG.get('company_name', 'Helpdesk')}] Ticket #{ticket['codice_ticket']} Chiuso"
                 body = templates.get_template("email_ticket_chiuso.html").render({
@@ -813,7 +817,24 @@ def update_ticket_status(r: Request, ticket_id: int, background_tasks: Backgroun
                     "autore": autore,
                     "nota_chiusura": nota_chiusura.strip()
                 })
-                background_tasks.add_task(send_email_async, ticket["email"], subject, body, "Notifica chiusura ticket")
+                
+                cc_emails_str = None
+                if ticket["servizio_id"]:
+                    cc_list = c.execute(text("""
+                        SELECT DISTINCT u.email 
+                          FROM users u 
+                          JOIN operatori_servizi os ON u.user_id = os.user_id 
+                         WHERE os.servizio_id = :sid 
+                           AND u.email IS NOT NULL 
+                           AND u.email != '' 
+                           AND u.attivo = 1
+                    """), {"sid": ticket["servizio_id"]}).scalars().all()
+                    
+                    cc_list = [email for email in cc_list if email.lower() != ticket["email"].lower()]
+                    if cc_list:
+                        cc_emails_str = ",".join(cc_list)
+                        
+                background_tasks.add_task(send_email_async, ticket["email"], subject, body, "Notifica chiusura ticket", cc_email=cc_emails_str)
     return RedirectResponse(url=f"/ticket/{ticket_id}", status_code=303)
 
 @app.post("/ticket/{ticket_id}/riassegna")

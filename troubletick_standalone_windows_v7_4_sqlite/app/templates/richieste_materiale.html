@@ -28,7 +28,7 @@
       <td>{{ r.req_nome }} {{ r.req_cognome }}</td>
       <td><strong>{{ r.materiale_nome }}</strong><br><small class="text-muted">{{ r.categoria_nome }}</small></td>
       <td><span class="badge bg-secondary">{{ r.quantita }}</span></td>
-      <td>{{ r.sede_nome }}</td>
+      <td>{{ r.sede_nome or '—' }}</td>
       <td>{{ r.magazzino_nome or 'Nessuno' }}</td>
       <td>
         {% if r.stato == 'nuova' %}<span class="badge bg-info text-dark">In Attesa</span>
@@ -41,7 +41,7 @@
         <div class="d-flex gap-1 align-items-center">
             {% if r.stato == 'pronta_per_scarico' %}
                 {% if user.ruolo == 'admin' or r.magazzino_id in user_mag_ids %}
-                    <a href="/magazzino/{{ r.magazzino_id }}/movimento/{{ r.materiale_id }}?operazione=scarico&richiesta_id={{ r.richiesta_id }}" class="btn btn-sm btn-warning"><i class="bi bi-box-arrow-up"></i> Esegui Scarico</a>
+                    <a href="/magazzini/scarico-multiplo?magazzino_id={{ r.magazzino_id }}&materiale_id={{ r.materiale_id }}&quantita={{ r.quantita }}&sede_assegnazione_id={% if r.sede_dest_id and r.sede_dest_id != 0 %}{{ r.sede_dest_id }}{% endif %}&richiesta_id={{ r.richiesta_id }}" class="btn btn-sm btn-warning"><i class="bi bi-box-arrow-up"></i> Esegui Scarico</a>
                 {% else %}
                     <span class="text-muted small">Riservato mag.</span>
                 {% endif %}

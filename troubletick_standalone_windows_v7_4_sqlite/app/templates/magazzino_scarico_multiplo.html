@@ -166,6 +166,7 @@
         const rowHtml = `
             <tr class="row-item" id="row-${rowCount}">
                 <td>
+                    <input type="hidden" name="richiesta_id" id="req-${rowCount}" value="">
                     <select name="magazzino_id" class="form-select select-magazzino" id="mag-${rowCount}" onchange="onMagazzinoChange(${rowCount})" required>
                         <option value="">-- Seleziona --</option>
                         ${magazziniAbilitati.map(m => `<option value="${m.magazzino_id}">${m.nome}</option>`).join('')}
@@ -309,7 +310,16 @@
 
         qtaInput.max = maxQta;
         qtaInput.placeholder = `Max: ${maxQta}`;
-        qtaInput.value = 1;
+        
+        // Controlla se c'è una quantità pre-impostata
+        const prefillVal = qtaInput.dataset.prefillQta;
+        if (prefillVal) {
+            const desiredQta = parseInt(prefillVal);
+            qtaInput.value = Math.min(desiredQta, maxQta);
+            delete qtaInput.dataset.prefillQta;
+        } else {
+            qtaInput.value = 1;
+        }
         qtaInput.disabled = false;
     }
 
@@ -391,10 +401,70 @@
         }
     });
 
-    // Avvia con una riga già pronta all'avvio
+    // Avvia con una riga già pronta all'avvio o popola quelle richieste
     document.addEventListener('DOMContentLoaded', function() {
-        addNewRow();
+        const urlParams = new URLSearchParams(window.location.search);
+        
+        // Estrae tutti i valori (permette pre-popolamento multiplo o singolo)
+        const magIds = urlParams.getAll('magazzino_id');
+        const matIds = urlParams.getAll('materiale_id');
+        const qtas = urlParams.getAll('quantita');
+        const reqIds = urlParams.getAll('richiesta_id');
+        const prefilledSedeId = urlParams.get('sede_assegnazione_id');
+
+        if (magIds.length > 0) {
+            // Se ci sono pre-popolamenti, creiamo le righe necessarie
+            for (let i = 0; i < magIds.length; i++) {
+                addNewRow();
+                
+                const currentId = rowCount;
+                const m_id = magIds[i];
+                const mat_id = matIds[i] || "";
+                const qta = qtas[i] || "";
+                const req_id = reqIds[i] || "";
+                
+                const magSelect = document.getElementById(`mag-${currentId}`);
+                if (magSelect) {
+                    magSelect.value = m_id;
+                    onMagazzinoChange(currentId);
+                    
+                    if (mat_id) {
+                        const matSelect = document.getElementById(`mat-${currentId}`);
+                        if (matSelect) {
+                            matSelect.value = mat_id;
+                            onMaterialeChange(currentId);
+                        }
+                    }
+                    
+                    if (qta) {
+                        const qtaInput = document.getElementById(`qta-${currentId}`);
+                        if (qtaInput) {
+                            qtaInput.dataset.prefillQta = qta;
+                        }
+                    }
+                    
+                    if (req_id) {
+                        const reqInput = document.getElementById(`req-${currentId}`);
+                        if (reqInput) {
+                            reqInput.value = req_id;
+                        }
+                    }
+                }
+            }
+        } else {
+            // Altrimenti crea una singola riga vuota di default
+            addNewRow();
+        }
+
         toggleDestinationFields();
+
+        if (prefilledSedeId) {
+            const sedeSelect = document.getElementById('sedeSelect');
+            if (sedeSelect) {
+                sedeSelect.value = prefilledSedeId;
+                onSedeSelectChange();
+            }
+        }
     });
 </script>
 </body>

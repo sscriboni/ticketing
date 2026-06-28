@@ -550,7 +550,7 @@ async def magazzino_movimento_action(
                     if ticket_stato != 'presa_in_carico':
                         return RedirectResponse(url=f"/ticket/{richiesta['ticket_id']}?error=not_taken_in_charge", status_code=303)
                 quantita = richiesta["quantita"]
-                sede_assegnazione_id = str(richiesta["sede_dest_id"])
+                sede_assegnazione_id = str(richiesta["sede_dest_id"]) if (richiesta["sede_dest_id"] and richiesta["sede_dest_id"] != 0) else None
                 magazzino_destinazione_id = None
 
         can_edit = False
@@ -1039,7 +1039,7 @@ def richieste_materiale_list(r: Request):
             FROM richieste_materiale rm
             JOIN materiali m ON rm.materiale_id = m.materiale_id
             JOIN categorie c ON rm.categoria_id = c.categoria_id
-            JOIN sedi s ON rm.sede_dest_id = s.sede_id
+            LEFT JOIN sedi s ON rm.sede_dest_id = s.sede_id
             JOIN users u ON rm.user_id = u.user_id
             LEFT JOIN magazzini mag ON rm.magazzino_id = mag.magazzino_id
             WHERE {where_clause}
@@ -1069,8 +1069,6 @@ def nuova_richiesta_materiale_form(r: Request, ticket_id: str = None):
             return RedirectResponse(url=f"/ticket/{ticket_id}?error=not_taken_in_charge", status_code=303)
             
         sedi = c.execute(text("SELECT sede_id, nome FROM sedi ORDER BY nome")).mappings().all()
-        categorie = c.execute(text("SELECT categoria_id, nome FROM categorie ORDER BY nome")).mappings().all()
-        materiali = c.execute(text("SELECT materiale_id, nome, categoria_id FROM materiali ORDER BY nome")).mappings().all()
         if user.get("ruolo") != "admin":
             user_mag_ids = c.execute(text("SELECT magazzino_id FROM operatori_magazzini WHERE user_id = :uid"), {"uid": user.get("id")}).scalars().all()
             if user_mag_ids:
@@ -1086,6 +1084,36 @@ def nuova_richiesta_materiale_form(r: Request, ticket_id: str = None):
                 magazzini = []
         else:
             magazzini = c.execute(text("SELECT magazzino_id, nome, categoria_id FROM magazzini ORDER BY nome")).mappings().all()
+
+        if user.get("ruolo") == "admin":
+            categorie = c.execute(text("""
+                SELECT DISTINCT c.categoria_id, c.nome 
+                FROM categorie c
+                JOIN magazzini m ON (m.categoria_id IS NULL OR m.categoria_id = c.categoria_id)
+                ORDER BY c.nome
+            """)).mappings().all()
+        else:
+            if magazzini:
+                has_null_category = any(m["categoria_id"] is None for m in magazzini)
+                if has_null_category:
+                    categorie = c.execute(text("SELECT categoria_id, nome FROM categorie ORDER BY nome")).mappings().all()
+                else:
+                    cat_ids = list(set(m["categoria_id"] for m in magazzini if m["categoria_id"] is not None))
+                    if cat_ids:
+                        from sqlalchemy import bindparam
+                        stmt_cat = text("""
+                            SELECT categoria_id, nome 
+                            FROM categorie 
+                            WHERE categoria_id IN :cids 
+                            ORDER BY nome
+                        """).bindparams(bindparam("cids", expanding=True))
+                        categorie = c.execute(stmt_cat, {"cids": cat_ids}).mappings().all()
+                    else:
+                        categorie = []
+            else:
+                categorie = []
+
+        materiali = c.execute(text("SELECT materiale_id, nome, categoria_id FROM materiali ORDER BY nome")).mappings().all()
         
         giacenze_raw = c.execute(text("SELECT magazzino_id, materiale_id, quantita FROM giacenze")).mappings().all()
         giacenze_json = []
@@ -1101,10 +1129,12 @@ def nuova_richiesta_materiale_form(r: Request, ticket_id: str = None):
     })
 
 @router.post("/richiesta-materiale/nuova")
-def nuova_richiesta_materiale_action(r: Request, sede_dest_id: int = Form(...), categoria_id: int = Form(...), 
-                                     materiale_id: int = Form(...), magazzino_id: str = Form(None), quantita: int = Form(...), ticket_id: str = Form(None)):
+def nuova_richiesta_materiale_action(r: Request, categoria_id: int = Form(...), materiale_id: int = Form(...), quantita: int = Form(...),
+                                     sede_dest_id: int = Form(None), magazzino_id: str = Form(None), ticket_id: str = Form(None)):
     if "user" not in r.session: return RedirectResponse(url="/login")
     user = r.session.get("user")
+    
+    sede_dest_id_val = int(sede_dest_id) if (sede_dest_id and str(sede_dest_id).isdigit()) else 0
     
     ticket_id_val = int(ticket_id) if ticket_id and str(ticket_id).isdigit() else None
     if not ticket_id_val:
@@ -1139,7 +1169,7 @@ def nuova_richiesta_materiale_action(r: Request, sede_dest_id: int = Form(...), 
             INSERT INTO richieste_materiale (user_id, sede_dest_id, categoria_id, materiale_id, quantita, magazzino_id, ticket_id, stato)
             VALUES (:uid, :sede, :cat, :mat, :q, :mag, :tid, :stato)
         """), {
-            "uid": user["id"], "sede": sede_dest_id, "cat": categoria_id, "mat": materiale_id,
+            "uid": user["id"], "sede": sede_dest_id_val, "cat": categoria_id, "mat": materiale_id,
             "q": quantita, "mag": magazzino_id_val, "tid": ticket_id_val, "stato": stato
         })
         
@@ -1401,7 +1431,8 @@ async def post_scarico_multiplo(
     materiale_id: List[int] = Form(...),
     posizione_fisica: List[str] = Form(...),
     quantita: List[int] = Form(...),
-    magazzino_destinazione_id: str = Form(None)
+    magazzino_destinazione_id: str = Form(None),
+    richiesta_id: List[str] = Form(None)
 ):
     if "user" not in r.session: return RedirectResponse(url="/login")
     user = r.session.get("user")
@@ -1436,6 +1467,7 @@ async def post_scarico_multiplo(
         if mag_dest_id_val:
             dest_mag_name = c.execute(text("SELECT nome FROM magazzini WHERE magazzino_id = :id"), {"id": mag_dest_id_val}).scalar()
         first_trsf_id = None
+        any_request_evasa = False
 
         for i in range(len(magazzino_id)):
             m_id = magazzino_id[i]
@@ -1491,6 +1523,30 @@ async def post_scarico_multiplo(
                 "all": allegato_filename, "grp": gruppo_scarico_id
             })
 
+            # Gestione eventuale richiesta_id collegata a questa riga
+            if richiesta_id and i < len(richiesta_id):
+                req_id_str = richiesta_id[i]
+                if req_id_str and req_id_str.strip().isdigit():
+                    rid = int(req_id_str.strip())
+                    c.execute(text("UPDATE richieste_materiale SET stato = 'evasa', magazzino_id = :mag_id WHERE richiesta_id = :id"), {"id": rid, "mag_id": m_id})
+                    
+                    # Recupera dettagli per la notifica e il log sul ticket
+                    richiesta_info = c.execute(text("""
+                        SELECT ticket_id, materiale_id 
+                        FROM richieste_materiale 
+                        WHERE richiesta_id = :id
+                    """), {"id": rid}).mappings().first()
+                    
+                    if richiesta_info and richiesta_info["ticket_id"]:
+                        mat_nome = c.execute(text("SELECT nome FROM materiali WHERE materiale_id = :mid"), {"mid": richiesta_info["materiale_id"]}).scalar()
+                        autore = f"{user.get('nome', '')} {user.get('cognome', '')}".strip()
+                        testo = f"Richiesta materiale evasa dal magazzino tramite scarico multiplo: {qta}x {mat_nome}."
+                        c.execute(text("""
+                            INSERT INTO ticket_notes (ticket_id, autore, testo, is_internal)
+                            VALUES (:tid, :a, :t, 0)
+                        """), {"tid": richiesta_info["ticket_id"], "a": f"Sistema ({autore})", "t": testo})
+                    any_request_evasa = True
+
             if mag_dest_id_val:
                 c.execute(text("""
                     INSERT INTO trasferimenti (magazzino_partenza_id, magazzino_dest_id, materiale_id, quantita, user_partenza_id, note, allegato, marca, modello, posizione_partenza, gruppo_scarico)
@@ -1514,6 +1570,8 @@ async def post_scarico_multiplo(
 
     if genera_pdf == "1":
         return RedirectResponse(url=f"/stampa-consegna/multiplo/{gruppo_scarico_id}", status_code=303)
+    if any_request_evasa:
+        return RedirectResponse(url="/richieste-materiale?msg=consegna_effettuata", status_code=303)
     return RedirectResponse(url="/magazzini", status_code=303)
 
 @router.get("/magazzini/report", response_class=HTMLResponse)

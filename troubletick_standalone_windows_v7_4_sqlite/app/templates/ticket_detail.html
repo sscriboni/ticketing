@@ -188,7 +188,7 @@
         <li class="list-group-item py-2 px-3 d-flex justify-content-between align-items-center">
           <div>
             <span class="badge bg-secondary me-2">{{ rm.quantita }}x</span> <strong>{{ rm.materiale_nome }}</strong><br>
-            <small class="text-muted">Sede: {{ rm.sede_nome }} | Mag: {{ rm.magazzino_nome or 'Nessuno' }}</small>
+            <small class="text-muted">Magazzino: {{ rm.magazzino_nome or 'Nessuno' }}</small>
           </div>
           <div class="d-flex align-items-center gap-2">
             <span class="badge bg-{% if rm.stato == 'evasa' %}success{% elif rm.stato == 'pronta_per_scarico' %}warning text-dark{% elif rm.stato == 'annullata' %}danger{% else %}info{% endif %}">{{ rm.stato|replace('_', ' ')|title }}</span>
@@ -205,12 +205,27 @@
       <p class="text-muted small">Nessuna richiesta di materiale collegata a questo ticket.</p>
       {% endif %}
       
-      {% if ticket.stato == 'presa_in_carico' %}
-      <form method="get" action="/richiesta-materiale/nuova">
-        <input type="hidden" name="ticket_id" value="{{ ticket.ticket_id }}">
-        <button type="submit" class="btn btn-outline-primary btn-sm"><i class="bi bi-box-seam"></i> Crea Nuova Richiesta</button>
-      </form>
+      {% set ns = namespace(query="") %}
+      {% if richieste_mat %}
+        {% for rm in richieste_mat %}
+          {% if rm.stato in ['nuova', 'pronta_per_scarico'] %}
+            {% set ns.query = ns.query ~ "&magazzino_id=" ~ (rm.magazzino_id or '') ~ "&materiale_id=" ~ rm.materiale_id ~ "&quantita=" ~ rm.quantita ~ "&richiesta_id=" ~ rm.richiesta_id %}
+          {% endif %}
+        {% endfor %}
       {% endif %}
+
+      <div class="d-flex gap-2">
+        {% if ticket.stato == 'presa_in_carico' %}
+        <form method="get" action="/richiesta-materiale/nuova" class="mb-0">
+          <input type="hidden" name="ticket_id" value="{{ ticket.ticket_id }}">
+          <button type="submit" class="btn btn-outline-primary btn-sm"><i class="bi bi-box-seam"></i> Crea Nuova Richiesta</button>
+        </form>
+        {% endif %}
+        
+        {% if ns.query != "" and ticket.stato == 'presa_in_carico' %}
+        <a href="/magazzini/scarico-multiplo?{{ ns.query[1:] }}" class="btn btn-warning btn-sm fw-bold text-dark"><i class="bi bi-box-arrow-up"></i> Esegui Scarico Multiplo</a>
+        {% endif %}
+      </div>
     </div></div>
 
     {% if ticket.stato == 'presa_in_carico' %}

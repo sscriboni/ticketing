@@ -18,16 +18,7 @@
     {% endif %}
     
     <div class="row g-3 mb-3">
-      <div class="col-md-6">
-        <label class="form-label">Sede di destinazione</label>
-        <select name="sede_dest_id" class="form-select" required>
-          <option value="">-- Seleziona Sede --</option>
-          {% for s in sedi %}
-          <option value="{{ s.sede_id }}">{{ s.nome }}</option>
-          {% endfor %}
-        </select>
-      </div>
-      <div class="col-md-6">
+      <div class="col-md-12">
         <label class="form-label">Categoria</label>
         <select name="categoria_id" class="form-select" id="categoriaSelect" required>
           <option value="">-- Seleziona Categoria --</option>
@@ -93,8 +84,8 @@ document.addEventListener('DOMContentLoaded', function() {
             if (opt.value === "") return;
             const magCatId = opt.dataset.categoria;
             
-            // Mostra solo i magazzini collegati alla categoria scelta
-            let isMatch = (parseInt(magCatId) === catId);
+            // Mostra solo i magazzini collegati alla categoria scelta (o senza limitazioni di categoria)
+            let isMatch = (!magCatId || parseInt(magCatId) === catId);
             
             opt.hidden = !isMatch;
             opt.style.display = isMatch ? '' : 'none';
