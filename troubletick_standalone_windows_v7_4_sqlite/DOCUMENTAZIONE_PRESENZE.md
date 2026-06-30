@@ -6,11 +6,11 @@ Questa guida descrive il funzionamento e il flusso di lavoro per la pianificazio
 
 ## 1. Le Pagine Disponibili
 
-Il modulo è composto da tre schermate principali, accessibili tramite il menu **Servizi** della barra di navigazione:
+Il modulo è composto da tre schermate principali, accessibili tramite il menu **Presenze** della barra di navigazione:
 
 ### A. Calendario di Reparto (Matrice Mensile)
 * **Destinazione**: `/assenze-mese`
-* **Accesso**: *Servizi* &rarr; *Calendario di Reparto*
+* **Accesso**: *Presenze* &rarr; *Calendario di Reparto*
 * **Scopo**: Fornisce una visualizzazione d'insieme, in formato tabellare mensile, degli operatori del proprio reparto.
 * **Funzionalità principali**:
   - **Griglia Mensile**: Mostra per ciascun giorno del mese lo stato dell'operatore (se presente in ufficio, assente o in modalità di lavoro alternativa).
@@ -20,7 +20,7 @@ Il modulo è composto da tre schermate principali, accessibili tramite il menu *
 
 ### B. Calendario Presenze (Pianificazione Operativa)
 * **Destinazione**: `/calendario-presenze`
-* **Accesso**: *Servizi* &rarr; *Calendario Presenze*
+* **Accesso**: *Presenze* &rarr; *Calendario Presenze*
 * **Scopo**: Consente agli operatori di pianificare i propri giorni di presenza specificando la tipologia e le note descrittive.
 * **Funzionalità principali**:
   - **Visualizzazione Doppia**: Possibilità di alternare la vista tra una griglia calendario interattiva (FullCalendar con visualizzazione mensile o settimanale) e un elenco in formato tabella.
@@ -29,7 +29,7 @@ Il modulo è composto da tre schermate principali, accessibili tramite il menu *
 
 ### C. Gestione Assenze (Richiesta e Pianificazione Congedi)
 * **Destinazione**: `/calendario`
-* **Accesso**: *Servizi* &rarr; *Calendario Assenze*
+* **Accesso**: *Presenze* &rarr; *Calendario Assenze*
 * **Scopo**: Consente di registrare i periodi di assenza dal lavoro degli operatori.
 * **Funzionalità principali**:
   - **Inserimento Assenza**: Modulo per registrare l'assenza specificando data inizio, data fine e il motivo (Ferie, Malattia, Permesso, ecc.).

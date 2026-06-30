@@ -52,10 +52,10 @@
         {% endif %}
         
         <li class="nav-item dropdown">
-          <a class="nav-link dropdown-toggle {% if request.url.path.startswith('/calendario') or request.url.path.startswith('/copertura-servizi') or request.url.path.startswith('/assenze-mese') or request.url.path == '/servizi-assegnati' %}active fw-bold{% endif %}" href="#" id="serviziDropdown" role="button" data-bs-toggle="dropdown" aria-expanded="false">
-            <i class="bi bi-briefcase"></i> Servizi
+          <a class="nav-link dropdown-toggle {% if request.url.path.startswith('/calendario') or request.url.path.startswith('/copertura-servizi') or request.url.path.startswith('/assenze-mese') or request.url.path == '/servizi-assegnati' %}active fw-bold{% endif %}" href="#" id="presenzeDropdown" role="button" data-bs-toggle="dropdown" aria-expanded="false">
+            <i class="bi bi-calendar-check"></i> Presenze
           </a>
-          <ul class="dropdown-menu shadow" aria-labelledby="serviziDropdown">
+          <ul class="dropdown-menu shadow" aria-labelledby="presenzeDropdown">
             <li><a class="dropdown-item" href="/calendario"><i class="bi bi-calendar3 me-2"></i>Calendario Assenze</a></li>
             <li><a class="dropdown-item" href="/calendario-presenze"><i class="bi bi-calendar-event me-2"></i>Calendario Presenze</a></li>
             <li><a class="dropdown-item" href="/copertura-servizi"><i class="bi bi-calendar-check me-2"></i>Verifica copertura Servizi</a></li>
