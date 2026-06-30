@@ -92,6 +92,14 @@ try:
             data_fine TEXT NOT NULL,
             motivo TEXT
         )"""))
+        c.execute(text(f"""CREATE TABLE IF NOT EXISTS presenze (
+            presenza_id {DB_PK},
+            user_id INTEGER NOT NULL,
+            data_inizio TEXT NOT NULL,
+            data_fine TEXT NOT NULL,
+            tipo TEXT NOT NULL,
+            nota TEXT
+        )"""))
         c.execute(text(f"""CREATE TABLE IF NOT EXISTS festivita (
             festivita_id {DB_PK},
             data TEXT NOT NULL,
@@ -1007,9 +1015,62 @@ def calendario(r: Request, copertura_alert: str = None, servizi_scoperti: str = 
 def calendario_presenze(r: Request):
     if "user" not in r.session: return RedirectResponse(url="/login")
     user = r.session.get("user")
+    uid = user.get("id")
+    
+    with engine.connect() as c:
+        presenze = c.execute(text("""
+            SELECT p.*, u.nome, u.cognome, r.nome as reparto_nome
+            FROM presenze p
+            JOIN users u ON p.user_id = u.user_id
+            LEFT JOIN reparti r ON u.reparto_id = r.reparto_id
+            WHERE p.user_id = :uid
+            ORDER BY p.data_inizio DESC
+        """), {"uid": uid}).mappings().all()
+        
+        festivita = c.execute(text("""
+            SELECT * FROM festivita ORDER BY data DESC
+        """)).mappings().all()
+        
     return templates.TemplateResponse(r, "calendario_presenze.html", {
-        "request": r, "cfg": CFG, "user": user
+        "request": r, "cfg": CFG, "user": user, "presenze": presenze, "festivita": festivita
     })
+
+@app.post("/calendario-presenze/nuova")
+def nuova_presenza(
+    r: Request, 
+    data_inizio: str = Form(...), 
+    data_fine: str = Form(""), 
+    tipo: str = Form(...), 
+    nota: str = Form("")
+):
+    if "user" not in r.session: return RedirectResponse(url="/login")
+    user = r.session.get("user")
+    if not data_fine or not data_fine.strip():
+        data_fine = data_inizio
+    
+    # Cap nota at 20 characters
+    nota = (nota or "").strip()[:20]
+    
+    with engine.begin() as c:
+        c.execute(text("""
+            INSERT INTO presenze (user_id, data_inizio, data_fine, tipo, nota)
+            VALUES (:uid, :di, :df, :t, :n)
+        """), {"uid": user.get("id"), "di": data_inizio, "df": data_fine, "t": tipo, "n": nota})
+        
+    return RedirectResponse(url="/calendario-presenze", status_code=303)
+
+@app.post("/calendario-presenze/{presenza_id}/elimina")
+def elimina_presenza(r: Request, presenza_id: int):
+    if "user" not in r.session: return RedirectResponse(url="/login")
+    user = r.session.get("user")
+    
+    with engine.begin() as c:
+        if user.get("ruolo") == "admin":
+            c.execute(text("DELETE FROM presenze WHERE presenza_id = :id"), {"id": presenza_id})
+        else:
+            c.execute(text("DELETE FROM presenze WHERE presenza_id = :id AND user_id = :uid"), {"id": presenza_id, "uid": user.get("id")})
+            
+    return RedirectResponse(url="/calendario-presenze", status_code=303)
 
 @app.post("/calendario/nuova")
 def nuova_assenza(r: Request, data_inizio: str = Form(...), data_fine: str = Form(""), motivo: str = Form("")):
@@ -1324,6 +1385,13 @@ def assenze_mese(r: Request, mese: int = None, anno: int = None, reparto_id: int
             JOIN users u ON a.user_id = u.user_id
             WHERE u.reparto_id = :rid AND a.data_inizio <= :end AND a.data_fine >= :start
         """), {"rid": reparto_id, "start": first_day_of_month.isoformat(), "end": last_day_of_month.isoformat()}).mappings().all()
+
+        presenze_list = c.execute(text("""
+            SELECT p.user_id, p.data_inizio, p.data_fine, p.tipo, p.nota
+            FROM presenze p
+            JOIN users u ON p.user_id = u.user_id
+            WHERE u.reparto_id = :rid AND p.data_inizio <= :end AND p.data_fine >= :start
+        """), {"rid": reparto_id, "start": first_day_of_month.isoformat(), "end": last_day_of_month.isoformat()}).mappings().all()
         
         giorni = []
         wd_names = ["Lunedì", "Martedì", "Mercoledì", "Giovedì", "Venerdì", "Sabato", "Domenica"]
@@ -1354,14 +1422,29 @@ def assenze_mese(r: Request, mese: int = None, anno: int = None, reparto_id: int
                             absent_record = a
                             break
                             
+                presence_record = None
+                for p in presenze_list:
+                    if p["user_id"] == op_id:
+                        if p["data_inizio"] <= d_str <= p["data_fine"]:
+                            presence_record = p
+                            break
+
                 is_absent = absent_record is not None
                 motivo = absent_record["motivo"] if is_absent else None
+                
+                is_present = presence_record is not None
+                presenza_tipo = presence_record["tipo"] if is_present else None
+                presenza_nota = presence_record["nota"] if is_present else None
+
                 is_weekend = d.weekday() in (5, 6)
                 holiday = festivita_map.get(d_str)
                 
                 giorni_stato.append({
                     "absent": is_absent,
                     "motivo": motivo,
+                    "present": is_present,
+                    "presenza_tipo": presenza_tipo,
+                    "presenza_nota": presenza_nota,
                     "holiday": holiday,
                     "is_weekend": is_weekend
                 })
