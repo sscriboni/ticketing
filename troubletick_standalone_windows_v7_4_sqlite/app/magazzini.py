@@ -1352,7 +1352,7 @@ def annulla_movimento_action(r: Request, magazzino_id: int, movimento_id: int):
     return RedirectResponse(url=f"/magazzino/{magazzino_id}/log?success=annullato", status_code=303)
 
 @router.get("/magazzini/scarico-multiplo", response_class=HTMLResponse)
-def get_scarico_multiplo(r: Request, error: str = None):
+def get_scarico_multiplo(r: Request, error: str = None, ticket_id: int = None):
     if "user" not in r.session: return RedirectResponse(url="/login")
     user = r.session.get("user")
     if user.get("ruolo") == "normale":
@@ -1407,7 +1407,30 @@ def get_scarico_multiplo(r: Request, error: str = None):
         })
         
     magazzini_json = [{"magazzino_id": m["magazzino_id"], "nome": m["nome"]} for m in magazzini_list]
+    richieste_pendenti = []
+    ticket_info = None
+    richieste_pendenti_json = "[]"
     
+    if ticket_id:
+        with engine.connect() as c:
+            ticket_info = c.execute(text("""
+                SELECT ticket_id, codice_ticket, nome, cognome 
+                FROM tickets 
+                WHERE ticket_id = :tid
+            """), {"tid": ticket_id}).mappings().first()
+            
+            if ticket_info:
+                rows = c.execute(text("""
+                    SELECT rm.richiesta_id, rm.materiale_id, m.nome AS materiale_nome, rm.quantita, rm.stato
+                    FROM richieste_materiale rm
+                    JOIN materiali m ON rm.materiale_id = m.materiale_id
+                    WHERE rm.ticket_id = :tid AND rm.stato IN ('nuova', 'pronta_per_scarico')
+                    ORDER BY m.nome
+                """), {"tid": ticket_id}).mappings().all()
+                
+                richieste_pendenti = [dict(row) for row in rows]
+                richieste_pendenti_json = json.dumps(richieste_pendenti)
+
     from datetime import date
     oggi = date.today().isoformat()
     
@@ -1418,7 +1441,11 @@ def get_scarico_multiplo(r: Request, error: str = None):
         "giacenze_json": json.dumps(giacenze_json),
         "magazzini_json": json.dumps(magazzini_json),
         "oggi": oggi,
-        "error": error
+        "error": error,
+        "ticket_id": ticket_id,
+        "richieste_pendenti": richieste_pendenti,
+        "ticket_info": ticket_info,
+        "richieste_pendenti_json": richieste_pendenti_json
     })
 
 @router.post("/magazzini/scarico-multiplo")
@@ -1434,7 +1461,8 @@ async def post_scarico_multiplo(
     posizione_fisica: List[str] = Form(...),
     quantita: List[int] = Form(...),
     magazzino_destinazione_id: str = Form(None),
-    richiesta_id: List[str] = Form(None)
+    richiesta_id: List[str] = Form(None),
+    ticket_id: int = Form(None)
 ):
     if "user" not in r.session: return RedirectResponse(url="/login")
     user = r.session.get("user")
@@ -1452,6 +1480,34 @@ async def post_scarico_multiplo(
                 if m_id not in user_mag_ids:
                     return RedirectResponse(url="/magazzini?error=non_autorizzato", status_code=303)
                     
+    if ticket_id:
+        with engine.connect() as c:
+            rows_pending = c.execute(text("""
+                SELECT rm.richiesta_id, rm.materiale_id, rm.quantita 
+                FROM richieste_materiale rm
+                WHERE rm.ticket_id = :tid AND rm.stato IN ('nuova', 'pronta_per_scarico')
+            """), {"tid": ticket_id}).mappings().all()
+            
+            pending_qty_map = {}
+            for row in rows_pending:
+                m_id = row["materiale_id"]
+                pending_qty_map[m_id] = pending_qty_map.get(m_id, 0) + row["quantita"]
+                
+            submitted_qty_map = {}
+            for i in range(len(materiale_id)):
+                m_id = materiale_id[i]
+                qta = quantita[i]
+                if qta > 0 and i < len(magazzino_id) and magazzino_id[i]:
+                    submitted_qty_map[m_id] = submitted_qty_map.get(m_id, 0) + qta
+                    
+            for m_id, qta in submitted_qty_map.items():
+                pending_qty = pending_qty_map.get(m_id, 0)
+                if pending_qty == 0 or qta > pending_qty:
+                    return RedirectResponse(
+                        url=f"/magazzini/scarico-multiplo?ticket_id={ticket_id}&error=materiali_non_conformi", 
+                        status_code=303
+                    )
+
     import uuid
     gruppo_scarico_id = f"MULT-{uuid.uuid4().hex[:10].upper()}"
     
@@ -1528,8 +1584,8 @@ async def post_scarico_multiplo(
                 "all": allegato_filename, "grp": gruppo_scarico_id
             })
 
-            # Gestione eventuale richiesta_id collegata a questa riga
-            if richiesta_id and i < len(richiesta_id):
+            # Gestione eventuale richiesta_id collegata a questa riga (solo se NON viene da ticket)
+            if not ticket_id and richiesta_id and i < len(richiesta_id):
                 req_id_str = richiesta_id[i]
                 if req_id_str and req_id_str.strip().isdigit():
                     rid = int(req_id_str.strip())
@@ -1569,12 +1625,95 @@ async def post_scarico_multiplo(
                     else:
                         first_trsf_id = c.execute(text("SELECT LASTVAL()")).scalar()
             
+        # Greedy matching delle richieste pendenti per il ticket_id (se presente)
+        if ticket_id:
+            from sqlalchemy import bindparam
+            pending_requests = c.execute(text("""
+                SELECT richiesta_id, materiale_id, quantita 
+                FROM richieste_materiale 
+                WHERE ticket_id = :tid AND stato IN ('nuova', 'pronta_per_scarico')
+                ORDER BY richiesta_id ASC
+            """), {"tid": ticket_id}).mappings().all()
+            
+            pending_reqs = [dict(r) for r in pending_requests]
+            evaded_requests_info = []
+            
+            for i in range(len(magazzino_id)):
+                m_id = magazzino_id[i]
+                mat_id = materiale_id[i]
+                qta = quantita[i]
+                if qta <= 0:
+                    continue
+                    
+                remaining_qta = qta
+                for req in pending_reqs:
+                    if req["materiale_id"] == mat_id and req["quantita"] > 0:
+                        req_qty = req["quantita"]
+                        rid = req["richiesta_id"]
+                        take_qty = min(remaining_qta, req_qty)
+                        
+                        if take_qty < req_qty:
+                            # Split request: update current to take_qty and mark as 'evasa'
+                            c.execute(text("""
+                                UPDATE richieste_materiale 
+                                SET stato = 'evasa', magazzino_id = :mag_id, quantita = :take_qty
+                                WHERE richiesta_id = :rid
+                            """), {"rid": rid, "mag_id": m_id, "take_qty": take_qty})
+                            
+                            # Insert new pending request for remainder
+                            c.execute(text("""
+                                INSERT INTO richieste_materiale (user_id, sede_dest_id, categoria_id, materiale_id, quantita, magazzino_id, ticket_id, stato)
+                                SELECT user_id, sede_dest_id, categoria_id, materiale_id, :rem_qty, magazzino_id, ticket_id, 'nuova'
+                                FROM richieste_materiale
+                                WHERE richiesta_id = :rid
+                            """), {"rid": rid, "rem_qty": req_qty - take_qty})
+                        else:
+                            # Fully matched, just mark as 'evasa'
+                            c.execute(text("""
+                                UPDATE richieste_materiale 
+                                SET stato = 'evasa', magazzino_id = :mag_id 
+                                WHERE richiesta_id = :rid
+                            """), {"rid": rid, "mag_id": m_id})
+                            
+                        evaded_requests_info.append((take_qty, mat_id))
+                        req["quantita"] -= take_qty
+                        remaining_qta -= take_qty
+                        
+                        if remaining_qta <= 0:
+                            break
+                            
+            if evaded_requests_info:
+                mat_ids_to_fetch = list(set([item[1] for item in evaded_requests_info]))
+                mat_names = {}
+                if mat_ids_to_fetch:
+                    rows_mat = c.execute(text("""
+                        SELECT materiale_id, nome FROM materiali 
+                        WHERE materiale_id IN :mids
+                    """).bindparams(bindparam("mids", expanding=True)), {"mids": mat_ids_to_fetch}).mappings().all()
+                    mat_names = {r["materiale_id"]: r["nome"] for r in rows_mat}
+                    
+                notes_lines = []
+                for qty, mat_id in evaded_requests_info:
+                    mat_name = mat_names.get(mat_id, f"ID {mat_id}")
+                    notes_lines.append(f"- {qty}x {mat_name}")
+                    
+                autore = f"{user.get('nome', '')} {user.get('cognome', '')}".strip() or user.get('username')
+                testo = "Richieste materiale evase dal magazzino tramite scarico multiplo:\n" + "\n".join(notes_lines)
+                c.execute(text("""
+                    INSERT INTO ticket_notes (ticket_id, autore, testo, is_internal)
+                    VALUES (:tid, :a, :t, 0)
+                """), {"tid": ticket_id, "a": f"Sistema ({autore})", "t": testo})
+                
+                any_request_evasa = True
+            
     if mag_dest_id_val and first_trsf_id:
         print_param = "&print=1" if genera_pdf == "1" else ""
         return RedirectResponse(url=f"/magazzini?msg=trasferimento_avviato&trsf_id={first_trsf_id}{print_param}", status_code=303)
 
     if genera_pdf == "1":
         return RedirectResponse(url=f"/stampa-consegna/multiplo/{gruppo_scarico_id}", status_code=303)
+    if ticket_id:
+        return RedirectResponse(url=f"/ticket/{ticket_id}", status_code=303)
     if any_request_evasa:
         return RedirectResponse(url="/richieste-materiale?msg=consegna_effettuata", status_code=303)
     return RedirectResponse(url="/magazzini", status_code=303)

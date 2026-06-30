@@ -226,7 +226,7 @@
         {% endif %}
         
         {% if ns.query != "" and ticket.stato == 'presa_in_carico' %}
-        <a href="/magazzini/scarico-multiplo?{{ ns.query[1:] }}" class="btn btn-warning btn-sm fw-bold text-dark"><i class="bi bi-box-arrow-up"></i> Esegui Scarico Multiplo</a>
+        <a href="/magazzini/scarico-multiplo?ticket_id={{ ticket.ticket_id }}&{{ ns.query[1:] }}" class="btn btn-warning btn-sm fw-bold text-dark"><i class="bi bi-box-arrow-up"></i> Procedi con consegna</a>
         {% endif %}
       </div>
     </div></div>

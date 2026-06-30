@@ -21,7 +21,13 @@
 {% include 'navbar.html' %}
 <div class="container py-4">
     <div class="d-flex justify-content-between align-items-center mb-4">
-        <h2>Scarico Multiplo Materiale</h2>
+        <h2>
+            {% if ticket_info %}
+                Consegna Materiale per Ticket #{{ ticket_info.codice_ticket }}
+            {% else %}
+                Scarico Multiplo Materiale
+            {% endif %}
+        </h2>
         <div>
             <a href="/magazzini" class="btn btn-outline-secondary btn-sm me-2">Annulla</a>
             <a href="/logout" class="btn btn-outline-secondary btn-sm">Logout</a>
@@ -36,6 +42,10 @@
     <div class="alert alert-danger mb-4 shadow-sm">
         <i class="bi bi-exclamation-triangle-fill me-2"></i> Impossibile completare lo scarico: la quantità richiesta supera la giacenza disponibile in una delle righe.
     </div>
+    {% elif request.query_params.get('error') == 'materiali_non_conformi' %}
+    <div class="alert alert-danger mb-4 shadow-sm">
+        <i class="bi bi-exclamation-triangle-fill me-2"></i> Impossibile completare lo scarico: i materiali selezionati superano o differiscono da quelli ancora da consegnare per questo ticket.
+    </div>
     {% elif request.query_params.get('error') %}
     <div class="alert alert-danger mb-4 shadow-sm">
         <i class="bi bi-exclamation-triangle-fill me-2"></i> Si è verificato un errore durante la registrazione dell'operazione.
@@ -43,6 +53,9 @@
     {% endif %}
     
     <form method="post" action="/magazzini/scarico-multiplo" enctype="multipart/form-data" id="multiScaricoForm">
+        {% if ticket_id %}
+        <input type="hidden" name="ticket_id" value="{{ ticket_id }}">
+        {% endif %}
         <div class="row g-4">
             <!-- Colonna Sinistra: Dati Generali -->
             <div class="col-lg-4">
@@ -100,9 +113,19 @@
             <div class="col-lg-8">
                 <div class="card shadow-sm p-4 bg-white">
                     <h5 class="card-title fw-bold mb-3 text-danger d-flex justify-content-between align-items-center">
-                        <span><i class="bi bi-list-stars"></i> Articoli da Scaricare</span>
+                        <span>
+                            <i class="bi bi-list-stars"></i> 
+                            {% if ticket_info %}
+                                Articoli da Consegnare (Ticket #{{ ticket_info.codice_ticket }})
+                            {% else %}
+                                Articoli da Scaricare
+                            {% endif %}
+                        </span>
                         <button type="button" class="btn btn-sm btn-outline-success" onclick="addNewRow()"><i class="bi bi-plus-circle"></i> Aggiungi Riga</button>
                     </h5>
+                    <div class="text-muted small mb-3">
+                        <i class="bi bi-info-circle-fill text-info me-1"></i> Vengono visualizzati solo i materiali che hanno una giacenza positiva.
+                    </div>
 
                     <div class="table-responsive">
                         <table class="table align-middle" id="itemsTable">
@@ -129,6 +152,32 @@
                         <i class="bi bi-check-circle-fill me-1"></i> Conferma Scarico Multiplo
                     </button>
                 </div>
+
+                {% if ticket_info %}
+                <div class="card shadow-sm p-4 bg-white mt-4 border-top border-warning border-4">
+                    <h5 class="card-title fw-bold mb-3 text-warning"><i class="bi bi-clock-history"></i> Richieste Pendenti (Ticket #{{ ticket_info.codice_ticket }} - {{ ticket_info.nome }} {{ ticket_info.cognome }})</h5>
+                    <div class="table-responsive">
+                        <table class="table align-middle table-sm table-bordered">
+                            <thead class="table-light">
+                                <tr>
+                                    <th>Materiale</th>
+                                    <th class="text-center" style="width: 25%;">Q.tà da Consegnare</th>
+                                    <th class="text-center" style="width: 25%;">Stato</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for rp in richieste_pendenti %}
+                                <tr>
+                                    <td>{{ rp.materiale_nome }}</td>
+                                    <td class="text-center fw-bold text-danger">{{ rp.quantita }}</td>
+                                    <td class="text-center"><span class="badge bg-warning text-dark">{{ rp.stato|replace('_', ' ')|title }}</span></td>
+                                </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+                {% endif %}
             </div>
         </div>
     </form>
@@ -147,6 +196,9 @@
 <script>
     // Giacenze JSON caricate dal backend
     const giacenze = {{ giacenze_json | safe }};
+    
+    // Richieste pendenti associate al ticket (se presente)
+    const richiestePendenti = {{ richieste_pendenti_json | default('[]') | safe }};
     
     // Elenco magazzini a cui l'utente ha accesso
     const magazziniAbilitati = {{ magazzini_json | safe }};
@@ -375,11 +427,12 @@
             const rowId = righe[i].id.split('-')[1];
             const mag = document.getElementById(`mag-${rowId}`).value;
             const mat = document.getElementById(`mat-${rowId}`).value;
-            const pos = document.getElementById(`pos-${rowId}`).value;
+            const posSelect = document.getElementById(`pos-${rowId}`);
+            const pos = posSelect.value;
             const qta = parseInt(document.getElementById(`qta-${rowId}`).value);
             const maxQta = parseInt(document.getElementById(`qta-${rowId}`).max);
 
-            if (!mag || !mat || !pos || !qta) {
+            if (!mag || !mat || posSelect.selectedIndex <= 0 || !qta) {
                 alert(`Errore: Compila tutti i campi richiesti nella riga ${i+1}.`);
                 e.preventDefault();
                 return;
@@ -405,6 +458,43 @@
             }
             visti.add(chiave);
         }
+
+        // Se siamo all'interno di un ticket, controlla conformità materiali
+        if (richiestePendenti && richiestePendenti.length > 0) {
+            const formQtyByMat = {};
+            for (let i = 0; i < righe.length; i++) {
+                const rowId = righe[i].id.split('-')[1];
+                const matSelect = document.getElementById(`mat-${rowId}`);
+                const matId = matSelect.value;
+                const qta = parseInt(document.getElementById(`qta-${rowId}`).value) || 0;
+                if (matId) {
+                    formQtyByMat[matId] = (formQtyByMat[matId] || 0) + qta;
+                }
+            }
+            
+            const pendingQtyByMat = {};
+            richiestePendenti.forEach(rp => {
+                pendingQtyByMat[rp.materiale_id] = (pendingQtyByMat[rp.materiale_id] || 0) + rp.quantita;
+            });
+            
+            for (const [matId, qta] of Object.entries(formQtyByMat)) {
+                const pendingQty = pendingQtyByMat[matId] || 0;
+                if (pendingQty === 0) {
+                    const matSelect = document.querySelector(`select[id^="mat-"] option[value="${matId}"]`);
+                    const matNome = matSelect ? matSelect.text : `ID ${matId}`;
+                    alert(`Errore: Il materiale "${matNome}" non è associato a richieste da consegnare per questo ticket.`);
+                    e.preventDefault();
+                    return;
+                }
+                if (qta > pendingQty) {
+                    const matSelect = document.querySelector(`select[id^="mat-"] option[value="${matId}"]`);
+                    const matNome = matSelect ? matSelect.text : `ID ${matId}`;
+                    alert(`Errore: La quantità da scaricare per "${matNome}" (${qta}) supera la quantità ancora da consegnare per questo ticket (${pendingQty}).`);
+                    e.preventDefault();
+                    return;
+                }
+            }
+        }
     });
 
     // Avvia con una riga già pronta all'avvio o popola quelle richieste
@@ -418,7 +508,9 @@
         const reqIds = urlParams.getAll('richiesta_id');
         const prefilledSedeId = urlParams.get('sede_assegnazione_id');
 
-        if (magIds.length > 0) {
+        const isFromTicket = urlParams.has('ticket_id');
+
+        if (magIds.length > 0 && !isFromTicket) {
             // Se ci sono pre-popolamenti, creiamo le righe necessarie
             for (let i = 0; i < magIds.length; i++) {
                 addNewRow();
