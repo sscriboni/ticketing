@@ -9,6 +9,8 @@
         .badge-carico { background-color: #d1e7dd; color: #0f5132; }
         .badge-scarico { background-color: #f8d7da; color: #842029; }
         .badge-disponibilita { background-color: #cff4fc; color: #087990; font-weight: bold; }
+        .badge-trsf-out { background-color: #fff3cd; color: #664d03; }
+        .badge-trsf-in { background-color: #e8dbfc; color: #563d7c; }
     </style>
 </head>
 <body class="bg-light">
@@ -82,9 +84,11 @@
                         <th>Magazzino</th>
                         <th>Categoria</th>
                         <th>Articolo</th>
-                        <th class="text-center" style="width: 15%;">Carichi nel Mese</th>
-                        <th class="text-center" style="width: 15%;">Consegne nel Mese</th>
-                        <th class="text-center" style="width: 15%;">Disponibilità Attuale</th>
+                        <th class="text-center" style="width: 12%;">Carichi nel Mese</th>
+                        <th class="text-center" style="width: 12%;">Trasferimenti in Entrata</th>
+                        <th class="text-center" style="width: 12%;">Consegne a Utenti</th>
+                        <th class="text-center" style="width: 12%;">Trasferimenti in Uscita</th>
+                        <th class="text-center" style="width: 12%;">Disponibilità Attuale</th>
                     </tr>
                 </thead>
                 <tbody>
@@ -101,8 +105,22 @@
                             {% endif %}
                         </td>
                         <td class="text-center">
+                            {% if r.trasferimenti_in_mese > 0 %}
+                            <span class="badge badge-trsf-in px-3 py-2 fs-6">+{{ r.trasferimenti_in_mese }}</span>
+                            {% else %}
+                            <span class="text-muted">—</span>
+                            {% endif %}
+                        </td>
+                        <td class="text-center">
                             {% if r.consegne_mese > 0 %}
                             <span class="badge badge-scarico px-3 py-2 fs-6">-{{ r.consegne_mese }}</span>
+                            {% else %}
+                            <span class="text-muted">—</span>
+                            {% endif %}
+                        </td>
+                        <td class="text-center">
+                            {% if r.trasferimenti_out_mese > 0 %}
+                            <span class="badge badge-trsf-out px-3 py-2 fs-6">-{{ r.trasferimenti_out_mese }}</span>
                             {% else %}
                             <span class="text-muted">—</span>
                             {% endif %}
@@ -125,7 +143,7 @@
 
     <!-- Guida Rapida -->
     <div class="alert alert-info mt-4 small shadow-sm">
-        <i class="bi bi-info-circle-fill me-1"></i> <strong>Guida rapida Report:</strong> Questo report mostra lo stato e i flussi di magazzino per il mese selezionato. Evidenzia la quantità caricata in magazzino (Carichi nel Mese), la quantità consegnata/scaricata (Consegne nel Mese) e la giacenza attualmente a scaffale (Disponibilità Attuale).
+        <i class="bi bi-info-circle-fill me-1"></i> <strong>Guida rapida Report:</strong> Questo report mostra lo stato e i flussi di magazzino per il mese selezionato. Evidenzia la quantità caricata in magazzino (Carichi nel Mese), i Trasferimenti in Entrata completati, le consegne dirette agli utenti finali (Consegne a Utenti), i Trasferimenti in Uscita avviati e la giacenza attualmente a scaffale (Disponibilità Attuale).
     </div>
 </div>
 </body>

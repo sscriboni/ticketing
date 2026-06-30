@@ -1783,13 +1783,30 @@ def magazzini_report(r: Request, mese: int = None, anno: int = None, magazzino_i
                              AND mm.materiale_id = mat.materiale_id
                              AND mm.operazione = 'scarico'
                              AND mm.data_movimento LIKE :prefix
-                       ), 0) AS consegne_mese
+                             AND (mm.descrizione IS NULL OR mm.descrizione NOT LIKE '[Spedizione verso %')
+                       ), 0) AS consegne_mese,
+                       COALESCE((
+                           SELECT SUM(t.quantita)
+                           FROM trasferimenti t
+                           WHERE t.magazzino_partenza_id = m.magazzino_id
+                             AND t.materiale_id = mat.materiale_id
+                             AND t.creato_il LIKE :prefix
+                             AND t.stato != 'annullato'
+                       ), 0) AS trasferimenti_out_mese,
+                       COALESCE((
+                           SELECT SUM(t.quantita)
+                           FROM trasferimenti t
+                           WHERE t.magazzino_dest_id = m.magazzino_id
+                             AND t.materiale_id = mat.materiale_id
+                             AND t.data_arrivo LIKE :prefix
+                             AND t.stato = 'completato'
+                       ), 0) AS trasferimenti_in_mese
                 FROM magazzini m
                 JOIN materiali mat ON (m.categoria_id IS NULL OR m.categoria_id = mat.categoria_id)
                 LEFT JOIN giacenze g ON m.magazzino_id = g.magazzino_id AND mat.materiale_id = g.materiale_id
                 LEFT JOIN categorie c ON mat.categoria_id = c.categoria_id
             ) sub
-            WHERE (sub.disponibilita > 0 OR sub.carichi_mese > 0 OR sub.consegne_mese > 0) {filter_sql}
+            WHERE (sub.disponibilita > 0 OR sub.carichi_mese > 0 OR sub.consegne_mese > 0 OR sub.trasferimenti_out_mese > 0 OR sub.trasferimenti_in_mese > 0) {filter_sql}
             ORDER BY sub.magazzino_nome, sub.categoria_nome, sub.materiale_nome
         """
         
@@ -1809,7 +1826,9 @@ def magazzini_report(r: Request, mese: int = None, anno: int = None, magazzino_i
                 "categoria_nome": row["categoria_nome"],
                 "disponibilita": int(row["disponibilita"]),
                 "carichi_mese": int(row["carichi_mese"]),
-                "consegne_mese": int(row["consegne_mese"])
+                "consegne_mese": int(row["consegne_mese"]),
+                "trasferimenti_out_mese": int(row["trasferimenti_out_mese"]),
+                "trasferimenti_in_mese": int(row["trasferimenti_in_mese"])
             })
             
     return templates.TemplateResponse(r, "magazzino_report.html", {
