@@ -99,6 +99,12 @@
                         <small class="d-block text-muted" id="generaPdfHelp">Verrà generato il Buono di Movimento firmato da stampare.</small>
                     </div>
 
+                    <div class="mb-3" id="emailConsegnaDiv">
+                        <label class="form-label fw-bold">Email Consegna <span class="text-danger">*</span></label>
+                        <input type="email" name="email_consegna" id="emailConsegnaInput" class="form-control border-danger" placeholder="es. destinatario@esempio.com" required value="{% if ticket_info and ticket_info.email %}{{ ticket_info.email }}{% endif %}">
+                        <small class="text-muted">L'indirizzo email a cui inviare la ricevuta dello scarico.</small>
+                    </div>
+
                     <div class="mb-3">
                         <label class="form-label fw-bold">Note / Causale <span class="text-danger">*</span></label>
                         <input type="text" name="descrizione" class="form-control border-danger" placeholder="Es. Assegnazione postazioni di lavoro, storno..." required>
@@ -226,6 +232,9 @@
     
     // Elenco magazzini a cui l'utente ha accesso
     const magazziniAbilitati = {{ magazzini_json | safe }};
+    
+    // Email associata al ticket
+    const ticketEmail = "{{ ticket_info.email if (ticket_info and ticket_info.email) else '' }}";
 
     let rowCount = 0;
 
@@ -410,14 +419,28 @@
         const sedeSelect = document.getElementById('sedeSelect');
         const generaPdfLabel = document.getElementById('generaPdfLabel');
         const generaPdfHelp = document.getElementById('generaPdfHelp');
+        const emailDiv = document.getElementById('emailConsegnaDiv');
+        const emailInput = document.getElementById('emailConsegnaInput');
         
         if (magDestSelect && magDestSelect.value !== "") {
             if (sedeSelect) sedeSelect.value = "";
             if (generaPdfLabel) generaPdfLabel.textContent = "Stampa DDT (Documento di Trasporto)";
             if (generaPdfHelp) generaPdfHelp.textContent = "Verrà aperto il Documento di Trasporto (DDT) da stampare.";
+            if (emailDiv) emailDiv.classList.add('d-none');
+            if (emailInput) {
+                emailInput.required = false;
+                emailInput.value = "";
+            }
         } else {
             if (generaPdfLabel) generaPdfLabel.textContent = "Genera PDF (Buono di Movimento)";
             if (generaPdfHelp) generaPdfHelp.textContent = "Verrà generato il Buono di Movimento firmato da stampare.";
+            if (emailDiv) emailDiv.classList.remove('d-none');
+            if (emailInput) {
+                emailInput.required = true;
+                if (typeof ticketEmail !== 'undefined' && ticketEmail) {
+                    emailInput.value = ticketEmail;
+                }
+            }
         }
     }
 

@@ -977,13 +977,15 @@ def log_magazzini(r: Request, magazzino_id: str = None, categoria_id: str = None
         where_sql = ("WHERE " + " AND ".join(where_clauses)) if where_clauses else ""
         
         stmt = text(f"""
-            SELECT mm.*, mat.nome as materiale_nome, c.nome as categoria_nome, u.nome as user_nome, u.cognome as user_cognome, s.nome as sede_nome, mag.nome as magazzino_nome
+            SELECT mm.*, mat.nome as materiale_nome, c.nome as categoria_nome, u.nome as user_nome, u.cognome as user_cognome, s.nome as sede_nome, mag.nome as magazzino_nome,
+                   rep.nome as reparto_dest_nome
             FROM movimenti_magazzino mm
             JOIN materiali mat ON mm.materiale_id = mat.materiale_id
             LEFT JOIN categorie c ON mat.categoria_id = c.categoria_id
             JOIN users u ON mm.user_id = u.user_id
             LEFT JOIN sedi s ON mm.sede_assegnazione_id = s.sede_id
             JOIN magazzini mag ON mm.magazzino_id = mag.magazzino_id
+            LEFT JOIN reparti rep ON mm.reparto_id = rep.reparto_id
             {where_sql}
             ORDER BY mm.creato_il DESC
         """)
@@ -1414,12 +1416,13 @@ def get_scarico_multiplo(r: Request, error: str = None, ticket_id: int = None):
     if ticket_id:
         with engine.connect() as c:
             ticket_info = c.execute(text("""
-                SELECT ticket_id, codice_ticket, nome, cognome 
+                SELECT ticket_id, codice_ticket, nome, cognome, email 
                 FROM tickets 
                 WHERE ticket_id = :tid
             """), {"tid": ticket_id}).mappings().first()
             
             if ticket_info:
+                print(f"DEBUG_TICKET_INFO: {dict(ticket_info)}")
                 rows = c.execute(text("""
                     SELECT rm.richiesta_id, rm.materiale_id, m.nome AS materiale_nome, rm.quantita, rm.stato
                     FROM richieste_materiale rm
@@ -1451,8 +1454,10 @@ def get_scarico_multiplo(r: Request, error: str = None, ticket_id: int = None):
 @router.post("/magazzini/scarico-multiplo")
 async def post_scarico_multiplo(
     r: Request,
+    background_tasks: BackgroundTasks,
     data_movimento: str = Form(...),
     descrizione: str = Form(...),
+    email_consegna: str = Form(None),
     sede_assegnazione_id: str = Form(None),
     genera_pdf: str = Form(None),
     allegato: UploadFile = File(None),
@@ -1520,6 +1525,19 @@ async def post_scarico_multiplo(
     
     mag_dest_id_val = int(magazzino_destinazione_id) if magazzino_destinazione_id and str(magazzino_destinazione_id).isdigit() else None
 
+    t_reparto_id = None
+    t_nominativo = None
+    if ticket_id:
+        with engine.connect() as conn:
+            t_data = conn.execute(text("SELECT nome, cognome, reparto_appartenenza_id, reparto_id FROM tickets WHERE ticket_id = :tid"), {"tid": ticket_id}).mappings().first()
+            if t_data:
+                t_reparto_id = t_data["reparto_appartenenza_id"] or t_data["reparto_id"]
+                t_nominativo = f"{t_data['nome']} {t_data['cognome']}".strip()
+
+    items_delivered_info = []
+    sede_nome = None
+    ticket_codice = None
+
     with engine.begin() as c:
         dest_mag_name = None
         if mag_dest_id_val:
@@ -1563,6 +1581,24 @@ async def post_scarico_multiplo(
                 desc_mov = f"[Spedizione verso {dest_mag_name}] {descrizione}" if dest_mag_name else descrizione
             else:
                 sede_id_val = int(sede_assegnazione_id) if sede_assegnazione_id and str(sede_assegnazione_id).isdigit() else None
+                if not sede_id_val:
+                    # Fallback 1: se c'è un ticket_id, prova a recuperare la sede della richiesta per questo materiale
+                    if ticket_id:
+                        req_sede_id = c.execute(text("""
+                            SELECT sede_dest_id FROM richieste_materiale
+                            WHERE ticket_id = :tid AND materiale_id = :mat AND stato IN ('nuova', 'pronta_per_scarico')
+                            LIMIT 1
+                        """), {"tid": ticket_id, "mat": mat_id}).scalar()
+                        if req_sede_id and req_sede_id != 0:
+                            sede_id_val = req_sede_id
+                    # Fallback 2: se c'è una lista richiesta_id, usa la richiesta a questa riga
+                    elif richiesta_id and i < len(richiesta_id):
+                        req_id_str = richiesta_id[i]
+                        if req_id_str and req_id_str.strip().isdigit():
+                            rid = int(req_id_str.strip())
+                            req_sede_id = c.execute(text("SELECT sede_dest_id FROM richieste_materiale WHERE richiesta_id = :id"), {"id": rid}).scalar()
+                            if req_sede_id and req_sede_id != 0:
+                                sede_id_val = req_sede_id
                 desc_mov = descrizione
             
             pos_info = c.execute(text("""
@@ -1575,13 +1611,28 @@ async def post_scarico_multiplo(
             m_modello = pos_info["modello"] if pos_info else ""
             
             c.execute(text("""
-                INSERT INTO movimenti_magazzino (magazzino_id, materiale_id, user_id, operazione, quantita, data_movimento, descrizione, sede_assegnazione_id, posizione_fisica, marca, modello, allegato, gruppo_scarico)
-                VALUES (:mag, :mat, :uid, 'scarico', :q, :dt, :desc, :sede, :pos, :marca, :modello, :all, :grp)
+                INSERT INTO movimenti_magazzino (magazzino_id, materiale_id, user_id, operazione, quantita, data_movimento, descrizione, sede_assegnazione_id, posizione_fisica, marca, modello, allegato, gruppo_scarico, reparto_id, nominativo_consegna, email_consegna)
+                VALUES (:mag, :mat, :uid, 'scarico', :q, :dt, :desc, :sede, :pos, :marca, :modello, :all, :grp, :reparto, :nominativo, :email)
             """), {
                 "mag": m_id, "mat": mat_id, "uid": user["id"], "q": qta, "dt": data_movimento,
                 "desc": desc_mov, "sede": sede_id_val, "pos": pos, 
                 "marca": m_marca, "modello": m_modello,
-                "all": allegato_filename, "grp": gruppo_scarico_id
+                "all": allegato_filename, "grp": gruppo_scarico_id,
+                "reparto": t_reparto_id if not mag_dest_id_val else None,
+                "nominativo": t_nominativo if not mag_dest_id_val else None,
+                "email": email_consegna.strip() if (email_consegna and not mag_dest_id_val) else None
+            })
+
+            # Raccogli dettagli per ricevuta email
+            mag_name = c.execute(text("SELECT nome FROM magazzini WHERE magazzino_id = :id"), {"id": m_id}).scalar()
+            mat_name = c.execute(text("SELECT nome FROM materiali WHERE materiale_id = :id"), {"id": mat_id}).scalar()
+            items_delivered_info.append({
+                "magazzino_nome": mag_name,
+                "materiale_nome": mat_name,
+                "posizione_fisica": pos,
+                "marca": m_marca,
+                "modello": m_modello,
+                "quantita": qta
             })
 
             # Gestione eventuale richiesta_id collegata a questa riga (solo se NON viene da ticket)
@@ -1706,6 +1757,44 @@ async def post_scarico_multiplo(
                 
                 any_request_evasa = True
             
+        # Recupera sede e codice ticket per l'email di ricevuta
+        sede_id_val = int(sede_assegnazione_id) if sede_assegnazione_id and str(sede_assegnazione_id).isdigit() else None
+        if sede_id_val:
+            sede_nome = c.execute(text("SELECT nome FROM sedi WHERE sede_id = :id"), {"id": sede_id_val}).scalar()
+        if ticket_id:
+            ticket_codice = c.execute(text("SELECT codice_ticket FROM tickets WHERE ticket_id = :tid"), {"tid": ticket_id}).scalar()
+            
+    # Invia email di ricevuta scarico multiplo
+    if email_consegna and not mag_dest_id_val:
+        from sqlalchemy import bindparam
+        involved_mags = list(set(magazzino_id))
+        cc_emails = []
+        if involved_mags:
+            with engine.connect() as conn:
+                ops_emails = conn.execute(text("""
+                    SELECT DISTINCT u.email 
+                    FROM users u
+                    JOIN operatori_magazzini om ON u.user_id = om.user_id
+                    WHERE om.magazzino_id IN :mids AND u.email IS NOT NULL AND u.email != '' AND u.attivo = 1
+                """).bindparams(bindparam("mids", expanding=True)), {"mids": involved_mags}).scalars().all()
+                cc_emails = list(set([e.strip() for e in ops_emails if e.strip()]))
+        
+        cc_emails_str = ", ".join(cc_emails) if cc_emails else None
+        operatore_nome = f"{user.get('nome', '')} {user.get('cognome', '')}".strip() or user.get('username')
+        
+        subject = f"[{CFG.get('company_name', 'Helpdesk')}] Ricevuta Consegna Materiali - Scarico Multiplo"
+        body = templates.get_template("email_riepilogo_scarico_multiplo.html").render({
+            "cfg": CFG,
+            "email_consegna": email_consegna.strip(),
+            "data_movimento": data_movimento,
+            "sede_nome": sede_nome,
+            "operatore_nome": operatore_nome,
+            "ticket_codice": ticket_codice,
+            "descrizione": descrizione,
+            "items": items_delivered_info
+        })
+        background_tasks.add_task(send_email_async, email_consegna.strip(), subject, body, "Ricevuta consegna materiali", cc_email=cc_emails_str)
+
     if mag_dest_id_val and first_trsf_id:
         print_param = "&print=1" if genera_pdf == "1" else ""
         return RedirectResponse(url=f"/magazzini?msg=trasferimento_avviato&trsf_id={first_trsf_id}{print_param}", status_code=303)

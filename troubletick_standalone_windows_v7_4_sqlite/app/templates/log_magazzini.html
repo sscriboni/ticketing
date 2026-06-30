@@ -81,6 +81,7 @@
         <th>Q.tà</th>
         <th>Operatore</th>
         <th>Sede Dest. / Posizione</th>
+        <th>Destinatario / Consegna</th>
         <th>Dettagli / Foto</th>
       </tr>
     </thead>
@@ -108,6 +109,24 @@
           {% if m.posizione_fisica %}<div><small><i class="bi bi-geo-alt"></i> {{ m.posizione_fisica }}</small></div>{% endif %}
         </td>
         <td>
+          {% if m.operazione == 'scarico' %}
+            {% if m.nominativo_consegna %}
+              <div><i class="bi bi-person-fill text-secondary"></i> {{ m.nominativo_consegna }}</div>
+            {% endif %}
+            {% if m.email_consegna %}
+              <div><small class="text-muted"><i class="bi bi-envelope-fill"></i> {{ m.email_consegna }}</small></div>
+            {% endif %}
+            {% if m.reparto_dest_nome %}
+              <div><small class="text-muted"><i class="bi bi-people-fill"></i> Rep: {{ m.reparto_dest_nome }}</small></div>
+            {% endif %}
+            {% if not m.nominativo_consegna and not m.email_consegna and not m.reparto_dest_nome %}
+              <span class="text-muted">—</span>
+            {% endif %}
+          {% else %}
+            <span class="text-muted">—</span>
+          {% endif %}
+        </td>
+        <td>
           {% if m.descrizione %}<div class="small mb-1">{{ m.descrizione }}</div>{% endif %}
           {% if m.marca or m.modello %}<div class="small text-muted">{{ m.marca }} {{ m.modello }}</div>{% endif %}
           {% if m.allegato %}
@@ -116,7 +135,7 @@
         </td>
       </tr>
       {% else %}
-      <tr><td colspan="8" class="text-center py-4 text-muted">Nessun movimento trovato con questi filtri.</td></tr>
+      <tr><td colspan="9" class="text-center py-4 text-muted">Nessun movimento trovato con questi filtri.</td></tr>
       {% endfor %}
     </tbody>
   </table>

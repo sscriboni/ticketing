@@ -149,33 +149,6 @@
             </form>
         </div>
     </div>
-
-    <div class="row mt-4 mb-5">
-        <div class="col-12 col-md-8 col-lg-6 mx-auto bg-white p-4 rounded shadow-sm border border-primary border-2">
-            <div class="d-flex justify-content-between align-items-start mb-3">
-                <h4 class="mb-0 text-primary">Import / Export Massivo</h4>
-                <div>
-                    <a href="/admin/export/full.json" class="btn btn-outline-success btn-sm me-1" title="Esporta la configurazione attuale">📥 Esporta Attuale</a>
-                    <a href="/admin/import/esempio.json" class="btn btn-outline-primary btn-sm" title="Scarica JSON di esempio">📄 JSON d'Esempio</a>
-                </div>
-            </div>
-            <p class="small text-muted mb-3">
-                Carica un file <strong>JSON</strong> (secondo il tracciato predefinito) per popolare in una sola operazione tutte le tabelle anagrafiche: Sedi, Reparti, Servizi, Categorie, Materiali, Magazzini e Operatori.
-            </p>
-            <form action="/admin/import/full" method="post" enctype="multipart/form-data" onsubmit="if(document.getElementById('checkSvuota').checked) { return confirm('ATTENZIONE: Stai per eliminare tutte le anagrafiche attuali. Sei sicuro di voler procedere?'); }">
-                <div class="input-group">
-                    <input type="file" name="file" class="form-control" accept=".json" required>
-                    <button class="btn btn-primary" type="submit">Importa Dati</button>
-                </div>
-                <div class="form-check mt-3">
-                    <input type="checkbox" name="svuota_db" value="1" class="form-check-input" id="checkSvuota">
-                    <label class="form-check-label small text-danger" for="checkSvuota">
-                        <strong>Svuota prima di importare</strong> (Elimina tutte le sedi, reparti, servizi, materiali, magazzini, giacenze e operatori attualmente a sistema)
-                    </label>
-                </div>
-            </form>
-        </div>
-    </div>
 </div>
 <script>
 document.getElementById('btn_test_smtp').addEventListener('click', function() {

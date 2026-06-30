@@ -208,11 +208,14 @@
       <p class="text-muted small">Nessuna richiesta di materiale collegata a questo ticket.</p>
       {% endif %}
       
-      {% set ns = namespace(query="") %}
+      {% set ns = namespace(query="", sede_id="") %}
       {% if richieste_mat %}
         {% for rm in richieste_mat %}
           {% if rm.stato in ['nuova', 'pronta_per_scarico'] %}
             {% set ns.query = ns.query ~ "&magazzino_id=" ~ (rm.magazzino_id or '') ~ "&materiale_id=" ~ rm.materiale_id ~ "&quantita=" ~ rm.quantita ~ "&richiesta_id=" ~ rm.richiesta_id %}
+            {% if ns.sede_id == "" and rm.sede_dest_id and rm.sede_dest_id != 0 %}
+              {% set ns.sede_id = rm.sede_dest_id %}
+            {% endif %}
           {% endif %}
         {% endfor %}
       {% endif %}
@@ -226,7 +229,7 @@
         {% endif %}
         
         {% if ns.query != "" and ticket.stato == 'presa_in_carico' %}
-        <a href="/magazzini/scarico-multiplo?ticket_id={{ ticket.ticket_id }}&{{ ns.query[1:] }}" class="btn btn-warning btn-sm fw-bold text-dark"><i class="bi bi-box-arrow-up"></i> Procedi con consegna</a>
+        <a href="/magazzini/scarico-multiplo?ticket_id={{ ticket.ticket_id }}&{{ ns.query[1:] }}{% if ns.sede_id != '' %}&sede_assegnazione_id={{ ns.sede_id }}{% endif %}" class="btn btn-warning btn-sm fw-bold text-dark"><i class="bi bi-box-arrow-up"></i> Procedi con consegna</a>
         {% endif %}
       </div>
     </div></div>

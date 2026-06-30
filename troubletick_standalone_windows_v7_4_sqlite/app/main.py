@@ -1991,6 +1991,13 @@ def delete_sede(r: Request, sede_id: int = Form(...)):
 
 # ===== IMPORTAZIONE CSV =====
 
+@app.get("/admin/import-export", response_class=HTMLResponse)
+def admin_import_export_page(r: Request):
+    user = require_superuser(r)
+    if isinstance(user, RedirectResponse):
+        return user
+    return templates.TemplateResponse(r, "admin_import_export.html", {"request": r, "cfg": CFG, "user": user})
+
 @app.post("/admin/import/full")
 async def import_full(r: Request, file: UploadFile = File(...), svuota_db: str = Form(None)):
     user = require_superuser(r)
@@ -2074,9 +2081,9 @@ async def import_full(r: Request, file: UploadFile = File(...), svuota_db: str =
                                 except: pass
     
     except Exception as e:
-        return RedirectResponse(url="/admin/impostazioni?msg=import_err", status_code=303)
+        return RedirectResponse(url="/admin/import-export?msg=import_err", status_code=303)
         
-    return RedirectResponse(url="/admin/impostazioni?msg=import_ok", status_code=303)
+    return RedirectResponse(url="/admin/import-export?msg=import_ok", status_code=303)
 
 @app.get("/admin/export/full.json")
 def export_full(r: Request):
