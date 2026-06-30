@@ -2531,6 +2531,8 @@ def documentazione(r: Request, page: str = None):
     doc_filename = "DOCUMENTAZIONE.md"
     if page == "magazzino":
         doc_filename = "DOCUMENTAZIONE_MAGAZZINO.md"
+    elif page == "presenze":
+        doc_filename = "DOCUMENTAZIONE_PRESENZE.md"
     elif page == "privacy":
         doc_filename = "PRIVACY.md"
         
