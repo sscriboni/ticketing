@@ -78,6 +78,7 @@
                         <small class="text-muted d-block mt-1">Assegna il materiale a una sede aziendale.</small>
                     </div>
 
+                    {% if not ticket_info %}
                     <div class="mb-3">
                         <label class="form-label fw-bold text-primary">OPPURE Trasferisci a Magazzino</label>
                         <select name="magazzino_destinazione_id" id="magazzinoDestSelect" class="form-select border-primary" onchange="toggleDestinationFields()">
@@ -88,6 +89,9 @@
                         </select>
                         <small class="text-primary d-block mt-1">Invia la merce in un altro magazzino (richiederà conferma di ricezione).</small>
                     </div>
+                    {% else %}
+                    <input type="hidden" name="magazzino_destinazione_id" id="magazzinoDestSelect" value="">
+                    {% endif %}
 
                     <div class="form-check form-switch mb-3 bg-light border rounded p-3">
                         <input class="form-check-input ms-0 me-2" type="checkbox" name="genera_pdf" value="1" id="generaPdfSwitch" checked>
@@ -182,12 +186,32 @@
         </div>
     </form>
     
-    <!-- Guida all'utilizzo dello scarico errato -->
+    <!-- Guida all'utilizzo dello scarico errato e conformità ticket -->
     <div class="row mt-4">
         <div class="col-12 col-lg-8 offset-lg-4">
-            <div class="alert alert-info small shadow-sm p-3">
-                <h6 class="alert-heading fw-bold mb-3"><i class="bi-exclamation-triangle-fill text-warning me-1"></i> Gestione Rettifiche ed Errori</h6>
-                <p class="text-muted mb-0">Ricorda che tutti i movimenti registrati sono immutabili per fini di tracciabilità. Se commetti un errore di inserimento nello scarico multiplo, dovrai effettuare dei <strong>Carichi di rettifica</strong> per i singoli articoli errati, specificando nelle note che si tratta di uno storno di rettifica.</p>
+            <div class="card shadow-sm border-0 bg-white mb-4">
+                <div class="card-body p-4 small text-muted">
+                    <h6 class="fw-bold text-dark mb-3"><i class="bi bi-info-circle-fill text-info me-1"></i> Guida Operativa allo Scarico Multiplo</h6>
+                    
+                    {% if ticket_info %}
+                    <div class="mb-3">
+                        <strong class="text-danger"><i class="bi bi-shield-fill-check"></i> Regole di Conformità per il Ticket #{{ ticket_info.codice_ticket }}:</strong>
+                        <ul class="mb-0 ps-3 mt-1">
+                            <li><strong>Limitazioni Quantità:</strong> Le quantità inserite in tabella per ciascun materiale non possono superare le quantità residue richieste e ancora da consegnare sul ticket.</li>
+                            <li><strong>Filtro Articoli:</strong> È consentito scaricare unicamente i materiali che sono stati esplicitamente inseriti nelle richieste del ticket.</li>
+                            <li><strong>Fulfillment e Splitting:</strong> In caso di consegna parziale di una riga (es. richiesti 3, scaricati 2), il sistema approva lo scarico parziale, evade la quantità prelevata e genera in automatico una nuova richiesta per la quantità rimanente (1) in stato <em>Nuova</em>.</li>
+                            <li><strong>Notifica Email:</strong> Alla conferma dello scarico, verranno inviate email di notifica all'utente del ticket e in Cc a tutti gli operatori del servizio associato per certificare la consegna.</li>
+                        </ul>
+                    </div>
+                    {% endif %}
+
+                    <div>
+                        <strong class="text-warning"><i class="bi bi-exclamation-triangle-fill"></i> Gestione Rettifiche ed Errori:</strong>
+                        <p class="mb-0 mt-1">
+                            Tutti i movimenti registrati sono immutabili per fini di tracciabilità logistica. Se si commette un errore di inserimento nello scarico multiplo, l'operazione non può essere annullata direttamente. Sarà necessario effettuare dei <strong>Carichi di rettifica</strong> per i singoli articoli inseriti erroneamente, specificando nelle note che si tratta di uno storno/rettifica dell'operazione di scarico.
+                        </p>
+                    </div>
+                </div>
             </div>
         </div>
     </div>
