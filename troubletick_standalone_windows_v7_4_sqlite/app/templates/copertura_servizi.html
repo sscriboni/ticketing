@@ -136,6 +136,17 @@
         </div>
     </div>
 
+    <ul class="nav nav-pills mb-4">
+      <li class="nav-item">
+        <a class="nav-link active" href="/copertura-servizi"><i class="bi bi-calendar3 me-2"></i>Vista Calendario</a>
+      </li>
+      {% if user.ruolo in ('admin', 'responsabile') %}
+      <li class="nav-item">
+        <a class="nav-link text-primary" href="/admin/report-copertura"><i class="bi bi-grid-3x3-gap me-2"></i>Vista Tabellare (Report)</a>
+      </li>
+      {% endif %}
+    </ul>
+
     {% if error %}
     <div class="row">
         <div class="col-12 col-md-6 mx-auto">
