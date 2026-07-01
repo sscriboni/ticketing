@@ -9,6 +9,40 @@
   <h2 class="mb-0">Richieste Materiale</h2>
 </div>
 
+{% if fabbisogno %}
+<div class="card shadow-sm mb-4 border-0">
+  <div class="card-header bg-warning-subtle border-0 py-3">
+    <h5 class="card-title mb-0 text-warning-emphasis fw-bold">
+      <i class="bi bi-exclamation-diamond-fill me-2"></i> Fabbisogno Materiale Mancante per Sede
+    </h5>
+  </div>
+  <div class="card-body bg-white">
+    <div class="row g-3">
+      {% set current_sede = namespace(name=None) %}
+      {% for f in fabbisogno %}
+        {% if f.sede_nome != current_sede.name %}
+          {% if current_sede.name is not none %}
+            </ul></div></div>
+          {% endif %}
+          <div class="col-md-4 col-sm-6">
+            <div class="p-3 bg-light rounded border h-100 shadow-sm">
+              <h6 class="fw-bold mb-2 text-dark"><i class="bi bi-building"></i> {{ f.sede_nome }}</h6>
+              <ul class="list-unstyled mb-0">
+          {% set current_sede.name = f.sede_nome %}
+        {% endif %}
+        <li class="d-flex justify-content-between align-items-center mb-1 text-secondary">
+          <span>{{ f.materiale_nome }}</span>
+          <span class="badge bg-danger rounded-pill">{{ f.totale_quantita }} pz</span>
+        </li>
+      {% endfor %}
+      {% if current_sede.name is not none %}
+        </ul></div></div>
+      {% endif %}
+    </div>
+  </div>
+</div>
+{% endif %}
+
 <div class="bg-white rounded shadow-sm overflow-hidden">
   <div class="table-responsive"><table class="table table-striped table-hover mb-0 align-middle">
     <thead class="table-light"><tr>

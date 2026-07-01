@@ -1052,8 +1052,31 @@ def richieste_materiale_list(r: Request):
             stmt = stmt.bindparams(bindparam("mids", expanding=True))
             
         richieste = c.execute(stmt, params).mappings().all()
+
+        # Fabbisogno materiale mancante per sede
+        fabbisogno_where = f"rm.stato = 'nuova' AND {where_clause}"
+        fabbisogno_stmt = text(f"""
+            SELECT COALESCE(s.nome, 'Sede non specificata') AS sede_nome,
+                   m.nome AS materiale_nome,
+                   SUM(rm.quantita) AS totale_quantita
+            FROM richieste_materiale rm
+            JOIN materiali m ON rm.materiale_id = m.materiale_id
+            LEFT JOIN sedi s ON rm.sede_dest_id = s.sede_id
+            WHERE {fabbisogno_where}
+            GROUP BY rm.sede_dest_id, rm.materiale_id, s.nome
+            ORDER BY s.nome, m.nome
+        """)
+        if use_expanding:
+            from sqlalchemy import bindparam
+            fabbisogno_stmt = fabbisogno_stmt.bindparams(bindparam("mids", expanding=True))
+            
+        fabbisogno = c.execute(fabbisogno_stmt, params).mappings().all()
         
-    return templates.TemplateResponse(r, "richieste_materiale.html", {"request": r, "cfg": CFG, "user": user, "richieste": richieste, "user_mag_ids": user_mag_ids})
+    return templates.TemplateResponse(r, "richieste_materiale.html", {
+        "request": r, "cfg": CFG, "user": user, 
+        "richieste": richieste, "user_mag_ids": user_mag_ids,
+        "fabbisogno": fabbisogno
+    })
 
 @router.get("/richiesta-materiale/nuova", response_class=HTMLResponse)
 def nuova_richiesta_materiale_form(r: Request, ticket_id: str = None):
