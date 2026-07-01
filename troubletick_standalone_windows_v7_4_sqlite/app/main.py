@@ -1982,7 +1982,7 @@ def admin_sedi(r: Request, error: str = None):
             SELECT s.sede_id, s.nome, s.indirizzo, c.nome as comune_nome 
             FROM sedi s 
             LEFT JOIN comuni c ON s.comune_id = c.comune_id 
-            ORDER BY s.nome
+            ORDER BY c.nome, s.nome
         """)).mappings().all()
         comuni = c.execute(text("SELECT comune_id, nome FROM comuni ORDER BY nome")).mappings().all()
     return templates.TemplateResponse(r, "admin_sedi.html", {"request": r, "cfg": CFG, "user": user, "sedi": sedi, "comuni": comuni, "error": error})
