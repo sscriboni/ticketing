@@ -62,7 +62,7 @@
       <td>{{ r.req_nome }} {{ r.req_cognome }}</td>
       <td><strong>{{ r.materiale_nome }}</strong><br><small class="text-muted">{{ r.categoria_nome }}</small></td>
       <td><span class="badge bg-secondary">{{ r.quantita }}</span></td>
-      <td>{{ r.sede_nome or '—' }}</td>
+      <td>{{ r.sede_nome or r.ticket_sede or '—' }}</td>
       <td>{{ r.magazzino_nome or 'Nessuno' }}</td>
       <td>
         {% if r.stato == 'nuova' %}<span class="badge bg-info text-dark">In Attesa</span>

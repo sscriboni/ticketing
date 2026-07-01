@@ -1064,13 +1064,14 @@ def richieste_materiale_list(r: Request):
                 
         stmt = text(f"""
             SELECT rm.*, m.nome as materiale_nome, c.nome as categoria_nome, s.nome as sede_nome, mag.nome as magazzino_nome,
-                   u.nome as req_nome, u.cognome as req_cognome
+                   u.nome as req_nome, u.cognome as req_cognome, t.sede as ticket_sede
             FROM richieste_materiale rm
             JOIN materiali m ON rm.materiale_id = m.materiale_id
             JOIN categorie c ON rm.categoria_id = c.categoria_id
             LEFT JOIN sedi s ON rm.sede_dest_id = s.sede_id
             JOIN users u ON rm.user_id = u.user_id
             LEFT JOIN magazzini mag ON rm.magazzino_id = mag.magazzino_id
+            LEFT JOIN tickets t ON rm.ticket_id = t.ticket_id
             WHERE {where_clause}
             ORDER BY rm.creato_il DESC
         """)
@@ -1187,8 +1188,23 @@ def nuova_richiesta_materiale_action(r: Request, categoria_id: int = Form(...), 
     user = r.session.get("user")
     
     sede_dest_id_val = int(sede_dest_id) if (sede_dest_id and str(sede_dest_id).isdigit()) else 0
-    
     ticket_id_val = int(ticket_id) if ticket_id and str(ticket_id).isdigit() else None
+    
+    if ticket_id_val and not sede_dest_id_val:
+        with engine.connect() as conn:
+            t_sede_text = conn.execute(text("SELECT sede FROM tickets WHERE ticket_id = :tid"), {"tid": ticket_id_val}).scalar()
+            if t_sede_text:
+                resolved_id = conn.execute(text("""
+                    SELECT s.sede_id 
+                    FROM sedi s
+                    LEFT JOIN comuni c ON s.comune_id = c.comune_id
+                    WHERE s.nome = :s_text 
+                       OR (c.nome || ' - ' || s.nome) = :s_text
+                    LIMIT 1
+                """), {"s_text": t_sede_text.strip()}).scalar()
+                if resolved_id:
+                    sede_dest_id_val = resolved_id
+                    
     if not ticket_id_val:
         return RedirectResponse(url="/richieste-materiale", status_code=303)
         
