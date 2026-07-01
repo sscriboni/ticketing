@@ -116,9 +116,15 @@
 <thead><tr><th>ID / Codice</th><th>Richiedente</th><th>Riferimento</th><th>Reparto / Servizio</th><th>Descrizione</th><th>Priorità</th><th>Stato</th><th>Ultimo Operatore</th><th>Creato il</th><th>Dettagli</th></tr></thead>
 <tbody>
 {% for t in tickets %}
-<tr>
+<tr {% if t.is_unhandled_over_24h %}class="table-danger"
+    {% elif t.is_unhandled %}class="table-warning"{% endif %}>
   <td>
     <strong>#{{ t.ticket_id }}</strong>
+    {% if t.is_unhandled_over_24h %}
+      <br><span class="badge bg-danger text-white" style="font-size: 0.75em;" title="In attesa da oltre 24 ore"><i class="bi bi-exclamation-triangle-fill"></i> Da &gt; 24h</span>
+    {% elif t.is_unhandled %}
+      <br><span class="badge bg-warning text-dark" style="font-size: 0.75em;" title="Da prendere in carico"><i class="bi bi-clock-fill"></i> Nuovo</span>
+    {% endif %}
     {% if t.codice_ticket %}
       <br><span class="badge bg-primary" style="font-size: 0.8em;">{{ t.codice_ticket }}</span>
     {% endif %}

@@ -718,11 +718,39 @@ def tickets(r: Request, reparto_id: str = None, servizio_id: str = None, stato: 
         
         p_servizi = dict(base_params); p_servizi["uid2"] = uid
         cnt_servizi = c.execute(text(f"SELECT COUNT(*) FROM tickets t {base_where} {'AND' if base_where else 'WHERE'} t.stato != 'chiusa' AND t.servizio_id IN (SELECT servizio_id FROM operatori_servizi WHERE user_id = :uid2)"), p_servizi).scalar() or 0
-        
+        # Process rows to add is_unhandled and is_unhandled_over_24h flags
+        tickets_list = []
+        now = datetime.now()
+        for row in rows:
+            t_dict = dict(row)
+            is_unhandled = (t_dict.get("stato") == "nuova")
+            is_unhandled_over_24h = False
+            if is_unhandled and t_dict.get("creato_il"):
+                created_dt = None
+                date_str = t_dict["creato_il"]
+                for fmt in ("%Y-%m-%d %H:%M:%S", "%Y-%m-%dT%H:%M:%S", "%Y-%m-%d %H:%M:%S.%f", "%Y-%m-%dT%H:%M:%S.%f"):
+                    try:
+                        created_dt = datetime.strptime(date_str, fmt)
+                        break
+                    except ValueError:
+                        pass
+                if not created_dt:
+                    try:
+                        created_dt = datetime.fromisoformat(date_str.replace("Z", "+00:00"))
+                    except Exception:
+                        pass
+                if created_dt:
+                    hours_diff = (now - created_dt).total_seconds() / 3600.0
+                    if hours_diff > 24:
+                        is_unhandled_over_24h = True
+            t_dict["is_unhandled"] = is_unhandled
+            t_dict["is_unhandled_over_24h"] = is_unhandled_over_24h
+            tickets_list.append(t_dict)
+            
         counters = {"nuovi": cnt_nuovi, "presi": cnt_presi, "miei": cnt_miei, "servizi": cnt_servizi}
     
     return templates.TemplateResponse(r, "tickets.html", {
-        "request": r, "cfg": CFG, "tickets": rows, "user": user,
+        "request": r, "cfg": CFG, "tickets": tickets_list, "user": user,
         "reparti": reparti, "servizi": servizi, "stati": stati, "prioritas": prioritas,
         "filtri": {"reparto_id": reparto_id, "servizio_id": servizio_id, "stato": stato, "priorita": priorita, "q": q, "con_materiale": con_materiale, "my_tickets": my_tickets, "assegnati_a_me": assegnati_a_me},
         "absent_names": absent_names, "counters": counters
