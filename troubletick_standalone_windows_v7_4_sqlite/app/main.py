@@ -750,20 +750,10 @@ def tickets(r: Request, reparto_id: str = None, servizio_id: str = None, stato: 
         # Check global alert for overdue tickets for the logged operator
         from datetime import timedelta
         alert_where_clauses = ["t.stato = 'nuova'"]
-        alert_params = {}
-        if user.get("ruolo") != "admin":
-            if user.get("ruolo") == "normale":
-                alert_where_clauses.append("1 = 0")
-            elif user.get("ruolo") == "responsabile":
-                alert_where_clauses.append("t.reparto_id = (SELECT reparto_id FROM users WHERE user_id = :user_id)")
-                alert_params["user_id"] = user.get("id")
-            elif user.get("ruolo") == "assistenza":
-                alert_where_clauses.append("""
-                    (t.reparto_id = (SELECT reparto_id FROM users WHERE user_id = :user_id) OR t.servizio_id IN (
-                        SELECT servizio_id FROM operatori_servizi WHERE user_id = :user_id
-                    ))
-                """)
-                alert_params["user_id"] = user.get("id")
+        alert_params = {"user_id": user.get("id")}
+        
+        # The operator must be connected to the service of the ticket
+        alert_where_clauses.append("t.servizio_id IN (SELECT servizio_id FROM operatori_servizi WHERE user_id = :user_id)")
         
         cutoff_time = (datetime.now() - timedelta(hours=24)).strftime("%Y-%m-%d %H:%M:%S")
         alert_where_clauses.append("t.creato_il <= :cutoff")
