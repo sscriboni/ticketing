@@ -11,6 +11,29 @@ from email_utils import send_email_async
 
 router = APIRouter()
 
+def recalculate_richieste_stati(c):
+    reqs = c.execute(text("""
+        SELECT richiesta_id, magazzino_id, materiale_id, quantita, stato 
+        FROM richieste_materiale 
+        WHERE stato IN ('nuova', 'pronta_per_scarico')
+    """)).mappings().all()
+    for r in reqs:
+        mag_id = r["magazzino_id"]
+        mat_id = r["materiale_id"]
+        qta = r["quantita"]
+        current_state = r["stato"]
+        if mag_id:
+            giacenza = c.execute(text("""
+                SELECT quantita FROM giacenze 
+                WHERE magazzino_id = :mag AND materiale_id = :mat
+            """), {"mag": mag_id, "mat": mat_id}).scalar() or 0
+            new_state = 'pronta_per_scarico' if giacenza >= qta else 'nuova'
+            if new_state != current_state:
+                c.execute(text("""
+                    UPDATE richieste_materiale SET stato = :new_state 
+                    WHERE richiesta_id = :rid
+                """), {"new_state": new_state, "rid": r["richiesta_id"]})
+
 @router.get("/admin/magazzini", response_class=HTMLResponse)
 def admin_magazzini(r: Request, error: str = None, success: str = None):
     user = require_superuser(r)
@@ -685,6 +708,7 @@ async def magazzino_movimento_action(
                 c.execute(text("""INSERT INTO ticket_notes (ticket_id, autore, testo, is_internal) VALUES (:tid, :a, :t, 0)"""),
                          {"tid": richiesta_ticket["ticket_id"], "a": f"Sistema ({autore})", "t": testo})
             
+        recalculate_richieste_stati(c)
         if operazione == "scarico":
             if mag_dest_id_val and trsf_id_val:
                 print_param = "&print=1" if genera_pdf == "1" else ""
@@ -1020,6 +1044,9 @@ def richieste_materiale_list(r: Request):
     if "user" not in r.session: return RedirectResponse(url="/login")
     user = r.session.get("user")
     
+    with engine.begin() as conn:
+        recalculate_richieste_stati(conn)
+        
     with engine.connect() as c:
         where_clause = "1=1"
         params = {}
@@ -1372,7 +1399,9 @@ def annulla_movimento_action(r: Request, magazzino_id: int, movimento_id: int):
                       {"q": recalculated_qta, "mag": magazzino_id, "mat": mat_id})
         else:
             c.execute(text("INSERT INTO giacenze (magazzino_id, materiale_id, quantita) VALUES (:mag, :mat, :q)"),
-                      {"mag": magazzino_id, "mat": mat_id, "q": recalculated_qta})
+                       {"mag": magazzino_id, "mat": mat_id, "q": recalculated_qta})
+        
+        recalculate_richieste_stati(c)
         
     return RedirectResponse(url=f"/magazzino/{magazzino_id}/log?success=annullato", status_code=303)
 
@@ -1786,6 +1815,8 @@ async def post_scarico_multiplo(
             sede_nome = c.execute(text("SELECT nome FROM sedi WHERE sede_id = :id"), {"id": sede_id_val}).scalar()
         if ticket_id:
             ticket_codice = c.execute(text("SELECT codice_ticket FROM tickets WHERE ticket_id = :tid"), {"tid": ticket_id}).scalar()
+            
+        recalculate_richieste_stati(c)
             
     # Invia email di ricevuta scarico multiplo
     if email_consegna and not mag_dest_id_val:
