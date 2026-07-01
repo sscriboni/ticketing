@@ -747,13 +747,39 @@ def tickets(r: Request, reparto_id: str = None, servizio_id: str = None, stato: 
             t_dict["is_unhandled_over_24h"] = is_unhandled_over_24h
             tickets_list.append(t_dict)
             
+        # Check global alert for overdue tickets for the logged operator
+        from datetime import timedelta
+        alert_where_clauses = ["t.stato = 'nuova'"]
+        alert_params = {}
+        if user.get("ruolo") != "admin":
+            if user.get("ruolo") == "normale":
+                alert_where_clauses.append("1 = 0")
+            elif user.get("ruolo") == "responsabile":
+                alert_where_clauses.append("t.reparto_id = (SELECT reparto_id FROM users WHERE user_id = :user_id)")
+                alert_params["user_id"] = user.get("id")
+            elif user.get("ruolo") == "assistenza":
+                alert_where_clauses.append("""
+                    (t.reparto_id = (SELECT reparto_id FROM users WHERE user_id = :user_id) OR t.servizio_id IN (
+                        SELECT servizio_id FROM operatori_servizi WHERE user_id = :user_id
+                    ))
+                """)
+                alert_params["user_id"] = user.get("id")
+        
+        cutoff_time = (datetime.now() - timedelta(hours=24)).strftime("%Y-%m-%d %H:%M:%S")
+        alert_where_clauses.append("t.creato_il <= :cutoff")
+        alert_params["cutoff"] = cutoff_time
+        
+        alert_where = " AND ".join(alert_where_clauses)
+        alert_count = c.execute(text(f"SELECT COUNT(*) FROM tickets t WHERE {alert_where}"), alert_params).scalar() or 0
+        has_overdue_alert = (alert_count > 0)
+            
         counters = {"nuovi": cnt_nuovi, "presi": cnt_presi, "miei": cnt_miei, "servizi": cnt_servizi}
     
     return templates.TemplateResponse(r, "tickets.html", {
         "request": r, "cfg": CFG, "tickets": tickets_list, "user": user,
         "reparti": reparti, "servizi": servizi, "stati": stati, "prioritas": prioritas,
         "filtri": {"reparto_id": reparto_id, "servizio_id": servizio_id, "stato": stato, "priorita": priorita, "q": q, "con_materiale": con_materiale, "my_tickets": my_tickets, "assegnati_a_me": assegnati_a_me},
-        "absent_names": absent_names, "counters": counters
+        "absent_names": absent_names, "counters": counters, "has_overdue_alert": has_overdue_alert
     })
 
 @app.get("/ticket/{ticket_id}", response_class=HTMLResponse)

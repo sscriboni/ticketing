@@ -12,6 +12,15 @@
   </div>
 </div>
 
+{% if has_overdue_alert %}
+<div class="alert alert-danger d-flex align-items-center shadow-sm mb-4" role="alert">
+  <i class="bi bi-exclamation-triangle-fill fs-4 me-3 text-danger"></i>
+  <div>
+    <strong>Attenzione!</strong> È presente almeno un ticket da prendere in carico da oltre 24 ore.
+  </div>
+</div>
+{% endif %}
+
 <div class="row g-3 mb-4">
   <div class="col-6 col-md-3">
     <div class="card bg-white shadow-sm border-0 border-start border-danger border-4 h-100">
