@@ -2637,7 +2637,7 @@ def admin_operatori(r: Request):
               LEFT JOIN sedi sd ON u.sede_id = sd.sede_id
               LEFT JOIN operatori_magazzini om ON om.user_id = u.user_id
               LEFT JOIN magazzini m ON om.magazzino_id = m.magazzino_id
-             WHERE u.user_id != 1
+             WHERE u.user_id != 1 AND u.ruolo != 'normale'
              GROUP BY u.user_id, u.username, u.nome, u.cognome, u.email, u.telefono, u.ruolo, u.reparto_id, u.attivo, u.is_test, u.ultimo_accesso, u.ultimo_ip, r.nome, sd.nome
              ORDER BY u.nome
         """)).mappings().all()
@@ -2846,6 +2846,143 @@ def reset_accesso_operatore(r: Request, user_id: int):
     with engine.begin() as c:
         c.execute(text("UPDATE users SET ultimo_accesso = NULL, ultimo_ip = NULL WHERE user_id = :uid AND user_id != 1"), {"uid": user_id})
     return RedirectResponse(url="/admin/operatori", status_code=303)
+
+
+# ===== GESTIONE UTENTI PER ADMIN =====
+
+@app.get("/admin/utenti", response_class=HTMLResponse)
+def admin_utenti(r: Request):
+    user = require_superuser(r)
+    if isinstance(user, RedirectResponse):
+        return user
+    with engine.connect() as c:
+        utenti = c.execute(text("""
+            SELECT u.user_id, u.username, u.nome, u.cognome, u.email, u.telefono, u.ruolo, u.reparto_id, u.attivo, u.is_test, u.ultimo_accesso, u.ultimo_ip,
+                   r.nome AS reparto_nome, sd.nome AS sede_nome
+              FROM users u
+              LEFT JOIN reparti r ON u.reparto_id = r.reparto_id
+              LEFT JOIN sedi sd ON u.sede_id = sd.sede_id
+             WHERE u.user_id != 1 AND u.ruolo = 'normale'
+             ORDER BY u.nome
+        """)).mappings().all()
+        reparti = c.execute(text("SELECT reparto_id, nome FROM reparti ORDER BY nome")).mappings().all()
+        sedi = c.execute(text("SELECT sede_id, nome FROM sedi ORDER BY nome")).mappings().all()
+    return templates.TemplateResponse(r, "manage_utenti.html", {"request": r, "cfg": CFG, "user": user, "utenti": utenti, "reparti": reparti, "sedi": sedi})
+
+@app.post("/admin/utente/nuovo")
+def new_utente(r: Request, password: str=Form(...), nome: str=Form(...), 
+               cognome: str=Form(...), email: str=Form(...), telefono: str=Form(None), 
+               reparto_id: str=Form(None), sede_id: str=Form(None), is_test: int=Form(0)):
+    user = require_superuser(r)
+    if isinstance(user, RedirectResponse):
+        return user
+    
+    email = email.strip()
+    username = email
+    password = password.strip()
+    def h(p): return bcrypt.hashpw(p.encode('utf-8'), bcrypt.gensalt()).decode('utf-8')
+    reparto_id_val = int(reparto_id) if reparto_id and str(reparto_id).isdigit() else None
+    sede_id_val = int(sede_id) if sede_id and str(sede_id).isdigit() else None
+    tel_val = telefono.strip() if telefono else None
+    
+    try:
+        with engine.begin() as c:
+            c.execute(text("""
+                INSERT INTO users (username, password_hash, nome, cognome, email, telefono, ruolo, reparto_id, attivo, sede_id, is_test)
+                VALUES (:u, :h, :n, :c, :e, :tel, 'normale', :r, 1, :sede, :is_test)
+            """), {"u": username, "h": h(password), "n": nome, "c": cognome, "e": email, "tel": tel_val, "r": reparto_id_val, "sede": sede_id_val, "is_test": is_test})
+        return RedirectResponse(url="/admin/utenti", status_code=303)
+    except Exception as e:
+        return RedirectResponse(url="/admin/utenti", status_code=303)
+
+@app.get("/admin/utente/{user_id}/modifica", response_class=HTMLResponse)
+def edit_utente_form(r: Request, user_id: int):
+    user = require_superuser(r)
+    if isinstance(user, RedirectResponse):
+        return user
+    with engine.connect() as c:
+        utente = c.execute(text("""
+            SELECT u.user_id, u.username, u.nome, u.cognome, u.email, u.telefono, u.ruolo, u.reparto_id, u.attivo, u.ultimo_accesso, u.sede_id, u.is_test
+              FROM users u
+              WHERE u.user_id = :id AND u.user_id != 1 AND u.ruolo = 'normale'
+        """), {"id": user_id}).mappings().first()
+        
+        if not utente:
+            return RedirectResponse(url="/admin/utenti")
+        
+        reparti = c.execute(text("SELECT reparto_id, nome FROM reparti ORDER BY nome")).mappings().all()
+        sedi = c.execute(text("SELECT sede_id, nome FROM sedi ORDER BY nome")).mappings().all()
+    
+    return templates.TemplateResponse(r, "edit_utente.html", {
+        "request": r, "cfg": CFG, "user": user, "utente": utente, "reparti": reparti, "sedi": sedi
+    })
+
+@app.post("/admin/utente/{user_id}/modifica")
+def edit_utente(r: Request, user_id: int, nome: str=Form(...), cognome: str=Form(...), 
+                email: str=Form(...), telefono: str=Form(None), 
+                reparto_id: str=Form(None), attivo: int=Form(0),
+                password: str=Form(""), sede_id: str=Form(None), is_test: int=Form(0)):
+    user = require_superuser(r)
+    if isinstance(user, RedirectResponse):
+        return user
+    
+    email = email.strip()
+    username = email
+    password = password.strip()
+    def h(p): return bcrypt.hashpw(p.encode('utf-8'), bcrypt.gensalt()).decode('utf-8')
+    reparto_id_val = int(reparto_id) if reparto_id and str(reparto_id).isdigit() else None
+    sede_id_val = int(sede_id) if sede_id and str(sede_id).isdigit() else None
+    tel_val = telefono.strip() if telefono else None
+    
+    with engine.begin() as c:
+        if password:
+            c.execute(text("""
+                UPDATE users SET username=:u, nome=:n, cognome=:c, email=:e, telefono=:tel, reparto_id=:r, ruolo='normale', attivo=:a, password_hash=:p, sede_id=:sede, is_test=:is_test
+                 WHERE user_id=:uid AND user_id != 1 AND ruolo='normale'
+            """), {"u": username, "n": nome, "c": cognome, "e": email, "tel": tel_val, "r": reparto_id_val, "a": attivo, "p": h(password), "sede": sede_id_val, "is_test": is_test, "uid": user_id})
+        else:
+            c.execute(text("""
+                UPDATE users SET username=:u, nome=:n, cognome=:c, email=:e, telefono=:tel, reparto_id=:r, ruolo='normale', attivo=:a, sede_id=:sede, is_test=:is_test
+                 WHERE user_id=:uid AND user_id != 1 AND ruolo='normale'
+            """), {"u": username, "n": nome, "c": cognome, "e": email, "tel": tel_val, "r": reparto_id_val, "a": attivo, "sede": sede_id_val, "is_test": is_test, "uid": user_id})
+    
+    return RedirectResponse(url="/admin/utenti", status_code=303)
+
+@app.post("/admin/utente/{user_id}/toggle")
+def toggle_utente(r: Request, user_id: int):
+    user = require_superuser(r)
+    if isinstance(user, RedirectResponse):
+        return user
+    
+    with engine.begin() as c:
+        ut = c.execute(text("SELECT attivo FROM users WHERE user_id=:uid AND user_id != 1 AND ruolo='normale'"), {"uid": user_id}).mappings().first()
+        if ut:
+            new_status = 0 if ut["attivo"] else 1
+            c.execute(text("UPDATE users SET attivo=:s WHERE user_id=:uid"), {"s": new_status, "uid": user_id})
+    
+    return RedirectResponse(url="/admin/utenti", status_code=303)
+
+@app.post("/admin/utente/{user_id}/delete")
+def delete_utente(r: Request, user_id: int):
+    user = require_superuser(r)
+    if isinstance(user, RedirectResponse):
+        return user
+    
+    with engine.begin() as c:
+        check = c.execute(text("SELECT user_id FROM users WHERE user_id = :uid AND user_id != 1 AND ruolo='normale'"), {"uid": user_id}).scalar()
+        if check:
+            c.execute(text("DELETE FROM users WHERE user_id = :uid"), {"uid": user_id})
+    
+    return RedirectResponse(url="/admin/utenti", status_code=303)
+
+@app.post("/admin/utente/{user_id}/reset-accesso")
+def reset_accesso_utente(r: Request, user_id: int):
+    user = require_superuser(r)
+    if isinstance(user, RedirectResponse):
+        return user
+    with engine.begin() as c:
+        c.execute(text("UPDATE users SET ultimo_accesso = NULL, ultimo_ip = NULL WHERE user_id = :uid AND user_id != 1 AND ruolo='normale'"), {"uid": user_id})
+    return RedirectResponse(url="/admin/utenti", status_code=303)
 
 # ===== GESTIONE AVVISI IN HOMEPAGE =====
 

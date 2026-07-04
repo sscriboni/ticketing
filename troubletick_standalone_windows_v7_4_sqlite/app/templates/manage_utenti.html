@@ -1,0 +1,175 @@
+<!doctype html>
+<html lang="it">
+<head>
+    <meta charset="utf-8">
+    <title>Gestione Utenti — {{ cfg.app_title }}</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
+    <style>
+        .badge-active { background-color: #28a745; }
+        .badge-inactive { background-color: #dc3545; }
+        .utente-card { border-left: 4px solid #17a2b8; }
+    </style>
+</head>
+<body class="bg-light">
+{% include 'navbar.html' %}
+<div class="container py-4">
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <h2>Gestione Utenti</h2>
+    </div>
+
+    <div class="row gap-4">
+        <!-- LISTA UTENTI -->
+        <div class="col-12 col-lg-8">
+            <div class="bg-white p-4 rounded shadow-sm">
+                <h4 class="mb-3">Utenti Attuali</h4>
+                {% if utenti %}
+                <div class="table-responsive">
+                    <table class="table table-hover table-sm">
+                        <thead class="table-light">
+                            <tr>
+                                <th>Nome</th>
+                                <th>Email / Telefono</th>
+                                <th>Reparto / Sede</th>
+                                <th>Ultimo Accesso / IP</th>
+                                <th>Stato</th>
+                                <th>Azioni</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                        {% for ut in utenti %}
+                            <tr class="align-middle">
+                                <td>
+                                    <strong>{{ ut.nome }} {{ ut.cognome }}</strong>{% if ut.is_test %} <span class="badge bg-secondary" style="font-size: 0.6em;">TEST</span>{% endif %}<br>
+                                    <small class="text-muted">@{{ ut.username }}</small>
+                                </td>
+                                <td>
+                                    {{ ut.email }}
+                                    {% if ut.telefono %}<br><small class="text-muted">Tel: {{ ut.telefono }}</small>{% endif %}
+                                </td>
+                                <td>
+                                    {{ ut.reparto_nome or '—' }}<br>
+                                    <small class="text-muted">Sede: {{ ut.sede_nome or '—' }}</small>
+                                </td>
+                                <td>
+                                    {% if ut.ultimo_accesso %}
+                                        {% set datetime_parts = ut.ultimo_accesso.split(' ') %}
+                                        {% set date_part = datetime_parts[0] %}
+                                        {% set time_part = datetime_parts[1] if datetime_parts|length > 1 else '' %}
+                                        {% set d_parts = date_part.split('-') %}
+                                        {% if d_parts|length == 3 %}
+                                            {{ d_parts[2] }}/{{ d_parts[1] }}/{{ d_parts[0] }}{% if time_part %} {{ time_part }}{% endif %}
+                                        {% else %}
+                                            {{ ut.ultimo_accesso }}
+                                        {% endif %}
+                                        <br><small class="text-muted">IP: {{ ut.ultimo_ip or '—' }}</small>
+                                        {% if user.ruolo == 'admin' %}
+                                        <div class="mt-1">
+                                            <form method="post" action="/admin/utente/{{ ut.user_id }}/reset-accesso" class="d-inline" onsubmit="return confirm('Sei sicuro di voler azzerare l\'ultimo accesso di questo utente?');">
+                                                <button type="submit" class="btn btn-link p-0 text-decoration-none text-danger small" style="font-size: 0.8em;" title="Azzera Ultimo Accesso">
+                                                    <i class="bi bi-arrow-counterclockwise"></i> Azzera Accesso
+                                                </button>
+                                            </form>
+                                        </div>
+                                        {% endif %}
+                                    {% else %}
+                                        <span class="text-muted">Mai effettuato</span>
+                                    {% endif %}
+                                </td>
+                                <td>
+                                    {% if ut.attivo %}
+                                    <span class="badge badge-active text-white">Attivo</span>
+                                    {% else %}
+                                    <span class="badge badge-inactive text-white">Da Attivare / Inattivo</span>
+                                    {% endif %}
+                                </td>
+                                <td>
+                                    <a href="/admin/utente/{{ ut.user_id }}/modifica" class="btn btn-sm btn-warning">Modifica</a>
+                                    <form method="post" action="/admin/utente/{{ ut.user_id }}/toggle" class="d-inline">
+                                        <button type="submit" class="btn btn-sm {% if ut.attivo %}btn-outline-danger{% else %}btn-outline-success{% endif %}">
+                                            {% if ut.attivo %}Disabilita{% else %}Abilita{% endif %}
+                                        </button>
+                                    </form>
+                                    {% if not ut.attivo %}
+                                    <form method="post" action="/admin/utente/{{ ut.user_id }}/delete" class="d-inline" onsubmit="return confirm('Eliminare questo utente?')">
+                                        <button type="submit" class="btn btn-sm btn-danger">Elimina</button>
+                                    </form>
+                                    {% endif %}
+                                </td>
+                            </tr>
+                        {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+                {% else %}
+                <p class="text-muted">Nessun utente presente.</p>
+                {% endif %}
+            </div>
+        </div>
+
+        <!-- FORM NUOVO UTENTE -->
+        <div class="col-12 col-lg-4">
+            <div class="bg-white p-4 rounded shadow-sm">
+                <h4 class="mb-3">Nuovo Utente</h4>
+                <form method="post" action="/admin/utente/nuovo">
+                    <div class="mb-3">
+                        <label class="form-label fw-bold">Nome <span class="text-danger">*</span></label>
+                        <input type="text" name="nome" class="form-control" required placeholder="es: Luca">
+                    </div>
+
+                    <div class="mb-3">
+                        <label class="form-label fw-bold">Cognome <span class="text-danger">*</span></label>
+                        <input type="text" name="cognome" class="form-control" required placeholder="es: Rossi">
+                    </div>
+
+                    <div class="mb-3">
+                        <label class="form-label fw-bold">Password <span class="text-danger">*</span></label>
+                        <input type="password" name="password" class="form-control" required placeholder="Password sicura" minlength="6">
+                    </div>
+
+                    <div class="mb-3">
+                        <label class="form-label fw-bold">Email <span class="text-danger">*</span></label>
+                        <input type="email" name="email" class="form-control" required placeholder="es: luca@example.com">
+                    </div>
+
+                    <div class="mb-3">
+                        <label class="form-label fw-bold">Telefono</label>
+                        <input type="text" name="telefono" class="form-control" placeholder="es: 3331234567">
+                    </div>
+
+                    <div class="mb-3">
+                        <label class="form-label fw-bold">Reparto <span class="text-danger">*</span></label>
+                        <select name="reparto_id" class="form-select" required>
+                            <option value="" disabled selected>Seleziona reparto</option>
+                            {% for reparto in reparti %}
+                            <option value="{{ reparto.reparto_id }}">{{ reparto.nome }}</option>
+                            {% endfor %}
+                        </select>
+                    </div>
+
+                    <div class="mb-3">
+                        <label class="form-label fw-bold">Sede <span class="text-danger">*</span></label>
+                        <select name="sede_id" class="form-select" required>
+                            <option value="" disabled selected>Seleziona sede</option>
+                            {% for sede in sedi %}
+                            <option value="{{ sede.sede_id }}">{{ sede.nome }}</option>
+                            {% endfor %}
+                        </select>
+                    </div>
+
+                    <div class="mb-3">
+                        <div class="form-check">
+                            <input class="form-check-input" type="checkbox" name="is_test" value="1" id="newUserIsTest">
+                            <label class="form-check-label fw-bold" for="newUserIsTest">
+                                Utente di Test (is_test)
+                            </label>
+                        </div>
+                    </div>
+
+                    <button type="submit" class="btn btn-primary w-100">Crea Utente</button>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+</body>
+</html>
