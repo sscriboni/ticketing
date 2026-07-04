@@ -1,11 +1,12 @@
 import os, secrets, bcrypt
 from datetime import datetime, timedelta
-from fastapi import APIRouter, Request, Form
+from fastapi import APIRouter, Request, Form, BackgroundTasks
 from fastapi.responses import HTMLResponse, RedirectResponse
 from sqlalchemy import text
 
 from core import engine, CFG, templates, BASE_DIR
 from utils import ok
+from email_utils import send_email_async
 
 router = APIRouter()
 
@@ -14,9 +15,16 @@ def login_form(r: Request, reset: str = None, msg: str = None):
     if "user" in r.session:
         return RedirectResponse(url="/tickets", status_code=303)
     message = None
-    if reset == "success": message = "Password reimpostata con successo! Ora puoi accedere."
-    elif msg == "registrazione_ok": message = "Registrazione inviata! Il tuo account è in attesa di approvazione da parte di un amministratore."
-    return templates.TemplateResponse(r, "login.html", {"request": r, "cfg": CFG, "msg": message})
+    error_msg = None
+    if reset == "success":
+        message = "Password reimpostata con successo! Ora puoi accedere."
+    elif msg == "registrazione_ok":
+        message = "Registrazione avvenuta con successo! Ti abbiamo inviato un'e-mail con il link di attivazione del tuo account."
+    elif msg == "attivazione_ok":
+        message = "Account attivato con successo! Ora puoi effettuare l'accesso."
+    elif msg == "attivazione_ko":
+        error_msg = "Il link di attivazione non è valido o è scaduto."
+    return templates.TemplateResponse(r, "login.html", {"request": r, "cfg": CFG, "msg": message, "error": error_msg})
 
 @router.post("/login")
 def login_action(r: Request, username: str=Form(...), password: str=Form(...)):
@@ -50,14 +58,14 @@ def login_action(r: Request, username: str=Form(...), password: str=Form(...)):
     return templates.TemplateResponse(r, "login.html", {"request": r, "cfg": CFG, "error":"Credenziali errate"})
 
 @router.get("/register", response_class=HTMLResponse)
-def register_form(r: Request):
+def register_form(r: Request, email: str = None):
     with engine.connect() as c:
         reparti = c.execute(text("SELECT reparto_id, nome FROM reparti ORDER BY nome")).mappings().all()
         sedi = c.execute(text("SELECT sede_id, nome FROM sedi ORDER BY nome")).mappings().all()
-    return templates.TemplateResponse(r, "register.html", {"request": r, "cfg": CFG, "reparti": reparti, "sedi": sedi})
+    return templates.TemplateResponse(r, "register.html", {"request": r, "cfg": CFG, "reparti": reparti, "sedi": sedi, "prefilled_email": email})
 
 @router.post("/register")
-def register_action(r: Request, username: str=Form(...), password: str=Form(...),
+def register_action(r: Request, background_tasks: BackgroundTasks, username: str=Form(...), password: str=Form(...),
                     nome: str=Form(...), cognome: str=Form(...), email: str=Form(...),
                     telefono: str=Form(...), reparto_id: int=Form(...), sede_id: int=Form(...)):
     username = username.strip()
@@ -71,10 +79,34 @@ def register_action(r: Request, username: str=Form(...), password: str=Form(...)
             return templates.TemplateResponse(r, "register.html", {"request": r, "cfg": CFG, "reparti": reparti, "sedi": sedi, "error": "Username o Email già in uso."})
 
         hashed = bcrypt.hashpw(password.encode('utf-8'), bcrypt.gensalt()).decode('utf-8')
+        activation_token = secrets.token_urlsafe(32)
         c.execute(text("""
-            INSERT INTO users (username, password_hash, nome, cognome, email, telefono, ruolo, reparto_id, sede_id, attivo)
-            VALUES (:u, :h, :n, :c, :e, :tel, 'assistenza', :rid, :sid, 0)
-        """), {"u": username, "h": hashed, "n": nome, "c": cognome, "e": email, "tel": telefono, "rid": reparto_id, "sid": sede_id})
+            INSERT INTO users (username, password_hash, nome, cognome, email, telefono, ruolo, reparto_id, sede_id, attivo, activation_token)
+            VALUES (:u, :h, :n, :c, :e, :tel, 'assistenza', :rid, :sid, 0, :token)
+        """), {"u": username, "h": hashed, "n": nome, "c": cognome, "e": email, "tel": telefono, "rid": reparto_id, "sid": sede_id, "token": activation_token})
+
+    # Send activation email in background
+    subject = f"Attiva il tuo account — {CFG.get('app_title')}"
+    activation_link = f"{r.base_url}attivazione?token={activation_token}"
+    body = f"""
+    <html>
+    <body style="font-family: Arial, sans-serif; line-height: 1.6; color: #333;">
+        <div style="max-width: 600px; margin: 0 auto; padding: 20px; border: 1px solid #ddd; border-radius: 5px;">
+            <h2 style="color: #0d6efd; margin-bottom: 20px;">Benvenuto su {CFG.get('app_title')}</h2>
+            <p>Ciao {nome},</p>
+            <p>Grazie per esserti registrato. Per completare l'attivazione del tuo account e iniziare ad utilizzare la piattaforma, clicca sul pulsante qui sotto:</p>
+            <div style="text-align: center; margin: 30px 0;">
+                <a href="{activation_link}" style="background-color: #0d6efd; color: white; padding: 12px 24px; text-decoration: none; border-radius: 4px; font-weight: bold; display: inline-block;">Attiva il mio Account</a>
+            </div>
+            <p>Se il pulsante non funziona, copia e incolla il seguente link nel tuo browser:</p>
+            <p><a href="{activation_link}">{activation_link}</a></p>
+            <hr style="border: 0; border-top: 1px solid #eee; margin: 30px 0;">
+            <p style="font-size: 0.8em; color: #777;">Questa è una e-mail automatica, si prega di non rispondere.</p>
+        </div>
+    </body>
+    </html>
+    """
+    background_tasks.add_task(send_email_async, email, subject, body, "Attivazione account")
 
     return RedirectResponse(url="/login?msg=registrazione_ok", status_code=303)
 
@@ -105,6 +137,15 @@ def reset_password_action(r: Request, token: str = Form(...), new_password: str 
             return templates.TemplateResponse(r, "reset_password.html", {"request": r, "cfg": CFG, "token": token, "error": "Token invalido o scaduto."})
         c.execute(text("UPDATE users SET password_hash = :h, reset_token = NULL, reset_expires = NULL WHERE user_id = :id"), {"h": bcrypt.hashpw(new_password.encode('utf-8'), bcrypt.gensalt()).decode('utf-8'), "id": user["user_id"]})
     return RedirectResponse(url="/login?reset=success", status_code=303)
+
+@router.get("/attivazione")
+def attivazione_action(r: Request, token: str):
+    with engine.begin() as c:
+        user = c.execute(text("SELECT user_id FROM users WHERE activation_token = :t"), {"t": token}).mappings().first()
+        if not user:
+            return RedirectResponse(url="/login?msg=attivazione_ko", status_code=303)
+        c.execute(text("UPDATE users SET attivo = 1, activation_token = NULL WHERE user_id = :id"), {"id": user["user_id"]})
+    return RedirectResponse(url="/login?msg=attivazione_ok", status_code=303)
 
 @router.get("/logout")
 def logout(r: Request):

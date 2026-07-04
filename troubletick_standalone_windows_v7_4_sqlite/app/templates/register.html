@@ -43,7 +43,7 @@
             </div>
             <div class="col-md-6">
                 <label class="form-label fw-bold">Email *</label>
-                <input type="email" name="email" class="form-control" required>
+                <input type="email" name="email" class="form-control" required {% if prefilled_email %}value="{{ prefilled_email }}" readonly{% endif %}>
             </div>
             <div class="col-md-6">
                 <label class="form-label fw-bold">Cellulare *</label>

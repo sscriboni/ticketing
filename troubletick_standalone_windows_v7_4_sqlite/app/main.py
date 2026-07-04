@@ -42,8 +42,13 @@ try:
             ruolo TEXT NOT NULL,
             reparto_id INTEGER,
             attivo INTEGER DEFAULT 1,
-            is_test INTEGER DEFAULT 0
+            is_test INTEGER DEFAULT 0,
+            activation_token TEXT
         )"""))
+        try:
+            c.execute(text("ALTER TABLE users ADD COLUMN activation_token TEXT"))
+        except Exception:
+            pass
         c.execute(text(f"""CREATE TABLE IF NOT EXISTS operatori_servizi (
             id {DB_PK},
             user_id INTEGER NOT NULL,
@@ -565,17 +570,34 @@ def create_ticket(r: Request,
 @app.get("/success", response_class=HTMLResponse)
 def success(r: Request, codice: str = None, email: str = None):
     ticket_info = None
+    mostra_registrazione = False
+    ticket_email = None
     if codice:
         with engine.connect() as c:
             ticket_info = c.execute(text("""
-                SELECT t.nome, t.cognome, t.descrizione, r.nome AS reparto_nome, s.descrizione AS servizio_desc
+                SELECT t.nome, t.cognome, t.descrizione, t.email, r.nome AS reparto_nome, s.descrizione AS servizio_desc
                 FROM tickets t
                 LEFT JOIN reparti r ON t.reparto_id = r.reparto_id
                 LEFT JOIN servizi s ON t.servizio_id = s.servizio_id
                 WHERE t.codice_ticket = :cod ORDER BY t.ticket_id DESC LIMIT 1
             """), {"cod": codice}).mappings().first()
             
-    return templates.TemplateResponse(r, "success.html", {"request": r, "cfg": CFG, "codice": codice, "email_inviata": bool(email), "ticket": ticket_info, "current_year": datetime.now().year})
+            if ticket_info and ticket_info["email"]:
+                ticket_email = ticket_info["email"].strip()
+                email_exists = c.execute(text("SELECT COUNT(*) FROM users WHERE email = :e"), {"e": ticket_email}).scalar() or 0
+                if email_exists == 0:
+                    mostra_registrazione = True
+            
+    return templates.TemplateResponse(r, "success.html", {
+        "request": r, 
+        "cfg": CFG, 
+        "codice": codice, 
+        "email_inviata": bool(email), 
+        "ticket": ticket_info, 
+        "mostra_registrazione": mostra_registrazione,
+        "ticket_email": ticket_email,
+        "current_year": datetime.now().year
+    })
 
 @app.get("/status-ticket")
 def status_ticket_form(r: Request):
