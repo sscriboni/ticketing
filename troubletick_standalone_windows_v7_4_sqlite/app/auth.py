@@ -20,6 +20,8 @@ def login_form(r: Request, reset: str = None, msg: str = None):
         message = "Password reimpostata con successo! Ora puoi accedere."
     elif msg == "registrazione_ok":
         message = "Registrazione avvenuta con successo! Ti abbiamo inviato un'e-mail con il link di attivazione del tuo account."
+    elif msg == "registrazione_operatore_ok":
+        message = "Richiesta inviata! Il tuo account è in attesa di approvazione da parte di un amministratore."
     elif msg == "attivazione_ok":
         message = "Account attivato con successo! Ora puoi effettuare l'accesso."
     elif msg == "attivazione_ko":
@@ -58,19 +60,20 @@ def login_action(r: Request, username: str=Form(...), password: str=Form(...)):
     return templates.TemplateResponse(r, "login.html", {"request": r, "cfg": CFG, "error":"Credenziali errate"})
 
 @router.get("/register", response_class=HTMLResponse)
-def register_form(r: Request, email: str = None):
+def register_form(r: Request):
     with engine.connect() as c:
         reparti = c.execute(text("SELECT reparto_id, nome FROM reparti ORDER BY nome")).mappings().all()
         sedi = c.execute(text("SELECT sede_id, nome FROM sedi ORDER BY nome")).mappings().all()
-    return templates.TemplateResponse(r, "register.html", {"request": r, "cfg": CFG, "reparti": reparti, "sedi": sedi, "prefilled_email": email})
+    return templates.TemplateResponse(r, "register.html", {"request": r, "cfg": CFG, "reparti": reparti, "sedi": sedi})
 
 @router.post("/register")
-def register_action(r: Request, background_tasks: BackgroundTasks, username: str=Form(...), password: str=Form(...),
+def register_action(r: Request, username: str=Form(...), password: str=Form(...),
                     nome: str=Form(...), cognome: str=Form(...), email: str=Form(...),
                     telefono: str=Form(...), reparto_id: int=Form(...), sede_id: int=Form(...)):
     username = username.strip()
     password = password.strip()
     email = email.strip()
+    telefono = telefono.strip()
     with engine.begin() as c:
         existing = c.execute(text("SELECT user_id FROM users WHERE username = :u OR email = :e"), {"u": username, "e": email}).scalar()
         if existing:
@@ -79,11 +82,41 @@ def register_action(r: Request, background_tasks: BackgroundTasks, username: str
             return templates.TemplateResponse(r, "register.html", {"request": r, "cfg": CFG, "reparti": reparti, "sedi": sedi, "error": "Username o Email già in uso."})
 
         hashed = bcrypt.hashpw(password.encode('utf-8'), bcrypt.gensalt()).decode('utf-8')
+        c.execute(text("""
+            INSERT INTO users (username, password_hash, nome, cognome, email, telefono, ruolo, reparto_id, sede_id, attivo)
+            VALUES (:u, :h, :n, :c, :e, :tel, 'assistenza', :rid, :sid, 0)
+        """), {"u": username, "h": hashed, "n": nome, "c": cognome, "e": email, "tel": telefono, "rid": reparto_id, "sid": sede_id})
+
+    return RedirectResponse(url="/login?msg=registrazione_operatore_ok", status_code=303)
+
+@router.get("/register-utente", response_class=HTMLResponse)
+def register_utente_form(r: Request, email: str = None):
+    with engine.connect() as c:
+        reparti = c.execute(text("SELECT reparto_id, nome FROM reparti ORDER BY nome")).mappings().all()
+        sedi = c.execute(text("SELECT sede_id, nome FROM sedi ORDER BY nome")).mappings().all()
+    return templates.TemplateResponse(r, "register_utente.html", {"request": r, "cfg": CFG, "reparti": reparti, "sedi": sedi, "prefilled_email": email})
+
+@router.post("/register-utente")
+def register_utente_action(r: Request, background_tasks: BackgroundTasks, password: str=Form(...),
+                           nome: str=Form(...), cognome: str=Form(...), email: str=Form(...),
+                           telefono: str=Form(None), reparto_id: int=Form(...), sede_id: int=Form(...)):
+    email = email.strip()
+    username = email
+    password = password.strip()
+    tel_val = telefono.strip() if telefono else None
+    with engine.begin() as c:
+        existing = c.execute(text("SELECT user_id FROM users WHERE username = :u OR email = :e"), {"u": username, "e": email}).scalar()
+        if existing:
+            reparti = c.execute(text("SELECT reparto_id, nome FROM reparti ORDER BY nome")).mappings().all()
+            sedi = c.execute(text("SELECT sede_id, nome FROM sedi ORDER BY nome")).mappings().all()
+            return templates.TemplateResponse(r, "register_utente.html", {"request": r, "cfg": CFG, "reparti": reparti, "sedi": sedi, "error": "Email già in uso."})
+
+        hashed = bcrypt.hashpw(password.encode('utf-8'), bcrypt.gensalt()).decode('utf-8')
         activation_token = secrets.token_urlsafe(32)
         c.execute(text("""
             INSERT INTO users (username, password_hash, nome, cognome, email, telefono, ruolo, reparto_id, sede_id, attivo, activation_token)
-            VALUES (:u, :h, :n, :c, :e, :tel, 'assistenza', :rid, :sid, 0, :token)
-        """), {"u": username, "h": hashed, "n": nome, "c": cognome, "e": email, "tel": telefono, "rid": reparto_id, "sid": sede_id, "token": activation_token})
+            VALUES (:u, :h, :n, :c, :e, :tel, 'normale', :rid, :sid, 0, :token)
+        """), {"u": username, "h": hashed, "n": nome, "c": cognome, "e": email, "tel": tel_val, "rid": reparto_id, "sid": sede_id, "token": activation_token})
 
     # Send activation email in background
     subject = f"Attiva il tuo account — {CFG.get('app_title')}"

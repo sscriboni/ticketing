@@ -35,9 +35,9 @@
 
     {% if mostra_registrazione and ticket_email %}
       <div class="card bg-light border-success p-3 mb-4 text-start">
-        <h5 class="text-success mb-2"><i class="bi bi-person-plus-fill"></i> Diventa un Operatore</h5>
-        <p class="small text-muted mb-3">L'indirizzo email di contatto <strong>{{ ticket_email }}</strong> non è registrato come operatore. Registrati ora per accedere al sistema e seguire la risoluzione delle tue segnalazioni.</p>
-        <a href="/register?email={{ ticket_email }}" class="btn btn-success fw-bold"><i class="bi bi-pencil-square"></i> Registrati ora</a>
+        <h5 class="text-success mb-2"><i class="bi bi-person-plus-fill"></i> Registrati come Utente</h5>
+        <p class="small text-muted mb-3">L'indirizzo email di contatto <strong>{{ ticket_email }}</strong> non è registrato. Registrati ora per accedere al sistema e seguire lo stato delle tue segnalazioni.</p>
+        <a href="/register-utente?email={{ ticket_email }}" class="btn btn-success fw-bold"><i class="bi bi-pencil-square"></i> Registrati ora</a>
       </div>
     {% endif %}
     
