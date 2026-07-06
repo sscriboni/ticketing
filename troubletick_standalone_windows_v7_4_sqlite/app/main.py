@@ -547,19 +547,18 @@ def create_ticket(r: Request,
         })
         background_tasks.add_task(send_email_async, email, subject, body, "Conferma apertura ticket")
         
-    # Per ora non inviare mail agli operatori
-    # if operatori_emails:
-    #     subject_ops = f"[{CFG.get('company_name', 'Helpdesk')}] Nuovo Ticket #{codice_ticket} nel tuo servizio"
-    #     body_ops = templates.get_template("email_ticket_operatore.html").render({
-    #         "cfg": CFG,
-    #         "titolo": "Nuovo ticket assegnato al tuo servizio",
-    #         "codice_ticket": codice_ticket,
-    #         "nome_richiedente": f"{nome} {cognome}".strip(),
-    #         "serv_desc": serv_desc,
-    #         "descrizione": descrizione
-    #     })
-    #     for op_email in set(operatori_emails):
-    #         background_tasks.add_task(send_email_async, op_email, subject_ops, body_ops)
+    if operatori_emails:
+        subject_ops = f"[{CFG.get('company_name', 'Helpdesk')}] Nuovo Ticket #{codice_ticket} nel tuo servizio"
+        body_ops = templates.get_template("email_ticket_operatore.html").render({
+            "cfg": CFG,
+            "titolo": "Nuovo ticket assegnato al tuo servizio",
+            "codice_ticket": codice_ticket,
+            "nome_richiedente": f"{nome} {cognome}".strip(),
+            "serv_desc": serv_desc,
+            "descrizione": descrizione
+        })
+        for op_email in set(operatori_emails):
+            background_tasks.add_task(send_email_async, op_email, subject_ops, body_ops, "Notifica nuovo ticket operatore")
             
     url_redirect = f"/success?codice={codice_ticket}"
     if email:
