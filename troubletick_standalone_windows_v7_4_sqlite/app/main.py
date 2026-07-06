@@ -1,6 +1,6 @@
 import os, json, csv, io, shutil, uuid, traceback, random
 from contextlib import asynccontextmanager
-from datetime import datetime
+from datetime import datetime, timedelta
 from fastapi import FastAPI, Request, Form, UploadFile, File, BackgroundTasks
 from fastapi.responses import HTMLResponse, RedirectResponse, Response, FileResponse
 from fastapi.templating import Jinja2Templates
@@ -795,7 +795,6 @@ def tickets(r: Request, reparto_id: str = None, servizio_id: str = None, stato: 
             tickets_list.append(t_dict)
             
         # Check global alert for overdue tickets for the logged operator
-        from datetime import timedelta
         alert_where_clauses = ["t.stato = 'nuova'"]
         alert_params = {"user_id": user.get("id")}
         
@@ -1155,6 +1154,12 @@ def nuova_presenza(
     user = r.session.get("user")
     if not data_fine or not data_fine.strip():
         data_fine = data_inizio
+        
+    today_str = datetime.now().strftime("%Y-%m-%d")
+    if data_inizio < today_str or data_fine < today_str:
+        import urllib.parse
+        error_msg = "Non è possibile inserire presenze nel passato."
+        return RedirectResponse(url=f"/calendario-presenze?error={urllib.parse.quote(error_msg)}", status_code=303)
     
     # Cap nota at 20 characters
     nota = (nota or "").strip()[:20]
@@ -1186,6 +1191,13 @@ def nuova_assenza(r: Request, data_inizio: str = Form(...), data_fine: str = For
     user = r.session.get("user")
     if not data_fine or not data_fine.strip():
         data_fine = data_inizio
+        
+    today_str = datetime.now().strftime("%Y-%m-%d")
+    if data_inizio < today_str or data_fine < today_str:
+        import urllib.parse
+        error_msg = "Non è possibile inserire assenze nel passato."
+        return RedirectResponse(url=f"/calendario?error={urllib.parse.quote(error_msg)}", status_code=303)
+        
     with engine.begin() as c:
         c.execute(text("""INSERT INTO assenze (user_id, data_inizio, data_fine, motivo)
                           VALUES (:uid, :di, :df, :m)"""), 
@@ -1197,7 +1209,6 @@ def nuova_assenza(r: Request, data_inizio: str = Form(...), data_fine: str = For
     copertura_alert = None
     servizi_scoperti_str = None
     if reparto_id:
-        from datetime import datetime, timedelta
         try:
             di_dt = datetime.strptime(data_inizio, "%Y-%m-%d")
             df_dt = datetime.strptime(data_fine, "%Y-%m-%d")
