@@ -34,7 +34,7 @@ def login_action(r: Request, username: str=Form(...), password: str=Form(...)):
     password = password.strip()
     with engine.connect() as c:
         query = """
-            SELECT u.user_id, u.username, u.password_hash, u.nome, u.cognome, u.ruolo, u.magazzino_id,
+            SELECT u.user_id, u.username, u.password_hash, u.nome, u.cognome, u.email, u.ruolo, u.magazzino_id,
                    r.nome AS reparto_nome, s.nome AS sede_nome
             FROM users u
             LEFT JOIN reparti r ON u.reparto_id = r.reparto_id
@@ -46,7 +46,7 @@ def login_action(r: Request, username: str=Form(...), password: str=Form(...)):
         else:
             row = c.execute(text(query.format(field="u.username")), {"u": username}).mappings().first()
     if row and ok(password, row["password_hash"]):
-        r.session["user"] = {"id":row["user_id"],"username":row["username"],"nome":row["nome"],"cognome":row["cognome"],"ruolo":row["ruolo"], "reparto_nome":row["reparto_nome"], "sede_nome":row["sede_nome"], "magazzino_id":row["magazzino_id"]}
+        r.session["user"] = {"id":row["user_id"],"username":row["username"],"email":row["email"],"nome":row["nome"],"cognome":row["cognome"],"ruolo":row["ruolo"], "reparto_nome":row["reparto_nome"], "sede_nome":row["sede_nome"], "magazzino_id":row["magazzino_id"]}
         ip = r.client.host if r.client else "Sconosciuto"
         with engine.begin() as c_update:
             c_update.execute(text("UPDATE users SET ultimo_accesso = :now, ultimo_ip = :ip WHERE user_id = :uid"), {"now": datetime.now().strftime("%Y-%m-%d %H:%M:%S"), "ip": ip, "uid": row["user_id"]})

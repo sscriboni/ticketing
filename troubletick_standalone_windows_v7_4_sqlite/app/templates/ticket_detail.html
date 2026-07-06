@@ -76,6 +76,7 @@
   <div><strong>Allegato principale:</strong> <a href="/uploads/{{ ticket.allegato }}" target="_blank" class="btn btn-sm btn-outline-secondary ms-2"><i class="bi bi-paperclip"></i> Visualizza/Scarica allegato</a></div>
   {% endif %}
   <hr>
+  {% if user.ruolo != 'normale' %}
   <div class="d-flex gap-2">
     {% if ticket.stato == 'nuova' %}
     <form method="post" action="/ticket/{{ ticket.ticket_id }}/stato" class="d-inline">
@@ -117,9 +118,10 @@
     </form>
     {% endif %}
   </div>
+  {% endif %}
 </div></div>
 <div class="row">
-  <div class="col-lg-6">
+  <div class="{% if user.ruolo == 'normale' %}col-lg-12{% else %}col-lg-6{% endif %}">
     <div class="card mb-4">
       <div class="card-body">
       <h5 class="card-title">Note operative</h5>
@@ -150,6 +152,7 @@
     </div>
   </div>
   </div>
+  {% if user.ruolo != 'normale' %}
   <div class="col-lg-6">
     {% if ticket.stato == 'presa_in_carico' %}
     <div class="card mb-4"><div class="card-body">
@@ -261,6 +264,7 @@
     </div></div>
     {% endif %}
   </div>
+  {% endif %}
 </div>
 <div class="alert alert-info mt-4 small shadow-sm">
   <i class="bi bi-info-circle-fill me-1"></i> <strong>Guida rapida:</strong> Questa pagina mostra tutti i dettagli di una specifica richiesta. Puoi inserire Note operative (che l'utente vedrà o "interne" visibili solo agli operatori), chiudere il ticket se risolto, richiedere materiali al magazzino, oppure riassegnarlo a un collega di un altro reparto o servizio.
@@ -290,6 +294,7 @@ document.addEventListener('DOMContentLoaded', function() {
 });
 </script>
 
+{% if user.ruolo != 'normale' %}
 <!-- Modal per Chiudere il Ticket con Nota Pubblica Obbligatoria -->
 <div class="modal fade" id="closeTicketModal" data-bs-backdrop="static" data-bs-keyboard="false" tabindex="-1" aria-labelledby="closeTicketModalLabel" aria-hidden="true">
   <div class="modal-dialog modal-dialog-centered">
@@ -321,5 +326,6 @@ document.addEventListener('DOMContentLoaded', function() {
     </div>
   </div>
 </div>
+{% endif %}
 
 </body></html>

@@ -631,11 +631,10 @@ def status_ticket_action(r: Request, anno: str = Form(...), codice: str = Form(.
 def tickets(r: Request, reparto_id: str = None, servizio_id: str = None, stato: str = None, priorita: str = None, q: str = None, con_materiale: str = None, my_tickets: str = None, assegnati_a_me: str = None):
     if "user" not in r.session: return RedirectResponse(url="/login")
     user = r.session.get("user")
-    
     with engine.connect() as c:
         # Gestione primo accesso
         is_first_load = not any(k in r.query_params for k in ["reparto_id", "servizio_id", "stato", "priorita", "q", "con_materiale", "my_tickets", "assegnati_a_me"])
-        if is_first_load:
+        if is_first_load and user.get("ruolo") != "normale":
             my_tickets = "1"
 
         reparto_id = int(reparto_id) if reparto_id and str(reparto_id).isdigit() else None
@@ -654,7 +653,8 @@ def tickets(r: Request, reparto_id: str = None, servizio_id: str = None, stato: 
         
         if user.get("ruolo") != "admin":
             if user.get("ruolo") == "normale":
-                where_clauses.append("1 = 0")
+                where_clauses.append("t.email = :user_email")
+                params["user_email"] = user.get("email") or user.get("username")
             elif user.get("ruolo") == "responsabile":
                 where_clauses.append("t.reparto_id = (SELECT reparto_id FROM users WHERE user_id = :user_id)")
                 params["user_id"] = user.get("id")
@@ -666,13 +666,13 @@ def tickets(r: Request, reparto_id: str = None, servizio_id: str = None, stato: 
                 """)
                 params["user_id"] = user.get("id")
 
-        if my_tickets == "1":
+        if my_tickets == "1" and user.get("ruolo") != "normale":
             where_clauses.append("""
                 t.servizio_id IN (SELECT servizio_id FROM operatori_servizi WHERE user_id = :uid_my)
             """)
             params["uid_my"] = user.get("id")
 
-        if assegnati_a_me == "1":
+        if assegnati_a_me == "1" and user.get("ruolo") != "normale":
             autore_corrente = f"{user.get('nome','')} {user.get('cognome','')}".strip() or user.get('username')
             where_clauses.append("""
                 (SELECT autore FROM ticket_notes tn WHERE tn.ticket_id = t.ticket_id ORDER BY tn.creato_il DESC LIMIT 1) IN (:autore_normale, :autore_sistema)
@@ -742,7 +742,8 @@ def tickets(r: Request, reparto_id: str = None, servizio_id: str = None, stato: 
         base_where = ""
         base_params = {}
         if user.get("ruolo") == "normale":
-            base_where = " WHERE 1 = 0"
+            base_where = " WHERE t.email = :user_email"
+            base_params["user_email"] = user.get("email") or user.get("username")
         elif user.get("ruolo") == "responsabile":
             base_where = " WHERE t.reparto_id = (SELECT reparto_id FROM users WHERE user_id = :uid)"
             base_params["uid"] = uid
@@ -834,25 +835,31 @@ def ticket_detail(r: Request, ticket_id: int):
             
         if user.get("ruolo") != "admin":
             if user.get("ruolo") == "normale":
-                return RedirectResponse(url="/tickets")
+                user_email = user.get("email") or user.get("username")
+                if ticket["email"] != user_email:
+                    return RedirectResponse(url="/tickets")
+            else:
+                op_servizi = c.execute(text("SELECT servizio_id FROM operatori_servizi WHERE user_id = :uid"), {"uid": user.get("id")}).scalars().all()
+                user_reparto = c.execute(text("SELECT reparto_id FROM users WHERE user_id = :uid"), {"uid": user.get("id")}).scalar()
                 
-            op_servizi = c.execute(text("SELECT servizio_id FROM operatori_servizi WHERE user_id = :uid"), {"uid": user.get("id")}).scalars().all()
-            user_reparto = c.execute(text("SELECT reparto_id FROM users WHERE user_id = :uid"), {"uid": user.get("id")}).scalar()
-            
-            can_view = False
-            if user_reparto and ticket["reparto_id"] == user_reparto:
-                can_view = True
-            if user.get("ruolo") == "assistenza" and ticket["servizio_id"] in op_servizi:
-                can_view = True
-            if not can_view:
-                return RedirectResponse(url="/tickets")
+                can_view = False
+                if user_reparto and ticket["reparto_id"] == user_reparto:
+                    can_view = True
+                if user.get("ruolo") == "assistenza" and ticket["servizio_id"] in op_servizi:
+                    can_view = True
+                if not can_view:
+                    return RedirectResponse(url="/tickets")
 
-        notes = c.execute(text("""
+        notes_query = """
             SELECT note_id, autore, testo, creato_il, allegato, is_internal
               FROM ticket_notes
              WHERE ticket_id = :id
-             ORDER BY creato_il DESC
-        """), {"id": ticket_id}).mappings().all()
+        """
+        if user.get("ruolo") == "normale":
+            notes_query += " AND (is_internal = 0 OR is_internal IS NULL)"
+        notes_query += " ORDER BY creato_il DESC"
+        
+        notes = c.execute(text(notes_query), {"id": ticket_id}).mappings().all()
         
         reparti = c.execute(text("SELECT reparto_id, nome FROM reparti WHERE accetta_ticket = 1 ORDER BY nome")).mappings().all()
         servizi = c.execute(text("SELECT servizio_id, descrizione, reparto_id FROM servizi WHERE accetta_ticket = 1 ORDER BY descrizione")).mappings().all()
@@ -873,6 +880,9 @@ def ticket_detail(r: Request, ticket_id: int):
 @app.post("/ticket/{ticket_id}/note")
 def add_ticket_note(r: Request, ticket_id: int, testo: str = Form(...), allegato: UploadFile = File(None), is_internal: int = Form(0)):
     if "user" not in r.session: return RedirectResponse(url="/login")
+    user = r.session.get("user")
+    if user.get("ruolo") == "normale":
+        return RedirectResponse(url=f"/ticket/{ticket_id}", status_code=303)
     autore = f"{r.session['user'].get('nome','')} {r.session['user'].get('cognome','')}".strip() or r.session['user'].get('username')
     
     allegato_filename = save_upload(allegato)
@@ -889,6 +899,8 @@ def add_ticket_note(r: Request, ticket_id: int, testo: str = Form(...), allegato
 def update_ticket_status(r: Request, ticket_id: int, background_tasks: BackgroundTasks, stato: str = Form(...), nota_chiusura: str = Form(None)):
     if "user" not in r.session: return RedirectResponse(url="/login")
     user = r.session.get("user")
+    if user.get("ruolo") == "normale":
+        return RedirectResponse(url=f"/ticket/{ticket_id}", status_code=303)
     with engine.begin() as c:
         if stato == "chiusa":
             pending_requests = c.execute(text(
@@ -947,6 +959,8 @@ def update_ticket_status(r: Request, ticket_id: int, background_tasks: Backgroun
 def reassign_ticket(r: Request, ticket_id: int, background_tasks: BackgroundTasks, reparto_id: int = Form(...), servizio_id: str = Form(None)):
     if "user" not in r.session: return RedirectResponse(url="/login")
     user = r.session.get("user")
+    if user.get("ruolo") == "normale":
+        return RedirectResponse(url=f"/ticket/{ticket_id}", status_code=303)
     servizio_id_val = int(servizio_id) if servizio_id else None
     
     with engine.begin() as c:
