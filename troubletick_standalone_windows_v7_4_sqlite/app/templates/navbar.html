@@ -53,7 +53,7 @@
         {% endif %}
         {% endif %}
         
-        {% if cfg.get('modulo_presenze', True) %}
+        {% if cfg.get('modulo_presenze', True) and user.ruolo != 'normale' %}
         <li class="nav-item dropdown">
           <a class="nav-link dropdown-toggle {% if request.url.path.startswith('/calendario') or request.url.path.startswith('/copertura-servizi') or request.url.path.startswith('/assenze-mese') or request.url.path == '/servizi-assegnati' or request.url.path == '/admin/report-copertura' %}active fw-bold{% endif %}" href="#" id="presenzeDropdown" role="button" data-bs-toggle="dropdown" aria-expanded="false">
             <i class="bi bi-calendar-check"></i> Presenze
@@ -97,8 +97,10 @@
           </a>
           <ul class="dropdown-menu shadow" aria-labelledby="docDropdown">
             <li><a class="dropdown-item" href="/documentazione">Guida Generale</a></li>
+            {% if user.ruolo != 'normale' %}
             <li><a class="dropdown-item" href="/documentazione/magazzino">Guida Magazzino</a></li>
-            {% if cfg.get('modulo_presenze', True) %}
+            {% endif %}
+            {% if cfg.get('modulo_presenze', True) and user.ruolo != 'normale' %}
             <li><a class="dropdown-item" href="/documentazione/presenze">Guida Presenze/Assenze</a></li>
             {% endif %}
             <li><hr class="dropdown-divider"></li>

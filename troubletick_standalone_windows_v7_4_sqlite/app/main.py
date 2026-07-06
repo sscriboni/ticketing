@@ -658,7 +658,7 @@ def tickets(r: Request, reparto_id: str = None, servizio_id: str = None, stato: 
         
         if user.get("ruolo") != "admin":
             if user.get("ruolo") == "normale":
-                where_clauses.append("t.email = :user_email")
+                where_clauses.append("LOWER(t.email) = LOWER(:user_email)")
                 params["user_email"] = user.get("email") or user.get("username")
             elif user.get("ruolo") == "responsabile":
                 where_clauses.append("t.reparto_id = (SELECT reparto_id FROM users WHERE user_id = :user_id)")
@@ -747,7 +747,7 @@ def tickets(r: Request, reparto_id: str = None, servizio_id: str = None, stato: 
         base_where = ""
         base_params = {}
         if user.get("ruolo") == "normale":
-            base_where = " WHERE t.email = :user_email"
+            base_where = " WHERE LOWER(t.email) = LOWER(:user_email)"
             base_params["user_email"] = user.get("email") or user.get("username")
         elif user.get("ruolo") == "responsabile":
             base_where = " WHERE t.reparto_id = (SELECT reparto_id FROM users WHERE user_id = :uid)"
@@ -841,7 +841,7 @@ def ticket_detail(r: Request, ticket_id: int):
         if user.get("ruolo") != "admin":
             if user.get("ruolo") == "normale":
                 user_email = user.get("email") or user.get("username")
-                if ticket["email"] != user_email:
+                if (ticket["email"] or "").lower() != (user_email or "").lower():
                     return RedirectResponse(url="/tickets")
             else:
                 op_servizi = c.execute(text("SELECT servizio_id FROM operatori_servizi WHERE user_id = :uid"), {"uid": user.get("id")}).scalars().all()
