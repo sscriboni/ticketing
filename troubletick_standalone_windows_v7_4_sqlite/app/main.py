@@ -631,6 +631,11 @@ def status_ticket_action(r: Request, anno: str = Form(...), codice: str = Form(.
 def tickets(r: Request, reparto_id: str = None, servizio_id: str = None, stato: str = None, priorita: str = None, q: str = None, con_materiale: str = None, my_tickets: str = None, assegnati_a_me: str = None):
     if "user" not in r.session: return RedirectResponse(url="/login")
     user = r.session.get("user")
+    if user and user.get("ruolo") != "normale":
+        ip = r.client.host if r.client else "Sconosciuto"
+        now_str = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+        with engine.begin() as c_update:
+            c_update.execute(text("UPDATE users SET ultimo_accesso = :now, ultimo_ip = :ip WHERE user_id = :uid"), {"now": now_str, "ip": ip, "uid": user.get("id")})
     with engine.connect() as c:
         # Gestione primo accesso
         is_first_load = not any(k in r.query_params for k in ["reparto_id", "servizio_id", "stato", "priorita", "q", "con_materiale", "my_tickets", "assegnati_a_me"])
