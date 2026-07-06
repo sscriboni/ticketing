@@ -1,4 +1,4 @@
-import os, json, csv, io, shutil, uuid, traceback, random
+import os, json, csv, io, shutil, uuid, traceback, random, asyncio
 from contextlib import asynccontextmanager
 from datetime import datetime, timedelta
 from fastapi import FastAPI, Request, Form, UploadFile, File, BackgroundTasks
@@ -245,6 +245,11 @@ try:
             descrizione TEXT NOT NULL,
             servizio_id INTEGER NOT NULL
         )"""))
+        
+        c.execute(text("""CREATE TABLE IF NOT EXISTS cron_history (
+            cron_key TEXT PRIMARY KEY,
+            last_run TEXT NOT NULL
+        )"""))
     
         for stmt in [
             "ALTER TABLE tickets ADD COLUMN argomento_id INTEGER",
@@ -335,6 +340,79 @@ try:
 except Exception as e:
     print(f"Skipping DB init on this worker (possible concurrency lock): {e}")
 
+async def check_and_send_morning_recaps():
+    today_str = datetime.now().strftime("%Y-%m-%d")
+    try:
+        with engine.begin() as conn:
+            already_run = conn.execute(text("SELECT 1 FROM cron_history WHERE cron_key = 'morning_recap' AND last_run = :today"), {"today": today_str}).scalar()
+            if already_run:
+                return
+            
+            conn.execute(text("""
+                INSERT OR REPLACE INTO cron_history (cron_key, last_run) 
+                VALUES ('morning_recap', :today)
+            """), {"today": today_str})
+    except Exception as e:
+        print("Database error in morning recap cron check:", e)
+        return
+
+    try:
+        with engine.connect() as conn:
+            services = conn.execute(text("""
+                SELECT DISTINCT s.servizio_id, s.descrizione 
+                FROM servizi s
+                JOIN tickets t ON s.servizio_id = t.servizio_id
+                WHERE t.stato != 'chiusa'
+            """)).mappings().all()
+
+            for s in services:
+                sid = s["servizio_id"]
+                s_desc = s["descrizione"]
+                
+                operators = conn.execute(text("""
+                    SELECT u.email, u.nome, u.cognome
+                    FROM users u
+                    JOIN operatori_servizi os ON u.user_id = os.user_id
+                    WHERE os.servizio_id = :sid AND u.attivo = 1 AND u.email IS NOT NULL AND u.email != ''
+                """), {"sid": sid}).mappings().all()
+
+                if not operators:
+                    continue
+
+                tickets = conn.execute(text("""
+                    SELECT t.ticket_id, t.codice_ticket, t.nome, t.cognome, t.riferimento, t.sede, t.descrizione, t.priorita, t.stato, t.creato_il
+                    FROM tickets t
+                    WHERE t.servizio_id = :sid AND t.stato != 'chiusa'
+                    ORDER BY t.creato_il ASC
+                """), {"sid": sid}).mappings().all()
+
+                if not tickets:
+                    continue
+
+                tickets_dicts = [dict(t) for t in tickets]
+                
+                body = templates.get_template("email_morning_recap.html").render({
+                    "cfg": CFG,
+                    "serv_desc": s_desc,
+                    "tickets": tickets_dicts
+                })
+                
+                subject = f"[{CFG.get('company_name', 'Helpdesk')}] Resoconto Mattutino Ticket - {s_desc}"
+                
+                for op in operators:
+                    dest = op["email"]
+                    await asyncio.to_thread(send_email_async, dest, subject, body, f"Resoconto Mattutino {s_desc}")
+    except Exception as e:
+        print("Error sending morning recaps:", e)
+
+async def morning_recap_scheduler():
+    while True:
+        try:
+            await check_and_send_morning_recaps()
+        except Exception as e:
+            print("Error in morning recap scheduler loop:", e)
+        await asyncio.sleep(1800) # Check every 30 minutes
+
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     now = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
@@ -360,7 +438,11 @@ async def lifespan(app: FastAPI):
                 f.write(f"[{now}] ERRORE DB - Dettaglio errore: {str(e)}\n")
     except Exception:
         pass
+    
+    # Start morning recap scheduler loop
+    asyncio.create_task(morning_recap_scheduler())
     yield
+    
     now = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
     try:
         with open(log_file, "a", encoding="utf-8") as f:
@@ -370,6 +452,11 @@ async def lifespan(app: FastAPI):
 
 app = FastAPI(title=f"{CFG.get('app_title','Troubletick')} v7.4 ({DB_TYPE})", lifespan=lifespan)
 app.add_middleware(SessionMiddleware, secret_key="supersecretkey")
+
+@app.middleware("http")
+async def trigger_morning_recap_middleware(request: Request, call_next):
+    asyncio.create_task(check_and_send_morning_recaps())
+    return await call_next(request)
 app.mount("/static", StaticFiles(directory=os.path.join(BASE_DIR,"static")), name="static")
 app.mount("/uploads", StaticFiles(directory=UPLOAD_DIR), name="uploads")
 
