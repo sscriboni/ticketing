@@ -16,6 +16,13 @@
     
     // Rileva automaticamente se il primo segmento è un path relativo (es. /ticketing)
     const basePath = (firstSegment && !knownRoutes.includes(firstSegment)) ? '/' + firstSegment : '';
+    window.APP_BASE_PATH = basePath;
+    window.getRelativeUrl = function(path) {
+      if (path && path.startsWith('/') && !path.startsWith(basePath + '/')) {
+        return basePath + path;
+      }
+      return path;
+    };
     
     if (basePath) {
       // 1. Riscrittura delle chiamate fetch()

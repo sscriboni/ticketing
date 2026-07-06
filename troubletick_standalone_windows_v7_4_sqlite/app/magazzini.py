@@ -720,7 +720,7 @@ async def magazzino_movimento_action(
                     ORDER BY movimento_id DESC LIMIT 1
                 """), {"uid": user["id"], "mag": magazzino_id, "mat": materiale_id}).scalar()
                 if mov_id:
-                    return RedirectResponse(url=f"/stampa-consegna/scarico/{mov_id}?msg=consegna_effettuata", status_code=303)
+                    return RedirectResponse(url=f"/magazzini/stampa-consegna/scarico/{mov_id}?msg=consegna_effettuata", status_code=303)
             
     if operazione == "scarico" and richiesta_id:
         return RedirectResponse(url="/richieste-materiale?msg=consegna_effettuata", status_code=303)
@@ -728,7 +728,7 @@ async def magazzino_movimento_action(
         return RedirectResponse(url="/trasferimenti", status_code=303)
     return RedirectResponse(url="/magazzini?msg=consegna_effettuata", status_code=303)
 
-@router.get("/stampa-consegna/multiplo/{gruppo_scarico}", response_class=HTMLResponse)
+@router.get("/magazzini/stampa-consegna/multiplo/{gruppo_scarico}", response_class=HTMLResponse)
 def stampa_consegna_multiplo(r: Request, gruppo_scarico: str):
     if "user" not in r.session: return RedirectResponse(url="/login")
     user = r.session.get("user")
@@ -773,7 +773,7 @@ def stampa_consegna_multiplo(r: Request, gruppo_scarico: str):
         "tipo": "scarico"
     })
 
-@router.get("/stampa-consegna/trasferimento/{trasferimento_id}", response_class=HTMLResponse)
+@router.get("/magazzini/stampa-consegna/trasferimento/{trasferimento_id}", response_class=HTMLResponse)
 def stampa_ddt(r: Request, trasferimento_id: int):
     if "user" not in r.session: return RedirectResponse(url="/login")
     user = r.session.get("user")
@@ -826,7 +826,7 @@ def stampa_ddt(r: Request, trasferimento_id: int):
         "transfers": transfers
     })
 
-@router.get("/stampa-consegna/{tipo}/{doc_id}", response_class=HTMLResponse)
+@router.get("/magazzini/stampa-consegna/{tipo}/{doc_id}", response_class=HTMLResponse)
 def stampa_consegna(r: Request, tipo: str, doc_id: int):
     if "user" not in r.session: return RedirectResponse(url="/login")
     user = r.session.get("user")
@@ -855,6 +855,19 @@ def stampa_consegna(r: Request, tipo: str, doc_id: int):
     return templates.TemplateResponse(r, "stampa_consegna.html", {
         "request": r, "cfg": CFG, "user": user, "mov": mov, "tipo": tipo
     })
+
+# Backward compatibility redirects
+@router.get("/stampa-consegna/trasferimento/{trasferimento_id}", response_class=HTMLResponse)
+def redirect_stampa_ddt(r: Request, trasferimento_id: int):
+    return RedirectResponse(url=f"/magazzini/stampa-consegna/trasferimento/{trasferimento_id}", status_code=301)
+
+@router.get("/stampa-consegna/multiplo/{gruppo_scarico}", response_class=HTMLResponse)
+def redirect_stampa_multiplo(r: Request, gruppo_scarico: str):
+    return RedirectResponse(url=f"/magazzini/stampa-consegna/multiplo/{gruppo_scarico}", status_code=301)
+
+@router.get("/stampa-consegna/{tipo}/{doc_id}", response_class=HTMLResponse)
+def redirect_stampa_consegna(r: Request, tipo: str, doc_id: int):
+    return RedirectResponse(url=f"/magazzini/stampa-consegna/{tipo}/{doc_id}", status_code=301)
 
 @router.get("/trasferimenti", response_class=HTMLResponse)
 def trasferimenti_list(r: Request):
@@ -1870,7 +1883,7 @@ async def post_scarico_multiplo(
         return RedirectResponse(url=f"/magazzini?msg=trasferimento_avviato&trsf_id={first_trsf_id}{print_param}", status_code=303)
 
     if genera_pdf == "1":
-        return RedirectResponse(url=f"/stampa-consegna/multiplo/{gruppo_scarico_id}", status_code=303)
+        return RedirectResponse(url=f"/magazzini/stampa-consegna/multiplo/{gruppo_scarico_id}", status_code=303)
     if ticket_id:
         return RedirectResponse(url=f"/ticket/{ticket_id}", status_code=303)
     if any_request_evasa:
