@@ -122,12 +122,32 @@
         <li class="nav-item dropdown">
           <a class="nav-link dropdown-toggle {% if request.url.path.startswith('/admin') and request.url.path != '/admin/report-copertura' and not request.url.path.startswith('/admin/operatori') %}active fw-bold{% endif %}" href="#" id="adminDropdown" role="button" data-bs-toggle="dropdown" aria-expanded="false">
             <i class="bi bi-gear"></i> Amministrazione
+            {% set total_pending = get_operators_count(user) + get_users_count(user) %}
+            {% if total_pending > 0 %}
+            <span class="badge bg-danger rounded-pill ms-1">{{ total_pending }}</span>
+            {% endif %}
           </a>
           <ul class="dropdown-menu shadow" aria-labelledby="adminDropdown">
             <li><a class="dropdown-item" href="/admin">Dashboard Admin</a></li>
             <li><hr class="dropdown-divider"></li>
-            <li><a class="dropdown-item" href="/admin/operatori">Gestione Operatori</a></li>
-            <li><a class="dropdown-item" href="/admin/utenti">Gestione Utenti</a></li>
+            <li>
+              <a class="dropdown-item d-flex justify-content-between align-items-center" href="/admin/operatori">
+                <span>Gestione Operatori</span>
+                {% set cnt_ops = get_operators_count(user) %}
+                {% if cnt_ops > 0 %}
+                <span class="badge bg-warning text-dark rounded-pill ms-2">{{ cnt_ops }}</span>
+                {% endif %}
+              </a>
+            </li>
+            <li>
+              <a class="dropdown-item d-flex justify-content-between align-items-center" href="/admin/utenti">
+                <span>Gestione Utenti</span>
+                {% set cnt_uts = get_users_count(user) %}
+                {% if cnt_uts > 0 %}
+                <span class="badge bg-danger rounded-pill ms-2">{{ cnt_uts }}</span>
+                {% endif %}
+              </a>
+            </li>
             <li><a class="dropdown-item" href="/admin/reparti">Gestione Reparti</a></li>
             <li><a class="dropdown-item" href="/admin/servizi">Gestione Servizi</a></li>
             <li><a class="dropdown-item" href="/admin/sedi">Gestione Sedi</a></li>

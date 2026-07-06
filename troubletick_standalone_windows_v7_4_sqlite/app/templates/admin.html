@@ -42,7 +42,13 @@
   <div class="col-12 col-md-6 col-lg-3">
     <div class="card h-100 shadow-sm border-0">
       <div class="card-body text-center">
-        <h5 class="card-title">👥 Operatori</h5>
+        <h5 class="card-title position-relative d-inline-block">
+          👥 Operatori
+          {% set cnt_ops = get_operators_count(user) %}
+          {% if cnt_ops > 0 %}
+          <span class="position-absolute top-0 start-100 translate-middle badge rounded-pill bg-warning text-dark" style="font-size: 0.65rem;">{{ cnt_ops }}</span>
+          {% endif %}
+        </h5>
         <p class="card-text text-muted mb-3">Gestisci gli operatori</p>
         <a href="/admin/operatori" class="btn btn-primary">Accedi</a>
       </div>
@@ -51,7 +57,13 @@
   <div class="col-12 col-md-6 col-lg-3">
     <div class="card h-100 shadow-sm border-0">
       <div class="card-body text-center">
-        <h5 class="card-title">👤 Utenti</h5>
+        <h5 class="card-title position-relative d-inline-block">
+          👤 Utenti
+          {% set cnt_uts = get_users_count(user) %}
+          {% if cnt_uts > 0 %}
+          <span class="position-absolute top-0 start-100 translate-middle badge rounded-pill bg-danger" style="font-size: 0.65rem;">{{ cnt_uts }}</span>
+          {% endif %}
+        </h5>
         <p class="card-text text-muted mb-3">Gestisci gli utenti</p>
         <a href="/admin/utenti" class="btn btn-primary">Accedi</a>
       </div>

@@ -401,19 +401,39 @@ def get_operators_count(user):
         with engine.connect() as c:
             uid = user.get("id")
             if user.get("ruolo") == "admin":
-                return c.execute(text("SELECT COUNT(*) FROM users WHERE attivo = 0 AND user_id != 1")).scalar() or 0
+                return c.execute(text("SELECT COUNT(*) FROM users WHERE attivo = 0 AND user_id != 1 AND ruolo != 'normale'")).scalar() or 0
             elif user.get("ruolo") == "responsabile":
                 user_rep = c.execute(text("SELECT reparto_id FROM users WHERE user_id = :uid"), {"uid": uid}).scalar()
                 if user_rep:
-                    return c.execute(text("SELECT COUNT(*) FROM users WHERE attivo = 0 AND user_id != 1 AND reparto_id = :rep"), {"rep": user_rep}).scalar() or 0
+                    return c.execute(text("SELECT COUNT(*) FROM users WHERE attivo = 0 AND user_id != 1 AND ruolo != 'normale' AND reparto_id = :rep"), {"rep": user_rep}).scalar() or 0
                 return 0
             elif user.get("ruolo") == "assistenza":
-                return c.execute(text("SELECT COUNT(*) FROM users WHERE attivo = 0 AND user_id != 1")).scalar() or 0
+                return c.execute(text("SELECT COUNT(*) FROM users WHERE attivo = 0 AND user_id != 1 AND ruolo != 'normale'")).scalar() or 0
+    except Exception:
+        pass
+    return 0
+
+def get_users_count(user):
+    if not user or user.get("ruolo") == "normale":
+        return 0
+    try:
+        with engine.connect() as c:
+            uid = user.get("id")
+            if user.get("ruolo") == "admin":
+                return c.execute(text("SELECT COUNT(*) FROM users WHERE attivo = 0 AND ruolo = 'normale'")).scalar() or 0
+            elif user.get("ruolo") == "responsabile":
+                user_rep = c.execute(text("SELECT reparto_id FROM users WHERE user_id = :uid"), {"uid": uid}).scalar()
+                if user_rep:
+                    return c.execute(text("SELECT COUNT(*) FROM users WHERE attivo = 0 AND ruolo = 'normale' AND reparto_id = :rep"), {"rep": user_rep}).scalar() or 0
+                return 0
+            elif user.get("ruolo") == "assistenza":
+                return c.execute(text("SELECT COUNT(*) FROM users WHERE attivo = 0 AND ruolo = 'normale'")).scalar() or 0
     except Exception:
         pass
     return 0
 
 templates.env.globals["get_operators_count"] = get_operators_count
+templates.env.globals["get_users_count"] = get_users_count
 
 def get_pending_requests_count(user):
     if not user or user.get("ruolo") == "normale":
