@@ -30,6 +30,7 @@
 </div>
 {% endif %}
 
+{% if user.ruolo != 'normale' %}
 {% if ticket.stato == 'nuova' %}
 <div class="alert alert-info border-info shadow-sm mb-3">
   <i class="bi bi-info-circle-fill me-1"></i> 
@@ -41,6 +42,7 @@
   <i class="bi bi-exclamation-triangle-fill me-1"></i> 
   <strong>Ticket Chiuso:</strong> Questo ticket è stato chiuso e non può essere modificato. Per aggiungere note, riassegnarlo o richiedere materiale, è necessario prima <strong>riaprirlo</strong> utilizzando il pulsante "Riapri Ticket".
 </div>
+{% endif %}
 {% endif %}
 
 <div class="card mb-4"><div class="card-body">

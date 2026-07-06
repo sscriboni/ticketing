@@ -171,7 +171,7 @@
   <td>
     <div class="d-flex gap-1 flex-wrap">
       <a href="/ticket/{{ t.ticket_id }}" class="btn btn-sm btn-outline-primary">Apri</a>
-      {% if t.stato == 'nuova' %}
+      {% if t.stato == 'nuova' and user.ruolo != 'normale' %}
       <form method="post" action="/ticket/{{ t.ticket_id }}/stato" class="d-inline">
           <input type="hidden" name="stato" value="presa_in_carico">
           <button type="submit" class="btn btn-sm btn-primary" title="Prendi in Carico">
