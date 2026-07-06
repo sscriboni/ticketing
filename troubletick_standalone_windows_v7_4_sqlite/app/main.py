@@ -1054,6 +1054,8 @@ def delete_tickets_massivo(r: Request, data_inizio: str = Form(...), data_fine: 
 
 @app.get("/calendario", response_class=HTMLResponse)
 def calendario(r: Request, copertura_alert: str = None, servizi_scoperti: str = None):
+    if not CFG.get('modulo_presenze', True):
+        return RedirectResponse(url="/")
     if "user" not in r.session: return RedirectResponse(url="/login")
     user = r.session.get("user")
     
@@ -1079,6 +1081,8 @@ def calendario(r: Request, copertura_alert: str = None, servizi_scoperti: str = 
 
 @app.get("/calendario-presenze", response_class=HTMLResponse)
 def calendario_presenze(r: Request):
+    if not CFG.get('modulo_presenze', True):
+        return RedirectResponse(url="/")
     if "user" not in r.session: return RedirectResponse(url="/login")
     user = r.session.get("user")
     uid = user.get("id")
@@ -1239,6 +1243,8 @@ def elimina_assenza(r: Request, assenza_id: int):
 
 @app.get("/copertura-servizi", response_class=HTMLResponse)
 def copertura_servizi(r: Request, mese: int = None, anno: int = None, reparto_id: int = None):
+    if not CFG.get('modulo_presenze', True):
+        return RedirectResponse(url="/")
     if "user" not in r.session: return RedirectResponse(url="/login")
     user = r.session.get("user")
     
@@ -1394,6 +1400,8 @@ def copertura_servizi(r: Request, mese: int = None, anno: int = None, reparto_id
 
 @app.get("/assenze-mese", response_class=HTMLResponse)
 def assenze_mese(r: Request, mese: int = None, anno: int = None, reparto_id: int = None):
+    if not CFG.get('modulo_presenze', True):
+        return RedirectResponse(url="/")
     if "user" not in r.session: return RedirectResponse(url="/login")
     user = r.session.get("user")
     
@@ -1672,7 +1680,10 @@ def save_impostazioni(r: Request,
                       db_port: str = Form(""),
                       db_name: str = Form(""),
                       db_user: str = Form(""),
-                      db_password: str = Form("")):
+                      db_password: str = Form(""),
+                      modulo_avvisi: int = Form(0),
+                      modulo_presenze: int = Form(0),
+                      modulo_autopark: int = Form(0)):
     user = require_superuser(r)
     if isinstance(user, RedirectResponse):
         return user
@@ -1693,6 +1704,10 @@ def save_impostazioni(r: Request,
     CFG["db_name"] = db_name
     CFG["db_user"] = db_user
     CFG["db_password"] = db_password
+    
+    CFG["modulo_avvisi"] = bool(modulo_avvisi)
+    CFG["modulo_presenze"] = bool(modulo_presenze)
+    CFG["modulo_autopark"] = bool(modulo_autopark)
     
     try:
         with open(os.path.join(BASE_DIR, "config.json"), "w", encoding="utf-8") as f:
@@ -1780,6 +1795,8 @@ def test_email(r: Request,
 
 @app.get("/admin/report-copertura", response_class=HTMLResponse)
 def report_copertura(r: Request, mese: int = None, anno: int = None):
+    if not CFG.get('modulo_presenze', True):
+        return RedirectResponse(url="/")
     user = current_user(r)
     if not user:
         return RedirectResponse(url="/login")
@@ -2984,10 +3001,21 @@ def reset_accesso_utente(r: Request, user_id: int):
         c.execute(text("UPDATE users SET ultimo_accesso = NULL, ultimo_ip = NULL WHERE user_id = :uid AND user_id != 1 AND ruolo='normale'"), {"uid": user_id})
     return RedirectResponse(url="/admin/utenti", status_code=303)
 
+@app.get("/autopark", response_class=HTMLResponse)
+def get_autopark(r: Request):
+    if "user" not in r.session: 
+        return RedirectResponse(url="/login")
+    user = r.session.get("user")
+    if not CFG.get('modulo_autopark', True):
+        return RedirectResponse(url="/")
+    return templates.TemplateResponse(r, "autopark.html", {"request": r, "cfg": CFG, "user": user})
+
 # ===== GESTIONE AVVISI IN HOMEPAGE =====
 
 @app.get("/avvisi", response_class=HTMLResponse)
 def manage_avvisi(r: Request):
+    if not CFG.get('modulo_avvisi', True):
+        return RedirectResponse(url="/")
     if "user" not in r.session: return RedirectResponse(url="/login")
     user = r.session.get("user")
     

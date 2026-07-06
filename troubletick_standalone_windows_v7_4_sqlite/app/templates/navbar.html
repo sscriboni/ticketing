@@ -48,9 +48,12 @@
             <li><a class="dropdown-item" href="/log-magazzini">Log Magazzini</a></li>
           </ul>
         </li>
+        {% if cfg.get('modulo_avvisi', True) %}
         <li class="nav-item"><a class="nav-link {% if request.url.path.startswith('/avvisi') %}active fw-bold{% endif %}" href="/avvisi"><i class="bi bi-megaphone"></i> Avvisi</a></li>
         {% endif %}
+        {% endif %}
         
+        {% if cfg.get('modulo_presenze', True) %}
         <li class="nav-item dropdown">
           <a class="nav-link dropdown-toggle {% if request.url.path.startswith('/calendario') or request.url.path.startswith('/copertura-servizi') or request.url.path.startswith('/assenze-mese') or request.url.path == '/servizi-assegnati' or request.url.path == '/admin/report-copertura' %}active fw-bold{% endif %}" href="#" id="presenzeDropdown" role="button" data-bs-toggle="dropdown" aria-expanded="false">
             <i class="bi bi-calendar-check"></i> Presenze
@@ -67,6 +70,16 @@
             <li><a class="dropdown-item" href="/servizi-assegnati"><i class="bi bi-person-check me-2"></i>Servizi assegnati</a></li>
           </ul>
         </li>
+        {% endif %}
+
+        {% if cfg.get('modulo_autopark', True) %}
+        <li class="nav-item">
+          <a class="nav-link {% if request.url.path.startswith('/autopark') %}active fw-bold{% endif %}" href="/autopark">
+            <i class="bi bi-p-circle"></i> Autopark
+          </a>
+        </li>
+        {% endif %}
+        
         {% if user.ruolo == 'admin' %}
         <li class="nav-item">
           <a class="nav-link {% if request.url.path == '/operatori' or request.url.path.startswith('/admin/operatori') %}active fw-bold{% endif %}" href="/operatori">
@@ -85,7 +98,9 @@
           <ul class="dropdown-menu shadow" aria-labelledby="docDropdown">
             <li><a class="dropdown-item" href="/documentazione">Guida Generale</a></li>
             <li><a class="dropdown-item" href="/documentazione/magazzino">Guida Magazzino</a></li>
+            {% if cfg.get('modulo_presenze', True) %}
             <li><a class="dropdown-item" href="/documentazione/presenze">Guida Presenze/Assenze</a></li>
+            {% endif %}
             <li><hr class="dropdown-divider"></li>
             <li><a class="dropdown-item" href="/documentazione/privacy">Privacy Policy</a></li>
           </ul>
@@ -118,7 +133,9 @@
             <li><a class="dropdown-item" href="/admin/sedi">Gestione Sedi</a></li>
             <li><a class="dropdown-item" href="/admin/magazzini">Gestione Magazzini</a></li>
             <li><a class="dropdown-item" href="/admin/comuni">Gestione Comuni</a></li>
+            {% if cfg.get('modulo_presenze', True) %}
             <li><a class="dropdown-item" href="/admin/festivita">Gestione Festività</a></li>
+            {% endif %}
             <li><hr class="dropdown-divider"></li>
             <li><a class="dropdown-item" href="/admin/categorie">Categorie Materiali</a></li>
             <li><a class="dropdown-item" href="/admin/materiali">Anagrafica Materiali</a></li>

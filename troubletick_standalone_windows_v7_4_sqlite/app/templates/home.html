@@ -15,7 +15,7 @@
     <a href="/new" class="btn btn-primary btn-main">📩 Apri un Ticket</a>
   </div>
 
-  {% if avvisi %}
+  {% if cfg.get('modulo_avvisi', True) and avvisi %}
   <div class="mt-5 w-100" style="max-width: 800px;">
     <h3 class="h5 text-start mb-3">📢 Avvisi dai Servizi</h3>
     {% for avviso in avvisi %}

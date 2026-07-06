@@ -121,6 +121,22 @@
                     </div>
                 </div>
 
+                <hr class="my-4">
+                <h4 class="mb-3">Moduli Applicativi</h4>
+                <p class="text-muted small">Abilita o disabilita i moduli dell'applicazione. I moduli disabilitati verranno nascosti dai menu di navigazione.</p>
+                <div class="mb-3 form-check">
+                    <input type="checkbox" name="modulo_avvisi" value="1" class="form-check-input" id="checkModuloAvvisi" {% if cfg.get('modulo_avvisi', True) %}checked{% endif %}>
+                    <label class="form-check-label fw-bold" for="checkModuloAvvisi">📢 Modulo Avvisi</label>
+                </div>
+                <div class="mb-3 form-check">
+                    <input type="checkbox" name="modulo_presenze" value="1" class="form-check-input" id="checkModuloPresenze" {% if cfg.get('modulo_presenze', True) %}checked{% endif %}>
+                    <label class="form-check-label fw-bold" for="checkModuloPresenze">🗓️ Modulo Presenze</label>
+                </div>
+                <div class="mb-4 form-check">
+                    <input type="checkbox" name="modulo_autopark" value="1" class="form-check-input" id="checkModuloAutopark" {% if cfg.get('modulo_autopark', True) %}checked{% endif %}>
+                    <label class="form-check-label fw-bold" for="checkModuloAutopark">🚗 Modulo Autopark (Prossimamente)</label>
+                </div>
+
                 <div class="d-flex gap-2">
                     <button type="submit" class="btn btn-primary">Salva Impostazioni</button>
                     <a href="/admin" class="btn btn-outline-secondary">Annulla</a>

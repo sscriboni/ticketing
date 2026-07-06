@@ -1,11 +1,11 @@
 {
   "app_title": "Troubletick",
   "logo_emoji": "⚙️",
-  "company_name": "ASL AL",
+  "company_name": "Helpdesk Test",
   "company_description": "Portale di assistenza tecnica aziendale per richieste interne e segnalazioni.",
   "homepage_text": "Benvenuto nel portale di assistenza. Da qui puoi segnalare problemi, richiedere supporto o monitorare lo stato delle tue richieste.",
   "footer_text": "© 2026 ICT- ASL Alessandria — Helpdesk interno Troubletick",
-  "helpdesk_email": "ced@aslal.it",
+  "helpdesk_email": "admin@example.com",
   "support_hours": "Lun–Ven, 8:00–17:00",
   "smtp_server": "",
   "smtp_port": "",
@@ -18,5 +18,8 @@
   "db_name": "",
   "db_user": "",
   "db_password": "",
-  "app_url": ""
+  "app_url": "http://localhost:5001/",
+  "modulo_avvisi": true,
+  "modulo_presenze": true,
+  "modulo_autopark": true
 }

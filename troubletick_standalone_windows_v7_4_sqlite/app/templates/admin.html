@@ -84,6 +84,7 @@
       </div>
     </div>
   </div>
+  {% if cfg.get('modulo_presenze', True) %}
   <div class="col-12 col-md-6 col-lg-3">
     <div class="card h-100 shadow-sm border-0">
       <div class="card-body text-center">
@@ -93,6 +94,7 @@
       </div>
     </div>
   </div>
+  {% endif %}
   <div class="col-12 col-md-6 col-lg-3">
     <div class="card h-100 shadow-sm border-0">
       <div class="card-body text-center">
@@ -102,6 +104,7 @@
       </div>
     </div>
   </div>
+  {% if cfg.get('modulo_presenze', True) %}
   <div class="col-12 col-md-6 col-lg-3">
     <div class="card h-100 shadow-sm border-0">
       <div class="card-body text-center">
@@ -111,6 +114,7 @@
       </div>
     </div>
   </div>
+  {% endif %}
   <div class="col-12 col-md-6 col-lg-3">
     <div class="card h-100 shadow-sm border-0">
       <div class="card-body text-center">
@@ -129,6 +133,17 @@
       </div>
     </div>
   </div>
+  {% if cfg.get('modulo_autopark', True) %}
+  <div class="col-12 col-md-6 col-lg-3">
+    <div class="card h-100 shadow-sm border-0">
+      <div class="card-body text-center">
+        <h5 class="card-title">🚗 Autopark</h5>
+        <p class="card-text text-muted mb-3">Gestione parcheggio (Prossimamente)</p>
+        <a href="#" class="btn btn-secondary disabled">Accedi</a>
+      </div>
+    </div>
+  </div>
+  {% endif %}
 </div>
 
 <div class="alert alert-info mt-4 small shadow-sm">
