@@ -1053,7 +1053,16 @@ def log_magazzini(r: Request, magazzino_id: str = None, categoria_id: str = None
     })
 
 @router.get("/richieste-materiale", response_class=HTMLResponse)
-def richieste_materiale_list(r: Request):
+def richieste_materiale_list(
+    r: Request,
+    stato: str = "",
+    sede_dest_id: str = "",
+    categoria_id: str = "",
+    materiale_id: str = "",
+    magazzino_id: str = "",
+    search_req: str = "",
+    order_by: str = "creato_il_desc"
+):
     if "user" not in r.session: return RedirectResponse(url="/login")
     user = r.session.get("user")
     
@@ -1061,20 +1070,64 @@ def richieste_materiale_list(r: Request):
         recalculate_richieste_stati(conn)
         
     with engine.connect() as c:
-        where_clause = "1=1"
+        sedi = c.execute(text("SELECT sede_id, nome FROM sedi ORDER BY nome")).mappings().all()
+        categorie = c.execute(text("SELECT categoria_id, nome FROM categorie ORDER BY nome")).mappings().all()
+        materiali = c.execute(text("SELECT materiale_id, nome FROM materiali ORDER BY nome")).mappings().all()
+        magazzini = c.execute(text("SELECT magazzino_id, nome FROM magazzini ORDER BY nome")).mappings().all()
+
+        clauses = []
         params = {}
+        
         user_mag_ids = []
-        use_expanding = False
         if user.get("ruolo") != "admin":
             user_mag_ids = c.execute(text("SELECT magazzino_id FROM operatori_magazzini WHERE user_id = :uid"), {"uid": user.get("id")}).scalars().all()
             if user_mag_ids:
-                where_clause = "rm.magazzino_id IN :mids"
-                params = {"mids": list(user_mag_ids)}
-                use_expanding = True
+                clauses.append("rm.magazzino_id IN :mids")
+                params["mids"] = list(user_mag_ids)
             else:
-                where_clause = "1=0"
-                params = {}
-                
+                clauses.append("1=0")
+        
+        # Apply dynamic filters
+        if stato:
+            clauses.append("rm.stato = :stato")
+            params["stato"] = stato
+            
+        if sede_dest_id:
+            clauses.append("rm.sede_dest_id = :sede_dest_id")
+            params["sede_dest_id"] = int(sede_dest_id)
+            
+        if categoria_id:
+            clauses.append("rm.categoria_id = :categoria_id")
+            params["categoria_id"] = int(categoria_id)
+            
+        if materiale_id:
+            clauses.append("rm.materiale_id = :materiale_id")
+            params["materiale_id"] = int(materiale_id)
+            
+        if magazzino_id:
+            clauses.append("rm.magazzino_id = :magazzino_id")
+            params["magazzino_id"] = int(magazzino_id)
+            
+        search_req_stripped = (search_req or "").strip()
+        if search_req_stripped:
+            clauses.append("(m.nome LIKE :search OR u.nome LIKE :search OR u.cognome LIKE :search OR rm.richiesta_id = :search_id OR rm.ticket_id = :search_id)")
+            params["search"] = f"%{search_req_stripped}%"
+            params["search_id"] = int(search_req_stripped) if search_req_stripped.isdigit() else -1
+            
+        where_clause = " AND ".join(clauses) if clauses else "1=1"
+        
+        order_mapping = {
+            "creato_il_desc": "rm.creato_il DESC",
+            "creato_il_asc": "rm.creato_il ASC",
+            "quantita_desc": "rm.quantita DESC",
+            "quantita_asc": "rm.quantita ASC",
+            "materiale_nome_asc": "m.nome ASC",
+            "materiale_nome_desc": "m.nome DESC",
+            "stato_asc": "rm.stato ASC",
+            "sede_nome_asc": "COALESCE(s.nome, t.sede) ASC"
+        }
+        order_sql = order_mapping.get(order_by, "rm.creato_il DESC")
+        
         stmt = text(f"""
             SELECT rm.*, m.nome as materiale_nome, c.nome as categoria_nome, s.nome as sede_nome, mag.nome as magazzino_nome,
                    u.nome as req_nome, u.cognome as req_cognome, t.sede as ticket_sede
@@ -1086,8 +1139,10 @@ def richieste_materiale_list(r: Request):
             LEFT JOIN magazzini mag ON rm.magazzino_id = mag.magazzino_id
             LEFT JOIN tickets t ON rm.ticket_id = t.ticket_id
             WHERE {where_clause}
-            ORDER BY rm.creato_il DESC
+            ORDER BY {order_sql}
         """)
+        
+        use_expanding = "mids" in params
         if use_expanding:
             from sqlalchemy import bindparam
             stmt = stmt.bindparams(bindparam("mids", expanding=True))
@@ -1102,6 +1157,7 @@ def richieste_materiale_list(r: Request):
                    SUM(rm.quantita) AS totale_quantita
             FROM richieste_materiale rm
             JOIN materiali m ON rm.materiale_id = m.materiale_id
+            JOIN users u ON rm.user_id = u.user_id
             LEFT JOIN sedi s ON rm.sede_dest_id = s.sede_id
             WHERE {fabbisogno_where}
             GROUP BY rm.sede_dest_id, rm.materiale_id, s.nome
@@ -1116,7 +1172,20 @@ def richieste_materiale_list(r: Request):
     return templates.TemplateResponse(r, "richieste_materiale.html", {
         "request": r, "cfg": CFG, "user": user, 
         "richieste": richieste, "user_mag_ids": user_mag_ids,
-        "fabbisogno": fabbisogno
+        "fabbisogno": fabbisogno,
+        "sedi": sedi,
+        "categorie": categorie,
+        "materiali": materiali,
+        "magazzini": magazzini,
+        "filtri": {
+            "stato": stato,
+            "sede_dest_id": sede_dest_id,
+            "categoria_id": categoria_id,
+            "materiale_id": materiale_id,
+            "magazzino_id": magazzino_id,
+            "search_req": search_req_stripped,
+            "order_by": order_by
+        }
     })
 
 @router.get("/richiesta-materiale/nuova", response_class=HTMLResponse)

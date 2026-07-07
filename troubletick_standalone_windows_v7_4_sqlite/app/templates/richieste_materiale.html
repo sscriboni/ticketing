@@ -43,6 +43,110 @@
 </div>
 {% endif %}
 
+<!-- FILTRI E ORDINAMENTO -->
+<div class="card shadow-sm mb-4 border-0">
+  <div class="card-body bg-white p-3">
+    <form method="GET" action="/richieste-materiale" id="filterForm">
+      <div class="row g-3">
+        <!-- Search -->
+        <div class="col-md-3">
+          <label class="form-label fw-bold small text-secondary">Cerca</label>
+          <div class="input-group">
+            <span class="input-group-text bg-light"><i class="bi bi-search"></i></span>
+            <input type="text" name="search_req" class="form-control" placeholder="ID, ticket, richiedente..." value="{{ filtri.search_req or '' }}">
+          </div>
+        </div>
+        
+        <!-- Stato -->
+        <div class="col-md-2">
+          <label class="form-label fw-bold small text-secondary">Stato</label>
+          <select name="stato" class="form-select">
+            <option value="">Tutti</option>
+            <option value="nuova" {% if filtri.stato == 'nuova' %}selected{% endif %}>In Attesa</option>
+            <option value="pronta_per_scarico" {% if filtri.stato == 'pronta_per_scarico' %}selected{% endif %}>Pronta per Scarico</option>
+            <option value="evasa" {% if filtri.stato == 'evasa' %}selected{% endif %}>Evasa</option>
+            <option value="annullata" {% if filtri.stato == 'annullata' %}selected{% endif %}>Annullata</option>
+          </select>
+        </div>
+        
+        <!-- Sede Destinazione -->
+        <div class="col-md-2">
+          <label class="form-label fw-bold small text-secondary">Sede Destinazione</label>
+          <select name="sede_dest_id" class="form-select">
+            <option value="">Tutte</option>
+            {% for s in sedi %}
+            <option value="{{ s.sede_id }}" {% if filtri.sede_dest_id == s.sede_id|string %}selected{% endif %}>{{ s.nome }}</option>
+            {% endfor %}
+          </select>
+        </div>
+        
+        <!-- Categoria -->
+        <div class="col-md-2">
+          <label class="form-label fw-bold small text-secondary">Categoria</label>
+          <select name="categoria_id" class="form-select">
+            <option value="">Tutte</option>
+            {% for c in categorie %}
+            <option value="{{ c.categoria_id }}" {% if filtri.categoria_id == c.categoria_id|string %}selected{% endif %}>{{ c.nome }}</option>
+            {% endfor %}
+          </select>
+        </div>
+        
+        <!-- Ordinamento -->
+        <div class="col-md-3">
+          <label class="form-label fw-bold small text-secondary">Ordina per</label>
+          <select name="order_by" class="form-select" onchange="this.form.submit()">
+            <option value="creato_il_desc" {% if filtri.order_by == 'creato_il_desc' %}selected{% endif %}>Data creazione (più recente)</option>
+            <option value="creato_il_asc" {% if filtri.order_by == 'creato_il_asc' %}selected{% endif %}>Data creazione (più vecchia)</option>
+            <option value="quantita_desc" {% if filtri.order_by == 'quantita_desc' %}selected{% endif %}>Quantità (maggiore)</option>
+            <option value="quantita_asc" {% if filtri.order_by == 'quantita_asc' %}selected{% endif %}>Quantità (minore)</option>
+            <option value="materiale_nome_asc" {% if filtri.order_by == 'materiale_nome_asc' %}selected{% endif %}>Materiale (A-Z)</option>
+            <option value="materiale_nome_desc" {% if filtri.order_by == 'materiale_nome_desc' %}selected{% endif %}>Materiale (Z-A)</option>
+            <option value="stato_asc" {% if filtri.order_by == 'stato_asc' %}selected{% endif %}>Stato</option>
+            <option value="sede_nome_asc" {% if filtri.order_by == 'sede_nome_asc' %}selected{% endif %}>Sede Destinazione (A-Z)</option>
+          </select>
+        </div>
+      </div>
+      
+      <!-- Collapsible Additional Filters -->
+      <div class="collapse {% if filtri.materiale_id or filtri.magazzino_id %}show{% endif %} mt-3" id="additionalFilters">
+        <div class="row g-3">
+          <!-- Materiale -->
+          <div class="col-md-6">
+            <label class="form-label fw-bold small text-secondary">Articolo/Materiale</label>
+            <select name="materiale_id" class="form-select">
+              <option value="">Tutti</option>
+              {% for m in materiali %}
+              <option value="{{ m.materiale_id }}" {% if filtri.materiale_id == m.materiale_id|string %}selected{% endif %}>{{ m.nome }}</option>
+              {% endfor %}
+            </select>
+          </div>
+          
+          <!-- Magazzino -->
+          <div class="col-md-6">
+            <label class="form-label fw-bold small text-secondary">Magazzino Incaricato</label>
+            <select name="magazzino_id" class="form-select">
+              <option value="">Tutti</option>
+              {% for mag in magazzini %}
+              <option value="{{ mag.magazzino_id }}" {% if filtri.magazzino_id == mag.magazzino_id|string %}selected{% endif %}>{{ mag.nome }}</option>
+              {% endfor %}
+            </select>
+          </div>
+        </div>
+      </div>
+
+      <div class="d-flex justify-content-between align-items-center mt-3 pt-3 border-top">
+        <button type="button" class="btn btn-sm btn-link text-secondary p-0 fw-bold text-decoration-none" data-bs-toggle="collapse" data-bs-target="#additionalFilters" aria-expanded="{% if filtri.materiale_id or filtri.magazzino_id %}true{% else %}false{% endif %}">
+          <i class="bi bi-sliders me-1"></i> Più Filtri
+        </button>
+        <div class="d-flex gap-2">
+          <a href="/richieste-materiale" class="btn btn-sm btn-light border"><i class="bi bi-arrow-counterclockwise me-1"></i> Azzera</a>
+          <button type="submit" class="btn btn-sm btn-primary"><i class="bi bi-funnel-fill me-1"></i> Applica Filtri</button>
+        </div>
+      </div>
+    </form>
+  </div>
+</div>
+
 <div class="bg-white rounded shadow-sm overflow-hidden">
   <div class="table-responsive"><table class="table table-striped table-hover mb-0 align-middle">
     <thead class="table-light"><tr>
