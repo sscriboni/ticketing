@@ -120,7 +120,10 @@ def register_utente_action(r: Request, background_tasks: BackgroundTasks, passwo
 
     # Send activation email in background
     subject = f"Attiva il tuo account — {CFG.get('app_title')}"
-    activation_link = f"{r.base_url}attivazione?token={activation_token}"
+    base_url = CFG.get("app_url", "").strip() or str(r.base_url)
+    if not base_url.endswith("/"):
+        base_url += "/"
+    activation_link = f"{base_url}attivazione?token={activation_token}"
     body = f"""
     <html>
     <body style="font-family: Arial, sans-serif; line-height: 1.6; color: #333;">
@@ -154,8 +157,10 @@ def forgot_password_action(r: Request, email: str = Form(...)):
         if user:
             token = secrets.token_urlsafe(32)
             expires = (datetime.now() + timedelta(hours=1)).isoformat()
-            c.execute(text("UPDATE users SET reset_token = :t, reset_expires = :ex WHERE user_id = :id"), {"t": token, "ex": expires, "id": user["user_id"]})
-            print(f"\n--- EMAIL SIMULATA ---\nLink di reset: {r.base_url}reset-password?token={token}\n----------------------\n")
+            base_url = CFG.get("app_url", "").strip() or str(r.base_url)
+            if not base_url.endswith("/"):
+                base_url += "/"
+            print(f"\n--- EMAIL SIMULATA ---\nLink di reset: {base_url}reset-password?token={token}\n----------------------\n")
     return templates.TemplateResponse(r, "forgot_password.html", {"request": r, "cfg": CFG, "success": "Se l'email esiste, ti è stato inviato un link di reset."})
 
 @router.get("/reset-password", response_class=HTMLResponse)
