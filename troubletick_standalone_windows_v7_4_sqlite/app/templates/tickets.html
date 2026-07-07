@@ -93,6 +93,7 @@
         {% endfor %}
       </select>
     </div>
+    {% if user.ruolo != 'normale' %}
     <div class="col-md-2">
       <label class="form-label">Priorità</label>
       <select name="priorita" class="form-select">
@@ -102,6 +103,7 @@
         {% endfor %}
       </select>
     </div>
+    {% endif %}
     <div class="col-md-2">
       <label class="form-label">Materiali</label>
       <select name="con_materiale" class="form-select">
@@ -126,7 +128,7 @@
 </div>
 
 <div class="table-responsive"><table class="table table-striped align-middle">
-<thead><tr><th>ID / Codice</th><th>Richiedente</th><th>Riferimento</th><th>Reparto / Servizio</th><th>Descrizione</th><th>Priorità</th><th>Stato</th><th>Ultimo Operatore</th><th>Creato il</th><th>Dettagli</th></tr></thead>
+<thead><tr><th>ID / Codice</th><th>Richiedente</th><th>Riferimento</th><th>Reparto / Servizio</th><th>Descrizione</th>{% if user.ruolo != 'normale' %}<th>Priorità</th>{% endif %}<th>Stato</th><th>Ultimo Operatore</th><th>Creato il</th><th>Dettagli</th></tr></thead>
 <tbody>
 {% for t in tickets %}
 <tr {% if t.is_unhandled_over_24h %}class="table-danger"
@@ -156,7 +158,7 @@
   <td>{{ t.riferimento or '—' }}</td>
   <td><strong>{{ t.reparto_nome or '—' }}</strong><br><small>{{ t.servizio_desc or 'Nessuno' }}{% if t.argomento_desc %} / {{ t.argomento_desc }}{% endif %}</small></td>
   <td>{{ t.descrizione }}</td>
-  <td>{{ t.priorita }}</td>
+  {% if user.ruolo != 'normale' %}<td>{{ t.priorita }}</td>{% endif %}
   <td>{{ t.stato }}</td>
   <td>
     {{ t.ultimo_operatore or '—' }}

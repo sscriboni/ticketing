@@ -1098,6 +1098,33 @@ def reassign_ticket(r: Request, ticket_id: int, background_tasks: BackgroundTask
                  
     return RedirectResponse(url=f"/ticket/{ticket_id}", status_code=303)
 
+@app.post("/ticket/{ticket_id}/priorita")
+def change_ticket_priorita(r: Request, ticket_id: int, priorita: str = Form(...)):
+    if "user" not in r.session: return RedirectResponse(url="/login")
+    user = r.session.get("user")
+    if user.get("ruolo") == "normale":
+        return RedirectResponse(url=f"/ticket/{ticket_id}", status_code=303)
+        
+    if priorita not in ["bassa", "media", "alta", "critica"]:
+        return RedirectResponse(url=f"/ticket/{ticket_id}?error=invalid_priority", status_code=303)
+        
+    with engine.begin() as c:
+        vecchio = c.execute(text("SELECT priorita, stato FROM tickets WHERE ticket_id = :id"), {"id": ticket_id}).mappings().first()
+        if not vecchio:
+            return RedirectResponse(url="/tickets", status_code=303)
+        if vecchio["stato"] != 'presa_in_carico':
+            return RedirectResponse(url=f"/ticket/{ticket_id}?error=not_taken_in_charge", status_code=303)
+            
+        c.execute(text("UPDATE tickets SET priorita = :p WHERE ticket_id = :id"), 
+                  {"p": priorita, "id": ticket_id})
+                  
+        autore = f"{user.get('nome','')} {user.get('cognome','')}".strip() or user.get('username')
+        testo = f"Priorità del ticket modificata da **{vecchio['priorita'] or 'non specificata'}** a **{priorita}**."
+        c.execute(text("""INSERT INTO ticket_notes (ticket_id, autore, testo, is_internal) VALUES (:tid, :a, :t, 1)"""),
+                 {"tid": ticket_id, "a": f"Sistema ({autore})", "t": testo})
+                 
+    return RedirectResponse(url=f"/ticket/{ticket_id}", status_code=303)
+
 @app.post("/ticket/{ticket_id}/delete")
 def delete_ticket(r: Request, ticket_id: int):
     user = require_superuser(r)
