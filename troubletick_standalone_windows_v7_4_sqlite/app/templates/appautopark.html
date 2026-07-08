@@ -64,7 +64,7 @@
                             {% for v in veicoli %}
                             <tr>
                                 <td>
-                                    <div class="fw-bold">{{ v.marca }} {{ v.modello }}</div>
+                                    <div class="fw-bold">{{ v.marca_nome }} {{ v.modello }}</div>
                                     <span class="badge bg-secondary font-monospace">{{ v.targa }}</span>
                                 </td>
                                 <td>
@@ -72,7 +72,14 @@
                                     <small class="text-muted">{{ v.colore or '-' }}</small>
                                 </td>
                                 <td>
-                                    <div>{{ v.alimentazione or '-' }}</div>
+                                    <div>
+                                        {% if v.alimentazione == 'B' %}B (Benzina)
+                                        {% elif v.alimentazione == 'B-GPL' %}B-GPL (Benzina GPL)
+                                        {% elif v.alimentazione == 'B-M' %}B-M (Benzina Metano)
+                                        {% elif v.alimentazione == 'E' %}E (Elettrica)
+                                        {% elif v.alimentazione == 'G' %}G (Gasolio)
+                                        {% else %}{{ v.alimentazione or '-' }}{% endif %}
+                                    </div>
                                     <small class="text-muted">{{ v.km_attuali }} km</small>
                                 </td>
                                 <td>{{ v.data_immatricolazione or '-' }}</td>
@@ -97,7 +104,7 @@
                                         <button class="btn btn-sm btn-outline-primary" onclick='openEditModal({{ {
                                             "automezzo_id": v.automezzo_id,
                                             "targa": v.targa,
-                                            "marca": v.marca,
+                                            "marca_id": v.marca_id,
                                             "modello": v.modello,
                                             "tipo": v.tipo,
                                             "colore": v.colore or "",
@@ -148,7 +155,12 @@
                             </div>
                             <div class="col-md-4">
                                 <label class="form-label text-muted">Marca *</label>
-                                <input type="text" class="form-control" name="marca" placeholder="Es. Fiat" required>
+                                <select class="form-select" name="marca_id" required>
+                                    <option value="" disabled selected>-- Seleziona --</option>
+                                    {% for m in marche %}
+                                    <option value="{{ m.marca_id }}">{{ m.nome }}</option>
+                                    {% endfor %}
+                                </select>
                             </div>
                             <div class="col-md-4">
                                 <label class="form-label text-muted">Modello *</label>
@@ -169,8 +181,14 @@
                                 <input type="text" class="form-control" name="colore" placeholder="Es. Bianco">
                             </div>
                             <div class="col-md-4">
-                                <label class="form-label text-muted">Alimentazione</label>
-                                <input type="text" class="form-control" name="alimentazione" placeholder="Es. Ibrida / Diesel">
+                                <label class="form-label text-muted">Alimentazione *</label>
+                                <select class="form-select" name="alimentazione" required>
+                                    <option value="B">B (Benzina)</option>
+                                    <option value="B-GPL">B-GPL (Benzina GPL)</option>
+                                    <option value="B-M">B-M (Benzina Metano)</option>
+                                    <option value="E">E (Elettrica)</option>
+                                    <option value="G">G (Gasolio)</option>
+                                </select>
                             </div>
                         </div>
                         
@@ -261,7 +279,12 @@
                             </div>
                             <div class="col-md-4">
                                 <label class="form-label text-muted">Marca *</label>
-                                <input type="text" class="form-control" name="marca" id="editMarca" required>
+                                <select class="form-select" name="marca_id" id="editMarcaId" required>
+                                    <option value="" disabled>-- Seleziona --</option>
+                                    {% for m in marche %}
+                                    <option value="{{ m.marca_id }}">{{ m.nome }}</option>
+                                    {% endfor %}
+                                </select>
                             </div>
                             <div class="col-md-4">
                                 <label class="form-label text-muted">Modello *</label>
@@ -282,8 +305,14 @@
                                 <input type="text" class="form-control" name="colore" id="editColore">
                             </div>
                             <div class="col-md-4">
-                                <label class="form-label text-muted">Alimentazione</label>
-                                <input type="text" class="form-control" name="alimentazione" id="editAlimentazione">
+                                <label class="form-label text-muted">Alimentazione *</label>
+                                <select class="form-select" name="alimentazione" id="editAlimentazione" required>
+                                    <option value="B">B (Benzina)</option>
+                                    <option value="B-GPL">B-GPL (Benzina GPL)</option>
+                                    <option value="B-M">B-M (Benzina Metano)</option>
+                                    <option value="E">E (Elettrica)</option>
+                                    <option value="G">G (Gasolio)</option>
+                                </select>
                             </div>
                         </div>
                         
@@ -397,7 +426,7 @@
 
         function openEditModal(v) {
             document.getElementById('editTarga').value = v.targa;
-            document.getElementById('editMarca').value = v.marca;
+            document.getElementById('editMarcaId').value = v.marca_id;
             document.getElementById('editModello').value = v.modello;
             document.getElementById('editTipo').value = v.tipo;
             document.getElementById('editColore').value = v.colore;

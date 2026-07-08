@@ -1,0 +1,414 @@
+<!doctype html>
+<html lang="it">
+
+<head>
+    <meta charset="utf-8">
+    <title>Manutenzioni Automezzi — {{ cfg.app_title }}</title>
+    <!-- Bootstrap CSS -->
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
+    <!-- Bootstrap Icons -->
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css">
+    <style>
+        .table-container {
+            background: white;
+            border-radius: 8px;
+            padding: 1.5rem;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.05);
+            border: 1px solid #dee2e6;
+        }
+        .custom-table th {
+            font-weight: 600;
+            color: #495057;
+            text-transform: uppercase;
+            font-size: 0.8rem;
+            letter-spacing: 0.5px;
+            border-bottom: 2px solid #dee2e6;
+        }
+        .custom-table td {
+            vertical-align: middle;
+        }
+    </style>
+</head>
+
+<body class="bg-light">
+    {% include 'navbar.html' %}
+
+    <div class="container py-4">
+        <!-- Gestione Manutenzioni -->
+        <div class="mb-5">
+            <div class="d-flex justify-content-between align-items-center mb-4">
+                <h2 class="mb-0"><i class="bi bi-wrench-adjustable text-primary me-2"></i> Registro Manutenzioni Automezzi</h2>
+                <div class="d-flex gap-2">
+                    <button class="btn btn-primary px-4 py-2" onclick="showAddMaintenanceModal()">
+                        <i class="bi bi-plus-circle me-1"></i> Nuova Manutenzione
+                    </button>
+                </div>
+            </div>
+
+            <!-- Manutenzioni Attive -->
+            <h4 class="mb-3 text-secondary"><i class="bi bi-clock-history me-1 text-warning"></i> Manutenzioni in Corso</h4>
+            <div class="table-container mb-5">
+                <div class="table-responsive">
+                    <table class="table table-hover custom-table align-middle">
+                        <thead>
+                            <tr>
+                                <th>Veicolo</th>
+                                <th>Targa</th>
+                                <th>Servizio / Tipo</th>
+                                <th>Luogo Officina</th>
+                                <th>Inizio Manutenzione</th>
+                                <th>Km Registrati</th>
+                                <th>Bloccante</th>
+                                <th>Note</th>
+                                <th class="text-end">Azioni</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% set active_count = namespace(value=0) %}
+                            {% for m in manutenzioni %}
+                                {% if not m.data_fine %}
+                                {% set active_count.value = active_count.value + 1 %}
+                                <tr>
+                                    <td><strong>{{ m.marca }} {{ m.modello }}</strong></td>
+                                    <td><span class="badge bg-secondary font-monospace">{{ m.targa }}</span></td>
+                                    <td><span class="badge bg-info text-dark">{{ m.tipo_servizio }}</span></td>
+                                    <td>{{ m.luogo }}</td>
+                                    <td>{{ m.data_inizio }} alle {{ m.ora_inizio }}</td>
+                                    <td>{{ m.km_registrati }} km</td>
+                                    <td>
+                                        {% if m.bloccante == 1 %}
+                                        <span class="badge bg-danger"><i class="bi bi-exclamation-octagon me-1"></i>Sì (Veicolo Bloccato)</span>
+                                        {% else %}
+                                        <span class="badge bg-secondary">No</span>
+                                        {% endif %}
+                                    </td>
+                                    <td><small class="text-muted">{{ m.note or '-' }}</small></td>
+                                    <td class="text-end">
+                                        <div class="d-inline-flex gap-2">
+                                            <button class="btn btn-sm btn-success" onclick="openCompleteModal({{ m.manutenzione_id }}, '{{ m.targa }}', '{{ m.marca }} {{ m.modello }}', {{ m.km_registrati }})">
+                                                <i class="bi bi-check-circle me-1"></i> Completa
+                                            </button>
+                                            <button class="btn btn-sm btn-outline-danger" onclick="confirmDeleteMaintenance({{ m.manutenzione_id }})">
+                                                <i class="bi bi-trash"></i>
+                                            </button>
+                                        </div>
+                                    </td>
+                                </tr>
+                                {% endif %}
+                            {% endfor %}
+                            {% if active_count.value == 0 %}
+                            <tr>
+                                <td colspan="9" class="text-center text-muted py-4">Nessuna manutenzione attualmente in corso.</td>
+                            </tr>
+                            {% endif %}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+
+            <!-- Manutenzioni Completate / Storico -->
+            <h4 class="mb-3 text-secondary"><i class="bi bi-check2-all me-1 text-success"></i> Storico Manutenzioni Completate</h4>
+            <div class="table-container">
+                <div class="table-responsive">
+                    <table class="table table-hover custom-table align-middle">
+                        <thead>
+                            <tr>
+                                <th>Veicolo</th>
+                                <th>Targa</th>
+                                <th>Servizio / Tipo</th>
+                                <th>Luogo Officina</th>
+                                <th>Inizio</th>
+                                <th>Fine</th>
+                                <th>Chilometraggio</th>
+                                <th>Stato Blocco</th>
+                                <th>Note</th>
+                                <th class="text-end">Azioni</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% set history_count = namespace(value=0) %}
+                            {% for m in manutenzioni %}
+                                {% if m.data_fine %}
+                                {% set history_count.value = history_count.value + 1 %}
+                                <tr>
+                                    <td>{{ m.marca }} {{ m.modello }}</td>
+                                    <td><span class="badge bg-light text-dark border font-monospace">{{ m.targa }}</span></td>
+                                    <td><span class="badge bg-light text-dark border">{{ m.tipo_servizio }}</span></td>
+                                    <td>{{ m.luogo }}</td>
+                                    <td>{{ m.data_inizio }}</td>
+                                    <td>{{ m.data_fine }} alle {{ m.ora_fine }}</td>
+                                    <td>
+                                        {{ m.km_registrati }} km
+                                        {% if m.km_fine %}
+                                        <i class="bi bi-arrow-right mx-1 text-muted"></i> {{ m.km_fine }} km
+                                        {% endif %}
+                                    </td>
+                                    <td>
+                                        {% if m.bloccante == 1 %}
+                                        <span class="badge bg-light text-muted border">Risolto (Sbloccato)</span>
+                                        {% else %}
+                                        <span class="badge bg-light text-muted border">Nessuno</span>
+                                        {% endif %}
+                                    </td>
+                                    <td><small class="text-muted">{{ m.note or '-' }}</small></td>
+                                    <td class="text-end">
+                                        <button class="btn btn-sm btn-outline-danger" onclick="confirmDeleteMaintenance({{ m.manutenzione_id }})">
+                                            <i class="bi bi-trash"></i>
+                                        </button>
+                                    </td>
+                                </tr>
+                                {% endif %}
+                            {% endfor %}
+                            {% if history_count.value == 0 %}
+                            <tr>
+                                <td colspan="10" class="text-center text-muted py-4">Nessuna manutenzione completata presente in archivio.</td>
+                            </tr>
+                            {% endif %}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+
+        </div>
+    </div>
+
+    <!-- Add Maintenance Modal -->
+    <div class="modal fade" id="addMaintenanceModal" tabindex="-1" aria-labelledby="addMaintenanceModalLabel" aria-hidden="true">
+        <div class="modal-dialog modal-dialog-centered">
+            <div class="modal-content">
+                <div class="modal-header bg-primary text-white">
+                    <h5 class="modal-title fw-bold" id="addMaintenanceModalLabel"><i class="bi bi-wrench-adjustable-circle-fill me-2"></i> Registra Manutenzione</h5>
+                    <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <form action="/admin/automezzi/manutenzioni/nuova" method="post">
+                    <div class="modal-body">
+                        <div class="mb-3">
+                            <label class="form-label text-muted fw-bold">Veicolo *</label>
+                            
+                            <!-- Box ricerca per targa o marca -->
+                            <div class="input-group mb-2 shadow-sm">
+                                <span class="input-group-text bg-light text-muted"><i class="bi bi-search"></i></span>
+                                <input type="text" id="searchTargaInput" class="form-control" placeholder="Cerca targa, marca o modello...">
+                            </div>
+
+                            <select class="form-select" name="automezzo_id" id="automezzoSelect" required>
+                                <option value="" disabled selected>-- Seleziona --</option>
+                                {% for v in veicoli %}
+                                <option value="{{ v.automezzo_id }}" data-targa="{{ v.targa }}" data-desc="{{ v.marca }} {{ v.modello }}" data-km="{{ v.km_attuali }}">
+                                    {{ v.marca }} {{ v.modello }} [{{ v.targa }}] (Km: {{ v.km_attuali }})
+                                </option>
+                                {% endfor %}
+                            </select>
+                        </div>
+                        
+                        <div class="mb-3">
+                            <label class="form-label text-muted">Tipo Servizio / Manutenzione *</label>
+                            <select class="form-select" name="tipo_servizio" required>
+                                <option value="Sostituzione Pneumatici">Sostituzione Pneumatici</option>
+                                <option value="Riparazione Meccanica">Riparazione Meccanica</option>
+                                <option value="Cambio Olio">Cambio Olio</option>
+                                <option value="Altro">Altro</option>
+                            </select>
+                        </div>
+
+                        <div class="row g-3 mb-3">
+                            <div class="col-md-6">
+                                <label class="form-label text-muted">Data Inizio *</label>
+                                <input type="date" class="form-control" name="data_inizio" required>
+                            </div>
+                            <div class="col-md-6">
+                                <label class="form-label text-muted">Ora Inizio *</label>
+                                <input type="time" class="form-control" name="ora_inizio" required>
+                            </div>
+                        </div>
+
+                        <div class="row g-3 mb-3">
+                            <div class="col-md-6">
+                                <label class="form-label text-muted">Km Iniziali Registrati *</label>
+                                <input type="number" class="form-control" name="km_registrati" value="0" min="0" required>
+                            </div>
+                            <div class="col-md-6">
+                                <label class="form-label text-muted">Officina / Luogo *</label>
+                                <input type="text" class="form-control" name="luogo" placeholder="Es. Officina Rossi" required>
+                            </div>
+                        </div>
+
+                        <div class="form-check form-switch mb-3">
+                            <input class="form-check-input" type="checkbox" name="bloccante" value="1" id="flexSwitchCheckDefault" checked>
+                            <label class="form-check-label text-danger fw-medium" for="flexSwitchCheckDefault">
+                                Blocca veicolo (imposta stato a "In Manutenzione")
+                            </label>
+                        </div>
+
+                        <div class="mb-4">
+                            <label class="form-label text-muted">Note aggiuntive / descrizione guasto</label>
+                            <textarea class="form-control" name="note" rows="2" placeholder="Es. Sostituzione pastiglie anteriori..."></textarea>
+                        </div>
+
+                        <button type="submit" class="btn btn-primary w-100 py-2.5 fw-bold">Registra Inizio Manutenzione</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+
+    <!-- Complete Maintenance Modal -->
+    <div class="modal fade" id="completeMaintenanceModal" tabindex="-1" aria-labelledby="completeMaintenanceModalLabel" aria-hidden="true">
+        <div class="modal-dialog modal-dialog-centered">
+            <div class="modal-content">
+                <div class="modal-header bg-success text-white">
+                    <h5 class="modal-title fw-bold" id="completeMaintenanceModalLabel"><i class="bi bi-check-circle-fill me-2"></i> Completa Manutenzione</h5>
+                    <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <form id="completeMaintenanceForm" method="post">
+                    <div class="modal-body">
+                        <div class="mb-3">
+                            <label class="form-label text-muted">Veicolo in manutenzione</label>
+                            <input type="text" class="form-control" id="completeVehicleLabel" readonly>
+                        </div>
+
+                        <div class="row g-3 mb-3">
+                            <div class="col-md-6">
+                                <label class="form-label text-muted">Data Fine *</label>
+                                <input type="date" class="form-control" name="data_fine" id="completeDataFine" required>
+                            </div>
+                            <div class="col-md-6">
+                                <label class="form-label text-muted">Ora Fine *</label>
+                                <input type="time" class="form-control" name="ora_fine" id="completeOraFine" required>
+                            </div>
+                        </div>
+
+                        <div class="mb-3">
+                            <label class="form-label text-muted">Km Finali registrati *</label>
+                            <input type="number" class="form-control" name="km_fine" id="completeKmFine" min="0" required>
+                            <div class="form-text">Km registrati all'inizio: <span id="completeStartKmLabel" class="fw-bold">0</span> km.</div>
+                        </div>
+
+                        <div class="mb-4">
+                            <label class="form-label text-muted">Note finali / resoconto riparazione</label>
+                            <textarea class="form-control" name="note_finali" rows="2" placeholder="Es. Riparazione eseguita con successo..."></textarea>
+                        </div>
+
+                        <button type="submit" class="btn btn-success w-100 py-2.5 fw-bold">Risolvi e Sblocca Veicolo</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+
+    <!-- Hidden delete form -->
+    <form id="deleteMaintenanceForm" method="post" style="display: none;"></form>
+
+    <script>
+        let addMaintenanceModalEl;
+        let completeMaintenanceModalEl;
+
+        document.addEventListener('DOMContentLoaded', () => {
+            addMaintenanceModalEl = new bootstrap.Modal(document.getElementById('addMaintenanceModal'));
+            completeMaintenanceModalEl = new bootstrap.Modal(document.getElementById('completeMaintenanceModal'));
+            
+            // Set current date/time in add form
+            const now = new Date();
+            const dateStr = now.toISOString().split('T')[0];
+            const timeStr = now.toTimeString().split(' ')[0].substring(0, 5);
+            
+            const dateInput = document.querySelector('input[name="data_inizio"]');
+            const timeInput = document.querySelector('input[name="ora_inizio"]');
+            if (dateInput) dateInput.value = dateStr;
+            if (timeInput) timeInput.value = timeStr;
+
+            // Vehicle search box and dynamic filtering
+            const select = document.getElementById('automezzoSelect');
+            const searchInput = document.getElementById('searchTargaInput');
+            const originalVehicles = [];
+
+            if (select && searchInput) {
+                // Store original options
+                for (let i = 1; i < select.options.length; i++) {
+                    const opt = select.options[i];
+                    originalVehicles.push({
+                        value: opt.value,
+                        targa: opt.getAttribute('data-targa') || '',
+                        desc: opt.getAttribute('data-desc') || '',
+                        km: opt.getAttribute('data-km') || '0',
+                        text: opt.text
+                    });
+                }
+
+                // Handle text input search
+                searchInput.addEventListener('input', (e) => {
+                    const q = e.target.value.toLowerCase().trim();
+                    
+                    // Clear current options except default disabled one
+                    select.innerHTML = '<option value="" disabled selected>-- Seleziona --</option>';
+                    
+                    // Filter options
+                    const filtered = originalVehicles.filter(v => 
+                        v.targa.toLowerCase().includes(q) || 
+                        v.desc.toLowerCase().includes(q)
+                    );
+                    
+                    // Add filtered options
+                    filtered.forEach(v => {
+                        const opt = document.createElement('option');
+                        opt.value = v.value;
+                        opt.setAttribute('data-targa', v.targa);
+                        opt.setAttribute('data-desc', v.desc);
+                        opt.setAttribute('data-km', v.km);
+                        opt.textContent = v.text;
+                        select.appendChild(opt);
+                    });
+                    
+                    // Auto-select if there is exactly 1 match
+                    if (filtered.length === 1) {
+                        select.value = filtered[0].value;
+                        select.dispatchEvent(new Event('change'));
+                    }
+                });
+
+                // Auto-fill Km Iniziali on selection change
+                select.addEventListener('change', () => {
+                    const selectedOpt = select.options[select.selectedIndex];
+                    if (selectedOpt) {
+                        const km = selectedOpt.getAttribute('data-km');
+                        const kmInput = document.querySelector('input[name="km_registrati"]');
+                        if (kmInput && km) {
+                            kmInput.value = km;
+                            kmInput.min = km;
+                        }
+                    }
+                });
+            }
+        });
+
+        function showAddMaintenanceModal() {
+            addMaintenanceModalEl.show();
+        }
+
+        function openCompleteModal(id, targa, nameLabel, startKm) {
+            document.getElementById('completeVehicleLabel').value = `${nameLabel} [${targa}]`;
+            document.getElementById('completeStartKmLabel').textContent = startKm;
+            document.getElementById('completeKmFine').value = startKm;
+            document.getElementById('completeKmFine').min = startKm;
+            
+            const now = new Date();
+            document.getElementById('completeDataFine').value = now.toISOString().split('T')[0];
+            document.getElementById('completeOraFine').value = now.toTimeString().split(' ')[0].substring(0, 5);
+            
+            const form = document.getElementById('completeMaintenanceForm');
+            form.action = `/admin/automezzi/manutenzioni/completa/${id}`;
+            
+            completeMaintenanceModalEl.show();
+        }
+
+        function confirmDeleteMaintenance(id) {
+            if (confirm("Sei sicuro di voler eliminare questa scheda di manutenzione?")) {
+                const form = document.getElementById('deleteMaintenanceForm');
+                form.action = `/admin/automezzi/manutenzioni/elimina/${id}`;
+                form.submit();
+            }
+        }
+    </script>
+</body>
+
+</html>
