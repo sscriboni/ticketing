@@ -27,5 +27,5 @@ if not exist "venv\Scripts\activate.bat" (
 
 REM Posizionati nella cartella app e avvia la webapp autopark
 cd app
-uvicorn appautopark:app --host 0.0.0.0 --port 5002
+uvicorn automezzi:app --host 0.0.0.0 --port 5002
 pause

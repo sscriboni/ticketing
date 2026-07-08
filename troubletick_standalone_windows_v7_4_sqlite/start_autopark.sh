@@ -12,4 +12,4 @@ fi
 # Attiva l'ambiente virtuale, posizionati in app/ e avvia la webapp autopark
 source venv/bin/activate
 cd app
-uvicorn appautopark:app --host 0.0.0.0 --port 5002
+uvicorn automezzi:app --host 0.0.0.0 --port 5002
