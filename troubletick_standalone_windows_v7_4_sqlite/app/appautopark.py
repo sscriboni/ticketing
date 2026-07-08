@@ -84,7 +84,7 @@ prenotazioni_attive = [
     }
 ]
 
-@app.get("/appautopark", response_class=HTMLResponse)
+@app.get("/", response_class=HTMLResponse)
 def get_appautopark(r: Request):
     if "user" not in r.session: 
         return RedirectResponse(url="http://localhost:5001/login")
@@ -97,7 +97,3 @@ def get_appautopark(r: Request):
         "veicoli": veicoli,
         "prenotazioni": prenotazioni_attive
     })
-
-@app.get("/")
-def home_redirect():
-    return RedirectResponse(url="/appautopark")
