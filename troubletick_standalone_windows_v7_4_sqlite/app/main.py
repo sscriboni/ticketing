@@ -14,6 +14,7 @@ from utils import current_user, require_superuser, save_upload
 from email_utils import send_email_async
 import auth
 import magazzini
+import automezzi
 
 # Init schema + seed
 try:
@@ -30,6 +31,23 @@ try:
             reparto_id INTEGER NOT NULL,
             accetta_ticket INTEGER DEFAULT 1,
             note TEXT
+        )"""))
+        c.execute(text(f"""CREATE TABLE IF NOT EXISTS automezzi (
+            automezzo_id {DB_PK},
+            targa TEXT UNIQUE NOT NULL,
+            marca TEXT NOT NULL,
+            modello TEXT NOT NULL,
+            tipo TEXT NOT NULL,
+            colore TEXT,
+            alimentazione TEXT,
+            data_immatricolazione TEXT,
+            proprieta TEXT,
+            canone_noleggio REAL DEFAULT 0,
+            km_attuali INTEGER DEFAULT 0,
+            stato TEXT DEFAULT 'Disponibile',
+            sede_assegnata_id INTEGER,
+            sede_attuale_id INTEGER,
+            reparto_assegnato_id INTEGER
         )"""))
         c.execute(text(f"""CREATE TABLE IF NOT EXISTS users (
             user_id {DB_PK},
@@ -556,6 +574,7 @@ async def global_exception_handler(request: Request, exc: Exception):
 
 app.include_router(auth.router)
 app.include_router(magazzini.router)
+app.include_router(automezzi.router)
 
 @app.get("/", response_class=HTMLResponse)
 def home(r: Request):
