@@ -33,6 +33,8 @@ with engine.begin() as conn:
             sede_assegnata_id INTEGER,
             sede_attuale_id INTEGER,
             reparto_assegnato_id INTEGER,
+            fornitore TEXT,
+            classe_euro TEXT,
             FOREIGN KEY(marca_id) REFERENCES marche_automezzi(marca_id)
         )
     """))
@@ -89,12 +91,12 @@ with engine.begin() as conn:
         rep3 = reparto_ids[2] if len(reparto_ids) > 2 else rep1
         
         conn.execute(text("""
-            INSERT INTO automezzi (targa, marca_id, modello, tipo, colore, alimentazione, data_immatricolazione, proprieta, canone_noleggio, km_attuali, stato, sede_assegnata_id, sede_attuale_id, reparto_assegnato_id)
+            INSERT INTO automezzi (targa, marca_id, modello, tipo, colore, alimentazione, data_immatricolazione, proprieta, canone_noleggio, km_attuali, stato, sede_assegnata_id, sede_attuale_id, reparto_assegnato_id, fornitore, classe_euro)
             VALUES 
-            ('GF345KK', :tesla, 'Model 3', 'auto', 'Nero', 'E', '2023-05-15', 'Noleggio', 450.00, 12500, 'Disponibile', :s1, :s1, :rep1),
-            ('FN123XX', :audi, 'A4 Avant', 'auto', 'Grigio', 'G', '2022-10-10', 'Noleggio', 580.00, 48000, 'In Uso', :s2, :s2, :rep2),
-            ('GE987YY', :fiat, '500 Hybrid', 'auto', 'Bianco', 'B', '2021-03-20', 'Proprietà', 0.00, 32000, 'Disponibile', :s3, :s3, :rep3),
-            ('GJ567ZZ', :jeep, 'Compass 4xe', 'auto', 'Rosso', 'G', '2022-06-01', 'Proprietà', 0.00, 19500, 'In Manutenzione', :s1, :s1, :rep1)
+            ('GF345KK', :tesla, 'Model 3', 'auto', 'Nero', 'E', '2023-05-15', 'Noleggio', 450.00, 12500, 'Disponibile', :s1, :s1, :rep1, 'LeasePlan', 'Elettrico'),
+            ('FN123XX', :audi, 'A4 Avant', 'auto', 'Grigio', 'G', '2022-10-10', 'Noleggio', 580.00, 48000, 'In Uso', :s2, :s2, :rep2, 'Arval', 'Euro 6'),
+            ('GE987YY', :fiat, '500 Hybrid', 'auto', 'Bianco', 'B', '2021-03-20', 'Proprietà', 0.00, 32000, 'Disponibile', :s3, :s3, :rep3, 'Concessionaria Fiat Torino', 'Euro 6'),
+            ('GJ567ZZ', :jeep, 'Compass 4xe', 'auto', 'Rosso', 'G', '2022-06-01', 'Proprietà', 0.00, 19500, 'In Manutenzione', :s1, :s1, :rep1, 'Leasys', 'Euro 6')
         """), {
             "tesla": tesla_id, "audi": audi_id, "fiat": fiat_id, "jeep": jeep_id,
             "s1": s1, "s2": s2, "s3": s3, "rep1": rep1, "rep2": rep2, "rep3": rep3
@@ -159,7 +161,9 @@ def add_vehicle(
     stato: str = Form("Disponibile"),
     sede_assegnata_id: int = Form(None),
     sede_attuale_id: int = Form(None),
-    reparto_assegnato_id: int = Form(None)
+    reparto_assegnato_id: int = Form(None),
+    fornitore: str = Form(None),
+    classe_euro: str = Form(None)
 ):
     if "user" not in r.session:
         return RedirectResponse(url="/login", status_code=303)
@@ -172,11 +176,13 @@ def add_vehicle(
             INSERT INTO automezzi (
                 targa, marca_id, modello, tipo, colore, alimentazione, data_immatricolazione, 
                 proprieta, canone_noleggio, km_attuali, stato, 
-                sede_assegnata_id, sede_attuale_id, reparto_assegnato_id
+                sede_assegnata_id, sede_attuale_id, reparto_assegnato_id,
+                fornitore, classe_euro
             ) VALUES (
                 :targa, :marca_id, :modello, :tipo, :colore, :alimentazione, :data_immatricolazione, 
                 :proprieta, :canone_noleggio, :km_attuali, :stato, 
-                :sede_assegnata_id, :sede_attuale_id, :reparto_assegnato_id
+                :sede_assegnata_id, :sede_attuale_id, :reparto_assegnato_id,
+                :fornitore, :classe_euro
             )
         """), {
             "targa": targa.strip().upper(),
@@ -192,7 +198,9 @@ def add_vehicle(
             "stato": stato,
             "sede_assegnata_id": sede_assegnata_id,
             "sede_attuale_id": sede_attuale_id if sede_attuale_id else sede_assegnata_id,
-            "reparto_assegnato_id": reparto_assegnato_id
+            "reparto_assegnato_id": reparto_assegnato_id,
+            "fornitore": fornitore.strip() if fornitore else None,
+            "classe_euro": classe_euro.strip() if classe_euro else None
         })
     return RedirectResponse(url="/admin/automezzi", status_code=303)
 
@@ -213,7 +221,9 @@ def edit_vehicle(
     stato: str = Form(...),
     sede_assegnata_id: int = Form(None),
     sede_attuale_id: int = Form(None),
-    reparto_assegnato_id: int = Form(None)
+    reparto_assegnato_id: int = Form(None),
+    fornitore: str = Form(None),
+    classe_euro: str = Form(None)
 ):
     if "user" not in r.session:
         return RedirectResponse(url="/login", status_code=303)
@@ -237,7 +247,9 @@ def edit_vehicle(
                 stato = :stato,
                 sede_assegnata_id = :sede_assegnata_id,
                 sede_attuale_id = :sede_attuale_id,
-                reparto_assegnato_id = :reparto_assegnato_id
+                reparto_assegnato_id = :reparto_assegnato_id,
+                fornitore = :fornitore,
+                classe_euro = :classe_euro
             WHERE automezzo_id = :id
         """), {
             "id": id,
@@ -254,7 +266,9 @@ def edit_vehicle(
             "stato": stato,
             "sede_assegnata_id": sede_assegnata_id,
             "sede_attuale_id": sede_attuale_id,
-            "reparto_assegnato_id": reparto_assegnato_id
+            "reparto_assegnato_id": reparto_assegnato_id,
+            "fornitore": fornitore.strip() if fornitore else None,
+            "classe_euro": classe_euro.strip() if classe_euro else None
         })
     return RedirectResponse(url="/admin/automezzi", status_code=303)
 
@@ -291,7 +305,8 @@ def export_automezzi_csv(r: Request):
         rows = conn.execute(text("""
             SELECT a.targa, m.nome as marca, a.modello, a.tipo, a.colore, a.alimentazione, a.data_immatricolazione, 
                    a.proprieta, a.canone_noleggio, a.km_attuali, a.stato, 
-                   a.sede_assegnata_id, a.sede_attuale_id, a.reparto_assegnato_id
+                   a.sede_assegnata_id, a.sede_attuale_id, a.reparto_assegnato_id,
+                   a.fornitore, a.classe_euro
             FROM automezzi a
             JOIN marche_automezzi m ON a.marca_id = m.marca_id
             ORDER BY a.automezzo_id ASC
@@ -301,7 +316,8 @@ def export_automezzi_csv(r: Request):
     writer = csv.writer(output, delimiter=';')
     writer.writerow([
         "targa", "marca", "modello", "tipo", "colore", "alimentazione", "data_immatricolazione",
-        "proprieta", "canone_noleggio", "km_attuali", "stato", "sede_assegnata_id", "sede_attuale_id", "reparto_assegnato_id"
+        "proprieta", "canone_noleggio", "km_attuali", "stato", "sede_assegnata_id", "sede_attuale_id", "reparto_assegnato_id",
+        "fornitore", "classe_euro"
     ])
     for row in rows:
         writer.writerow(list(row))
@@ -357,6 +373,8 @@ def import_automezzi_csv(r: Request, file: UploadFile = File(...)):
             alimentazione = data.get("alimentazione")
             data_immatricolazione = data.get("data_immatricolazione")
             proprieta = data.get("proprieta", "Proprietà")
+            fornitore = data.get("fornitore")
+            classe_euro = data.get("classe_euro")
             
             # resolve or insert brand name to get marca_id
             marca_id = conn.execute(text("SELECT marca_id FROM marche_automezzi WHERE LOWER(nome) = LOWER(:nome)"), {"nome": marca_nome}).scalar()
@@ -397,32 +415,36 @@ def import_automezzi_csv(r: Request, file: UploadFile = File(...)):
                         alimentazione = :alimentazione, data_immatricolazione = :data_immatricolazione,
                         proprieta = :proprieta, canone_noleggio = :canone_noleggio, km_attuali = :km_attuali,
                         stato = :stato, sede_assegnata_id = :sede_assegnata_id, sede_attuale_id = :sede_attuale_id,
-                        reparto_assegnato_id = :reparto_assegnato_id
+                        reparto_assegnato_id = :reparto_assegnato_id, fornitore = :fornitore, classe_euro = :classe_euro
                     WHERE automezzo_id = :id
                 """), {
                     "id": existing, "targa": targa, "marca_id": marca_id, "modello": modello, "tipo": tipo, "colore": colore,
                     "alimentazione": alimentazione, "data_immatricolazione": data_immatricolazione, "proprieta": proprieta,
                     "canone_noleggio": canone_noleggio, "km_attuali": km_attuali, "stato": stato,
                     "sede_assegnata_id": sede_assegnata_id, "sede_attuale_id": sede_attuale_id,
-                    "reparto_assegnato_id": reparto_assegnato_id
+                    "reparto_assegnato_id": reparto_assegnato_id,
+                    "fornitore": fornitore.strip() if fornitore else None,
+                    "classe_euro": classe_euro.strip() if classe_euro else None
                 })
             else:
                 conn.execute(text("""
                     INSERT INTO automezzi (
                         targa, marca_id, modello, tipo, colore, alimentazione, data_immatricolazione,
                         proprieta, canone_noleggio, km_attuali, stato, sede_assegnata_id, sede_attuale_id,
-                        reparto_assegnato_id
+                        reparto_assegnato_id, fornitore, classe_euro
                     ) VALUES (
                         :targa, :marca_id, :modello, :tipo, :colore, :alimentazione, :data_immatricolazione,
                         :proprieta, :canone_noleggio, :km_attuali, :stato, :sede_assegnata_id, :sede_attuale_id,
-                        :reparto_assegnato_id
+                        :reparto_assegnato_id, :fornitore, :classe_euro
                     )
                 """), {
                     "targa": targa, "marca_id": marca_id, "modello": modello, "tipo": tipo, "colore": colore,
                     "alimentazione": alimentazione, "data_immatricolazione": data_immatricolazione, "proprieta": proprieta,
                     "canone_noleggio": canone_noleggio, "km_attuali": km_attuali, "stato": stato,
                     "sede_assegnata_id": sede_assegnata_id, "sede_attuale_id": sede_attuale_id,
-                    "reparto_assegnato_id": reparto_assegnato_id
+                    "reparto_assegnato_id": reparto_assegnato_id,
+                    "fornitore": fornitore.strip() if fornitore else None,
+                    "classe_euro": classe_euro.strip() if classe_euro else None
                 })
                 
     return RedirectResponse(url="/admin/automezzi/gestione?msg=import_ok", status_code=303)

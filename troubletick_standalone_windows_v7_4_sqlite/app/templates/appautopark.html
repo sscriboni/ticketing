@@ -80,16 +80,15 @@
                                         {% elif v.alimentazione == 'G' %}G (Gasolio)
                                         {% else %}{{ v.alimentazione or '-' }}{% endif %}
                                     </div>
-                                    <small class="text-muted">{{ v.km_attuali }} km</small>
+                                    <small class="text-muted">{{ v.km_attuali }} km | {{ v.classe_euro or '-' }}</small>
                                 </td>
                                 <td>{{ v.data_immatricolazione or '-' }}</td>
                                 <td>
                                     <div>{{ v.proprieta or '-' }}</div>
                                     {% if v.proprieta == 'Noleggio' %}
-                                    <small class="text-muted">€{{ v.canone_noleggio }}/mese</small>
-                                    {% else %}
-                                    <small class="text-muted">-</small>
+                                    <small class="text-muted">€{{ v.canone_noleggio }}/mese</small><br>
                                     {% endif %}
+                                    <small class="text-muted" title="Fornitore"><i class="bi bi-shop me-1"></i>{{ v.fornitore or '-' }}</small>
                                 </td>
                                 <td><span class="text-muted">{{ v.sede_assegnata_nome or '-' }}</span></td>
                                 <td><span class="text-primary fw-medium"><i class="bi bi-geo-alt-fill text-danger me-1"></i>{{ v.sede_attuale_nome or '-' }}</span></td>
@@ -252,6 +251,25 @@
                                     <option value="{{ rep.reparto_id }}">{{ rep.nome }}</option>
                                     {% endfor %}
                                 </select>
+                        </div>
+                        
+                        <div class="row g-3 mb-4">
+                            <div class="col-md-6">
+                                <label class="form-label text-muted">Fornitore / Leasing</label>
+                                <input type="text" class="form-control" name="fornitore" placeholder="Es. LeasePlan / Concessionaria Rossi">
+                            </div>
+                            <div class="col-md-6">
+                                <label class="form-label text-muted">Classe Euro</label>
+                                <select class="form-select" name="classe_euro">
+                                    <option value="" selected>-- Seleziona Classe Euro --</option>
+                                    <option value="Euro 6">Euro 6</option>
+                                    <option value="Euro 5">Euro 5</option>
+                                    <option value="Euro 4">Euro 4</option>
+                                    <option value="Euro 3">Euro 3</option>
+                                    <option value="Euro 2">Euro 2</option>
+                                    <option value="Euro 1">Euro 1</option>
+                                    <option value="Elettrico">Elettrico (Esente)</option>
+                                </select>
                             </div>
                         </div>
                         
@@ -379,6 +397,26 @@
                             </div>
                         </div>
                         
+                        <div class="row g-3 mb-4">
+                            <div class="col-md-6">
+                                <label class="form-label text-muted">Fornitore / Leasing</label>
+                                <input type="text" class="form-control" name="fornitore" id="editFornitore" placeholder="Es. LeasePlan / Concessionaria Rossi">
+                            </div>
+                            <div class="col-md-6">
+                                <label class="form-label text-muted">Classe Euro</label>
+                                <select class="form-select" name="classe_euro" id="editClasseEuro">
+                                    <option value="">-- Seleziona Classe Euro --</option>
+                                    <option value="Euro 6">Euro 6</option>
+                                    <option value="Euro 5">Euro 5</option>
+                                    <option value="Euro 4">Euro 4</option>
+                                    <option value="Euro 3">Euro 3</option>
+                                    <option value="Euro 2">Euro 2</option>
+                                    <option value="Euro 1">Euro 1</option>
+                                    <option value="Elettrico">Elettrico (Esente)</option>
+                                </select>
+                            </div>
+                        </div>
+                        
                         <button type="submit" class="btn btn-primary w-100 py-2.5 fw-bold">Salva Modifiche</button>
                     </div>
                 </form>
@@ -439,6 +477,8 @@
             document.getElementById('editSedeAssegnataId').value = v.sede_assegnata_id;
             document.getElementById('editSedeAttualeId').value = v.sede_attuale_id;
             document.getElementById('editRepartoAssegnatoId').value = v.reparto_assegnato_id;
+            document.getElementById('editFornitore').value = v.fornitore || '';
+            document.getElementById('editClasseEuro').value = v.classe_euro || '';
             
             toggleEditCanone();
             
