@@ -1,590 +1,483 @@
 <!doctype html>
 <html lang="it">
+
 <head>
     <meta charset="utf-8">
-    <title>Autopark Premium — {{ cfg.app_title }}</title>
+    <title>Gestione Automezzi — {{ cfg.app_title }}</title>
     <!-- Bootstrap CSS -->
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
     <!-- Bootstrap Icons -->
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css">
-    <!-- Google Fonts -->
-    <link rel="preconnect" href="https://fonts.googleapis.com">
-    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700&family=Inter:wght@300;400;500;600&display=swap" rel="stylesheet">
-    
     <style>
-        :root {
-            --primary-gradient: linear-gradient(135deg, #6366f1 0%, #4f46e5 100%);
-            --secondary-gradient: linear-gradient(135deg, #3b82f6 0%, #1d4ed8 100%);
-            --success-gradient: linear-gradient(135deg, #10b981 0%, #059669 100%);
-            --warning-gradient: linear-gradient(135deg, #f59e0b 0%, #d97706 100%);
-            --danger-gradient: linear-gradient(135deg, #ef4444 0%, #dc2626 100%);
-            
-            --glass-bg: rgba(255, 255, 255, 0.85);
-            --glass-border: rgba(255, 255, 255, 0.4);
-            --card-shadow: 0 10px 30px -5px rgba(0, 0, 0, 0.05), 0 5px 15px -8px rgba(0, 0, 0, 0.05);
-            --hover-shadow: 0 20px 40px -5px rgba(99, 102, 241, 0.15);
-            
-            --font-outfit: 'Outfit', sans-serif;
-            --font-inter: 'Inter', sans-serif;
-        }
-
-        body {
-            font-family: var(--font-inter);
-            background-color: #f4f6fa;
-            color: #1e293b;
-        }
-
-        h1, h2, h3, h4, h5, .font-display {
-            font-family: var(--font-outfit);
-            font-weight: 600;
-        }
-
-        /* Hero banner style */
-        .hero-banner {
-            background: linear-gradient(135deg, #1e1b4b 0%, #312e81 100%);
-            color: white;
-            border-radius: 20px;
-            padding: 3rem 2rem;
-            margin-bottom: 2.5rem;
-            position: relative;
-            overflow: hidden;
-            box-shadow: 0 15px 35px rgba(30, 27, 75, 0.2);
-        }
-
-        .hero-banner::before {
-            content: '';
-            position: absolute;
-            top: -50%;
-            right: -10%;
-            width: 350px;
-            height: 350px;
-            background: radial-gradient(circle, rgba(99, 102, 241, 0.25) 0%, rgba(99, 102, 241, 0) 70%);
-            border-radius: 50%;
-            pointer-events: none;
-        }
-
-        /* Stats Cards */
-        .stat-card {
-            background: var(--glass-bg);
-            border: 1px solid var(--glass-border);
-            border-radius: 16px;
-            padding: 1.5rem;
-            box-shadow: var(--card-shadow);
-            transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
-            position: relative;
-            overflow: hidden;
-        }
-
-        .stat-card:hover {
-            transform: translateY(-5px);
-            box-shadow: var(--hover-shadow);
-        }
-
-        .stat-icon {
-            width: 48px;
-            height: 48px;
-            border-radius: 12px;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            font-size: 1.5rem;
-            margin-bottom: 1rem;
-            color: white;
-        }
-
-        /* Car Cards */
-        .car-card {
-            background: #ffffff;
-            border-radius: 20px;
-            overflow: hidden;
-            box-shadow: var(--card-shadow);
-            border: 1px solid rgba(226, 232, 240, 0.8);
-            transition: all 0.4s cubic-bezier(0.165, 0.84, 0.44, 1);
-            display: flex;
-            flex-direction: column;
-            height: 100%;
-        }
-
-        .car-card:hover {
-            transform: translateY(-8px) scale(1.01);
-            box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.1);
-            border-color: rgba(99, 102, 241, 0.3);
-        }
-
-        .car-img-container {
-            position: relative;
-            height: 200px;
-            overflow: hidden;
-            background-color: #f1f5f9;
-        }
-
-        .car-img {
-            width: 100%;
-            height: 100%;
-            object-fit: cover;
-            transition: transform 0.6s ease;
-        }
-
-        .car-card:hover .car-img {
-            transform: scale(1.08);
-        }
-
-        .car-badge {
-            position: absolute;
-            top: 15px;
-            right: 15px;
-            padding: 6px 14px;
-            border-radius: 30px;
-            font-size: 0.75rem;
-            font-weight: 600;
-            text-transform: uppercase;
-            letter-spacing: 0.5px;
-            box-shadow: 0 4px 10px rgba(0,0,0,0.15);
-            backdrop-filter: blur(4px);
-        }
-
-        .car-type-badge {
-            position: absolute;
-            bottom: 15px;
-            left: 15px;
-            background: rgba(15, 23, 42, 0.75);
-            color: white;
-            padding: 4px 12px;
-            border-radius: 8px;
-            font-size: 0.75rem;
-            backdrop-filter: blur(4px);
-            border: 1px solid rgba(255,255,255,0.1);
-        }
-
-        .car-body {
-            padding: 1.5rem;
-            flex-grow: 1;
-            display: flex;
-            flex-direction: column;
-            justify-content: space-between;
-        }
-
-        .car-specs {
-            background-color: #f8fafc;
-            border-radius: 12px;
-            padding: 0.75rem;
-            font-size: 0.85rem;
-            color: #475569;
-        }
-
-        .pulse-dot {
-            width: 8px;
-            height: 8px;
-            border-radius: 50%;
-            display: inline-block;
-            margin-right: 6px;
-            animation: pulse 1.8s infinite;
-        }
-
-        @keyframes pulse {
-            0% { transform: scale(0.95); box-shadow: 0 0 0 0 rgba(16, 185, 129, 0.7); }
-            70% { transform: scale(1); box-shadow: 0 0 0 8px rgba(16, 185, 129, 0); }
-            100% { transform: scale(0.95); box-shadow: 0 0 0 0 rgba(16, 185, 129, 0); }
-        }
-
-        .pulse-dot-warning {
-            animation: pulse-warning 1.8s infinite;
-        }
-
-        @keyframes pulse-warning {
-            0% { transform: scale(0.95); box-shadow: 0 0 0 0 rgba(245, 158, 11, 0.7); }
-            70% { transform: scale(1); box-shadow: 0 0 0 8px rgba(245, 158, 11, 0); }
-            100% { transform: scale(0.95); box-shadow: 0 0 0 0 rgba(245, 158, 11, 0); }
-        }
-
-        /* Filter Tab Styles */
-        .filter-btn {
-            border: none;
-            background: white;
-            color: #64748b;
-            padding: 8px 18px;
-            border-radius: 12px;
-            font-weight: 500;
-            font-size: 0.9rem;
-            box-shadow: 0 2px 4px rgba(0,0,0,0.02);
-            transition: all 0.2s ease;
-        }
-
-        .filter-btn.active {
-            background: #4f46e5;
-            color: white;
-            box-shadow: 0 4px 12px rgba(79, 70, 229, 0.25);
-        }
-
-        /* Custom Modal Form */
-        .modal-content {
-            border-radius: 24px;
-            border: none;
-            overflow: hidden;
-            box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.25);
-        }
-
-        .modal-header-premium {
-            background: var(--primary-gradient);
-            color: white;
-            padding: 1.5rem;
-            border: none;
-        }
-
-        .modal-body-premium {
-            padding: 2rem 1.5rem;
-        }
-
-        /* Table design */
         .table-container {
             background: white;
-            border-radius: 20px;
+            border-radius: 8px;
             padding: 1.5rem;
-            box-shadow: var(--card-shadow);
-            border: 1px solid rgba(226, 232, 240, 0.8);
+            box-shadow: 0 4px 6px rgba(0,0,0,0.05);
+            border: 1px solid #dee2e6;
         }
-
-        .custom-table {
-            margin-bottom: 0;
-        }
-
         .custom-table th {
-            font-family: var(--font-outfit);
             font-weight: 600;
-            color: #64748b;
+            color: #495057;
             text-transform: uppercase;
-            font-size: 0.75rem;
+            font-size: 0.8rem;
             letter-spacing: 0.5px;
-            border-bottom: 2px solid #f1f5f9;
-            padding: 12px 16px;
+            border-bottom: 2px solid #dee2e6;
         }
-
         .custom-table td {
-            padding: 16px;
             vertical-align: middle;
-            border-bottom: 1px solid #f1f5f9;
-        }
-
-        /* Subtle Animation on buttons */
-        .btn-premium {
-            background: var(--primary-gradient);
-            color: white;
-            border: none;
-            border-radius: 12px;
-            padding: 10px 20px;
-            font-weight: 500;
-            transition: all 0.3s ease;
-            box-shadow: 0 4px 12px rgba(79, 70, 229, 0.15);
-        }
-
-        .btn-premium:hover {
-            background: linear-gradient(135deg, #4f46e5 0%, #3730a3 100%);
-            box-shadow: 0 6px 20px rgba(79, 70, 229, 0.3);
-            transform: translateY(-2px);
-            color: white;
-        }
-        
-        .btn-premium:active {
-            transform: translateY(0);
         }
     </style>
 </head>
-<body>
-{% include 'navbar.html' %}
 
-<div class="container py-5">
-    
-    <!-- Hero Banner -->
-    <div class="hero-banner shadow-lg">
-        <div class="row align-items-center">
-            <div class="col-md-8">
-                <span class="badge bg-indigo-500 mb-2 px-3 py-2 text-uppercase fw-semibold" style="background-color: #6366f1;">Modulo Fleet Management</span>
-                <h1 class="display-5 fw-bold text-white mb-2">Autopark Aziendale</h1>
-                <p class="lead text-indigo-100 mb-0 opacity-75">Gestione avanzata, prenotazione rapida e monitoraggio in tempo reale del parco auto aziendale.</p>
-            </div>
-            <div class="col-md-4 text-md-end text-center mt-4 mt-md-0">
-                <button class="btn btn-lg btn-light font-display px-4 py-3 rounded-4 fw-semibold text-primary shadow-sm" onclick="showBookingModal()">
-                    <i class="bi bi-calendar-plus-fill me-2"></i> Richiedi Prenotazione
-                </button>
-            </div>
-        </div>
-    </div>
+<body class="bg-light">
+    {% include 'navbar.html' %}
 
-    <!-- Stats Row -->
-    <div class="row g-4 mb-5">
-        <div class="col-md-3 col-6">
-            <div class="stat-card">
-                <div class="stat-icon" style="background: var(--secondary-gradient);"><i class="bi bi-car-front-fill"></i></div>
-                <div class="text-muted small fw-medium">Flotta Totale</div>
-                <div class="fs-2 fw-bold text-dark font-display mt-1">4</div>
-            </div>
-        </div>
-        <div class="col-md-3 col-6">
-            <div class="stat-card">
-                <div class="stat-icon" style="background: var(--success-gradient);"><i class="bi bi-check-circle-fill"></i></div>
-                <div class="text-muted small fw-medium">Disponibili Ora</div>
-                <div class="fs-2 fw-bold text-dark font-display mt-1">2</div>
-            </div>
-        </div>
-        <div class="col-md-3 col-6">
-            <div class="stat-card">
-                <div class="stat-icon" style="background: var(--warning-gradient);"><i class="bi bi-person-fill-check"></i></div>
-                <div class="text-muted small fw-medium">Attualmente in Uso</div>
-                <div class="fs-2 fw-bold text-dark font-display mt-1">1</div>
-            </div>
-        </div>
-        <div class="col-md-3 col-6">
-            <div class="stat-card">
-                <div class="stat-icon" style="background: var(--danger-gradient);"><i class="bi bi-tools"></i></div>
-                <div class="text-muted small fw-medium">In Manutenzione</div>
-                <div class="fs-2 fw-bold text-dark font-display mt-1">1</div>
-            </div>
-        </div>
-    </div>
-
-    <!-- Filter & Search Section -->
-    <div class="d-flex flex-column flex-md-row justify-content-between align-items-md-center gap-3 mb-4">
-        <div class="d-flex flex-wrap gap-2" id="filterTabs">
-            <button class="filter-btn active" data-filter="all">Tutti i Veicoli</button>
-            <button class="filter-btn" data-filter="disponibile">Disponibili</button>
-            <button class="filter-btn" data-filter="in uso">In Uso</button>
-            <button class="filter-btn" data-filter="manutenzione">In Manutenzione</button>
-        </div>
-        
-        <div class="position-relative" style="min-width: 280px;">
-            <i class="bi bi-search text-muted position-absolute top-50 start-0 translate-middle-y ms-3"></i>
-            <input type="text" id="searchInput" class="form-control ps-5 py-2 border-0 shadow-sm rounded-3" placeholder="Cerca modello o targa...">
-        </div>
-    </div>
-
-    <!-- Car Grid -->
-    <div class="row g-4 mb-5" id="carGrid">
-        {% for v in veicoli %}
-        <div class="col-md-6 col-lg-3 car-item" data-status="{{ v.stato|lower }}" data-model="{{ v.modello|lower }} {{ v.targa|lower }}">
-            <div class="car-card">
-                <div class="car-img-container">
-                    <img src="{{ v.immagine }}" alt="{{ v.modello }}" class="car-img">
-                    <span class="car-badge bg-{{ v.stato_classe }} text-white">
-                        {% if v.stato == 'Disponibile' %}
-                        <span class="pulse-dot bg-white"></span>
-                        {% elif v.stato == 'In Uso' %}
-                        <span class="pulse-dot pulse-dot-warning bg-white"></span>
-                        {% endif %}
-                        {{ v.stato }}
-                    </span>
-                    <span class="car-type-badge"><i class="{{ v.alimentazione_icon }} me-1"></i> {{ v.tipo }}</span>
-                </div>
-                <div class="car-body">
-                    <div>
-                        <div class="d-flex justify-content-between align-items-start mb-2">
-                            <h5 class="card-title fw-bold mb-0">{{ v.modello }}</h5>
-                            <span class="badge bg-secondary font-monospace" style="font-size: 0.8rem;">{{ v.targa }}</span>
-                        </div>
-                        <div class="car-specs mb-3">
-                            <div class="d-flex justify-content-between mb-1">
-                                <span><i class="bi bi-people-fill me-1"></i> Capienza:</span>
-                                <span class="fw-medium">{{ v.posti }} Posti</span>
-                            </div>
-                            <div class="d-flex justify-content-between">
-                                <span><i class="bi bi-lightning-fill me-1"></i> Autonomia:</span>
-                                <span class="fw-medium text-end">{{ v.autonomia }}</span>
-                            </div>
-                        </div>
-                    </div>
-                    
-                    <div>
-                        {% if v.stato == 'Disponibile' %}
-                        <button class="btn btn-premium w-100 py-2.5 rounded-3" onclick="requestCar('{{ v.modello }} ({{ v.targa }})')">
-                            Prenota Veicolo
-                        </button>
-                        {% elif v.stato == 'In Uso' %}
-                        <div class="alert alert-warning py-2 px-3 mb-0 rounded-3 small">
-                            <i class="bi bi-info-circle-fill me-1"></i> In uso da <strong>{{ v.assegnato_a }}</strong>.<br>
-                            Rientro: {{ v.rientro_previsto }}
-                        </div>
-                        {% else %}
-                        <button class="btn btn-secondary w-100 py-2.5 rounded-3" disabled>
-                            Non Prenotabile
-                        </button>
-                        {% endif %}
-                    </div>
+    <div class="container py-4">
+        <!-- Gestione Flotta / Automezzi -->
+        <div class="mb-5">
+            <div class="d-flex justify-content-between align-items-center mb-4">
+                <h2 class="mb-0"><i class="bi bi-car-front text-primary me-2"></i> Gestione Anagrafica Automezzi</h2>
+                <div class="d-flex gap-2">
+                    <button class="btn btn-outline-secondary btn-sm d-flex align-items-center" onclick="showImportModal()">
+                        <i class="bi bi-file-earmark-arrow-up me-1"></i> Importa CSV
+                    </button>
+                    <a href="/admin/automezzi/esporta" class="btn btn-outline-secondary btn-sm d-flex align-items-center">
+                        <i class="bi bi-file-earmark-arrow-down me-1"></i> Esporta CSV
+                    </a>
+                    <button class="btn btn-outline-danger btn-sm d-flex align-items-center" onclick="confirmClearTable()">
+                        <i class="bi bi-trash-fill me-1"></i> Svuota Tabella
+                    </button>
+                    <button class="btn btn-primary px-4 py-2" onclick="showAddVehicleModal()">
+                        <i class="bi bi-plus-circle me-1"></i> Aggiungi Veicolo
+                    </button>
                 </div>
             </div>
-        </div>
-        {% endfor %}
-    </div>
-
-    <!-- Active Bookings -->
-    <div class="mb-4">
-        <h3 class="fw-bold mb-3 font-display"><i class="bi bi-calendar3-event text-primary me-2"></i> Prenotazioni Attive & Programmate</h3>
-        <div class="table-container">
-            <div class="table-responsive">
-                <table class="table custom-table align-middle">
-                    <thead>
-                        <tr>
-                            <th>Veicolo</th>
-                            <th>Operatore</th>
-                            <th>Inizio</th>
-                            <th>Fine</th>
-                            <th>Destinazione</th>
-                            <th>Stato</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        {% for p in prenotazioni %}
-                        <tr>
-                            <td>
-                                <div class="d-flex align-items-center">
-                                    <div class="bg-light p-2 rounded-3 me-3"><i class="bi bi-car-front text-primary fs-4"></i></div>
-                                    <div>
-                                        <div class="fw-bold">{{ p.veicolo }}</div>
-                                    </div>
-                                </div>
-                            </td>
-                            <td>
-                                <div class="d-flex align-items-center">
-                                    <div class="avatar bg-indigo-100 text-indigo-700 rounded-circle d-flex align-items-center justify-content-center fw-bold me-2" style="width: 32px; height: 32px; font-size: 0.8rem; background-color: #e0e7ff; color: #4338ca;">
-                                        {{ p.operatore[:2]|upper }}
-                                    </div>
-                                    <span class="fw-medium">{{ p.operatore }}</span>
-                                </div>
-                            </td>
-                            <td>{{ p.inizio }}</td>
-                            <td>{{ p.fine }}</td>
-                            <td><span class="text-muted"><i class="bi bi-geo-alt-fill me-1 text-danger"></i> {{ p.destinazione }}</span></td>
-                            <td><span class="badge bg-success-subtle text-success px-3 py-2 rounded-pill fw-semibold">Approvata</span></td>
-                        </tr>
-                        {% endfor %}
-                    </tbody>
-                </table>
-            </div>
-        </div>
-    </div>
-</div>
-
-<!-- Booking Modal -->
-<div class="modal fade" id="bookingModal" tabindex="-1" aria-labelledby="bookingModalLabel" aria-hidden="true">
-    <div class="modal-dialog modal-dialog-centered">
-        <div class="modal-content shadow-lg">
-            <div class="modal-header modal-header-premium">
-                <h5 class="modal-title fw-bold" id="bookingModalLabel"><i class="bi bi-calendar-plus me-2"></i> Nuova Prenotazione</h5>
-                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
-            </div>
-            <form id="bookingForm" onsubmit="submitBooking(event)">
-                <div class="modal-body modal-body-premium">
-                    <div class="mb-3">
-                        <label class="form-label fw-semibold text-muted">Veicolo</label>
-                        <select class="form-select py-2.5 rounded-3" id="bookingVehicle" required>
-                            <option value="">-- Seleziona un veicolo --</option>
+            
+            <div class="table-container">
+                <div class="table-responsive">
+                    <table class="table table-hover custom-table align-middle">
+                        <thead>
+                            <tr>
+                                <th>Veicolo / Targa</th>
+                                <th>Tipo / Colore</th>
+                                <th>Alimentazione / Km</th>
+                                <th>Immatricolazione</th>
+                                <th>Proprietà / Canone</th>
+                                <th>Sede Assegnata</th>
+                                <th>Sede Attuale</th>
+                                <th>Reparto Assegnato</th>
+                                <th>Stato</th>
+                                <th class="text-end">Azioni</th>
+                            </tr>
+                        </thead>
+                        <tbody>
                             {% for v in veicoli %}
-                                {% if v.stato == 'Disponibile' %}
-                                <option value="{{ v.modello }} ({{ v.targa }})">{{ v.modello }} ({{ v.targa }})</option>
-                                {% endif %}
+                            <tr>
+                                <td>
+                                    <div class="fw-bold">{{ v.marca }} {{ v.modello }}</div>
+                                    <span class="badge bg-secondary font-monospace">{{ v.targa }}</span>
+                                </td>
+                                <td>
+                                    <div class="text-capitalize">{{ v.tipo }}</div>
+                                    <small class="text-muted">{{ v.colore or '-' }}</small>
+                                </td>
+                                <td>
+                                    <div>{{ v.alimentazione or '-' }}</div>
+                                    <small class="text-muted">{{ v.km_attuali }} km</small>
+                                </td>
+                                <td>{{ v.data_immatricolazione or '-' }}</td>
+                                <td>
+                                    <div>{{ v.proprieta or '-' }}</div>
+                                    {% if v.proprieta == 'Noleggio' %}
+                                    <small class="text-muted">€{{ v.canone_noleggio }}/mese</small>
+                                    {% else %}
+                                    <small class="text-muted">-</small>
+                                    {% endif %}
+                                </td>
+                                <td><span class="text-muted">{{ v.sede_assegnata_nome or '-' }}</span></td>
+                                <td><span class="text-primary fw-medium"><i class="bi bi-geo-alt-fill text-danger me-1"></i>{{ v.sede_attuale_nome or '-' }}</span></td>
+                                <td><span class="badge bg-light text-dark border">{{ v.reparto_assegnato_nome or '-' }}</span></td>
+                                <td>
+                                    <span class="badge bg-{{ 'success' if v.stato == 'Disponibile' else 'warning' if v.stato == 'In Uso' else 'danger' }} text-white">
+                                        {{ v.stato }}
+                                    </span>
+                                </td>
+                                <td class="text-end">
+                                    <div class="d-inline-flex gap-2">
+                                        <button class="btn btn-sm btn-outline-primary" onclick='openEditModal({{ {
+                                            "automezzo_id": v.automezzo_id,
+                                            "targa": v.targa,
+                                            "marca": v.marca,
+                                            "modello": v.modello,
+                                            "tipo": v.tipo,
+                                            "colore": v.colore or "",
+                                            "alimentazione": v.alimentazione or "",
+                                            "data_immatricolazione": v.data_immatricolazione or "",
+                                            "proprieta": v.proprieta or "",
+                                            "canone_noleggio": v.canone_noleggio,
+                                            "km_attuali": v.km_attuali,
+                                            "stato": v.stato,
+                                            "sede_assegnata_id": v.sede_assegnata_id or "",
+                                            "sede_attuale_id": v.sede_attuale_id or "",
+                                            "reparto_assegnato_id": v.reparto_assegnato_id or ""
+                                        } | tojson }})'>
+                                            <i class="bi bi-pencil"></i>
+                                        </button>
+                                        <button class="btn btn-sm btn-outline-danger" onclick="confirmDelete({{ v.automezzo_id }}, '{{ v.targa }}')">
+                                            <i class="bi bi-trash"></i>
+                                        </button>
+                                    </div>
+                                </td>
+                            </tr>
+                            {% else %}
+                            <tr>
+                                <td colspan="10" class="text-center text-muted py-4">Nessun veicolo registrato.</td>
+                            </tr>
                             {% endfor %}
-                        </select>
-                    </div>
-                    
-                    <div class="row mb-3">
-                        <div class="col">
-                            <label class="form-label fw-semibold text-muted">Inizio Utilizzo</label>
-                            <input type="datetime-local" class="form-control py-2.5 rounded-3" required id="bookingStart">
-                        </div>
-                        <div class="col">
-                            <label class="form-label fw-semibold text-muted">Fine Prevista</label>
-                            <input type="datetime-local" class="form-control py-2.5 rounded-3" required id="bookingEnd">
-                        </div>
-                    </div>
-                    
-                    <div class="mb-3">
-                        <label class="form-label fw-semibold text-muted">Destinazione</label>
-                        <input type="text" class="form-control py-2.5 rounded-3" placeholder="Es. Sede Cliente Torino" required id="bookingDestination">
-                    </div>
-                    
-                    <div class="mb-4">
-                        <label class="form-label fw-semibold text-muted">Note e Scopo del Viaggio</label>
-                        <textarea class="form-control rounded-3" rows="3" placeholder="Es. Assistenza sistemistica on-site" id="bookingNotes"></textarea>
-                    </div>
-                    
-                    <button type="submit" class="btn btn-premium w-100 py-3 rounded-4 font-display fw-bold">Invia Richiesta</button>
+                        </tbody>
+                    </table>
                 </div>
-            </form>
+            </div>
         </div>
     </div>
-</div>
 
-<!-- Bootstrap & JS code -->
-<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
-<script>
-    let modalElement;
+    <!-- Add Vehicle Modal -->
+    <div class="modal fade" id="addVehicleModal" tabindex="-1" aria-labelledby="addVehicleModalLabel" aria-hidden="true">
+        <div class="modal-dialog modal-dialog-centered modal-lg">
+            <div class="modal-content">
+                <div class="modal-header bg-primary text-white">
+                    <h5 class="modal-title fw-bold" id="addVehicleModalLabel"><i class="bi bi-car-front-fill me-2"></i> Aggiungi Nuovo Veicolo</h5>
+                    <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <form action="/veicolo/nuovo" method="post">
+                    <div class="modal-body">
+                        <div class="row g-3 mb-3">
+                            <div class="col-md-4">
+                                <label class="form-label text-muted">Targa *</label>
+                                <input type="text" class="form-control" name="targa" placeholder="Es. AA123BB" required>
+                            </div>
+                            <div class="col-md-4">
+                                <label class="form-label text-muted">Marca *</label>
+                                <input type="text" class="form-control" name="marca" placeholder="Es. Fiat" required>
+                            </div>
+                            <div class="col-md-4">
+                                <label class="form-label text-muted">Modello *</label>
+                                <input type="text" class="form-control" name="modello" placeholder="Es. Panda" required>
+                            </div>
+                        </div>
+                        
+                        <div class="row g-3 mb-3">
+                            <div class="col-md-4">
+                                <label class="form-label text-muted">Tipo *</label>
+                                <select class="form-select" name="tipo" required>
+                                    <option value="auto">Auto</option>
+                                    <option value="furgone">Furgone</option>
+                                </select>
+                            </div>
+                            <div class="col-md-4">
+                                <label class="form-label text-muted">Colore</label>
+                                <input type="text" class="form-control" name="colore" placeholder="Es. Bianco">
+                            </div>
+                            <div class="col-md-4">
+                                <label class="form-label text-muted">Alimentazione</label>
+                                <input type="text" class="form-control" name="alimentazione" placeholder="Es. Ibrida / Diesel">
+                            </div>
+                        </div>
+                        
+                        <div class="row g-3 mb-3">
+                            <div class="col-md-4">
+                                <label class="form-label text-muted">Data Immatricolazione</label>
+                                <input type="date" class="form-control" name="data_immatricolazione">
+                            </div>
+                            <div class="col-md-4">
+                                <label class="form-label text-muted">Proprietà</label>
+                                <select class="form-select" name="proprieta" id="addProprieta" onchange="toggleAddCanone()">
+                                    <option value="Proprietà">Proprietà</option>
+                                    <option value="Noleggio">Noleggio</option>
+                                </select>
+                            </div>
+                            <div class="col-md-4" id="addCanoneDiv" style="display: none;">
+                                <label class="form-label text-muted">Canone Noleggio (€/mese)</label>
+                                <input type="number" step="0.01" class="form-control" name="canone_noleggio" value="0">
+                            </div>
+                        </div>
+                        
+                        <div class="row g-3 mb-3">
+                            <div class="col-md-6">
+                                <label class="form-label text-muted">Chilometri Attuali</label>
+                                <input type="number" class="form-control" name="km_attuali" value="0">
+                            </div>
+                            <div class="col-md-6">
+                                <label class="form-label text-muted">Stato *</label>
+                                <select class="form-select" name="stato" required>
+                                    <option value="Disponibile">Disponibile</option>
+                                    <option value="In Uso">In Uso</option>
+                                    <option value="In Manutenzione">In Manutenzione</option>
+                                </select>
+                            </div>
+                        </div>
+                        
+                        <div class="row g-3 mb-4">
+                            <div class="col-md-4">
+                                <label class="form-label text-muted">Sede Assegnata Fissa *</label>
+                                <select class="form-select" name="sede_assegnata_id" required>
+                                    <option value="">-- Seleziona Sede --</option>
+                                    {% for s in sedi %}
+                                    <option value="{{ s.sede_id }}">{{ s.nome }}</option>
+                                    {% endfor %}
+                                </select>
+                            </div>
+                            <div class="col-md-4">
+                                <label class="form-label text-muted">Sede Attuale (Logistica) *</label>
+                                <select class="form-select" name="sede_attuale_id" required>
+                                    <option value="">-- Seleziona Sede --</option>
+                                    {% for s in sedi %}
+                                    <option value="{{ s.sede_id }}">{{ s.nome }}</option>
+                                    {% endfor %}
+                                </select>
+                            </div>
+                            <div class="col-md-4">
+                                <label class="form-label text-muted">Reparto Assegnato *</label>
+                                <select class="form-select" name="reparto_assegnato_id" required>
+                                    <option value="">-- Seleziona Reparto --</option>
+                                    {% for rep in reparti %}
+                                    <option value="{{ rep.reparto_id }}">{{ rep.nome }}</option>
+                                    {% endfor %}
+                                </select>
+                            </div>
+                        </div>
+                        
+                        <button type="submit" class="btn btn-primary w-100 py-2.5 fw-bold">Registra Veicolo</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+
+    <!-- Edit Vehicle Modal -->
+    <div class="modal fade" id="editVehicleModal" tabindex="-1" aria-labelledby="editVehicleModalLabel" aria-hidden="true">
+        <div class="modal-dialog modal-dialog-centered modal-lg">
+            <div class="modal-content">
+                <div class="modal-header bg-primary text-white">
+                    <h5 class="modal-title fw-bold" id="editVehicleModalLabel"><i class="bi bi-pencil-square me-2"></i> Modifica Veicolo</h5>
+                    <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <form id="editVehicleForm" method="post">
+                    <div class="modal-body">
+                        <div class="row g-3 mb-3">
+                            <div class="col-md-4">
+                                <label class="form-label text-muted">Targa *</label>
+                                <input type="text" class="form-control" name="targa" id="editTarga" required>
+                            </div>
+                            <div class="col-md-4">
+                                <label class="form-label text-muted">Marca *</label>
+                                <input type="text" class="form-control" name="marca" id="editMarca" required>
+                            </div>
+                            <div class="col-md-4">
+                                <label class="form-label text-muted">Modello *</label>
+                                <input type="text" class="form-control" name="modello" id="editModello" required>
+                            </div>
+                        </div>
+                        
+                        <div class="row g-3 mb-3">
+                            <div class="col-md-4">
+                                <label class="form-label text-muted">Tipo *</label>
+                                <select class="form-select" name="tipo" id="editTipo" required>
+                                    <option value="auto">Auto</option>
+                                    <option value="furgone">Furgone</option>
+                                </select>
+                            </div>
+                            <div class="col-md-4">
+                                <label class="form-label text-muted">Colore</label>
+                                <input type="text" class="form-control" name="colore" id="editColore">
+                            </div>
+                            <div class="col-md-4">
+                                <label class="form-label text-muted">Alimentazione</label>
+                                <input type="text" class="form-control" name="alimentazione" id="editAlimentazione">
+                            </div>
+                        </div>
+                        
+                        <div class="row g-3 mb-3">
+                            <div class="col-md-4">
+                                <label class="form-label text-muted">Data Immatricolazione</label>
+                                <input type="date" class="form-control" name="data_immatricolazione" id="editDataImmatricolazione">
+                            </div>
+                            <div class="col-md-4">
+                                <label class="form-label text-muted">Proprietà</label>
+                                <select class="form-select" name="proprieta" id="editProprieta" onchange="toggleEditCanone()">
+                                    <option value="Proprietà">Proprietà</option>
+                                    <option value="Noleggio">Noleggio</option>
+                                </select>
+                            </div>
+                            <div class="col-md-4" id="editCanoneDiv" style="display: none;">
+                                <label class="form-label text-muted">Canone Noleggio (€/mese)</label>
+                                <input type="number" step="0.01" class="form-control" name="canone_noleggio" id="editCanoneNoleggio">
+                            </div>
+                        </div>
+                        
+                        <div class="row g-3 mb-3">
+                            <div class="col-md-6">
+                                <label class="form-label text-muted">Chilometri Attuali</label>
+                                <input type="number" class="form-control" name="km_attuali" id="editKmAttuali">
+                            </div>
+                            <div class="col-md-6">
+                                <label class="form-label text-muted">Stato *</label>
+                                <select class="form-select" name="stato" id="editStato" required>
+                                    <option value="Disponibile">Disponibile</option>
+                                    <option value="In Uso">In Uso</option>
+                                    <option value="In Manutenzione">In Manutenzione</option>
+                                </select>
+                            </div>
+                        </div>
+                        
+                        <div class="row g-3 mb-4">
+                            <div class="col-md-4">
+                                <label class="form-label text-muted">Sede Assegnata Fissa *</label>
+                                <select class="form-select" name="sede_assegnata_id" id="editSedeAssegnataId" required>
+                                    <option value="">-- Seleziona Sede --</option>
+                                    {% for s in sedi %}
+                                    <option value="{{ s.sede_id }}">{{ s.nome }}</option>
+                                    {% endfor %}
+                                </select>
+                            </div>
+                            <div class="col-md-4">
+                                <label class="form-label text-muted">Sede Attuale (Logistica) *</label>
+                                <select class="form-select" name="sede_attuale_id" id="editSedeAttualeId" required>
+                                    <option value="">-- Seleziona Sede --</option>
+                                    {% for s in sedi %}
+                                    <option value="{{ s.sede_id }}">{{ s.nome }}</option>
+                                    {% endfor %}
+                                </select>
+                            </div>
+                            <div class="col-md-4">
+                                <label class="form-label text-muted">Reparto Assegnato *</label>
+                                <select class="form-select" name="reparto_assegnato_id" id="editRepartoAssegnatoId" required>
+                                    <option value="">-- Seleziona Reparto --</option>
+                                    {% for rep in reparti %}
+                                    <option value="{{ rep.reparto_id }}">{{ rep.nome }}</option>
+                                    {% endfor %}
+                                </select>
+                            </div>
+                        </div>
+                        
+                        <button type="submit" class="btn btn-primary w-100 py-2.5 fw-bold">Salva Modifiche</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+
+    <!-- Hidden delete form -->
+    <form id="deleteVehicleForm" method="post" style="display: none;"></form>
     
-    document.addEventListener('DOMContentLoaded', () => {
-        modalElement = new bootstrap.Modal(document.getElementById('bookingModal'));
-        
-        // Search Filter
-        const searchInput = document.getElementById('searchInput');
-        searchInput.addEventListener('input', filterCars);
-        
-        // Tab Filters
-        const filterButtons = document.querySelectorAll('#filterTabs button');
-        filterButtons.forEach(button => {
-            button.addEventListener('click', () => {
-                filterButtons.forEach(btn => btn.classList.remove('active'));
-                button.classList.add('active');
-                filterCars();
-            });
-        });
-        
-        // Set default dates for datetime-local
-        const now = new Date();
-        const startStr = now.toISOString().slice(0, 16);
-        now.setHours(now.getHours() + 4);
-        const endStr = now.toISOString().slice(0, 16);
-        document.getElementById('bookingStart').value = startStr;
-        document.getElementById('bookingEnd').value = endStr;
-    });
+    <!-- Hidden clear table form -->
+    <form id="clearTableForm" action="/admin/automezzi/svuota" method="post" style="display: none;"></form>
 
-    function filterCars() {
-        const query = document.getElementById('searchInput').value.toLowerCase();
-        const activeFilter = document.querySelector('#filterTabs button.active').dataset.filter;
-        const carItems = document.querySelectorAll('.car-item');
-        
-        carItems.forEach(item => {
-            const status = item.dataset.status;
-            const model = item.dataset.model;
-            
-            const matchesSearch = model.includes(query);
-            const matchesTab = activeFilter === 'all' || status.includes(activeFilter);
-            
-            if (matchesSearch && matchesTab) {
-                item.style.display = 'block';
+    <!-- Import CSV Modal -->
+    <div class="modal fade" id="importCsvModal" tabindex="-1" aria-labelledby="importCsvModalLabel" aria-hidden="true">
+        <div class="modal-dialog modal-dialog-centered">
+            <div class="modal-content">
+                <div class="modal-header bg-primary text-white">
+                    <h5 class="modal-title fw-bold" id="importCsvModalLabel"><i class="bi bi-file-earmark-arrow-up-fill me-2"></i> Importa Automezzi da CSV</h5>
+                    <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <form action="/admin/automezzi/importa" method="post" enctype="multipart/form-data">
+                    <div class="modal-body">
+                        <div class="mb-3">
+                            <label class="form-label text-muted">Seleziona File CSV *</label>
+                            <input type="file" class="form-control" name="file" accept=".csv" required>
+                            <div class="form-text mt-2" style="font-size: 0.75rem;">
+                                Il file deve contenere un'intestazione con i seguenti campi separated da virgola o punto e virgola: <br>
+                                <code>targa</code>, <code>marca</code>, <code>modello</code>, <code>tipo</code>, <code>colore</code>, <code>alimentazione</code>, <code>data_immatricolazione</code>, <code>proprieta</code>, <code>canone_noleggio</code>, <code>km_attuali</code>, <code>stato</code>, <code>sede_assegnata_id</code>, <code>sede_attuale_id</code>, <code>reparto_assegnato_id</code>.
+                            </div>
+                        </div>
+                        <button type="submit" class="btn btn-primary w-100 py-2.5 fw-bold">Avvia Importazione</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+
+    <!-- JS code -->
+    <script>
+        let addVehicleModalEl;
+        let editVehicleModalEl;
+        let importCsvModalEl;
+
+        document.addEventListener('DOMContentLoaded', () => {
+            addVehicleModalEl = new bootstrap.Modal(document.getElementById('addVehicleModal'));
+            editVehicleModalEl = new bootstrap.Modal(document.getElementById('editVehicleModal'));
+            importCsvModalEl = new bootstrap.Modal(document.getElementById('importCsvModal'));
+        });
+
+        // Automezzi CRUD helper functions
+        function showAddVehicleModal() {
+            addVehicleModalEl.show();
+        }
+
+        function toggleAddCanone() {
+            const prop = document.getElementById('addProprieta').value;
+            const div = document.getElementById('addCanoneDiv');
+            if (prop === 'Noleggio') {
+                div.style.display = 'block';
             } else {
-                item.style.display = 'none';
+                div.style.display = 'none';
             }
-        });
-    }
+        }
 
-    function showBookingModal() {
-        document.getElementById('bookingVehicle').value = '';
-        modalElement.show();
-    }
+        function toggleEditCanone() {
+            const prop = document.getElementById('editProprieta').value;
+            const div = document.getElementById('editCanoneDiv');
+            if (prop === 'Noleggio') {
+                div.style.display = 'block';
+            } else {
+                div.style.display = 'none';
+            }
+        }
 
-    function requestCar(vehicleName) {
-        document.getElementById('bookingVehicle').value = vehicleName;
-        modalElement.show();
-    }
+        function openEditModal(v) {
+            document.getElementById('editTarga').value = v.targa;
+            document.getElementById('editMarca').value = v.marca;
+            document.getElementById('editModello').value = v.modello;
+            document.getElementById('editTipo').value = v.tipo;
+            document.getElementById('editColore').value = v.colore;
+            document.getElementById('editAlimentazione').value = v.alimentazione;
+            document.getElementById('editDataImmatricolazione').value = v.data_immatricolazione;
+            document.getElementById('editProprieta').value = v.proprieta;
+            document.getElementById('editCanoneNoleggio').value = v.canone_noleggio;
+            document.getElementById('editKmAttuali').value = v.km_attuali;
+            document.getElementById('editStato').value = v.stato;
+            document.getElementById('editSedeAssegnataId').value = v.sede_assegnata_id;
+            document.getElementById('editSedeAttualeId').value = v.sede_attuale_id;
+            document.getElementById('editRepartoAssegnatoId').value = v.reparto_assegnato_id;
+            
+            toggleEditCanone();
+            
+            const form = document.getElementById('editVehicleForm');
+            form.action = `/veicolo/modifica/${v.automezzo_id}`;
+            
+            editVehicleModalEl.show();
+        }
 
-    function submitBooking(event) {
-        event.preventDefault();
-        
-        const vehicle = document.getElementById('bookingVehicle').value;
-        const start = document.getElementById('bookingStart').value;
-        const end = document.getElementById('bookingEnd').value;
-        const dest = document.getElementById('bookingDestination').value;
-        
-        alert(`Richiesta di prenotazione inviata con successo!\n\nVeicolo: ${vehicle}\nInizio: ${start}\nFine: ${end}\nDestinazione: ${dest}\n\nRiceverai una notifica via email ad approvazione avvenuta.`);
-        modalElement.hide();
-    }
-</script>
+        function confirmDelete(id, targa) {
+            if (confirm(`Sei sicuro di voler eliminare il veicolo targato ${targa}?`)) {
+                const form = document.getElementById('deleteVehicleForm');
+                form.action = `/veicolo/elimina/${id}`;
+                form.submit();
+            }
+        }
+
+        function showImportModal() {
+            importCsvModalEl.show();
+        }
+
+        function confirmClearTable() {
+            if (confirm("ATTENZIONE!\nSei sicuro di voler SVUOTARE COMPLETAMENTE la tabella degli automezzi?\nTutti i dati andranno persi in modo definitivo.")) {
+                document.getElementById('clearTableForm').submit();
+            }
+        }
+    </script>
 </body>
+
 </html>
