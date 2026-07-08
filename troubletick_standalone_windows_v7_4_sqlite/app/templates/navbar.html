@@ -79,7 +79,7 @@
           </a>
           <ul class="dropdown-menu shadow" aria-labelledby="autoparkDropdown">
             <li><a class="dropdown-item" href="/autopark">Prenotazioni</a></li>
-            {% if user and user.ruolo == 'admin' %}
+            {% if user and user.ruolo in ('admin', 'fleet_manager') %}
             <li><a class="dropdown-item" href="/admin/automezzi">Elenco Automezzi</a></li>
             {% endif %}
           </ul>

@@ -324,7 +324,7 @@ try:
             c.execute(text(stmt), params or {})
             
         # seed ruoli
-        sql_insert_ignore("INSERT OR IGNORE INTO ruoli(ruolo_id,nome,descrizione) VALUES (1,'admin','Amministratore (massima visibilità)'),(2,'responsabile','Responsabile del reparto (vede operatori, ticket, report)'),(3,'assistenza','Operatore di assistenza (gestisce ticket dei propri servizi)'),(4,'normale','Operatore normale (non vede/gestisce ticket)')")
+        sql_insert_ignore("INSERT OR IGNORE INTO ruoli(ruolo_id,nome,descrizione) VALUES (1,'admin','Amministratore (massima visibilità)'),(2,'responsabile','Responsabile del reparto (vede operatori, ticket, report)'),(3,'assistenza','Operatore di assistenza (gestisce ticket dei propri servizi)'),(4,'normale','Operatore normale (non vede/gestisce ticket)'),(5,'fleet_manager','Fleet Manager (gestisce gli automezzi)')")
         
         # seed sedi se vuoto
         try:
