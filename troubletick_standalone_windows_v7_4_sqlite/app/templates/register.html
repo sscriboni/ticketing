@@ -19,6 +19,16 @@
 
 <div class="container flex-grow-1 mb-5" style="max-width: 600px;">
     <h2>Registrazione Nuovo Operatore</h2>
+    
+    <div class="alert alert-warning shadow-sm mb-3">
+        <h5 class="alert-heading fw-bold h6 mb-1"><i class="bi bi-exclamation-triangle-fill"></i> Pagina Riservata agli Operatori di Assistenza</h5>
+        <p class="mb-0 small text-dark">
+            Questa registrazione è dedicata <strong>esclusivamente agli operatori tecnici / manutentori</strong> che devono prendere in carico e risolvere i ticket.
+            Se sei un dipendente o utente normale (richiedente) che deve semplicemente inviare richieste o segnalare guasti, devi registrarti tramite la pagina di 
+            <a href="/register-utente" class="alert-link fw-bold text-decoration-underline">Registrazione Nuovo Utente</a>.
+        </p>
+    </div>
+
     <p class="text-muted">Compila i tuoi dati per richiedere l'accesso al pannello di assistenza. <strong>L'account dovrà essere approvato da un amministratore prima di poter accedere.</strong></p>
     
     {% if error %}<div class="alert alert-danger">{{ error }}</div>{% endif %}
