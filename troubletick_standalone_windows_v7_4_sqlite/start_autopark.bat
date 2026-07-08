@@ -1,5 +1,5 @@
 @echo off
-echo Inizializzazione di Troubletick...
+echo Inizializzazione di Autopark...
 
 REM Verifica l'esistenza dell'ambiente virtuale
 if not exist "venv\Scripts\activate.bat" (
@@ -25,7 +25,7 @@ if not exist "venv\Scripts\activate.bat" (
     call venv\Scripts\activate.bat
 )
 
-REM Posizionati nella cartella app e avvia il server principale
+REM Posizionati nella cartella app e avvia la webapp autopark
 cd app
-uvicorn main:app --host 0.0.0.0 --port 5001
+uvicorn appautopark:app --host 0.0.0.0 --port 5002
 pause

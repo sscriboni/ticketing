@@ -14,7 +14,6 @@ from utils import current_user, require_superuser, save_upload
 from email_utils import send_email_async
 import auth
 import magazzini
-import appautopark
 
 # Init schema + seed
 try:
@@ -557,7 +556,6 @@ async def global_exception_handler(request: Request, exc: Exception):
 
 app.include_router(auth.router)
 app.include_router(magazzini.router)
-app.include_router(appautopark.router)
 
 @app.get("/", response_class=HTMLResponse)
 def home(r: Request):
