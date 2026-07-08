@@ -217,12 +217,21 @@ def delete_vehicle(id: int, r: Request):
         conn.execute(text("DELETE FROM automezzi WHERE automezzo_id = :id"), {"id": id})
     return RedirectResponse(url="/admin/automezzi", status_code=303)
 
+@router.get("/admin/automezzi/gestione", response_class=HTMLResponse)
+def admin_automezzi_gestione_page(r: Request):
+    if "user" not in r.session: 
+        return RedirectResponse(url="/login")
+    user = r.session.get("user")
+    if user.get("ruolo") != "admin":
+        return RedirectResponse(url="/")
+    return templates.TemplateResponse(r, "admin_autopark_gestione.html", {"request": r, "cfg": CFG, "user": user})
+
 @router.get("/admin/automezzi/esporta")
 def export_automezzi_csv(r: Request):
     if "user" not in r.session: 
         return RedirectResponse(url="/login")
     user = r.session.get("user")
-    if user.get("ruolo") not in ("admin", "fleet_manager"):
+    if user.get("ruolo") != "admin":
         return RedirectResponse(url="/")
         
     with engine.connect() as conn:
@@ -257,7 +266,7 @@ def import_automezzi_csv(r: Request, file: UploadFile = File(...)):
     if "user" not in r.session: 
         return RedirectResponse(url="/login", status_code=303)
     user = r.session.get("user")
-    if user.get("ruolo") not in ("admin", "fleet_manager"):
+    if user.get("ruolo") != "admin":
         return RedirectResponse(url="/", status_code=303)
         
     try:
@@ -269,11 +278,11 @@ def import_automezzi_csv(r: Request, file: UploadFile = File(...)):
         except Exception:
             reader = csv.reader(stream, delimiter=';')
     except Exception:
-        return RedirectResponse(url="/admin/automezzi", status_code=303)
+        return RedirectResponse(url="/admin/automezzi/gestione?msg=import_err", status_code=303)
         
     headers = next(reader, None)
     if not headers:
-        return RedirectResponse(url="/admin/automezzi", status_code=303)
+        return RedirectResponse(url="/admin/automezzi/gestione?msg=import_err", status_code=303)
         
     headers = [h.strip().lower() for h in headers]
     
@@ -356,17 +365,17 @@ def import_automezzi_csv(r: Request, file: UploadFile = File(...)):
                     "reparto_assegnato_id": reparto_assegnato_id
                 })
                 
-    return RedirectResponse(url="/admin/automezzi", status_code=303)
+    return RedirectResponse(url="/admin/automezzi/gestione?msg=import_ok", status_code=303)
 
 @router.post("/admin/automezzi/svuota")
 def empty_automezzi(r: Request):
     if "user" not in r.session: 
         return RedirectResponse(url="/login", status_code=303)
     user = r.session.get("user")
-    if user.get("ruolo") not in ("admin", "fleet_manager"):
+    if user.get("ruolo") != "admin":
         return RedirectResponse(url="/", status_code=303)
         
     with engine.begin() as conn:
         conn.execute(text("DELETE FROM automezzi"))
         
-    return RedirectResponse(url="/admin/automezzi", status_code=303)
+    return RedirectResponse(url="/admin/automezzi/gestione?msg=clear_ok", status_code=303)

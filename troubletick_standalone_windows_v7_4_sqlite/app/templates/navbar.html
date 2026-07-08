@@ -167,6 +167,15 @@
             <li><hr class="dropdown-divider"></li>
             <li><a class="dropdown-item" href="/admin/categorie">Categorie Materiali</a></li>
             <li><a class="dropdown-item" href="/admin/materiali">Anagrafica Materiali</a></li>
+            {% if cfg.get('modulo_autopark', True) %}
+            {% if user and user.ruolo == 'admin' %}
+            <li><a class="dropdown-item" href="/admin/automezzi/gestione">Gestione Autopark</a></li>
+            {% endif %}
+            {% endif %}
+            {% if cfg.get('modulo_presenze', True) %}
+            <li><a class="dropdown-item" href="/admin/report-copertura">Report Copertura</a></li>
+            {% endif %}
+            <li><a class="dropdown-item" href="/magazzini/report">Report Magazzini</a></li>
             <li><hr class="dropdown-divider"></li>
             <li><a class="dropdown-item" href="/admin/import-export">Import / Export</a></li>
             <li><a class="dropdown-item" href="/admin/impostazioni">Impostazioni Globali</a></li>

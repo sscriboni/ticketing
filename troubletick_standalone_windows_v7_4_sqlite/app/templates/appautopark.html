@@ -38,20 +38,9 @@
         <div class="mb-5">
             <div class="d-flex justify-content-between align-items-center mb-4">
                 <h2 class="mb-0"><i class="bi bi-car-front text-primary me-2"></i> Gestione Anagrafica Automezzi</h2>
-                <div class="d-flex gap-2">
-                    <button class="btn btn-outline-secondary btn-sm d-flex align-items-center" onclick="showImportModal()">
-                        <i class="bi bi-file-earmark-arrow-up me-1"></i> Importa CSV
-                    </button>
-                    <a href="/admin/automezzi/esporta" class="btn btn-outline-secondary btn-sm d-flex align-items-center">
-                        <i class="bi bi-file-earmark-arrow-down me-1"></i> Esporta CSV
-                    </a>
-                    <button class="btn btn-outline-danger btn-sm d-flex align-items-center" onclick="confirmClearTable()">
-                        <i class="bi bi-trash-fill me-1"></i> Svuota Tabella
-                    </button>
-                    <button class="btn btn-primary px-4 py-2" onclick="showAddVehicleModal()">
-                        <i class="bi bi-plus-circle me-1"></i> Aggiungi Veicolo
-                    </button>
-                </div>
+                <button class="btn btn-primary px-4 py-2" onclick="showAddVehicleModal()">
+                    <i class="bi bi-plus-circle me-1"></i> Aggiungi Veicolo
+                </button>
             </div>
             
             <div class="table-container">
@@ -370,45 +359,15 @@
 
     <!-- Hidden delete form -->
     <form id="deleteVehicleForm" method="post" style="display: none;"></form>
-    
-    <!-- Hidden clear table form -->
-    <form id="clearTableForm" action="/admin/automezzi/svuota" method="post" style="display: none;"></form>
-
-    <!-- Import CSV Modal -->
-    <div class="modal fade" id="importCsvModal" tabindex="-1" aria-labelledby="importCsvModalLabel" aria-hidden="true">
-        <div class="modal-dialog modal-dialog-centered">
-            <div class="modal-content">
-                <div class="modal-header bg-primary text-white">
-                    <h5 class="modal-title fw-bold" id="importCsvModalLabel"><i class="bi bi-file-earmark-arrow-up-fill me-2"></i> Importa Automezzi da CSV</h5>
-                    <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
-                </div>
-                <form action="/admin/automezzi/importa" method="post" enctype="multipart/form-data">
-                    <div class="modal-body">
-                        <div class="mb-3">
-                            <label class="form-label text-muted">Seleziona File CSV *</label>
-                            <input type="file" class="form-control" name="file" accept=".csv" required>
-                            <div class="form-text mt-2" style="font-size: 0.75rem;">
-                                Il file deve contenere un'intestazione con i seguenti campi separated da virgola o punto e virgola: <br>
-                                <code>targa</code>, <code>marca</code>, <code>modello</code>, <code>tipo</code>, <code>colore</code>, <code>alimentazione</code>, <code>data_immatricolazione</code>, <code>proprieta</code>, <code>canone_noleggio</code>, <code>km_attuali</code>, <code>stato</code>, <code>sede_assegnata_id</code>, <code>sede_attuale_id</code>, <code>reparto_assegnato_id</code>.
-                            </div>
-                        </div>
-                        <button type="submit" class="btn btn-primary w-100 py-2.5 fw-bold">Avvia Importazione</button>
-                    </div>
-                </form>
-            </div>
-        </div>
-    </div>
 
     <!-- JS code -->
     <script>
         let addVehicleModalEl;
         let editVehicleModalEl;
-        let importCsvModalEl;
 
         document.addEventListener('DOMContentLoaded', () => {
             addVehicleModalEl = new bootstrap.Modal(document.getElementById('addVehicleModal'));
             editVehicleModalEl = new bootstrap.Modal(document.getElementById('editVehicleModal'));
-            importCsvModalEl = new bootstrap.Modal(document.getElementById('importCsvModal'));
         });
 
         // Automezzi CRUD helper functions
@@ -465,16 +424,6 @@
                 const form = document.getElementById('deleteVehicleForm');
                 form.action = `/veicolo/elimina/${id}`;
                 form.submit();
-            }
-        }
-
-        function showImportModal() {
-            importCsvModalEl.show();
-        }
-
-        function confirmClearTable() {
-            if (confirm("ATTENZIONE!\nSei sicuro di voler SVUOTARE COMPLETAMENTE la tabella degli automezzi?\nTutti i dati andranno persi in modo definitivo.")) {
-                document.getElementById('clearTableForm').submit();
             }
         }
     </script>

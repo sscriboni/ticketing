@@ -1,0 +1,116 @@
+<!doctype html>
+<html lang="it">
+<head>
+    <meta charset="utf-8">
+    <title>Gestione Autopark — {{ cfg.app_title }}</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css">
+    <style>
+        .card-gestione { border: 2px solid #0d6efd; }
+    </style>
+</head>
+<body class="bg-light">
+{% include 'navbar.html' %}
+<div class="container py-4">
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <h2><i class="bi bi-p-circle text-primary me-2"></i>Gestione Autopark</h2>
+        <a href="/admin" class="btn btn-outline-secondary btn-sm">
+            <i class="bi bi-arrow-left"></i> Torna alla Dashboard
+        </a>
+    </div>
+
+    <div class="row">
+        <div class="col-12 col-md-8 col-lg-6 mx-auto bg-white p-4 rounded shadow-sm card-gestione">
+            {% if request.query_params.get('msg') == 'import_ok' %}
+            <div class="alert alert-success fw-bold">
+                <i class="bi bi-check-circle-fill"></i> Automezzi importati correttamente!
+            </div>
+            {% elif request.query_params.get('msg') == 'import_err' %}
+            <div class="alert alert-danger fw-bold">
+                <i class="bi bi-exclamation-triangle-fill"></i> Errore durante l'importazione CSV. Verifica il formato del file.
+            </div>
+            {% elif request.query_params.get('msg') == 'clear_ok' %}
+            <div class="alert alert-success fw-bold">
+                <i class="bi bi-check-circle-fill"></i> Tabella automezzi svuotata correttamente!
+            </div>
+            {% endif %}
+
+            <div class="d-flex justify-content-between align-items-center mb-4">
+                <h4 class="mb-0 text-primary">Operazioni Disponibili</h4>
+            </div>
+
+            <!-- Vai a Elenco Automezzi -->
+            <div class="mb-4 p-3 bg-light rounded border">
+                <h5 class="fw-bold text-primary mb-2">
+                    <i class="bi bi-car-front"></i> Anagrafica Automezzi
+                </h5>
+                <p class="small text-muted mb-3">
+                    Visualizza e gestisci l'elenco completo dei veicoli della flotta, inserisci nuovi mezzi, modificali ed eliminali.
+                </p>
+                <div class="d-flex gap-2">
+                    <a href="/admin/automezzi" class="btn btn-primary w-100 fw-bold">
+                        <i class="bi bi-list-ul"></i> Vai all'Elenco Automezzi
+                    </a>
+                </div>
+            </div>
+
+            <!-- Sezione Esportazione -->
+            <div class="mb-4 p-3 bg-light rounded border">
+                <h5 class="fw-bold text-success mb-2">
+                    <i class="bi bi-download"></i> Esportazione Dati (CSV)
+                </h5>
+                <p class="small text-muted mb-3">
+                    Scarica l'intera anagrafica degli automezzi attualmente a sistema in formato CSV (delimitatore punto e virgola <code>;</code>).
+                </p>
+                <div class="d-flex gap-2">
+                    <a href="/admin/automezzi/esporta" class="btn btn-success w-100 fw-bold">
+                        <i class="bi bi-file-earmark-arrow-down"></i> Esporta Automezzi (CSV)
+                    </a>
+                </div>
+            </div>
+
+            <!-- Sezione Importazione -->
+            <div class="mb-4 p-3 bg-light rounded border">
+                <h5 class="fw-bold text-primary mb-2">
+                    <i class="bi bi-upload"></i> Importazione Dati (CSV)
+                </h5>
+                <p class="small text-muted mb-3">
+                    Carica un file <strong>CSV</strong> per inserire o aggiornare gli automezzi. I record esistenti con la stessa targa saranno sovrascritti.
+                </p>
+                
+                <form action="/admin/automezzi/importa" method="post" enctype="multipart/form-data">
+                    <div class="mb-3">
+                        <label class="form-label fw-bold">Seleziona File CSV</label>
+                        <input type="file" name="file" class="form-control" accept=".csv" required>
+                        <div class="form-text mt-2" style="font-size: 0.75rem;">
+                            Il file deve contenere l'intestazione con questi campi: <br>
+                            <code>targa</code>, <code>marca</code>, <code>modello</code>, <code>tipo</code>, <code>colore</code>, <code>alimentazione</code>, <code>data_immatricolazione</code>, <code>proprieta</code>, <code>canone_noleggio</code>, <code>km_attuali</code>, <code>stato</code>, <code>sede_assegnata_id</code>, <code>sede_attuale_id</code>, <code>reparto_assegnato_id</code>.
+                        </div>
+                    </div>
+
+                    <button class="btn btn-primary w-100 fw-bold" type="submit">
+                        <i class="bi bi-check-lg"></i> Importa Automezzi
+                    </button>
+                </form>
+            </div>
+
+            <!-- Sezione Manutenzione / Svuota -->
+            <div class="p-3 bg-light rounded border border-danger">
+                <h5 class="fw-bold text-danger mb-2">
+                    <i class="bi bi-trash3"></i> Area Pericolosa
+                </h5>
+                <p class="small text-muted mb-3">
+                    Questa operazione elimina in modo definitivo tutti gli automezzi presenti nella flotta aziendale.
+                </p>
+                
+                <form action="/admin/automezzi/svuota" method="post" onsubmit="return confirm('ATTENZIONE: Stai per SVUOTARE COMPLETAMENTE la tabella degli automezzi. Questa azione è irreversibile. Procedere?');">
+                    <button class="btn btn-danger w-100 fw-bold" type="submit">
+                        <i class="bi bi-trash-fill"></i> Svuota Tabella Automezzi
+                    </button>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+</body>
+</html>
