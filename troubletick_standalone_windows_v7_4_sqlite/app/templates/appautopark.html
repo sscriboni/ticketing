@@ -115,7 +115,9 @@
                                             "stato": v.stato,
                                             "sede_assegnata_id": v.sede_assegnata_id or "",
                                             "sede_attuale_id": v.sede_attuale_id or "",
-                                            "reparto_assegnato_id": v.reparto_assegnato_id or ""
+                                            "reparto_assegnato_id": v.reparto_assegnato_id or "",
+                                            "fornitore": v.fornitore or "",
+                                            "classe_euro": v.classe_euro or ""
                                         } | tojson }})'>
                                             <i class="bi bi-pencil"></i>
                                         </button>
@@ -251,6 +253,7 @@
                                     <option value="{{ rep.reparto_id }}">{{ rep.nome }}</option>
                                     {% endfor %}
                                 </select>
+                            </div>
                         </div>
                         
                         <div class="row g-3 mb-4">
