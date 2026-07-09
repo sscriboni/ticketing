@@ -57,6 +57,26 @@ with engine.begin() as conn:
         )
     """))
     
+    conn.execute(text(f"""
+        CREATE TABLE IF NOT EXISTS viaggi_automezzi (
+            viaggio_id {DB_PK},
+            automezzo_id INTEGER NOT NULL,
+            data_viaggio TEXT NOT NULL,
+            ora_partenza TEXT NOT NULL,
+            ora_arrivo TEXT,
+            km_iniziali INTEGER NOT NULL,
+            km_finali INTEGER,
+            sede_partenza_id INTEGER NOT NULL,
+            sede_arrivo_id INTEGER,
+            user_id INTEGER NOT NULL,
+            note TEXT,
+            FOREIGN KEY(automezzo_id) REFERENCES automezzi(automezzo_id) ON DELETE CASCADE,
+            FOREIGN KEY(sede_partenza_id) REFERENCES sedi(sede_id),
+            FOREIGN KEY(sede_arrivo_id) REFERENCES sedi(sede_id),
+            FOREIGN KEY(user_id) REFERENCES users(user_id)
+        )
+    """))
+    
     # Check if empty to seed initial data for marche
     count_marche = conn.execute(text("SELECT COUNT(*) FROM marche_automezzi")).scalar() or 0
     if count_marche == 0:
@@ -638,3 +658,190 @@ def delete_marca(id: int, r: Request):
         conn.execute(text("DELETE FROM marche_automezzi WHERE marca_id = :id"), {"id": id})
         
     return RedirectResponse(url="/admin/automezzi/marche", status_code=303)
+
+@router.get("/admin/automezzi/viaggi", response_class=HTMLResponse)
+def list_viaggi(r: Request):
+    if "user" not in r.session: 
+        return RedirectResponse(url="/login")
+    user = r.session.get("user")
+    if user.get("ruolo") not in ("admin", "fleet_manager"):
+        return RedirectResponse(url="/")
+        
+    with engine.connect() as conn:
+        viaggi_attivi = conn.execute(text("""
+            SELECT v.*, a.targa, b.nome as marca, a.modello,
+                   s_part.nome as sede_partenza_nome,
+                   u.nome as user_nome, u.cognome as user_cognome
+            FROM viaggi_automezzi v
+            JOIN automezzi a ON v.automezzo_id = a.automezzo_id
+            JOIN marche_automezzi b ON a.marca_id = b.marca_id
+            JOIN sedi s_part ON v.sede_partenza_id = s_part.sede_id
+            JOIN users u ON v.user_id = u.user_id
+            WHERE v.ora_arrivo IS NULL OR v.km_finali IS NULL
+            ORDER BY v.data_viaggio DESC, v.ora_partenza DESC
+        """)).mappings().all()
+        
+        viaggi_completati = conn.execute(text("""
+            SELECT v.*, a.targa, b.nome as marca, a.modello,
+                   s_part.nome as sede_partenza_nome,
+                   s_arr.nome as sede_arrivo_nome,
+                   u.nome as user_nome, u.cognome as user_cognome
+            FROM viaggi_automezzi v
+            JOIN automezzi a ON v.automezzo_id = a.automezzo_id
+            JOIN marche_automezzi b ON a.marca_id = b.marca_id
+            JOIN sedi s_part ON v.sede_partenza_id = s_part.sede_id
+            JOIN sedi s_arr ON v.sede_arrivo_id = s_arr.sede_id
+            JOIN users u ON v.user_id = u.user_id
+            WHERE v.ora_arrivo IS NOT NULL AND v.km_finali IS NOT NULL
+            ORDER BY v.data_viaggio DESC, v.ora_arrivo DESC
+        """)).mappings().all()
+        
+        veicoli = conn.execute(text("""
+            SELECT a.automezzo_id, a.targa, b.nome as marca, a.modello, a.km_attuali, a.sede_attuale_id, s.nome as sede_attuale_nome
+            FROM automezzi a 
+            JOIN marche_automezzi b ON a.marca_id = b.marca_id 
+            LEFT JOIN sedi s ON a.sede_attuale_id = s.sede_id
+            ORDER BY b.nome, a.modello
+        """)).mappings().all()
+        
+        operatori = conn.execute(text("""
+            SELECT user_id, nome, cognome, ruolo 
+            FROM users 
+            WHERE attivo = 1 
+            ORDER BY cognome, nome
+        """)).mappings().all()
+        
+        sedi = conn.execute(text("SELECT sede_id, nome FROM sedi ORDER BY nome")).mappings().all()
+        
+    return templates.TemplateResponse(r, "admin_automezzi_viaggi.html", {
+        "request": r, "cfg": CFG, "user": user, 
+        "viaggi_attivi": viaggi_attivi, "viaggi_completati": viaggi_completati,
+        "veicoli": veicoli, "operatori": operatori, "sedi": sedi
+    })
+
+@router.post("/admin/automezzi/viaggi/nuovo")
+def add_viaggio(
+    r: Request,
+    automezzo_id: int = Form(...),
+    data_viaggio: str = Form(...),
+    ora_partenza: str = Form(...),
+    ora_arrivo: str = Form(None),
+    km_iniziali: int = Form(...),
+    km_finali: int = Form(None),
+    sede_partenza_id: int = Form(...),
+    sede_arrivo_id: int = Form(None),
+    user_id: int = Form(...),
+    note: str = Form(None)
+):
+    if "user" not in r.session: 
+        return RedirectResponse(url="/login", status_code=303)
+    user = r.session.get("user")
+    if user.get("ruolo") not in ("admin", "fleet_manager"):
+        return RedirectResponse(url="/", status_code=303)
+        
+    ora_arrivo = ora_arrivo.strip() if ora_arrivo and ora_arrivo.strip() else None
+    km_finali_val = km_finali if km_finali is not None else None
+    sede_arrivo_id_val = sede_arrivo_id if sede_arrivo_id else None
+    
+    with engine.begin() as conn:
+        conn.execute(text("""
+            INSERT INTO viaggi_automezzi (
+                automezzo_id, data_viaggio, ora_partenza, ora_arrivo, 
+                km_iniziali, km_finali, sede_partenza_id, sede_arrivo_id, user_id, note
+            ) VALUES (
+                :automezzo_id, :data_viaggio, :ora_partenza, :ora_arrivo,
+                :km_iniziali, :km_finali, :sede_partenza_id, :sede_arrivo_id, :user_id, :note
+            )
+        """), {
+            "automezzo_id": automezzo_id, "data_viaggio": data_viaggio, "ora_partenza": ora_partenza,
+            "ora_arrivo": ora_arrivo, "km_iniziali": km_iniziali, "km_finali": km_finali_val,
+            "sede_partenza_id": sede_partenza_id, "sede_arrivo_id": sede_arrivo_id_val,
+            "user_id": user_id, "note": note
+        })
+        
+        if ora_arrivo and km_finali_val is not None:
+            conn.execute(text("""
+                UPDATE automezzi
+                SET stato = 'Disponibile', 
+                    km_attuali = MAX(km_attuali, :km_finali),
+                    sede_attuale_id = COALESCE(:sede_arrivo_id, sede_attuale_id)
+                WHERE automezzo_id = :automezzo_id
+            """), {
+                "km_finali": km_finali_val,
+                "sede_arrivo_id": sede_arrivo_id_val,
+                "automezzo_id": automezzo_id
+            })
+        else:
+            conn.execute(text("""
+                UPDATE automezzi
+                SET stato = 'In Uso',
+                    km_attuali = MAX(km_attuali, :km_iniziali),
+                    sede_attuale_id = :sede_partenza_id
+                WHERE automezzo_id = :automezzo_id
+            """), {
+                "km_iniziali": km_iniziali,
+                "sede_partenza_id": sede_partenza_id,
+                "automezzo_id": automezzo_id
+            })
+            
+    return RedirectResponse(url="/admin/automezzi/viaggi", status_code=303)
+
+@router.post("/admin/automezzi/viaggi/completa/{id}")
+def complete_viaggio(
+    id: int,
+    r: Request,
+    ora_arrivo: str = Form(...),
+    km_finali: int = Form(...),
+    sede_arrivo_id: int = Form(...),
+    note_finali: str = Form(None)
+):
+    if "user" not in r.session: 
+        return RedirectResponse(url="/login", status_code=303)
+    user = r.session.get("user")
+    if user.get("ruolo") not in ("admin", "fleet_manager"):
+        return RedirectResponse(url="/", status_code=303)
+        
+    with engine.begin() as conn:
+        v = conn.execute(text("SELECT automezzo_id, note FROM viaggi_automezzi WHERE viaggio_id = :id"), {"id": id}).first()
+        if v:
+            note_complete = (v.note or "") + (f" | Arrivo: {note_finali}" if note_finali else "")
+            conn.execute(text("""
+                UPDATE viaggi_automezzi
+                SET ora_arrivo = :ora_arrivo, km_finali = :km_finali, sede_arrivo_id = :sede_arrivo_id, note = :note
+                WHERE viaggio_id = :id
+            """), {
+                "id": id, "ora_arrivo": ora_arrivo.strip(), "km_finali": km_finali,
+                "sede_arrivo_id": sede_arrivo_id, "note": note_complete
+            })
+            
+            conn.execute(text("""
+                UPDATE automezzi
+                SET stato = 'Disponibile', 
+                    km_attuali = MAX(km_attuali, :km_finali),
+                    sede_attuale_id = :sede_arrivo_id
+                WHERE automezzo_id = :automezzo_id
+            """), {
+                "automezzo_id": v.automezzo_id,
+                "km_finali": km_finali,
+                "sede_arrivo_id": sede_arrivo_id
+            })
+            
+    return RedirectResponse(url="/admin/automezzi/viaggi", status_code=303)
+
+@router.post("/admin/automezzi/viaggi/elimina/{id}")
+def delete_viaggio(id: int, r: Request):
+    if "user" not in r.session: 
+        return RedirectResponse(url="/login", status_code=303)
+    user = r.session.get("user")
+    if user.get("ruolo") not in ("admin", "fleet_manager"):
+        return RedirectResponse(url="/", status_code=303)
+        
+    with engine.begin() as conn:
+        v = conn.execute(text("SELECT automezzo_id, ora_arrivo FROM viaggi_automezzi WHERE viaggio_id = :id"), {"id": id}).first()
+        if v:
+            if not v.ora_arrivo:
+                conn.execute(text("UPDATE automezzi SET stato = 'Disponibile' WHERE automezzo_id = :automezzo_id"), {"automezzo_id": v.automezzo_id})
+            conn.execute(text("DELETE FROM viaggi_automezzi WHERE viaggio_id = :id"), {"id": id})
+            
+    return RedirectResponse(url="/admin/automezzi/viaggi", status_code=303)
+

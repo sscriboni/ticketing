@@ -1,0 +1,469 @@
+<!doctype html>
+<html lang="it">
+
+<head>
+    <meta charset="utf-8">
+    <title>Registro Viaggi — {{ cfg.app_title }}</title>
+    <!-- Bootstrap CSS -->
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
+    <!-- Bootstrap Icons -->
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css">
+    <style>
+        .table-container {
+            background: white;
+            border-radius: 8px;
+            padding: 1.5rem;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.05);
+            border: 1px solid #dee2e6;
+        }
+        .custom-table th {
+            font-weight: 600;
+            color: #495057;
+            text-transform: uppercase;
+            font-size: 0.8rem;
+            letter-spacing: 0.5px;
+            border-bottom: 2px solid #dee2e6;
+        }
+        .custom-table td {
+            vertical-align: middle;
+        }
+    </style>
+</head>
+
+<body class="bg-light">
+    {% include 'navbar.html' %}
+
+    <div class="container py-4">
+        <!-- Registro Viaggi -->
+        <div class="mb-5">
+            <div class="d-flex justify-content-between align-items-center mb-4">
+                <h2 class="mb-0"><i class="bi bi-compass text-success me-2"></i> Registro Utilizzo / Viaggi Automezzi</h2>
+                <div class="d-flex gap-2">
+                    <button class="btn btn-success text-white px-4 py-2" onclick="showAddTripModal()">
+                        <i class="bi bi-plus-circle me-1"></i> Registra Nuovo Viaggio
+                    </button>
+                </div>
+            </div>
+
+            <!-- Viaggi in Corso -->
+            <h4 class="mb-3 text-secondary"><i class="bi bi-play-circle me-2 text-success"></i> Viaggi in Corso (Mezzi Attualmente in Uso)</h4>
+            <div class="table-container mb-5">
+                {% if viaggi_attivi %}
+                <div class="table-responsive">
+                    <table class="table table-hover custom-table align-middle">
+                        <thead>
+                            <tr>
+                                <th>Veicolo</th>
+                                <th>Targa</th>
+                                <th>Operatore</th>
+                                <th>Partenza da</th>
+                                <th>Data / Ora Partenza</th>
+                                <th>Km Partenza</th>
+                                <th>Note</th>
+                                <th class="text-end">Azioni</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for v in viaggi_attivi %}
+                            <tr>
+                                <td><span class="fw-bold">{{ v.marca }} {{ v.modello }}</span></td>
+                                <td><span class="badge bg-secondary font-monospace">{{ v.targa }}</span></td>
+                                <td>{{ v.user_nome }} {{ v.user_cognome }}</td>
+                                <td><i class="bi bi-geo-alt-fill text-danger me-1"></i>{{ v.sede_partenza_nome }}</td>
+                                <td>{{ v.data_viaggio }} alle {{ v.ora_partenza }}</td>
+                                <td>{{ v.km_iniziali }} km</td>
+                                <td><span class="text-muted small">{{ v.note or '-' }}</span></td>
+                                <td class="text-end">
+                                    <div class="d-inline-flex gap-2">
+                                        <button class="btn btn-sm btn-outline-success fw-bold" onclick="showCompleteTripModal({{ v.viaggio_id }}, '{{ v.targa }}', '{{ v.marca }} {{ v.modello }}', {{ v.km_iniziali }}, {{ v.sede_partenza_id }})">
+                                            <i class="bi bi-check2-circle me-1"></i> Termina Viaggio
+                                        </button>
+                                        <button class="btn btn-sm btn-outline-danger" onclick="confirmDeleteTrip({{ v.viaggio_id }}, '{{ v.targa }}')">
+                                            <i class="bi bi-trash"></i>
+                                        </button>
+                                    </div>
+                                </td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+                {% else %}
+                <div class="text-center text-muted py-4">
+                    <i class="bi bi-check-circle text-success fs-1 mb-2"></i>
+                    <p class="mb-0">Tutti i veicoli sono attualmente parcheggiati. Nessun viaggio in corso.</p>
+                </div>
+                {% endif %}
+            </div>
+
+            <!-- Storico Viaggi Completati -->
+            <div class="d-flex justify-content-between align-items-center mb-3">
+                <h4 class="mb-0 text-secondary"><i class="bi bi-archive me-2"></i> Storico Viaggi Completati</h4>
+                <!-- Ricerca / Filtro rapido -->
+                <div class="col-md-3">
+                    <input type="text" id="tripSearch" class="form-control form-control-sm" placeholder="Cerca per targa o operatore..." onkeyup="filterTrips()">
+                </div>
+            </div>
+            
+            <div class="table-container">
+                {% if viaggi_completati %}
+                <div class="table-responsive">
+                    <table class="table table-hover custom-table align-middle" id="completedTripsTable">
+                        <thead>
+                            <tr>
+                                <th>Veicolo</th>
+                                <th>Targa</th>
+                                <th>Operatore</th>
+                                <th>Sede Partenza</th>
+                                <th>Sede Arrivo</th>
+                                <th>Data / Orario</th>
+                                <th>Km Iniziali</th>
+                                <th>Km Finali</th>
+                                <th>Distanza</th>
+                                <th>Note</th>
+                                <th class="text-end">Azioni</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for v in viaggi_completati %}
+                            <tr>
+                                <td class="vehicle-name"><span class="fw-medium">{{ v.marca }} {{ v.modello }}</span></td>
+                                <td class="vehicle-targa"><span class="badge bg-secondary font-monospace">{{ v.targa }}</span></td>
+                                <td class="driver-name">{{ v.user_nome }} {{ v.user_cognome }}</td>
+                                <td>{{ v.sede_partenza_nome }}</td>
+                                <td><i class="bi bi-geo-alt-fill text-danger me-1"></i>{{ v.sede_arrivo_nome }}</td>
+                                <td>{{ v.data_viaggio }} ({{ v.ora_partenza }} - {{ v.ora_arrivo }})</td>
+                                <td>{{ v.km_iniziali }} km</td>
+                                <td>{{ v.km_finali }} km</td>
+                                <td>
+                                    <span class="badge bg-success font-monospace">
+                                        +{{ v.km_finali - v.km_iniziali }} km
+                                    </span>
+                                </td>
+                                <td><span class="text-muted small">{{ v.note or '-' }}</span></td>
+                                <td class="text-end">
+                                    <button class="btn btn-sm btn-outline-danger" onclick="confirmDeleteTrip({{ v.viaggio_id }}, '{{ v.targa }}')">
+                                        <i class="bi bi-trash"></i>
+                                    </button>
+                                </td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+                {% else %}
+                <p class="text-muted mb-0 py-3 text-center">Nessun viaggio registrato nello storico.</p>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+
+    <!-- Registra Nuovo Viaggio Modal -->
+    <div class="modal fade" id="addTripModal" tabindex="-1" aria-labelledby="addTripModalLabel" aria-hidden="true">
+        <div class="modal-dialog modal-dialog-centered modal-lg">
+            <div class="modal-content">
+                <div class="modal-header bg-success text-white">
+                    <h5 class="modal-title fw-bold" id="addTripModalLabel"><i class="bi bi-compass me-2"></i> Registra Nuovo Viaggio / Utilizzo</h5>
+                    <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <form action="/admin/automezzi/viaggi/nuovo" method="post" id="addTripForm" onsubmit="return validateNewTripForm()">
+                    <div class="modal-body">
+                        <!-- Automezzo e Conducente -->
+                        <div class="row g-3 mb-3">
+                            <div class="col-md-6">
+                                <label class="form-label text-muted">Autovettura *</label>
+                                <select class="form-select" name="automezzo_id" id="addTripAutomezzoId" onchange="onVehicleSelect()" required>
+                                    <option value="" disabled selected>-- Seleziona Veicolo --</option>
+                                    {% for v in veicoli %}
+                                    <option value="{{ v.automezzo_id }}" data-km="{{ v.km_attuali }}" data-sede-id="{{ v.sede_attuale_id or '' }}">
+                                        {{ v.marca }} {{ v.modello }} ({{ v.targa }}) — {{ v.km_attuali }} km [{{ v.sede_attuale_nome or 'Sede n/d' }}]
+                                    </option>
+                                    {% endfor %}
+                                </select>
+                            </div>
+                            <div class="col-md-6">
+                                <label class="form-label text-muted">Operatore Conducente *</label>
+                                <select class="form-select" name="user_id" required>
+                                    <option value="" disabled selected>-- Seleziona Operatore --</option>
+                                    {% for op in operatori %}
+                                    <option value="{{ op.user_id }}">{{ op.cognome }} {{ op.nome }} ({{ op.ruolo }})</option>
+                                    {% endfor %}
+                                </select>
+                            </div>
+                        </div>
+
+                        <!-- Data e Partenza -->
+                        <div class="row g-3 mb-3">
+                            <div class="col-md-4">
+                                <label class="form-label text-muted">Data Viaggio *</label>
+                                <input type="date" class="form-control" name="data_viaggio" id="addTripData" required>
+                            </div>
+                            <div class="col-md-4">
+                                <label class="form-label text-muted">Ora Partenza *</label>
+                                <input type="time" class="form-control" name="ora_partenza" id="addTripOraPartenza" required>
+                            </div>
+                            <div class="col-md-4">
+                                <label class="form-label text-muted">Sede Partenza *</label>
+                                <select class="form-select" name="sede_partenza_id" id="addTripSedePartenzaId" required>
+                                    <option value="" disabled selected>-- Seleziona Partenza --</option>
+                                    {% for s in sedi %}
+                                    <option value="{{ s.sede_id }}">{{ s.nome }}</option>
+                                    {% endfor %}
+                                </select>
+                            </div>
+                        </div>
+
+                        <!-- Km Partenza -->
+                        <div class="row g-3 mb-3">
+                            <div class="col-md-6">
+                                <label class="form-label text-muted">Chilometri Iniziali *</label>
+                                <input type="number" class="form-control" name="km_iniziali" id="addTripKmIniziali" placeholder="Es. 12000" min="0" required>
+                            </div>
+                            <div class="col-md-6">
+                                <div class="alert alert-info py-2 px-3 mt-4 small mb-0">
+                                    <i class="bi bi-info-circle-fill"></i> I km iniziali e la sede vengono precompilati automaticamente alla selezione del mezzo.
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Info Arrivo (Opzionali, per registrare viaggi già conclusi) -->
+                        <div class="border-top pt-3 mt-3">
+                            <h6 class="fw-bold text-success mb-3"><i class="bi bi-flag-fill me-1"></i> Dati di Arrivo (Compilare solo se il viaggio è già terminato)</h6>
+                            <div class="row g-3 mb-3">
+                                <div class="col-md-4">
+                                    <label class="form-label text-muted">Ora Arrivo</label>
+                                    <input type="time" class="form-control" name="ora_arrivo" id="addTripOraArrivo">
+                                </div>
+                                <div class="col-md-4">
+                                    <label class="form-label text-muted">Sede Arrivo</label>
+                                    <select class="form-select" name="sede_arrivo_id" id="addTripSedeArrivoId">
+                                        <option value="" selected>-- Stessa sede di partenza o seleziona --</option>
+                                        {% for s in sedi %}
+                                        <option value="{{ s.sede_id }}">{{ s.nome }}</option>
+                                        {% endfor %}
+                                    </select>
+                                </div>
+                                <div class="col-md-4">
+                                    <label class="form-label text-muted">Chilometri Finali</label>
+                                    <input type="number" class="form-control" name="km_finali" id="addTripKmFinali" placeholder="Es. 12150">
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Note -->
+                        <div class="mb-3">
+                            <label class="form-label text-muted">Eventuali Note / Scopo del viaggio</label>
+                            <textarea class="form-control" name="note" rows="2" placeholder="Es. Consegna materiali presso sede cliente Rossi, rifornimento carburante..."></textarea>
+                        </div>
+
+                        <button type="submit" class="btn btn-success text-white w-100 py-2.5 fw-bold">Salva Viaggio</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+
+    <!-- Termina Viaggio Modal -->
+    <div class="modal fade" id="completeTripModal" tabindex="-1" aria-labelledby="completeTripModalLabel" aria-hidden="true">
+        <div class="modal-dialog modal-dialog-centered">
+            <div class="modal-content">
+                <div class="modal-header bg-success text-white">
+                    <h5 class="modal-title fw-bold" id="completeTripModalLabel"><i class="bi bi-flag-fill me-2"></i> Termina Viaggio in Corso</h5>
+                    <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <form action="" method="post" id="completeTripForm" onsubmit="return validateCompleteForm()">
+                    <div class="modal-body">
+                        <div class="p-3 bg-light rounded border mb-3">
+                            <div class="row">
+                                <div class="col-6">
+                                    <small class="text-muted d-block">Veicolo</small>
+                                    <strong id="compVehName">-</strong>
+                                </div>
+                                <div class="col-6">
+                                    <small class="text-muted d-block">Targa</small>
+                                    <span class="badge bg-secondary font-monospace" id="compVehTarga">-</span>
+                                </div>
+                            </div>
+                            <div class="row mt-2">
+                                <div class="col-6">
+                                    <small class="text-muted d-block">Km Iniziali</small>
+                                    <strong><span id="compKmIniziali">0</span> km</strong>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Ora Arrivo -->
+                        <div class="mb-3">
+                            <label class="form-label text-muted">Ora Arrivo *</label>
+                            <input type="time" class="form-control" name="ora_arrivo" id="compOraArrivo" required>
+                        </div>
+
+                        <!-- Sede Arrivo -->
+                        <div class="mb-3">
+                            <label class="form-label text-muted">Sede Arrivo (Logistica) *</label>
+                            <select class="form-select" name="sede_arrivo_id" id="compSedeArrivoId" required>
+                                <option value="" disabled selected>-- Seleziona Sede Arrivo --</option>
+                                {% for s in sedi %}
+                                <option value="{{ s.sede_id }}">{{ s.nome }}</option>
+                                {% endfor %}
+                            </select>
+                        </div>
+
+                        <!-- Km Finali -->
+                        <div class="mb-3">
+                            <label class="form-label text-muted">Chilometri Finali *</label>
+                            <input type="number" class="form-control" name="km_finali" id="compKmFinali" placeholder="Es. 12200" required>
+                            <div class="form-text small text-danger" id="compKmError" style="display: none;">
+                                <i class="bi bi-exclamation-triangle"></i> I chilometri finali devono essere uguali o maggiori dei chilometri iniziali (<span id="compMinKm">0</span> km).
+                            </div>
+                        </div>
+
+                        <!-- Note finali -->
+                        <div class="mb-4">
+                            <label class="form-label text-muted">Note di Arrivo / Stato Veicolo</label>
+                            <textarea class="form-control" name="note_finali" rows="2" placeholder="Es. Tutto regolare, lavato mezzo..."></textarea>
+                        </div>
+
+                        <button type="submit" class="btn btn-success text-white w-100 py-2.5 fw-bold">Completa e Salva</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+
+    <!-- Hidden Form for deletion -->
+    <form id="deleteTripForm" method="post" style="display: none;"></form>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
+    <script>
+        let addTripModalEl;
+        let completeTripModalEl;
+
+        document.addEventListener('DOMContentLoaded', () => {
+            addTripModalEl = new bootstrap.Modal(document.getElementById('addTripModal'));
+            completeTripModalEl = new bootstrap.Modal(document.getElementById('completeTripModal'));
+            
+            // Set current date in forms as default
+            const today = new Date().toISOString().split('T')[0];
+            document.getElementById('addTripData').value = today;
+            
+            // Set current time in forms as default
+            const now = new Date();
+            const timeStr = String(now.getHours()).padStart(2, '0') + ':' + String(now.getMinutes()).padStart(2, '0');
+            document.getElementById('addTripOraPartenza').value = timeStr;
+        });
+
+        function showAddTripModal() {
+            addTripModalEl.show();
+        }
+
+        function onVehicleSelect() {
+            const select = document.getElementById('addTripAutomezzoId');
+            const selectedOption = select.options[select.selectedIndex];
+            
+            const km = selectedOption.getAttribute('data-km');
+            const sedeId = selectedOption.getAttribute('data-sede-id');
+            
+            if (km !== null) {
+                document.getElementById('addTripKmIniziali').value = km;
+            }
+            if (sedeId) {
+                document.getElementById('addTripSedePartenzaId').value = sedeId;
+                // Also default the arrival branch to the same
+                document.getElementById('addTripSedeArrivoId').value = sedeId;
+            }
+        }
+
+        function validateNewTripForm() {
+            const kmInit = parseInt(document.getElementById('addTripKmIniziali').value || 0, 10);
+            const kmFinEl = document.getElementById('addTripKmFinali');
+            
+            if (kmFinEl && kmFinEl.value) {
+                const kmFin = parseInt(kmFinEl.value, 10);
+                if (kmFin < kmInit) {
+                    alert(`I chilometri finali (${kmFin}) non possono essere minori dei chilometri iniziali (${kmInit}).`);
+                    return false;
+                }
+            }
+            
+            const oraArr = document.getElementById('addTripOraArrivo').value;
+            const kmFinVal = kmFinEl.value;
+            const sedeArr = document.getElementById('addTripSedeArrivoId').value;
+            
+            // If any arrival detail is entered, ensure all required arrival details are entered
+            if (oraArr || kmFinVal || sedeArr) {
+                if (!oraArr || !kmFinVal || !sedeArr) {
+                    alert("Se vuoi inserire i dati di arrivo, compila tutti e tre i campi: Ora Arrivo, Sede Arrivo e Chilometri Finali.");
+                    return false;
+                }
+            }
+            return true;
+        }
+
+        let currentTripKmIniziali = 0;
+
+        function showCompleteTripModal(id, targa, name, kmInit, departureSedeId) {
+            document.getElementById('compVehName').textContent = name;
+            document.getElementById('compVehTarga').textContent = targa;
+            document.getElementById('compKmIniziali').textContent = kmInit;
+            document.getElementById('compMinKm').textContent = kmInit;
+            
+            currentTripKmIniziali = kmInit;
+            document.getElementById('compKmFinali').value = kmInit;
+            
+            // Prefill arrival branch to departure branch
+            document.getElementById('compSedeArrivoId').value = departureSedeId;
+            
+            // Set current time
+            const now = new Date();
+            const timeStr = String(now.getHours()).padStart(2, '0') + ':' + String(now.getMinutes()).padStart(2, '0');
+            document.getElementById('compOraArrivo').value = timeStr;
+            
+            document.getElementById('compKmError').style.display = 'none';
+            
+            const form = document.getElementById('completeTripForm');
+            form.action = `/admin/automezzi/viaggi/completa/${id}`;
+            
+            completeTripModalEl.show();
+        }
+
+        function validateCompleteForm() {
+            const kmFin = parseInt(document.getElementById('compKmFinali').value || 0, 10);
+            if (kmFin < currentTripKmIniziali) {
+                document.getElementById('compKmError').style.display = 'block';
+                return false;
+            }
+            return true;
+        }
+
+        function confirmDeleteTrip(id, targa) {
+            if (confirm(`Sei sicuro di voler eliminare questo record di viaggio per il veicolo targato ${targa}?`)) {
+                const form = document.getElementById('deleteTripForm');
+                form.action = `/admin/automezzi/viaggi/elimina/${id}`;
+                form.submit();
+            }
+        }
+
+        function filterTrips() {
+            const q = document.getElementById('tripSearch').value.toLowerCase();
+            const table = document.getElementById('completedTripsTable');
+            if (!table) return;
+            const rows = table.getElementsByTagName('tbody')[0].getElementsByTagName('tr');
+            
+            for (let i = 0; i < rows.length; i++) {
+                const row = rows[i];
+                const targa = row.querySelector('.vehicle-targa').textContent.toLowerCase();
+                const vehicle = row.querySelector('.vehicle-name').textContent.toLowerCase();
+                const driver = row.querySelector('.driver-name').textContent.toLowerCase();
+                
+                if (targa.includes(q) || vehicle.includes(q) || driver.includes(q)) {
+                    row.style.display = '';
+                } else {
+                    row.style.display = 'none';
+                }
+            }
+        }
+    </script>
+</body>
+
+</html>

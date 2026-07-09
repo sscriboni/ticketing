@@ -74,7 +74,7 @@
         
         {% if cfg.get('modulo_autopark', True) %}
         <li class="nav-item dropdown">
-          <a class="nav-link dropdown-toggle {% if request.url.path == '/autopark' or request.url.path == '/admin/automezzi' or request.url.path == '/admin/automezzi/manutenzioni' %}active fw-bold{% endif %}" href="#" id="autoparkDropdown" role="button" data-bs-toggle="dropdown" aria-expanded="false">
+          <a class="nav-link dropdown-toggle {% if request.url.path == '/autopark' or request.url.path == '/admin/automezzi' or request.url.path == '/admin/automezzi/manutenzioni' or request.url.path == '/admin/automezzi/viaggi' %}active fw-bold{% endif %}" href="#" id="autoparkDropdown" role="button" data-bs-toggle="dropdown" aria-expanded="false">
             <i class="bi bi-p-circle"></i> Autopark
           </a>
           <ul class="dropdown-menu shadow" aria-labelledby="autoparkDropdown">
@@ -82,6 +82,7 @@
             {% if user and user.ruolo in ('admin', 'fleet_manager') %}
             <li><a class="dropdown-item" href="/admin/automezzi">Elenco Automezzi</a></li>
             <li><a class="dropdown-item" href="/admin/automezzi/manutenzioni">Manutenzioni</a></li>
+            <li><a class="dropdown-item" href="/admin/automezzi/viaggi">Registro Viaggi</a></li>
             {% endif %}
           </ul>
         </li>
