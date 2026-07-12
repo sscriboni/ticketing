@@ -1,0 +1,210 @@
+<!doctype html>
+<html lang="it">
+<head>
+  <meta charset="utf-8">
+  <title>Dashboard Fleet Manager — {{ cfg.app_title }}</title>
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css">
+  <style>
+    .gradient-header {
+      background: linear-gradient(135deg, #0d9488 0%, #0f766e 100%);
+      color: white;
+      border-radius: 12px;
+      padding: 24px;
+      margin-bottom: 24px;
+      box-shadow: 0 4px 15px rgba(13, 148, 136, 0.15);
+    }
+    .stat-card {
+      border: none;
+      border-radius: 12px;
+      transition: transform 0.2s, box-shadow 0.2s;
+      box-shadow: 0 4px 6px rgba(0,0,0,0.05);
+    }
+    .stat-card:hover {
+      transform: translateY(-5px);
+      box-shadow: 0 8px 15px rgba(0,0,0,0.1);
+    }
+    .quick-link-item {
+      transition: background-color 0.2s, transform 0.1s;
+      border-radius: 8px;
+    }
+    .quick-link-item:hover {
+      background-color: #f8f9fa;
+      transform: translateX(5px);
+    }
+    .icon-box {
+      width: 48px;
+      height: 48px;
+      border-radius: 10px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 1.5rem;
+    }
+  </style>
+</head>
+<body class="bg-light d-flex flex-column min-vh-100">
+  {% include 'navbar.html' %}
+
+  <div class="container flex-grow-1 mb-5">
+    
+    <!-- Welcome Header -->
+    <div class="gradient-header d-flex flex-column flex-md-row justify-content-between align-items-md-center gap-3">
+      <div>
+        <h1 class="h3 fw-bold mb-1">Benvenuto, {{ user.nome }} {{ user.cognome }}</h1>
+        <p class="mb-0 opacity-75">Gestione della flotta aziendale e registro viaggi/manutenzioni.</p>
+      </div>
+      <div class="bg-white bg-opacity-20 px-3 py-2 rounded-3 text-center">
+        <span class="small d-block opacity-75">Ruolo Attuale</span>
+        <strong class="text-uppercase tracking-wider">Fleet Manager</strong>
+      </div>
+    </div>
+
+    <!-- Stat Cards Grid -->
+    <div class="row g-3 mb-4">
+      <div class="col-6 col-md-3">
+        <div class="card stat-card h-100 p-3">
+          <div class="d-flex align-items-center justify-content-between mb-2">
+            <span class="text-muted small fw-bold text-uppercase">Veicoli Totali</span>
+            <div class="icon-box bg-teal bg-opacity-10 text-success" style="color: #0d9488 !important;">
+              <i class="bi bi-car-front-fill"></i>
+            </div>
+          </div>
+          <h2 class="fw-bold mb-1" style="color: #0d9488;">{{ stats.fleet_total }}</h2>
+          <a href="/admin/automezzi" class="small text-decoration-none" style="color: #0d9488;">Gestione veicoli &rarr;</a>
+        </div>
+      </div>
+      
+      <div class="col-6 col-md-3">
+        <div class="card stat-card h-100 p-3">
+          <div class="d-flex align-items-center justify-content-between mb-2">
+            <span class="text-muted small fw-bold text-uppercase">Veicoli Disponibili</span>
+            <div class="icon-box bg-success bg-opacity-10 text-success">
+              <i class="bi bi-check-circle-fill"></i>
+            </div>
+          </div>
+          <h2 class="fw-bold mb-1 text-success">{{ stats.fleet_available }}</h2>
+          <span class="small text-muted">Pronti all'uso</span>
+        </div>
+      </div>
+
+      <div class="col-6 col-md-3">
+        <div class="card stat-card h-100 p-3">
+          <div class="d-flex align-items-center justify-content-between mb-2">
+            <span class="text-muted small fw-bold text-uppercase font-monospace">In Uso / Prenotati</span>
+            <div class="icon-box bg-warning bg-opacity-10 text-warning">
+              <i class="bi bi-key-fill"></i>
+            </div>
+          </div>
+          <h2 class="fw-bold mb-1 text-warning">{{ stats.fleet_in_use }}</h2>
+          <a href="/autopark" class="small text-decoration-none text-warning">Controlla viaggi &rarr;</a>
+        </div>
+      </div>
+
+      <div class="col-6 col-md-3">
+        <div class="card stat-card h-100 p-3">
+          <div class="d-flex align-items-center justify-content-between mb-2">
+            <span class="text-muted small fw-bold text-uppercase">In Manutenzione</span>
+            <div class="icon-box bg-danger bg-opacity-10 text-danger">
+              <i class="bi bi-wrench"></i>
+            </div>
+          </div>
+          <h2 class="fw-bold mb-1 text-danger">{{ stats.fleet_maintenance }}</h2>
+          <a href="/admin/automezzi/manutenzioni" class="small text-decoration-none text-danger">Manutenzioni ({{ stats.fleet_active_maintenance }} attive) &rarr;</a>
+        </div>
+      </div>
+    </div>
+
+    <!-- Layout Grid -->
+    <div class="row g-4">
+      
+      <!-- Recent Trips / Voyages -->
+      <div class="col-12 col-md-7">
+        <div class="card shadow-sm border-0 rounded-3 p-4 h-100">
+          <h3 class="h5 fw-bold mb-3 d-flex align-items-center">
+            <i class="bi bi-signpost-split-fill text-teal me-2" style="color: #0d9488;"></i> Ultimi Viaggi Registrati
+          </h3>
+          {% if stats.fleet_recent_trips %}
+          <div class="table-responsive">
+            <table class="table table-hover align-middle">
+              <thead class="table-light">
+                <tr>
+                  <th>Veicolo</th>
+                  <th>Conducente</th>
+                  <th>Inizio</th>
+                  <th>Fine</th>
+                  <th>KM Effettuati</th>
+                </tr>
+              </thead>
+              <tbody>
+                 {% for viaggio in stats.fleet_recent_trips %}
+                 <tr>
+                   <td>
+                     <strong>{{ viaggio.targa }}</strong>
+                     <div class="small text-muted">{{ viaggio.marca }} {{ viaggio.modello }}</div>
+                   </td>
+                   <td>{{ viaggio.user_nome }} {{ viaggio.user_cognome }}</td>
+                   <td class="small">{{ viaggio.data_viaggio }} {{ viaggio.ora_partenza }}</td>
+                   <td class="small">{{ viaggio.ora_arrivo or 'In corso...' }}</td>
+                   <td>
+                     {% if viaggio.km_finali %}
+                     <span class="badge bg-secondary">{{ viaggio.km_finali - viaggio.km_iniziali }} km</span>
+                     {% else %}
+                     <span class="badge bg-warning text-dark">Attivo</span>
+                     {% endif %}
+                   </td>
+                 </tr>
+                 {% endfor %}
+              </tbody>
+            </table>
+          </div>
+          {% else %}
+          <div class="text-center py-5">
+            <i class="bi bi-map-fill text-muted" style="font-size: 3rem;"></i>
+            <p class="text-muted mt-2 mb-0">Nessun viaggio registrato di recente.</p>
+          </div>
+          {% endif %}
+        </div>
+      </div>
+
+      <!-- Quick Autopark Operations -->
+      <div class="col-12 col-md-5">
+        <div class="card shadow-sm border-0 rounded-3 p-4 h-100">
+          <h3 class="h5 fw-bold mb-3 d-flex align-items-center">
+            <i class="bi bi-p-circle-fill text-teal me-2" style="color: #0d9488;"></i> Gestione Autopark
+          </h3>
+          <div class="list-group list-group-flush">
+            <a href="/autopark" class="list-group-item list-group-item-action border-0 px-2 py-3 quick-link-item d-flex justify-content-between align-items-center">
+              <span><i class="bi bi-calendar3-event me-2 text-muted"></i> Tabellone Prenotazioni</span>
+              <i class="bi bi-chevron-right text-muted small"></i>
+            </a>
+            <a href="/admin/automezzi" class="list-group-item list-group-item-action border-0 px-2 py-3 quick-link-item d-flex justify-content-between align-items-center">
+              <span><i class="bi bi-car-front me-2 text-muted"></i> Elenco Anagrafico Automezzi</span>
+              <i class="bi bi-chevron-right text-muted small"></i>
+            </a>
+            <a href="/admin/automezzi/manutenzioni" class="list-group-item list-group-item-action border-0 px-2 py-3 quick-link-item d-flex justify-content-between align-items-center">
+              <span><i class="bi bi-wrench-adjustable-circle me-2 text-muted"></i> Registro Manutenzioni Automezzi</span>
+              <i class="bi bi-chevron-right text-muted small"></i>
+            </a>
+            <a href="/admin/automezzi/viaggi" class="list-group-item list-group-item-action border-0 px-2 py-3 quick-link-item d-flex justify-content-between align-items-center">
+              <span><i class="bi bi-signpost-fill me-2 text-muted"></i> Registro Completo Viaggi</span>
+              <i class="bi bi-chevron-right text-muted small"></i>
+            </a>
+            <a href="/admin/automezzi/marche" class="list-group-item list-group-item-action border-0 px-2 py-3 quick-link-item d-flex justify-content-between align-items-center">
+              <span><i class="bi bi-tags me-2 text-muted"></i> Gestione Marche e Costruttori</span>
+              <i class="bi bi-chevron-right text-muted small"></i>
+            </a>
+          </div>
+        </div>
+      </div>
+      
+    </div>
+  </div>
+
+  <footer class="bg-dark text-white text-center py-3 mt-auto">
+    <div class="container">
+      <p class="mb-0 small">{{ cfg.footer_text }}</p>
+    </div>
+  </footer>
+</body>
+</html>

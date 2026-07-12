@@ -35,9 +35,15 @@ with engine.begin() as conn:
             reparto_assegnato_id INTEGER,
             fornitore TEXT,
             classe_euro TEXT,
+            escluso_prenotazione INTEGER DEFAULT 0,
             FOREIGN KEY(marca_id) REFERENCES marche_automezzi(marca_id)
         )
     """))
+    
+    try:
+        conn.execute(text("ALTER TABLE automezzi ADD COLUMN escluso_prenotazione INTEGER DEFAULT 0"))
+    except Exception:
+        pass
     
     conn.execute(text(f"""
         CREATE TABLE IF NOT EXISTS manutenzioni_automezzi (
@@ -63,6 +69,7 @@ with engine.begin() as conn:
             automezzo_id INTEGER NOT NULL,
             data_viaggio TEXT NOT NULL,
             ora_partenza TEXT NOT NULL,
+            ora_riconsegna_prevista TEXT,
             ora_arrivo TEXT,
             km_iniziali INTEGER NOT NULL,
             km_finali INTEGER,
@@ -76,6 +83,11 @@ with engine.begin() as conn:
             FOREIGN KEY(user_id) REFERENCES users(user_id)
         )
     """))
+    
+    try:
+        conn.execute(text("ALTER TABLE viaggi_automezzi ADD COLUMN ora_riconsegna_prevista TEXT"))
+    except Exception:
+        pass
     
     # Check if empty to seed initial data for marche
     count_marche = conn.execute(text("SELECT COUNT(*) FROM marche_automezzi")).scalar() or 0
@@ -127,24 +139,44 @@ def list_automezzi(r: Request):
     if "user" not in r.session: 
         return RedirectResponse(url="/login")
     user = r.session.get("user")
-    if user.get("ruolo") not in ("admin", "fleet_manager"):
+    if user.get("ruolo") not in ("admin", "fleet_manager", "global_fleet_manager"):
         return RedirectResponse(url="/")
     
+    user_reparto_id = None
     with engine.connect() as conn:
+        if user.get("ruolo") == "fleet_manager":
+            user_reparto_id = conn.execute(text("SELECT reparto_id FROM users WHERE user_id = :uid"), {"uid": user.get("id")}).scalar()
+
         # Fetch automezzi
-        automezzi = conn.execute(text("""
-            SELECT a.*, 
-                   m.nome as marca_nome,
-                   s_ass.nome as sede_assegnata_nome, 
-                   s_att.nome as sede_attuale_nome, 
-                   r.nome as reparto_assegnato_nome
-            FROM automezzi a
-            JOIN marche_automezzi m ON a.marca_id = m.marca_id
-            LEFT JOIN sedi s_ass ON a.sede_assegnata_id = s_ass.sede_id
-            LEFT JOIN sedi s_att ON a.sede_attuale_id = s_att.sede_id
-            LEFT JOIN reparti r ON a.reparto_assegnato_id = r.reparto_id
-            ORDER BY a.automezzo_id DESC
-        """)).mappings().all()
+        if user.get("ruolo") == "fleet_manager" and user_reparto_id is not None:
+            automezzi = conn.execute(text("""
+                SELECT a.*, 
+                       m.nome as marca_nome,
+                       s_ass.nome as sede_assegnata_nome, 
+                       s_att.nome as sede_attuale_nome, 
+                       r.nome as reparto_assegnato_nome
+                FROM automezzi a
+                JOIN marche_automezzi m ON a.marca_id = m.marca_id
+                LEFT JOIN sedi s_ass ON a.sede_assegnata_id = s_ass.sede_id
+                LEFT JOIN sedi s_att ON a.sede_attuale_id = s_att.sede_id
+                LEFT JOIN reparti r ON a.reparto_assegnato_id = r.reparto_id
+                WHERE a.reparto_assegnato_id = :rep
+                ORDER BY a.automezzo_id DESC
+            """), {"rep": user_reparto_id}).mappings().all()
+        else:
+            automezzi = conn.execute(text("""
+                SELECT a.*, 
+                       m.nome as marca_nome,
+                       s_ass.nome as sede_assegnata_nome, 
+                       s_att.nome as sede_attuale_nome, 
+                       r.nome as reparto_assegnato_nome
+                FROM automezzi a
+                JOIN marche_automezzi m ON a.marca_id = m.marca_id
+                LEFT JOIN sedi s_ass ON a.sede_assegnata_id = s_ass.sede_id
+                LEFT JOIN sedi s_att ON a.sede_attuale_id = s_att.sede_id
+                LEFT JOIN reparti r ON a.reparto_assegnato_id = r.reparto_id
+                ORDER BY a.automezzo_id DESC
+            """)).mappings().all()
         
         # Fetch sedi
         sedi = conn.execute(text("SELECT sede_id, nome FROM sedi ORDER BY nome")).mappings().all()
@@ -154,7 +186,7 @@ def list_automezzi(r: Request):
         
         # Fetch marche
         marche = conn.execute(text("SELECT marca_id, nome FROM marche_automezzi ORDER BY nome")).mappings().all()
-        
+
     return templates.TemplateResponse(r, "appautopark.html", {
         "request": r,
         "cfg": CFG,
@@ -162,7 +194,8 @@ def list_automezzi(r: Request):
         "veicoli": automezzi,
         "sedi": sedi,
         "reparti": reparti,
-        "marche": marche
+        "marche": marche,
+        "user_reparto_id": user_reparto_id
     })
 
 @router.post("/veicolo/nuovo")
@@ -188,7 +221,7 @@ def add_vehicle(
     if "user" not in r.session:
         return RedirectResponse(url="/login", status_code=303)
     user = r.session.get("user")
-    if user.get("ruolo") not in ("admin", "fleet_manager"):
+    if user.get("ruolo") not in ("admin", "global_fleet_manager"):
         return RedirectResponse(url="/", status_code=303)
         
     with engine.begin() as conn:
@@ -248,7 +281,7 @@ def edit_vehicle(
     if "user" not in r.session:
         return RedirectResponse(url="/login", status_code=303)
     user = r.session.get("user")
-    if user.get("ruolo") not in ("admin", "fleet_manager"):
+    if user.get("ruolo") not in ("admin", "global_fleet_manager"):
         return RedirectResponse(url="/", status_code=303)
         
     with engine.begin() as conn:
@@ -297,7 +330,7 @@ def delete_vehicle(id: int, r: Request):
     if "user" not in r.session:
         return RedirectResponse(url="/login", status_code=303)
     user = r.session.get("user")
-    if user.get("ruolo") not in ("admin", "fleet_manager"):
+    if user.get("ruolo") not in ("admin", "global_fleet_manager"):
         return RedirectResponse(url="/", status_code=303)
         
     with engine.begin() as conn:
@@ -487,7 +520,7 @@ def list_manutenzioni(r: Request):
     if "user" not in r.session: 
         return RedirectResponse(url="/login")
     user = r.session.get("user")
-    if user.get("ruolo") not in ("admin", "fleet_manager"):
+    if user.get("ruolo") not in ("admin", "global_fleet_manager"):
         return RedirectResponse(url="/")
         
     with engine.connect() as conn:
@@ -525,7 +558,7 @@ def add_manutenzione(
     if "user" not in r.session: 
         return RedirectResponse(url="/login", status_code=303)
     user = r.session.get("user")
-    if user.get("ruolo") not in ("admin", "fleet_manager"):
+    if user.get("ruolo") not in ("admin", "global_fleet_manager"):
         return RedirectResponse(url="/", status_code=303)
         
     with engine.begin() as conn:
@@ -568,7 +601,7 @@ def complete_manutenzione(
     if "user" not in r.session: 
         return RedirectResponse(url="/login", status_code=303)
     user = r.session.get("user")
-    if user.get("ruolo") not in ("admin", "fleet_manager"):
+    if user.get("ruolo") not in ("admin", "global_fleet_manager"):
         return RedirectResponse(url="/", status_code=303)
         
     with engine.begin() as conn:
@@ -594,7 +627,7 @@ def delete_manutenzione(id: int, r: Request):
     if "user" not in r.session: 
         return RedirectResponse(url="/login", status_code=303)
     user = r.session.get("user")
-    if user.get("ruolo") not in ("admin", "fleet_manager"):
+    if user.get("ruolo") not in ("admin", "global_fleet_manager"):
         return RedirectResponse(url="/", status_code=303)
         
     with engine.begin() as conn:
@@ -664,46 +697,86 @@ def list_viaggi(r: Request):
     if "user" not in r.session: 
         return RedirectResponse(url="/login")
     user = r.session.get("user")
-    if user.get("ruolo") not in ("admin", "fleet_manager"):
+    if user.get("ruolo") not in ("admin", "fleet_manager", "global_fleet_manager"):
         return RedirectResponse(url="/")
         
     with engine.connect() as conn:
-        viaggi_attivi = conn.execute(text("""
-            SELECT v.*, a.targa, b.nome as marca, a.modello,
-                   s_part.nome as sede_partenza_nome,
-                   u.nome as user_nome, u.cognome as user_cognome
-            FROM viaggi_automezzi v
-            JOIN automezzi a ON v.automezzo_id = a.automezzo_id
-            JOIN marche_automezzi b ON a.marca_id = b.marca_id
-            JOIN sedi s_part ON v.sede_partenza_id = s_part.sede_id
-            JOIN users u ON v.user_id = u.user_id
-            WHERE v.ora_arrivo IS NULL OR v.km_finali IS NULL
-            ORDER BY v.data_viaggio DESC, v.ora_partenza DESC
-        """)).mappings().all()
-        
-        viaggi_completati = conn.execute(text("""
-            SELECT v.*, a.targa, b.nome as marca, a.modello,
-                   s_part.nome as sede_partenza_nome,
-                   s_arr.nome as sede_arrivo_nome,
-                   u.nome as user_nome, u.cognome as user_cognome
-            FROM viaggi_automezzi v
-            JOIN automezzi a ON v.automezzo_id = a.automezzo_id
-            JOIN marche_automezzi b ON a.marca_id = b.marca_id
-            JOIN sedi s_part ON v.sede_partenza_id = s_part.sede_id
-            JOIN sedi s_arr ON v.sede_arrivo_id = s_arr.sede_id
-            JOIN users u ON v.user_id = u.user_id
-            WHERE v.ora_arrivo IS NOT NULL AND v.km_finali IS NOT NULL
-            ORDER BY v.data_viaggio DESC, v.ora_arrivo DESC
-        """)).mappings().all()
-        
-        veicoli = conn.execute(text("""
-            SELECT a.automezzo_id, a.targa, b.nome as marca, a.modello, a.km_attuali, a.sede_attuale_id, s.nome as sede_attuale_nome
-            FROM automezzi a 
-            JOIN marche_automezzi b ON a.marca_id = b.marca_id 
-            LEFT JOIN sedi s ON a.sede_attuale_id = s.sede_id
-            ORDER BY b.nome, a.modello
-        """)).mappings().all()
-        
+        if user.get("ruolo") == "fleet_manager":
+            user_reparto_id = conn.execute(text("SELECT reparto_id FROM users WHERE user_id = :uid"), {"uid": user.get("id")}).scalar() or 0
+            
+            viaggi_attivi = conn.execute(text("""
+                SELECT v.*, a.targa, b.nome as marca, a.modello,
+                       s_part.nome as sede_partenza_nome,
+                       u.nome as user_nome, u.cognome as user_cognome
+                FROM viaggi_automezzi v
+                JOIN automezzi a ON v.automezzo_id = a.automezzo_id
+                JOIN marche_automezzi b ON a.marca_id = b.marca_id
+                JOIN sedi s_part ON v.sede_partenza_id = s_part.sede_id
+                JOIN users u ON v.user_id = u.user_id
+                WHERE a.reparto_assegnato_id = :rep AND (v.ora_arrivo IS NULL OR v.km_finali IS NULL)
+                ORDER BY v.data_viaggio DESC, v.ora_partenza DESC
+            """), {"rep": user_reparto_id}).mappings().all()
+            
+            viaggi_completati = conn.execute(text("""
+                SELECT v.*, a.targa, b.nome as marca, a.modello,
+                       s_part.nome as sede_partenza_nome,
+                       s_arr.nome as sede_arrivo_nome,
+                       u.nome as user_nome, u.cognome as user_cognome
+                FROM viaggi_automezzi v
+                JOIN automezzi a ON v.automezzo_id = a.automezzo_id
+                JOIN marche_automezzi b ON a.marca_id = b.marca_id
+                JOIN sedi s_part ON v.sede_partenza_id = s_part.sede_id
+                JOIN sedi s_arr ON v.sede_arrivo_id = s_arr.sede_id
+                JOIN users u ON v.user_id = u.user_id
+                WHERE a.reparto_assegnato_id = :rep AND v.ora_arrivo IS NOT NULL AND v.km_finali IS NOT NULL
+                ORDER BY v.data_viaggio DESC, v.ora_arrivo DESC
+            """), {"rep": user_reparto_id}).mappings().all()
+            
+            veicoli = conn.execute(text("""
+                SELECT a.automezzo_id, a.targa, b.nome as marca, a.modello, a.km_attuali, a.sede_attuale_id, s.nome as sede_attuale_nome
+                FROM automezzi a 
+                JOIN marche_automezzi b ON a.marca_id = b.marca_id 
+                LEFT JOIN sedi s ON a.sede_attuale_id = s.sede_id
+                WHERE a.reparto_assegnato_id = :rep
+                ORDER BY b.nome, a.modello
+            """), {"rep": user_reparto_id}).mappings().all()
+        else:
+            viaggi_attivi = conn.execute(text("""
+                SELECT v.*, a.targa, b.nome as marca, a.modello,
+                       s_part.nome as sede_partenza_nome,
+                       u.nome as user_nome, u.cognome as user_cognome
+                FROM viaggi_automezzi v
+                JOIN automezzi a ON v.automezzo_id = a.automezzo_id
+                JOIN marche_automezzi b ON a.marca_id = b.marca_id
+                JOIN sedi s_part ON v.sede_partenza_id = s_part.sede_id
+                JOIN users u ON v.user_id = u.user_id
+                WHERE v.ora_arrivo IS NULL OR v.km_finali IS NULL
+                ORDER BY v.data_viaggio DESC, v.ora_partenza DESC
+            """)).mappings().all()
+            
+            viaggi_completati = conn.execute(text("""
+                SELECT v.*, a.targa, b.nome as marca, a.modello,
+                       s_part.nome as sede_partenza_nome,
+                       s_arr.nome as sede_arrivo_nome,
+                       u.nome as user_nome, u.cognome as user_cognome
+                FROM viaggi_automezzi v
+                JOIN automezzi a ON v.automezzo_id = a.automezzo_id
+                JOIN marche_automezzi b ON a.marca_id = b.marca_id
+                JOIN sedi s_part ON v.sede_partenza_id = s_part.sede_id
+                JOIN sedi s_arr ON v.sede_arrivo_id = s_arr.sede_id
+                JOIN users u ON v.user_id = u.user_id
+                WHERE v.ora_arrivo IS NOT NULL AND v.km_finali IS NOT NULL
+                ORDER BY v.data_viaggio DESC, v.ora_arrivo DESC
+            """)).mappings().all()
+            
+            veicoli = conn.execute(text("""
+                SELECT a.automezzo_id, a.targa, b.nome as marca, a.modello, a.km_attuali, a.sede_attuale_id, s.nome as sede_attuale_nome
+                FROM automezzi a 
+                JOIN marche_automezzi b ON a.marca_id = b.marca_id 
+                LEFT JOIN sedi s ON a.sede_attuale_id = s.sede_id
+                ORDER BY b.nome, a.modello
+            """)).mappings().all()
+            
         operatori = conn.execute(text("""
             SELECT user_id, nome, cognome, ruolo 
             FROM users 
@@ -736,8 +809,16 @@ def add_viaggio(
     if "user" not in r.session: 
         return RedirectResponse(url="/login", status_code=303)
     user = r.session.get("user")
-    if user.get("ruolo") not in ("admin", "fleet_manager"):
+    if user.get("ruolo") not in ("admin", "fleet_manager", "global_fleet_manager"):
         return RedirectResponse(url="/", status_code=303)
+        
+    if user.get("ruolo") == "fleet_manager":
+        with engine.connect() as conn:
+            user_reparto_id = conn.execute(text("SELECT reparto_id FROM users WHERE user_id = :uid"), {"uid": user.get("id")}).scalar()
+            car_reparto_id = conn.execute(text("SELECT reparto_assegnato_id FROM automezzi WHERE automezzo_id = :id"), {"id": automezzo_id}).scalar()
+        if car_reparto_id != user_reparto_id:
+            import urllib.parse
+            return RedirectResponse(url=f"/admin/automezzi/viaggi?error={urllib.parse.quote('Non sei autorizzato a inserire viaggi per veicoli di altri reparti.')}", status_code=303)
         
     ora_arrivo = ora_arrivo.strip() if ora_arrivo and ora_arrivo.strip() else None
     km_finali_val = km_finali if km_finali is not None else None
@@ -798,8 +879,21 @@ def complete_viaggio(
     if "user" not in r.session: 
         return RedirectResponse(url="/login", status_code=303)
     user = r.session.get("user")
-    if user.get("ruolo") not in ("admin", "fleet_manager"):
+    if user.get("ruolo") not in ("admin", "fleet_manager", "global_fleet_manager"):
         return RedirectResponse(url="/", status_code=303)
+        
+    if user.get("ruolo") == "fleet_manager":
+        with engine.connect() as conn:
+            user_reparto_id = conn.execute(text("SELECT reparto_id FROM users WHERE user_id = :uid"), {"uid": user.get("id")}).scalar()
+            car_reparto_id = conn.execute(text("""
+                SELECT a.reparto_assegnato_id 
+                FROM viaggi_automezzi v 
+                JOIN automezzi a ON v.automezzo_id = a.automezzo_id 
+                WHERE v.viaggio_id = :vid
+            """), {"vid": id}).scalar()
+        if car_reparto_id != user_reparto_id:
+            import urllib.parse
+            return RedirectResponse(url=f"/admin/automezzi/viaggi?error={urllib.parse.quote('Non sei autorizzato a completare viaggi per veicoli di altri reparti.')}", status_code=303)
         
     with engine.begin() as conn:
         v = conn.execute(text("SELECT automezzo_id, note FROM viaggi_automezzi WHERE viaggio_id = :id"), {"id": id}).first()
@@ -833,8 +927,21 @@ def delete_viaggio(id: int, r: Request):
     if "user" not in r.session: 
         return RedirectResponse(url="/login", status_code=303)
     user = r.session.get("user")
-    if user.get("ruolo") not in ("admin", "fleet_manager"):
+    if user.get("ruolo") not in ("admin", "fleet_manager", "global_fleet_manager"):
         return RedirectResponse(url="/", status_code=303)
+        
+    if user.get("ruolo") == "fleet_manager":
+        with engine.connect() as conn:
+            user_reparto_id = conn.execute(text("SELECT reparto_id FROM users WHERE user_id = :uid"), {"uid": user.get("id")}).scalar()
+            car_reparto_id = conn.execute(text("""
+                SELECT a.reparto_assegnato_id 
+                FROM viaggi_automezzi v 
+                JOIN automezzi a ON v.automezzo_id = a.automezzo_id 
+                WHERE v.viaggio_id = :vid
+            """), {"vid": id}).scalar()
+        if car_reparto_id != user_reparto_id:
+            import urllib.parse
+            return RedirectResponse(url=f"/admin/automezzi/viaggi?error={urllib.parse.quote('Non sei autorizzato a eliminare viaggi per veicoli di altri reparti.')}", status_code=303)
         
     with engine.begin() as conn:
         v = conn.execute(text("SELECT automezzo_id, ora_arrivo FROM viaggi_automezzi WHERE viaggio_id = :id"), {"id": id}).first()
@@ -844,4 +951,275 @@ def delete_viaggio(id: int, r: Request):
             conn.execute(text("DELETE FROM viaggi_automezzi WHERE viaggio_id = :id"), {"id": id})
             
     return RedirectResponse(url="/admin/automezzi/viaggi", status_code=303)
+
+@router.get("/autopark", response_class=HTMLResponse)
+def get_autopark(r: Request, msg: str = None, error: str = None):
+    if "user" not in r.session: 
+        return RedirectResponse(url="/login")
+    user = r.session.get("user")
+    if not CFG.get('modulo_autopark', True):
+        return RedirectResponse(url="/")
+    
+    uid = user.get("id")
+    with engine.connect() as conn:
+        # Fetch all vehicles
+        veicoli_all = conn.execute(text("""
+            SELECT a.*, m.nome AS marca_nome, s.nome AS sede_attuale_nome
+            FROM automezzi a
+            JOIN marche_automezzi m ON a.marca_id = m.marca_id
+            LEFT JOIN sedi s ON a.sede_attuale_id = s.sede_id
+            ORDER BY m.nome, a.modello
+        """)).mappings().all()
+        
+        veicoli_dicts = []
+        for v in veicoli_all:
+            veicoli_dicts.append({
+                "automezzo_id": v["automezzo_id"],
+                "targa": v["targa"],
+                "marca_nome": v["marca_nome"],
+                "modello": v["modello"],
+                "km_attuali": v["km_attuali"],
+                "stato": v["stato"],
+                "escluso_prenotazione": v["escluso_prenotazione"],
+                "sede_attuale_id": v["sede_attuale_id"],
+                "sede_attuale_nome": v["sede_attuale_nome"] or "N/D"
+            })
+        
+        # Fetch user's active bookings
+        prenotazioni_attive = conn.execute(text("""
+            SELECT v.*, a.modello, a.targa, m.nome AS marca_nome, s.nome AS sede_partenza_nome
+            FROM viaggi_automezzi v
+            JOIN automezzi a ON v.automezzo_id = a.automezzo_id
+            JOIN marche_automezzi m ON a.marca_id = m.marca_id
+            LEFT JOIN sedi s ON v.sede_partenza_id = s.sede_id
+            WHERE v.user_id = :uid AND v.ora_arrivo IS NULL
+            ORDER BY v.data_viaggio DESC, v.ora_partenza DESC
+        """), {"uid": uid}).mappings().all()
+        
+        import datetime
+        now = datetime.datetime.now()
+        prenotazioni_attive_list = []
+        for p in prenotazioni_attive:
+            p_dict = dict(p)
+            try:
+                booking_dt = datetime.datetime.strptime(f"{p['data_viaggio']} {p['ora_partenza']}", "%Y-%m-%d %H:%M")
+                p_dict["can_complete"] = now >= booking_dt
+            except Exception:
+                p_dict["can_complete"] = True
+            prenotazioni_attive_list.append(p_dict)
+        
+        # Fetch user's completed bookings
+        prenotazioni_passate = conn.execute(text("""
+            SELECT v.*, a.modello, a.targa, m.nome AS marca_nome, sp.nome AS sede_partenza_nome, sa.nome AS sede_arrivo_nome
+            FROM viaggi_automezzi v
+            JOIN automezzi a ON v.automezzo_id = a.automezzo_id
+            JOIN marche_automezzi m ON a.marca_id = m.marca_id
+            LEFT JOIN sedi sp ON v.sede_partenza_id = sp.sede_id
+            LEFT JOIN sedi sa ON v.sede_arrivo_id = sa.sede_id
+            WHERE v.user_id = :uid AND v.ora_arrivo IS NOT NULL
+            ORDER BY v.data_viaggio DESC, v.ora_arrivo DESC
+        """), {"uid": uid}).mappings().all()
+        
+        # Fetch all locations (sedi)
+        sedi_list = conn.execute(text("SELECT sede_id, nome FROM sedi ORDER BY nome")).mappings().all()
+        
+    return templates.TemplateResponse(r, "autopark.html", {
+        "request": r, 
+        "cfg": CFG, 
+        "user": user, 
+        "veicoli": veicoli_dicts, 
+        "prenotazioni_attive": prenotazioni_attive_list, 
+        "prenotazioni_passate": prenotazioni_passate, 
+        "sedi": sedi_list,
+        "msg": msg,
+        "error": error
+    })
+
+@router.post("/autopark/prenota")
+def prenota_automezzo(
+    r: Request,
+    automezzo_id: int = Form(...),
+    data_viaggio: str = Form(...),
+    ora_partenza: str = Form(...),
+    ora_riconsegna_prevista: str = Form(...),
+    sede_partenza_id: int = Form(...),
+    note: str = Form(None)
+):
+    if "user" not in r.session:
+        return RedirectResponse(url="/login", status_code=303)
+    user = r.session.get("user")
+    uid = user.get("id")
+    
+    # Validate return hour is after departure hour
+    if ora_riconsegna_prevista <= ora_partenza:
+        import urllib.parse
+        return RedirectResponse(url=f"/autopark?error={urllib.parse.quote('L\\'ora di riconsegna deve essere successiva all\\'ora di partenza.')}", status_code=303)
+    
+    with engine.begin() as conn:
+        # Check if the vehicle is available and currently at the correct location
+        car = conn.execute(text("SELECT stato, km_attuali, escluso_prenotazione, sede_attuale_id FROM automezzi WHERE automezzo_id = :id"), {"id": automezzo_id}).first()
+        if not car or car.stato != 'Disponibile' or car.escluso_prenotazione == 1 or car.sede_attuale_id != sede_partenza_id:
+            import urllib.parse
+            return RedirectResponse(url=f"/autopark?error={urllib.parse.quote('Il veicolo selezionato non è disponibile per questa sede di partenza.')}", status_code=303)
+            
+        km_iniziali = car.km_attuali or 0
+        
+        # Insert new voyage record
+        conn.execute(text("""
+            INSERT INTO viaggi_automezzi (
+                automezzo_id, data_viaggio, ora_partenza, ora_riconsegna_prevista, ora_arrivo, 
+                km_iniziali, km_finali, sede_partenza_id, sede_arrivo_id, user_id, note
+            ) VALUES (
+                :automezzo_id, :data_viaggio, :ora_partenza, :ora_riconsegna_prevista, NULL,
+                :km_iniziali, NULL, :sede_partenza_id, NULL, :user_id, :note
+            )
+        """), {
+            "automezzo_id": automezzo_id,
+            "data_viaggio": data_viaggio,
+            "ora_partenza": ora_partenza,
+            "ora_riconsegna_prevista": ora_riconsegna_prevista,
+            "km_iniziali": km_iniziali,
+            "sede_partenza_id": sede_partenza_id,
+            "user_id": uid,
+            "note": note
+        })
+        
+        # Update vehicle status to 'In Uso'
+        conn.execute(text("""
+            UPDATE automezzi
+            SET stato = 'In Uso',
+                sede_attuale_id = :sede_partenza_id
+            WHERE automezzo_id = :automezzo_id
+        """), {
+            "sede_partenza_id": sede_partenza_id,
+            "automezzo_id": automezzo_id
+        })
+        
+    return RedirectResponse(url="/autopark?msg=booked", status_code=303)
+
+@router.post("/autopark/completa/{id}")
+def completa_prenotazione(
+    id: int,
+    r: Request,
+    ora_arrivo: str = Form(...),
+    km_finali: int = Form(...),
+    sede_arrivo_id: int = Form(...),
+    note_finali: str = Form(None)
+):
+    if "user" not in r.session:
+        return RedirectResponse(url="/login", status_code=303)
+    user = r.session.get("user")
+    uid = user.get("id")
+    
+    with engine.begin() as conn:
+        # Fetch the voyage, verifying it belongs to the user
+        v = conn.execute(text("""
+            SELECT automezzo_id, km_iniziali, note, data_viaggio, ora_partenza
+            FROM viaggi_automezzi 
+            WHERE viaggio_id = :id AND user_id = :uid AND ora_arrivo IS NULL
+        """), {"id": id, "uid": uid}).first()
+        
+        if not v:
+            import urllib.parse
+            return RedirectResponse(url=f"/autopark?error={urllib.parse.quote('Prenotazione non trovata o già completata.')}", status_code=303)
+            
+        import datetime
+        try:
+            booking_dt = datetime.datetime.strptime(f"{v.data_viaggio} {v.ora_partenza}", "%Y-%m-%d %H:%M")
+            if datetime.datetime.now() < booking_dt:
+                import urllib.parse
+                return RedirectResponse(url=f"/autopark?error={urllib.parse.quote('Non puoi terminare un viaggio prima della data e ora di prenotazione.')}", status_code=303)
+        except Exception:
+            pass
+            
+        if km_finali < v.km_iniziali:
+            import urllib.parse
+            return RedirectResponse(url=f"/autopark?error={urllib.parse.quote(f'I km finali ({km_finali}) non possono essere inferiori a quelli iniziali ({v.km_iniziali}).')}", status_code=303)
+            
+        note_complete = (v.note or "") + (f" | Rientro: {note_finali}" if note_finali else "")
+        
+        # Update voyage record
+        conn.execute(text("""
+            UPDATE viaggi_automezzi
+            SET ora_arrivo = :ora_arrivo, km_finali = :km_finali, sede_arrivo_id = :sede_arrivo_id, note = :note
+            WHERE viaggio_id = :id
+        """), {
+            "id": id,
+            "ora_arrivo": ora_arrivo.strip(),
+            "km_finali": km_finali,
+            "sede_arrivo_id": sede_arrivo_id,
+            "note": note_complete
+        })
+        
+        # Update vehicle status and km
+        conn.execute(text("""
+            UPDATE automezzi
+            SET stato = 'Disponibile',
+                km_attuali = MAX(km_attuali, :km_finali),
+                sede_attuale_id = :sede_arrivo_id
+            WHERE automezzo_id = :automezzo_id
+        """), {
+            "automezzo_id": v.automezzo_id,
+            "km_finali": km_finali,
+            "sede_arrivo_id": sede_arrivo_id
+        })
+        
+    return RedirectResponse(url="/autopark?msg=completed", status_code=303)
+
+@router.post("/autopark/elimina/{id}")
+def elimina_prenotazione(id: int, r: Request):
+    if "user" not in r.session:
+        return RedirectResponse(url="/login", status_code=303)
+    user = r.session.get("user")
+    uid = user.get("id")
+    
+    with engine.begin() as conn:
+        role = user.get("ruolo")
+        if role in ("admin", "global_fleet_manager"):
+            v = conn.execute(text("SELECT automezzo_id, ora_arrivo FROM viaggi_automezzi WHERE viaggio_id = :id"), {"id": id}).first()
+        elif role == "fleet_manager":
+            user_reparto_id = conn.execute(text("SELECT reparto_id FROM users WHERE user_id = :uid"), {"uid": uid}).scalar() or 0
+            v = conn.execute(text("""
+                SELECT v.automezzo_id, v.ora_arrivo 
+                FROM viaggi_automezzi v
+                JOIN automezzi a ON v.automezzo_id = a.automezzo_id
+                WHERE v.viaggio_id = :id AND a.reparto_assegnato_id = :rep
+            """), {"id": id, "rep": user_reparto_id}).first()
+        else:
+            v = conn.execute(text("SELECT automezzo_id, ora_arrivo FROM viaggi_automezzi WHERE viaggio_id = :id AND user_id = :uid"), {"id": id, "uid": uid}).first()
+            
+        if v:
+            if not v.ora_arrivo:
+                # Set vehicle back to 'Disponibile'
+                conn.execute(text("UPDATE automezzi SET stato = 'Disponibile' WHERE automezzo_id = :automezzo_id"), {"automezzo_id": v.automezzo_id})
+            
+            conn.execute(text("DELETE FROM viaggi_automezzi WHERE viaggio_id = :id"), {"id": id})
+            
+    return RedirectResponse(url="/autopark?msg=deleted", status_code=303)
+
+@router.post("/admin/automezzi/{id}/toggle-prenotazione")
+def toggle_prenotazione_veicolo(id: int, r: Request):
+    if "user" not in r.session:
+        return RedirectResponse(url="/login", status_code=303)
+    user = r.session.get("user")
+    if user.get("ruolo") not in ("admin", "fleet_manager", "global_fleet_manager"):
+        return RedirectResponse(url="/", status_code=303)
+        
+    with engine.begin() as conn:
+        # Check vehicle reparto
+        car = conn.execute(text("SELECT reparto_assegnato_id, escluso_prenotazione FROM automezzi WHERE automezzo_id = :id"), {"id": id}).first()
+        if not car:
+            return RedirectResponse(url="/admin/automezzi", status_code=303)
+            
+        if user.get("ruolo") == "fleet_manager":
+            # Fetch fleet manager's reparto_id
+            user_reparto_id = conn.execute(text("SELECT reparto_id FROM users WHERE user_id = :uid"), {"uid": user.get("id")}).scalar()
+            if car.reparto_assegnato_id != user_reparto_id:
+                import urllib.parse
+                return RedirectResponse(url=f"/admin/automezzi?error={urllib.parse.quote('Non sei autorizzato a gestire i veicoli di altri reparti.')}", status_code=303)
+                
+        new_val = 1 if car.escluso_prenotazione == 0 else 0
+        conn.execute(text("UPDATE automezzi SET escluso_prenotazione = :new_val WHERE automezzo_id = :id"), {"new_val": new_val, "id": id})
+        
+    return RedirectResponse(url="/admin/automezzi", status_code=303)
 

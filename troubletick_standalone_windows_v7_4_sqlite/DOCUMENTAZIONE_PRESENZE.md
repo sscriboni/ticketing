@@ -74,3 +74,29 @@ Per garantire che un servizio sia sempre presidiato, si consiglia di adottare il
    - Disattivando lo switch **Presenze**, l'amministratore vede solo chi è assente (F, M, P) per identificare i periodi di carenza di organico.
    - Disattivando lo switch **Assenze**, l'amministratore vede solo chi lavora in modalità speciale (SW, CO, TR, AS) per contare quanti operatori saranno fisicamente presenti in sede.
 4. **Risoluzione Sovrapposizioni**: Se in un determinato giorno il numero di persone in ufficio scende sotto la soglia minima di sicurezza, il responsabile può concordare variazioni sulle presenze pianificate (es. revocando temporaneamente lo smartworking o ripianificando un corso).
+
+---
+
+## 4. Interazioni con il Modulo Presenze per Ruolo Utente
+
+Le funzionalità del calendario e dei report di copertura cambiano a seconda del ruolo dell'utente:
+
+* **Amministratore (`admin`)**:
+  - Dispone del controllo globale.
+  - Può visualizzare il calendario di qualunque reparto tramite il selettore in `/assenze-mese`.
+  - Può pianificare e rimuovere festività nazionali o aziendali (colorate in rosa chiaro).
+  - Ha accesso completo al **Report di Copertura** globale di tutti i reparti e servizi.
+
+* **Responsabile di Reparto (`responsabile`)**:
+  - Può inserire o eliminare le presenze/assenze per sé e per tutti gli operatori appartenenti al proprio reparto.
+  - Visualizza la matrice di copertura e il calendario mensile (`/assenze-mese`) filtrati ed abilitati esclusivamente per il proprio reparto.
+
+* **Operatore di Assistenza (`assistenza`)**:
+  - Può pianificare le proprie presenze e assenze future e cancellare le proprie inserzioni.
+  - Visualizza in sola lettura il calendario di reparto per coordinarsi con i colleghi e la copertura dei servizi.
+
+* **Fleet Manager (`fleet_manager`)**:
+  - Ha le stesse autorizzazioni operative di pianificazione dell'utente normale (inserimento delle proprie presenze e assenze).
+
+* **Operatore Normale (`normale`)**:
+  - Può registrare le proprie presenze e assenze personali per tracciare il proprio operato (es. smartworking o ferie). Non ha visibilità sui calendari o report riassuntivi degli altri colleghi o operatori.

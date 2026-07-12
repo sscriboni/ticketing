@@ -34,13 +34,22 @@
     {% include 'navbar.html' %}
 
     <div class="container py-4">
+        {% if request.query_params.get('error') %}
+        <div class="alert alert-danger alert-dismissible fade show shadow-sm border-0 rounded-3 mb-4" role="alert">
+            <i class="bi bi-exclamation-triangle-fill me-2"></i> <strong>Errore:</strong> {{ request.query_params.get('error') }}
+            <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+        </div>
+        {% endif %}
+        
         <!-- Gestione Flotta / Automezzi -->
         <div class="mb-5">
             <div class="d-flex justify-content-between align-items-center mb-4">
                 <h2 class="mb-0"><i class="bi bi-car-front text-primary me-2"></i> Gestione Anagrafica Automezzi</h2>
+                {% if user.ruolo in ('admin', 'global_fleet_manager') %}
                 <button class="btn btn-primary px-4 py-2" onclick="showAddVehicleModal()">
                     <i class="bi bi-plus-circle me-1"></i> Aggiungi Veicolo
                 </button>
+                {% endif %}
             </div>
             
             <div class="table-container">
@@ -57,6 +66,7 @@
                                 <th>Sede Attuale</th>
                                 <th>Reparto Assegnato</th>
                                 <th>Stato</th>
+                                <th>Prenotazione</th>
                                 <th class="text-end">Azioni</th>
                             </tr>
                         </thead>
@@ -98,32 +108,57 @@
                                         {{ v.stato }}
                                     </span>
                                 </td>
+                                <td>
+                                    {% if v.escluso_prenotazione == 1 %}
+                                        <span class="badge bg-danger text-white"><i class="bi bi-x-circle-fill me-1"></i> Escluso</span>
+                                    {% else %}
+                                        <span class="badge bg-success text-white"><i class="bi bi-check-circle-fill me-1"></i> Abilitato</span>
+                                    {% endif %}
+                                    
+                                    {% if user.ruolo in ('admin', 'global_fleet_manager') or (user.ruolo == 'fleet_manager' and v.reparto_assegnato_id == user_reparto_id) %}
+                                        <form action="/admin/automezzi/{{ v.automezzo_id }}/toggle-prenotazione" method="POST" class="d-block mt-1">
+                                            {% if v.escluso_prenotazione == 1 %}
+                                                <button type="submit" class="btn btn-xs btn-outline-success py-0 px-2 rounded font-monospace" style="font-size: 0.7rem; border-radius: 4px;">
+                                                    Abilita
+                                                </button>
+                                            {% else %}
+                                                <button type="submit" class="btn btn-xs btn-outline-warning text-dark py-0 px-2 rounded font-monospace" style="font-size: 0.7rem; border-radius: 4px;">
+                                                    Escludi
+                                                </button>
+                                            {% endif %}
+                                        </form>
+                                    {% endif %}
+                                </td>
                                 <td class="text-end">
                                     <div class="d-inline-flex gap-2">
-                                        <button class="btn btn-sm btn-outline-primary" onclick='openEditModal({{ {
-                                            "automezzo_id": v.automezzo_id,
-                                            "targa": v.targa,
-                                            "marca_id": v.marca_id,
-                                            "modello": v.modello,
-                                            "tipo": v.tipo,
-                                            "colore": v.colore or "",
-                                            "alimentazione": v.alimentazione or "",
-                                            "data_immatricolazione": v.data_immatricolazione or "",
-                                            "proprieta": v.proprieta or "",
-                                            "canone_noleggio": v.canone_noleggio,
-                                            "km_attuali": v.km_attuali,
-                                            "stato": v.stato,
-                                            "sede_assegnata_id": v.sede_assegnata_id or "",
-                                            "sede_attuale_id": v.sede_attuale_id or "",
-                                            "reparto_assegnato_id": v.reparto_assegnato_id or "",
-                                            "fornitore": v.fornitore or "",
-                                            "classe_euro": v.classe_euro or ""
-                                        } | tojson }})'>
-                                            <i class="bi bi-pencil"></i>
-                                        </button>
-                                        <button class="btn btn-sm btn-outline-danger" onclick="confirmDelete({{ v.automezzo_id }}, '{{ v.targa }}')">
-                                            <i class="bi bi-trash"></i>
-                                        </button>
+                                        {% if user.ruolo in ('admin', 'global_fleet_manager') %}
+                                            <button class="btn btn-sm btn-outline-primary" onclick='openEditModal({{ {
+                                                "automezzo_id": v.automezzo_id,
+                                                "targa": v.targa,
+                                                "marca_id": v.marca_id,
+                                                "modello": v.modello,
+                                                "tipo": v.tipo,
+                                                "colore": v.colore or "",
+                                                "alimentazione": v.alimentazione or "",
+                                                "data_immatricolazione": v.data_immatricolazione or "",
+                                                "proprieta": v.proprieta or "",
+                                                "canone_noleggio": v.canone_noleggio,
+                                                "km_attuali": v.km_attuali,
+                                                "stato": v.stato,
+                                                "sede_assegnata_id": v.sede_assegnata_id or "",
+                                                "sede_attuale_id": v.sede_attuale_id or "",
+                                                "reparto_assegnato_id": v.reparto_assegnato_id or "",
+                                                "fornitore": v.fornitore or "",
+                                                "classe_euro": v.classe_euro or ""
+                                            } | tojson }})'>
+                                                <i class="bi bi-pencil"></i>
+                                            </button>
+                                            <button class="btn btn-sm btn-outline-danger" onclick="confirmDelete({{ v.automezzo_id }}, '{{ v.targa }}')">
+                                                <i class="bi bi-trash"></i>
+                                            </button>
+                                        {% else %}
+                                            <span class="text-muted small">Nessuna azione</span>
+                                        {% endif %}
                                     </div>
                                 </td>
                             </tr>
@@ -250,7 +285,9 @@
                                 <select class="form-select" name="reparto_assegnato_id" required>
                                     <option value="">-- Seleziona Reparto --</option>
                                     {% for rep in reparti %}
+                                    {% if user.ruolo in ('admin', 'global_fleet_manager') or rep.reparto_id == user_reparto_id %}
                                     <option value="{{ rep.reparto_id }}">{{ rep.nome }}</option>
+                                    {% endif %}
                                     {% endfor %}
                                 </select>
                             </div>
@@ -394,7 +431,9 @@
                                 <select class="form-select" name="reparto_assegnato_id" id="editRepartoAssegnatoId" required>
                                     <option value="">-- Seleziona Reparto --</option>
                                     {% for rep in reparti %}
+                                    {% if user.ruolo in ('admin', 'global_fleet_manager') or rep.reparto_id == user_reparto_id %}
                                     <option value="{{ rep.reparto_id }}">{{ rep.nome }}</option>
+                                    {% endif %}
                                     {% endfor %}
                                 </select>
                             </div>

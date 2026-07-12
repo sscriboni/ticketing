@@ -13,7 +13,7 @@ router = APIRouter()
 @router.get("/login", response_class=HTMLResponse)
 def login_form(r: Request, reset: str = None, msg: str = None):
     if "user" in r.session:
-        return RedirectResponse(url="/tickets", status_code=303)
+        return RedirectResponse(url="/", status_code=303)
     message = None
     error_msg = None
     if reset == "success":
@@ -50,7 +50,7 @@ def login_action(r: Request, username: str=Form(...), password: str=Form(...)):
         ip = r.client.host if r.client else "Sconosciuto"
         with engine.begin() as c_update:
             c_update.execute(text("UPDATE users SET ultimo_accesso = :now, ultimo_ip = :ip WHERE user_id = :uid"), {"now": datetime.now().strftime("%Y-%m-%d %H:%M:%S"), "ip": ip, "uid": row["user_id"]})
-        return RedirectResponse(url="/tickets", status_code=303)
+        return RedirectResponse(url="/", status_code=303)
         
     ip = r.client.host if r.client else "Sconosciuto"
     now = datetime.now().strftime("%Y-%m-%d %H:%M:%S")

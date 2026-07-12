@@ -2,29 +2,79 @@
 
 **Troubletick** è un portale di helpdesk e ticketing aziendale stand-alone progettato per centralizzare, tracciare e risolvere le richieste di supporto interno (IT, Manutenzione, Amministrazione, ecc.) e per gestire le richieste di materiali a magazzino.
 
-## 👥 Ruoli Utente
+## 👥 Ruoli Utente e Interfacce Dedicate
 
-Il sistema prevede un controllo degli accessi basato su **4 livelli di ruolo**, ciascuno con permessi e visibilità specifici:
+Il sistema prevede un controllo degli accessi basato su **6 livelli di ruolo**, ciascuno con permessi, visibilità, barra di navigazione e homepage dedicate:
 
-1. **Amministratore (`admin`)**
-   * **Visibilità:** Globale.
-   * **Permessi:** Accesso completo al "Pannello Amministrativo". Può creare/modificare operatori (visualizzando i log di ultimo accesso ed IP), reparti, servizi, sedi, magazzini, categorie e materiali. Gestisce importazione/esportazione massiva in JSON, l'eliminazione massiva di ticket per data, le festività a calendario e gli avvisi globali in homepage. Monitora la sicurezza dell'accesso tramite l'elenco operatori riservato.
-   * **Esempio pratico:** L'Amministratore esporta la configurazione anagrafica aziendale in JSON per backup, inserisce una nuova Festività nel calendario (es. "Festa Patronale"), e invia un Avviso in bacheca con gravità "Danger" ("Server offline per manutenzione") visibile a tutti.
+### 1. Amministratore (`admin`)
+* **Visibilità:** Globale.
+* **Barra di Navigazione (Navbar):**
+  - **Ticket**: Elenco Ticket, Nuovo Ticket.
+  - **Magazzino**: Inventario Magazzini, Richieste Materiale, Trasferimenti tra Magazzini, Log Magazzini.
+  - **Avvisi**: Gestione Avvisi.
+  - **Presenze**: Calendario Assenze, Calendario Presenze, Verifica copertura Servizi, Report Copertura Reparto, Calendario di Reparto, Servizi assegnati.
+  - **Autopark**: Prenotazioni, Elenco Automezzi, Manutenzioni, Registro Viaggi.
+  - **Configurazione**: Anagrafica Sedi, Reparti, Servizi, Categorie Materiali, Anagrafica Materiali, Gestione Autopark, Gestione Marche Automezzi, Import / Export JSON, Impostazioni Globali.
+* **Homepage/Dashboard Dedicata:**
+  - Mostra i contatori complessivi di sistema: *Ticket Aperti*, *Richieste Materiale*, *Materiali Sotto Soglia*, *Operatori da Approvare*, *Utenti da Approvare*, e *Veicoli*.
+  - Bacheca avvisi e collegamenti rapidi a tutte le funzioni amministrative.
+* **Permessi/Funzionalità:** Accesso completo e incondizionato a tutte le risorse aziendali, gestione utenti e log di sicurezza. Abilita o esclude qualunque auto della flotta aziendale dalla prenotazione.
 
-2. **Responsabile di Reparto (`responsabile`)**
-   * **Visibilità:** Limitata al proprio Reparto di appartenenza.
-   * **Permessi:** Può visualizzare tutti i ticket assegnati al proprio reparto (anche se non assegnati direttamente ai suoi servizi), monitorare le performance, vedere l'elenco degli operatori del proprio team e accedere al "Report di Copertura" mensile per incrociare le presenze/assenze con i servizi coperti. Gestisce la merce del proprio magazzino.
-   * **Esempio pratico:** Il Responsabile IT controlla il Report di Copertura di Agosto per assicurarsi che il servizio "Assistenza PC" sia sempre presidiato da almeno un operatore, organizzando così i turni di ferie del proprio team.
+### 2. Responsabile di Reparto (`responsabile`)
+* **Visibilità:** Limitata al proprio Reparto di appartenenza.
+* **Barra di Navigazione (Navbar):**
+  - **Ticket**: Elenco Ticket Reparto, Nuovo Ticket.
+  - **Magazzino**: Inventario Reparto, Richieste Materiale, Trasferimenti tra Magazzini, Log Magazzini.
+  - **Avvisi**: Bacheca.
+  - **Presenze**: Calendario Assenze, Calendario Presenze, Verifica copertura Servizi, Report Copertura Reparto, Calendario di Reparto, Servizi assegnati.
+  - **Autopark**: Prenotazioni.
+  - **Report**: Copertura Personale, Stato Magazzini.
+* **Homepage/Dashboard Dedicata:**
+  - Cruscotto riassuntivo specifico per il reparto assegnato, contenente i contatori dei ticket aperti del reparto, delle richieste di materiale del magazzino di reparto, e degli operatori locali in attesa di approvazione.
+* **Permessi/Funzionalità:** Gestione del personale e dei turni del reparto, approvazione ticket, monitoraggio dei report di copertura e delle giacenze del magazzino di reparto.
 
-3. **Operatore di Assistenza (`assistenza`)**
-   * **Visibilità:** Limitata ai ticket del proprio Reparto o specifici per i Servizi a lui assegnati.
-   * **Permessi:** È il ruolo operativo standard. Può prendere in carico i ticket, inserire note operative (anche interne/nascoste all'utente), gestire magazzino e trasferimenti merce, trasferire ticket ad altri reparti/servizi e pubblicare avvisi legati ai propri servizi.
-   * **Esempio pratico:** Mario Rossi riceve un ticket per un toner esaurito. Effettua uno "scarico" dal suo Magazzino, allega una foto della bolla di prelievo, chiude il ticket e crea un "Trasferimento" di toner verso la filiale di Milano. Inoltre, pubblica un avviso in Home Page: "I toner per la stampante X sono in ritardo di consegna".
+### 3. Operatore di Assistenza (`assistenza`)
+* **Visibilità:** Limitata ai ticket e servizi del reparto o specifici per i servizi a lui assegnati.
+* **Barra di Navigazione (Navbar):**
+  - **Ticket**: Elenco Ticket Servizi, Nuovo Ticket.
+  - **Magazzino**: Inventario Magazzini, Richieste Materiale, Trasferimenti tra Magazzini, Log Magazzini.
+  - **Avvisi**: Bacheca.
+  - **Presenze**: Calendario Assenze, Calendario Presenze, Verifica copertura Servizi, Calendario di Reparto, Servizi assegnati.
+  - **Autopark**: Prenotazioni.
+* **Homepage/Dashboard Dedicata:**
+  - Cruscotto focalizzato sul carico di lavoro dell'operatore, con i contatori dei propri ticket in carico, nuovi ticket del servizio e richieste merce.
+  - Mostra la tabella dei **5 ticket più urgenti** da gestire in coda.
+* **Permessi/Funzionalità:** Presa in carico ed evasione dei ticket di supporto, inserimento note operative (anche interne/nascoste), scarichi merce, carichi a scaffale e spedizioni.
 
-4. **Operatore Normale (`normale`)**
-   * **Visibilità:** Nessuna sui ticket.
-   * **Permessi:** Ruolo base, usato per utenti che non devono gestire l'helpdesk ma necessitano di un account per altre funzioni (es. inserimento ferie nel calendario, visualizzazione della bacheca avvisi).
-   * **Esempio pratico:** Un dipendente amministrativo accede al sistema esclusivamente per dichiarare 3 giorni di ferie nel calendario, in modo che l'amministratore possa tenere traccia della sua assenza.
+### 4. Fleet Manager (`fleet_manager`)
+* **Visibilità:** Limitata alla gestione del parco auto del proprio reparto (in anagrafica automezzi vede solo i veicoli assegnati al proprio reparto).
+* **Barra di Navigazione (Navbar):**
+  - **Ticket**: Elenco Ticket, Nuovo Ticket.
+  - **Autopark**: Prenotazioni, Elenco Automezzi, Registro Viaggi.
+* **Homepage/Dashboard Dedicata:**
+  - Cruscotto riassuntivo specifico per la gestione della flotta del proprio reparto, contenente i contatori dei veicoli (*Disponibili*, *In Uso*, *In Manutenzione*) del reparto e il registro degli ultimi viaggi effettuati.
+* **Permessi/Funzionalità:** Visualizzazione dello stato delle prenotazioni e cancellazione delle prenotazioni per veicoli appartenenti al proprio reparto.
+  - **Gestione Esclusioni:** Può abilitare o escludere i veicoli aziendali dalle prenotazioni normali, ma **esclusivamente** per i mezzi appartenenti al proprio reparto di affiliazione.
+  - **Anagrafica e Manutenzione:** Non ha permessi per inserire o modificare l'anagrafica dei veicoli, né per effettuare manutenzioni.
+
+### 5. Global Fleet Manager (`global_fleet_manager`)
+* **Visibilità:** Globale su tutti gli automezzi.
+* **Barra di Navigazione (Navbar):**
+  - **Ticket**: Elenco Ticket, Nuovo Ticket.
+  - **Autopark**: Prenotazioni, Elenco Automezzi, Manutenzioni, Registro Viaggi.
+* **Homepage/Dashboard Dedicata:**
+  - Cruscotto riassuntivo globale per la flotta aziendale, con i contatori complessivi di tutti i veicoli (*Disponibili*, *In Uso*, *In Manutenzione*) e l'elenco degli ultimi viaggi a livello globale.
+* **Permessi/Funzionalità:** Gestione completa delle anagrafiche dei veicoli (inserimento nuovi mezzi, modifiche) ed esecuzione delle manutenzioni/tagliandi.
+  - **Gestione Esclusioni:** Può abilitare o escludere i veicoli dalle prenotazioni a livello globale, anche se i veicoli non sono assegnati ad alcun reparto.
+
+### 6. Operatore Normale (`normale`)
+* **Visibilità:** Nessuna sui ticket altrui o pannelli gestionali.
+* **Barra di Navigazione (Navbar):**
+  - **I Miei Ticket**: Le Mie Segnalazioni, Invia Nuova Richiesta.
+  - **Autopark**: Prenotazioni.
+* **Homepage/Dashboard Dedicata:**
+  - Landing page pulita contenente due pulsanti per la creazione rapida di ticket (*Invia Nuova Richiesta*) o per l'elenco delle proprie segnalazioni (*Le Mie Richieste*), oltre allo storico dei ticket aperti dall'utente e la bacheca avvisi attiva.
+* **Permessi/Funzionalità:** Apertura ticket, pianificazione delle proprie ferie/assenze in calendario e prenotazione/cancellazione autonoma di auto disponibili nel modulo Autopark.
 
 ---
 
@@ -77,12 +127,20 @@ Il modulo Magazzino permette di gestire in modo centralizzato e tracciabile tutt
 * **Reparti & Servizi:** Struttura ad albero. Ogni Reparto (es. *IT*) contiene N Servizi (es. *Assistenza PC*, *Credenziali*).
 * **Calendario Assenze e Festività:** Modulo integrato per registrare ferie, malattie e permessi. Il sistema incrocia le date per mostrare a video un badge "Assente" qualora l'ultimo operatore che ha gestito il ticket fosse irreperibile quel giorno. Gli amministratori possono inoltre configurare festività globali a calendario.
 
-### 5. Reportistica e Statistiche
+### 5. Gestione Parco Automezzi (Autopark)
+Il modulo Autopark consente una gestione centralizzata e autosufficiente dei veicoli aziendali, sia per il monitoraggio della flotta che per la prenotazione da parte degli impiegati.
+* **Prenotazione Autonoma (Self-Service)**: Qualsiasi utente autenticato può accedere al cruscotto prenotazioni per richiedere un'auto disponibile, visualizzando in tempo reale il chilometraggio del veicolo e la sua sede attuale.
+* **Registrazione Chilometri e Rientri**: All'avvio del viaggio, il sistema logga il chilometraggio di partenza (`km_iniziali`) prelevato automaticamente dalla scheda auto. Al rientro, l'utente chiude il viaggio inserendo i km finali (che aggiornano il chilometraggio cumulativo dell'auto), l'ora di rientro e la sede di consegna.
+* **Cancellazione delle Prenotazioni**: Gli utenti possono annullare autonomamente le prenotazioni programmate, liberando istantaneamente il veicolo per altre richieste.
+* **Gestione Manutenzioni e Registro Viaggi**: Gli amministratori, i Fleet Manager e i Global Fleet Manager possono registrare lo storico delle riparazioni o dei tagliandi in officina e monitorare il registro completo delle percorrenze.
+* **Esclusione dalla Prenotazione (Gestione Flotta)**: Possibilità di escludere un veicolo dalla flotta prenotabile (es. per manutenzione straordinaria o assegnazione fissa). I standard Fleet Manager possono effettuare questa operazione esclusivamente per i mezzi appartenenti al proprio reparto di competenza, mentre i Global Fleet Manager (così come gli Amministratori) hanno visibilità e operatività globale su tutti i veicoli indipendentemente dal reparto assegnato.
+
+### 6. Reportistica e Statistiche
 * **Cruscotto Globale:** Grafico a torta degli stati di tutti i ticket (aperti, chiusi, ecc.).
 * **Report di Copertura:** Matrice mensile generata automaticamente che incrocia le competenze degli operatori (servizi assegnati) con il calendario assenze, fornendo per ogni giorno del mese il numero di operatori attivi in ogni singolo servizio.
 * **Report Stato Magazzini:** Consente ad amministratori e responsabili di reparto di monitorare lo stato delle scorte, incluse la disponibilità attuale, le consegne effettuate nel mese (scarichi) e i carichi effettuati nel mese. Permette la selezione dell'anno e del mese ed è protetto per escludere l'accesso agli operatori regolari o di assistenza.
 
-### 6. Sicurezza e Amministrazione
+### 7. Sicurezza e Amministrazione
 * **Export / Import JSON Completo:** Funzionalità a 1-click per esportare l'intera anagrafica aziendale (comuni, sedi, reparti, servizi, magazzini, categorie, materiali, operatori) in un file JSON. Permette backup, migrazioni veloci o il popolamento istantaneo in caso di prima installazione. Include l'opzione per svuotare preventivamente il database.
 * **Eliminazione Massiva Ticket:** Utilità GDPR-compliant per la pulizia selettiva dei database. L'amministratore può selezionare un intervallo di date ed eliminare in blocco tutti i ticket, le note e gli allegati ad essi associati.
 * **Impostazioni Globali:** Modifica del nome dell'azienda e dell'email di supporto (salvati in modo persistente su file JSON).

@@ -11,97 +11,337 @@
       {% if user %}
       
       <ul class="navbar-nav me-auto mb-2 mb-lg-0">
-        <li class="nav-item dropdown">
-          <a class="nav-link dropdown-toggle {% if request.url.path == '/tickets' or request.url.path.startswith('/ticket/') or request.url.path == '/new' %}active fw-bold{% endif %}" href="#" id="ticketDropdown" role="button" data-bs-toggle="dropdown" aria-expanded="false">
-            <i class="bi bi-ticket-detailed"></i> Ticket
-            {% set cnt_nuovi = get_new_tickets_count(user) %}
-            {% if cnt_nuovi > 0 %}
-            <span class="badge bg-danger rounded-pill ms-1">{{ cnt_nuovi }}</span>
-            {% endif %}
-          </a>
-          <ul class="dropdown-menu shadow" aria-labelledby="ticketDropdown">
-            <li><a class="dropdown-item" href="/tickets">Elenco Ticket</a></li>
-            <li><a class="dropdown-item" href="/new">Nuovo Ticket</a></li>
-          </ul>
-        </li>
         
-        {% if user.ruolo != 'normale' %}
-        <li class="nav-item dropdown">
-          <a class="nav-link dropdown-toggle {% if request.url.path.startswith('/magazzini') or request.url.path.startswith('/magazzino/') or request.url.path.startswith('/trasferimenti') or request.url.path.startswith('/stampa-consegna') or request.url.path.startswith('/richieste-materiale') or request.url.path.startswith('/richiesta-materiale') or request.url.path.startswith('/log-magazzini') %}active fw-bold{% endif %}" href="#" id="magazzinoDropdown" role="button" data-bs-toggle="dropdown" aria-expanded="false">
-            <i class="bi bi-boxes"></i> Magazzino
-            {% set cnt_reqs = get_pending_requests_count(user) %}
-            {% if cnt_reqs > 0 %}
-            <span class="badge bg-danger rounded-pill ms-1">{{ cnt_reqs }}</span>
-            {% endif %}
-          </a>
-          <ul class="dropdown-menu shadow" aria-labelledby="magazzinoDropdown">
-            <li><a class="dropdown-item" href="/magazzini">Inventario</a></li>
-            <li>
-              <a class="dropdown-item d-flex justify-content-between align-items-center" href="/richieste-materiale">
-                <span>Richieste Materiale</span>
-                {% if cnt_reqs > 0 %}
-                <span class="badge bg-danger rounded-pill ms-2">{{ cnt_reqs }}</span>
-                {% endif %}
-              </a>
-            </li>
-            <li><a class="dropdown-item" href="/trasferimenti">Trasferimenti tra Magazzini</a></li>
-            <li><a class="dropdown-item" href="/log-magazzini">Log Magazzini</a></li>
-          </ul>
-        </li>
-        {% if cfg.get('modulo_avvisi', True) %}
-        <li class="nav-item"><a class="nav-link {% if request.url.path.startswith('/avvisi') %}active fw-bold{% endif %}" href="/avvisi"><i class="bi bi-megaphone"></i> Avvisi</a></li>
-        {% endif %}
-        {% endif %}
-        
-        {% if cfg.get('modulo_presenze', True) and user.ruolo != 'normale' %}
-        <li class="nav-item dropdown">
-          <a class="nav-link dropdown-toggle {% if request.url.path.startswith('/calendario') or request.url.path.startswith('/copertura-servizi') or request.url.path.startswith('/assenze-mese') or request.url.path == '/servizi-assegnati' or request.url.path == '/admin/report-copertura' %}active fw-bold{% endif %}" href="#" id="presenzeDropdown" role="button" data-bs-toggle="dropdown" aria-expanded="false">
-            <i class="bi bi-calendar-check"></i> Presenze
-          </a>
-          <ul class="dropdown-menu shadow" aria-labelledby="presenzeDropdown">
-            <li><a class="dropdown-item" href="/calendario"><i class="bi bi-calendar3 me-2"></i>Calendario Assenze</a></li>
-            <li><a class="dropdown-item" href="/calendario-presenze"><i class="bi bi-calendar-event me-2"></i>Calendario Presenze</a></li>
-            <li><a class="dropdown-item" href="/copertura-servizi"><i class="bi bi-calendar-check me-2"></i>Verifica copertura Servizi (Calendario)</a></li>
-            {% if user.ruolo in ('admin', 'responsabile') %}
-            <li><a class="dropdown-item" href="/admin/report-copertura"><i class="bi bi-grid-3x3-gap me-2"></i>Report Copertura Personale (Tabella)</a></li>
-            {% endif %}
-            <li><a class="dropdown-item" href="/assenze-mese"><i class="bi bi-calendar-range me-2"></i>Calendario di Reparto</a></li>
-            <li><hr class="dropdown-divider"></li>
-            <li><a class="dropdown-item" href="/servizi-assegnati"><i class="bi bi-person-check me-2"></i>Servizi assegnati</a></li>
-          </ul>
-        </li>
-        {% endif %}
-        
-        {% if cfg.get('modulo_autopark', True) %}
-        <li class="nav-item dropdown">
-          <a class="nav-link dropdown-toggle {% if request.url.path == '/autopark' or request.url.path == '/admin/automezzi' or request.url.path == '/admin/automezzi/manutenzioni' or request.url.path == '/admin/automezzi/viaggi' %}active fw-bold{% endif %}" href="#" id="autoparkDropdown" role="button" data-bs-toggle="dropdown" aria-expanded="false">
-            <i class="bi bi-p-circle"></i> Autopark
-          </a>
-          <ul class="dropdown-menu shadow" aria-labelledby="autoparkDropdown">
-            <li><a class="dropdown-item" href="/autopark">Prenotazioni</a></li>
-            {% if user and user.ruolo in ('admin', 'fleet_manager') %}
-            <li><a class="dropdown-item" href="/admin/automezzi">Elenco Automezzi</a></li>
-            <li><a class="dropdown-item" href="/admin/automezzi/manutenzioni">Manutenzioni</a></li>
-            <li><a class="dropdown-item" href="/admin/automezzi/viaggi">Registro Viaggi</a></li>
-            {% endif %}
-          </ul>
-        </li>
-        {% endif %}
-        
-        {% if user.ruolo == 'admin' %}
+        <!-- Dashboard Link (Dynamic Home) -->
         <li class="nav-item">
-          <a class="nav-link {% if request.url.path == '/operatori' or request.url.path.startswith('/admin/operatori') %}active fw-bold{% endif %}" href="/operatori">
-            <i class="bi bi-people"></i> Operatori
-            {% set cnt_ops = get_operators_count(user) %}
-            {% if cnt_ops > 0 %}
-            <span class="badge bg-warning text-dark rounded-pill ms-1" title="Richieste di attivazione in attesa">{{ cnt_ops }}</span>
-            {% endif %}
+          <a class="nav-link {% if request.url.path == '/' %}active fw-bold{% endif %}" href="/">
+            <i class="bi bi-house-door"></i> Dashboard
           </a>
         </li>
+
+        <!-- NAVBAR ADMIN -->
+        {% if user.ruolo == 'admin' %}
+          <!-- Ticket Dropdown -->
+          <li class="nav-item dropdown">
+            <a class="nav-link dropdown-toggle {% if request.url.path == '/tickets' or request.url.path.startswith('/ticket/') or request.url.path == '/new' %}active fw-bold{% endif %}" href="#" id="ticketDropdown" role="button" data-bs-toggle="dropdown" aria-expanded="false">
+              <i class="bi bi-ticket-detailed"></i> Ticket
+              {% set cnt_nuovi = get_new_tickets_count(user) %}
+              {% if cnt_nuovi > 0 %}
+              <span class="badge bg-danger rounded-pill ms-1">{{ cnt_nuovi }}</span>
+              {% endif %}
+            </a>
+            <ul class="dropdown-menu shadow" aria-labelledby="ticketDropdown">
+              <li><a class="dropdown-item" href="/tickets">Elenco Ticket</a></li>
+              <li><a class="dropdown-item" href="/new">Nuovo Ticket</a></li>
+            </ul>
+          </li>
+          
+          <!-- Warehouse Dropdown -->
+          <li class="nav-item dropdown">
+            <a class="nav-link dropdown-toggle {% if request.url.path.startswith('/magazzini') or request.url.path.startswith('/magazzino/') or request.url.path.startswith('/trasferimenti') or request.url.path.startswith('/richieste-materiale') or request.url.path.startswith('/log-magazzini') %}active fw-bold{% endif %}" href="#" id="magazzinoDropdown" role="button" data-bs-toggle="dropdown" aria-expanded="false">
+              <i class="bi bi-boxes"></i> Magazzino
+              {% set cnt_reqs = get_pending_requests_count(user) %}
+              {% if cnt_reqs > 0 %}
+              <span class="badge bg-danger rounded-pill ms-1">{{ cnt_reqs }}</span>
+              {% endif %}
+            </a>
+            <ul class="dropdown-menu shadow" aria-labelledby="magazzinoDropdown">
+              <li><a class="dropdown-item" href="/magazzini">Inventario</a></li>
+              <li>
+                <a class="dropdown-item d-flex justify-content-between align-items-center" href="/richieste-materiale">
+                  <span>Richieste Materiale</span>
+                  {% if cnt_reqs > 0 %}
+                  <span class="badge bg-danger rounded-pill ms-2">{{ cnt_reqs }}</span>
+                  {% endif %}
+                </a>
+              </li>
+              <li><a class="dropdown-item" href="/trasferimenti">Trasferimenti tra Magazzini</a></li>
+              <li><a class="dropdown-item" href="/log-magazzini">Log Magazzini</a></li>
+            </ul>
+          </li>
+
+          <!-- Announcements / Avvisi -->
+          {% if cfg.get('modulo_avvisi', True) %}
+          <li class="nav-item"><a class="nav-link {% if request.url.path.startswith('/avvisi') %}active fw-bold{% endif %}" href="/avvisi"><i class="bi bi-megaphone"></i> Avvisi</a></li>
+          {% endif %}
+          
+          <!-- Presenze Dropdown -->
+          {% if cfg.get('modulo_presenze', True) %}
+          <li class="nav-item dropdown">
+            <a class="nav-link dropdown-toggle {% if request.url.path.startswith('/calendario') or request.url.path.startswith('/copertura-servizi') or request.url.path.startswith('/assenze-mese') or request.url.path == '/servizi-assegnati' or request.url.path == '/admin/report-copertura' %}active fw-bold{% endif %}" href="#" id="presenzeDropdown" role="button" data-bs-toggle="dropdown" aria-expanded="false">
+              <i class="bi bi-calendar-check"></i> Presenze
+            </a>
+            <ul class="dropdown-menu shadow" aria-labelledby="presenzeDropdown">
+              <li><a class="dropdown-item" href="/calendario"><i class="bi bi-calendar3 me-2"></i>Calendario Assenze</a></li>
+              <li><a class="dropdown-item" href="/calendario-presenze"><i class="bi bi-calendar-event me-2"></i>Calendario Presenze</a></li>
+              <li><a class="dropdown-item" href="/copertura-servizi"><i class="bi bi-calendar-check me-2"></i>Verifica copertura Servizi</a></li>
+              <li><a class="dropdown-item" href="/admin/report-copertura"><i class="bi bi-grid-3x3-gap me-2"></i>Report Copertura Personale</a></li>
+              <li><a class="dropdown-item" href="/assenze-mese"><i class="bi bi-calendar-range me-2"></i>Calendario di Reparto</a></li>
+              <li><hr class="dropdown-divider"></li>
+              <li><a class="dropdown-item" href="/servizi-assegnati"><i class="bi bi-person-check me-2"></i>Servizi assegnati</a></li>
+            </ul>
+          </li>
+          {% endif %}
+          
+          <!-- Autopark Dropdown -->
+          {% if cfg.get('modulo_autopark', True) %}
+          <li class="nav-item dropdown">
+            <a class="nav-link dropdown-toggle {% if request.url.path == '/autopark' or request.url.path == '/admin/automezzi' or request.url.path == '/admin/automezzi/manutenzioni' or request.url.path == '/admin/automezzi/viaggi' %}active fw-bold{% endif %}" href="#" id="autoparkDropdown" role="button" data-bs-toggle="dropdown" aria-expanded="false">
+              <i class="bi bi-p-circle"></i> Autopark
+            </a>
+            <ul class="dropdown-menu shadow" aria-labelledby="autoparkDropdown">
+              <li><a class="dropdown-item" href="/autopark">Prenotazioni</a></li>
+              <li><a class="dropdown-item" href="/admin/automezzi">Elenco Automezzi</a></li>
+              <li><a class="dropdown-item" href="/admin/automezzi/manutenzioni">Manutenzioni</a></li>
+              <li><a class="dropdown-item" href="/admin/automezzi/viaggi">Registro Viaggi</a></li>
+            </ul>
+          </li>
+          {% endif %}
+
+          <!-- Operatori Link -->
+          <li class="nav-item">
+            <a class="nav-link {% if request.url.path == '/operatori' or request.url.path.startswith('/admin/operatori') %}active fw-bold{% endif %}" href="/operatori">
+              <i class="bi bi-people"></i> Operatori
+              {% set cnt_ops = get_operators_count(user) %}
+              {% if cnt_ops > 0 %}
+              <span class="badge bg-warning text-dark rounded-pill ms-1" title="In attesa">{{ cnt_ops }}</span>
+              {% endif %}
+            </a>
+          </li>
+
+          <!-- Amministrazione Dropdown -->
+          <li class="nav-item dropdown">
+            <a class="nav-link dropdown-toggle {% if request.url.path.startswith('/admin') and request.url.path != '/admin/report-copertura' and not request.url.path.startswith('/admin/operatori') %}active fw-bold{% endif %}" href="#" id="adminDropdown" role="button" data-bs-toggle="dropdown" aria-expanded="false">
+              <i class="bi bi-gear"></i> Amministrazione
+              {% set total_pending = get_operators_count(user) + get_users_count(user) %}
+              {% if total_pending > 0 %}
+              <span class="badge bg-danger rounded-pill ms-1">{{ total_pending }}</span>
+              {% endif %}
+            </a>
+            <ul class="dropdown-menu shadow" aria-labelledby="adminDropdown">
+              <li><a class="dropdown-item" href="/admin">Dashboard Admin</a></li>
+              <li><hr class="dropdown-divider"></li>
+              <li>
+                <a class="dropdown-item d-flex justify-content-between align-items-center" href="/admin/operatori">
+                  <span>Gestione Operatori</span>
+                  {% set cnt_ops = get_operators_count(user) %}
+                  {% if cnt_ops > 0 %}
+                  <span class="badge bg-warning text-dark rounded-pill ms-2">{{ cnt_ops }}</span>
+                  {% endif %}
+                </a>
+              </li>
+              <li>
+                <a class="dropdown-item d-flex justify-content-between align-items-center" href="/admin/utenti">
+                  <span>Gestione Utenti</span>
+                  {% set cnt_uts = get_users_count(user) %}
+                  {% if cnt_uts > 0 %}
+                  <span class="badge bg-danger rounded-pill ms-2">{{ cnt_uts }}</span>
+                  {% endif %}
+                </a>
+              </li>
+              <li><a class="dropdown-item" href="/admin/reparti">Gestione Reparti</a></li>
+              <li><a class="dropdown-item" href="/admin/servizi">Gestione Servizi</a></li>
+              <li><a class="dropdown-item" href="/admin/sedi">Gestione Sedi</a></li>
+              <li><a class="dropdown-item" href="/admin/magazzini">Gestione Magazzini</a></li>
+              <li><a class="dropdown-item" href="/admin/comuni">Gestione Comuni</a></li>
+              {% if cfg.get('modulo_presenze', True) %}
+              <li><a class="dropdown-item" href="/admin/festivita">Gestione Festività</a></li>
+              {% endif %}
+              <li><hr class="dropdown-divider"></li>
+              <li><a class="dropdown-item" href="/admin/categorie">Categorie Materiali</a></li>
+              <li><a class="dropdown-item" href="/admin/materiali">Anagrafica Materiali</a></li>
+              {% if cfg.get('modulo_autopark', True) %}
+              <li><a class="dropdown-item" href="/admin/automezzi/gestione">Gestione Autopark</a></li>
+              <li><a class="dropdown-item" href="/admin/automezzi/marche">Gestione Marche Automezzi</a></li>
+              {% endif %}
+              <li><hr class="dropdown-divider"></li>
+              <li><a class="dropdown-item" href="/admin/import-export">Import / Export</a></li>
+              <li><a class="dropdown-item" href="/admin/impostazioni">Impostazioni Globali</a></li>
+            </ul>
+          </li>
+
+        <!-- NAVBAR RESPONSABILE REPARTO -->
+        {% elif user.ruolo == 'responsabile' %}
+          <li class="nav-item dropdown">
+            <a class="nav-link dropdown-toggle {% if request.url.path == '/tickets' or request.url.path.startswith('/ticket/') or request.url.path == '/new' %}active fw-bold{% endif %}" href="#" id="ticketDropdown" role="button" data-bs-toggle="dropdown" aria-expanded="false">
+              <i class="bi bi-ticket-detailed"></i> Ticket
+            </a>
+            <ul class="dropdown-menu shadow" aria-labelledby="ticketDropdown">
+              <li><a class="dropdown-item" href="/tickets">Elenco Ticket Reparto</a></li>
+              <li><a class="dropdown-item" href="/new">Nuovo Ticket</a></li>
+            </ul>
+          </li>
+
+          <li class="nav-item dropdown">
+            <a class="nav-link dropdown-toggle {% if request.url.path.startswith('/magazzini') or request.url.path.startswith('/magazzino/') or request.url.path.startswith('/trasferimenti') or request.url.path.startswith('/richieste-materiale') or request.url.path.startswith('/log-magazzini') %}active fw-bold{% endif %}" href="#" id="magazzinoDropdown" role="button" data-bs-toggle="dropdown" aria-expanded="false">
+              <i class="bi bi-boxes"></i> Magazzino
+              {% set cnt_reqs = get_pending_requests_count(user) %}
+              {% if cnt_reqs > 0 %}
+              <span class="badge bg-danger rounded-pill ms-1">{{ cnt_reqs }}</span>
+              {% endif %}
+            </a>
+            <ul class="dropdown-menu shadow" aria-labelledby="magazzinoDropdown">
+              <li><a class="dropdown-item" href="/magazzini">Inventario Reparto</a></li>
+              <li>
+                <a class="dropdown-item d-flex justify-content-between align-items-center" href="/richieste-materiale">
+                  <span>Richieste Materiale</span>
+                  {% if cnt_reqs > 0 %}
+                  <span class="badge bg-danger rounded-pill ms-2">{{ cnt_reqs }}</span>
+                  {% endif %}
+                </a>
+              </li>
+              <li><a class="dropdown-item" href="/trasferimenti">Trasferimenti tra Magazzini</a></li>
+              <li><a class="dropdown-item" href="/log-magazzini">Log Magazzini</a></li>
+            </ul>
+          </li>
+
+          {% if cfg.get('modulo_avvisi', True) %}
+          <li class="nav-item"><a class="nav-link {% if request.url.path.startswith('/avvisi') %}active fw-bold{% endif %}" href="/avvisi"><i class="bi bi-megaphone"></i> Avvisi</a></li>
+          {% endif %}
+
+          {% if cfg.get('modulo_presenze', True) %}
+          <li class="nav-item dropdown">
+            <a class="nav-link dropdown-toggle {% if request.url.path.startswith('/calendario') or request.url.path.startswith('/copertura-servizi') or request.url.path.startswith('/assenze-mese') or request.url.path == '/servizi-assegnati' or request.url.path == '/admin/report-copertura' %}active fw-bold{% endif %}" href="#" id="presenzeDropdown" role="button" data-bs-toggle="dropdown" aria-expanded="false">
+              <i class="bi bi-calendar-check"></i> Presenze
+            </a>
+            <ul class="dropdown-menu shadow" aria-labelledby="presenzeDropdown">
+              <li><a class="dropdown-item" href="/calendario"><i class="bi bi-calendar3 me-2"></i>Calendario Assenze</a></li>
+              <li><a class="dropdown-item" href="/calendario-presenze"><i class="bi bi-calendar-event me-2"></i>Calendario Presenze</a></li>
+              <li><a class="dropdown-item" href="/copertura-servizi"><i class="bi bi-calendar-check me-2"></i>Verifica copertura Servizi</a></li>
+              <li><a class="dropdown-item" href="/admin/report-copertura"><i class="bi bi-grid-3x3-gap me-2"></i>Report Copertura Reparto</a></li>
+              <li><a class="dropdown-item" href="/assenze-mese"><i class="bi bi-calendar-range me-2"></i>Calendario di Reparto</a></li>
+              <li><hr class="dropdown-divider"></li>
+              <li><a class="dropdown-item" href="/servizi-assegnati"><i class="bi bi-person-check me-2"></i>Servizi assegnati</a></li>
+            </ul>
+          </li>
+          {% endif %}
+
+          {% if cfg.get('modulo_autopark', True) %}
+          <li class="nav-item"><a class="nav-link {% if request.url.path == '/autopark' %}active fw-bold{% endif %}" href="/autopark"><i class="bi bi-p-circle"></i> Autopark</a></li>
+          {% endif %}
+
+          <li class="nav-item dropdown">
+            <a class="nav-link dropdown-toggle {% if request.url.path == '/admin/report-copertura' or request.url.path == '/magazzini/report' %}active fw-bold{% endif %}" href="#" id="reportDropdown" role="button" data-bs-toggle="dropdown" aria-expanded="false">
+              <i class="bi bi-bar-chart"></i> Report
+            </a>
+            <ul class="dropdown-menu shadow" aria-labelledby="reportDropdown">
+              <li><a class="dropdown-item" href="/admin/report-copertura">Copertura Personale</a></li>
+              <li><a class="dropdown-item" href="/magazzini/report">Stato Magazzini</a></li>
+            </ul>
+          </li>
+
+        <!-- NAVBAR OPERATORE ASSISTENZA -->
+        {% elif user.ruolo == 'assistenza' %}
+          <li class="nav-item dropdown">
+            <a class="nav-link dropdown-toggle {% if request.url.path == '/tickets' or request.url.path.startswith('/ticket/') or request.url.path == '/new' %}active fw-bold{% endif %}" href="#" id="ticketDropdown" role="button" data-bs-toggle="dropdown" aria-expanded="false">
+              <i class="bi bi-ticket-detailed"></i> Ticket
+              {% set cnt_nuovi = get_new_tickets_count(user) %}
+              {% if cnt_nuovi > 0 %}
+              <span class="badge bg-danger rounded-pill ms-1">{{ cnt_nuovi }}</span>
+              {% endif %}
+            </a>
+            <ul class="dropdown-menu shadow" aria-labelledby="ticketDropdown">
+              <li><a class="dropdown-item" href="/tickets">Elenco Ticket Servizi</a></li>
+              <li><a class="dropdown-item" href="/new">Nuovo Ticket</a></li>
+            </ul>
+          </li>
+
+          <li class="nav-item dropdown">
+            <a class="nav-link dropdown-toggle {% if request.url.path.startswith('/magazzini') or request.url.path.startswith('/magazzino/') or request.url.path.startswith('/trasferimenti') or request.url.path.startswith('/richieste-materiale') or request.url.path.startswith('/log-magazzini') %}active fw-bold{% endif %}" href="#" id="magazzinoDropdown" role="button" data-bs-toggle="dropdown" aria-expanded="false">
+              <i class="bi bi-boxes"></i> Magazzino
+              {% set cnt_reqs = get_pending_requests_count(user) %}
+              {% if cnt_reqs > 0 %}
+              <span class="badge bg-danger rounded-pill ms-1">{{ cnt_reqs }}</span>
+              {% endif %}
+            </a>
+            <ul class="dropdown-menu shadow" aria-labelledby="magazzinoDropdown">
+              <li><a class="dropdown-item" href="/magazzini">Inventario Magazzini</a></li>
+              <li>
+                <a class="dropdown-item d-flex justify-content-between align-items-center" href="/richieste-materiale">
+                  <span>Richieste Materiale</span>
+                  {% if cnt_reqs > 0 %}
+                  <span class="badge bg-danger rounded-pill ms-2">{{ cnt_reqs }}</span>
+                  {% endif %}
+                </a>
+              </li>
+              <li><a class="dropdown-item" href="/trasferimenti">Trasferimenti tra Magazzini</a></li>
+              <li><a class="dropdown-item" href="/log-magazzini">Log Magazzini</a></li>
+            </ul>
+          </li>
+
+          {% if cfg.get('modulo_avvisi', True) %}
+          <li class="nav-item"><a class="nav-link {% if request.url.path.startswith('/avvisi') %}active fw-bold{% endif %}" href="/avvisi"><i class="bi bi-megaphone"></i> Avvisi</a></li>
+          {% endif %}
+
+          {% if cfg.get('modulo_presenze', True) %}
+          <li class="nav-item dropdown">
+            <a class="nav-link dropdown-toggle {% if request.url.path.startswith('/calendario') or request.url.path.startswith('/copertura-servizi') or request.url.path.startswith('/assenze-mese') or request.url.path == '/servizi-assegnati' %}active fw-bold{% endif %}" href="#" id="presenzeDropdown" role="button" data-bs-toggle="dropdown" aria-expanded="false">
+              <i class="bi bi-calendar-check"></i> Presenze
+            </a>
+            <ul class="dropdown-menu shadow" aria-labelledby="presenzeDropdown">
+              <li><a class="dropdown-item" href="/calendario"><i class="bi bi-calendar3 me-2"></i>Calendario Assenze</a></li>
+              <li><a class="dropdown-item" href="/calendario-presenze"><i class="bi bi-calendar-event me-2"></i>Calendario Presenze</a></li>
+              <li><a class="dropdown-item" href="/copertura-servizi"><i class="bi bi-calendar-check me-2"></i>Verifica copertura Servizi</a></li>
+              <li><a class="dropdown-item" href="/assenze-mese"><i class="bi bi-calendar-range me-2"></i>Calendario di Reparto</a></li>
+              <li><hr class="dropdown-divider"></li>
+              <li><a class="dropdown-item" href="/servizi-assegnati"><i class="bi bi-person-check me-2"></i>Servizi assegnati</a></li>
+            </ul>
+          </li>
+          {% endif %}
+
+          {% if cfg.get('modulo_autopark', True) %}
+          <li class="nav-item"><a class="nav-link {% if request.url.path == '/autopark' %}active fw-bold{% endif %}" href="/autopark"><i class="bi bi-p-circle"></i> Autopark</a></li>
+          {% endif %}
+
+        <!-- NAVBAR FLEET MANAGER -->
+        {% elif user.ruolo in ('fleet_manager', 'global_fleet_manager') %}
+          <li class="nav-item dropdown">
+            <a class="nav-link dropdown-toggle {% if request.url.path == '/tickets' or request.url.path == '/new' %}active fw-bold{% endif %}" href="#" id="ticketDropdown" role="button" data-bs-toggle="dropdown" aria-expanded="false">
+              <i class="bi bi-ticket-detailed"></i> Ticket
+            </a>
+            <ul class="dropdown-menu shadow" aria-labelledby="ticketDropdown">
+              <li><a class="dropdown-item" href="/tickets">Elenco Ticket</a></li>
+              <li><a class="dropdown-item" href="/new">Nuovo Ticket</a></li>
+            </ul>
+          </li>
+
+          {% if cfg.get('modulo_autopark', True) %}
+          <li class="nav-item dropdown">
+            <a class="nav-link dropdown-toggle {% if request.url.path == '/autopark' or request.url.path == '/admin/automezzi' or request.url.path == '/admin/automezzi/manutenzioni' or request.url.path == '/admin/automezzi/viaggi' %}active fw-bold{% endif %}" href="#" id="autoparkDropdown" role="button" data-bs-toggle="dropdown" aria-expanded="false">
+              <i class="bi bi-p-circle"></i> Autopark
+            </a>
+            <ul class="dropdown-menu shadow" aria-labelledby="autoparkDropdown">
+              <li><a class="dropdown-item" href="/autopark">Prenotazioni</a></li>
+              <li><a class="dropdown-item" href="/admin/automezzi">Elenco Automezzi</a></li>
+              {% if user.ruolo in ('admin', 'global_fleet_manager') %}
+              <li><a class="dropdown-item" href="/admin/automezzi/manutenzioni">Manutenzioni</a></li>
+              {% endif %}
+              <li><a class="dropdown-item" href="/admin/automezzi/viaggi">Registro Viaggi</a></li>
+            </ul>
+          </li>
+          {% endif %}
+
+        <!-- NAVBAR UTENTE NORMALE / DEFAULT -->
+        {% else %}
+          <li class="nav-item dropdown">
+            <a class="nav-link dropdown-toggle {% if request.url.path == '/tickets' or request.url.path == '/new' %}active fw-bold{% endif %}" href="#" id="ticketDropdown" role="button" data-bs-toggle="dropdown" aria-expanded="false">
+              <i class="bi bi-ticket-detailed"></i> I Miei Ticket
+            </a>
+            <ul class="dropdown-menu shadow" aria-labelledby="ticketDropdown">
+              <li><a class="dropdown-item" href="/tickets">Le Mie Segnalazioni</a></li>
+              <li><a class="dropdown-item" href="/new">Invia Nuova Richiesta</a></li>
+            </ul>
+          </li>
+
+          {% if cfg.get('modulo_autopark', True) %}
+          <li class="nav-item"><a class="nav-link {% if request.url.path == '/autopark' %}active fw-bold{% endif %}" href="/autopark"><i class="bi bi-p-circle"></i> Autopark</a></li>
+          {% endif %}
         {% endif %}
+
+        <!-- Documentazione Dropdown (Common to all roles) -->
         <li class="nav-item dropdown">
           <a class="nav-link dropdown-toggle {% if request.url.path.startswith('/documentazione') %}active fw-bold{% endif %}" href="#" id="docDropdown" role="button" data-bs-toggle="dropdown" aria-expanded="false">
-            <i class="bi bi-book"></i> Documentazione
+            <i class="bi bi-book"></i> Info
           </a>
           <ul class="dropdown-menu shadow" aria-labelledby="docDropdown">
             <li><a class="dropdown-item" href="/documentazione">Guida Generale</a></li>
@@ -112,81 +352,13 @@
             <li><a class="dropdown-item" href="/documentazione/presenze">Guida Presenze/Assenze</a></li>
             {% endif %}
             <li><hr class="dropdown-divider"></li>
-            <li><a class="dropdown-item" href="/documentazione/privacy">Privacy Policy</a></li>
+            <li><a class="dropdown-item" href="/static/PRIVACY.md" target="_blank">Privacy Policy</a></li>
           </ul>
         </li>
-        
-        {% if user.ruolo in ('admin', 'responsabile') %}
-        <li class="nav-item dropdown">
-          <a class="nav-link dropdown-toggle {% if request.url.path == '/admin/report-copertura' or request.url.path == '/magazzini/report' %}active fw-bold{% endif %}" href="#" id="reportDropdown" role="button" data-bs-toggle="dropdown" aria-expanded="false">
-            <i class="bi bi-bar-chart"></i> Report
-          </a>
-          <ul class="dropdown-menu shadow" aria-labelledby="reportDropdown">
-            <li><a class="dropdown-item" href="/admin/report-copertura">Copertura Personale</a></li>
-            <li><a class="dropdown-item" href="/magazzini/report">Stato Magazzini</a></li>
-          </ul>
-        </li>
-        {% endif %}
-        
-        {% if user.ruolo == 'admin' %}
-        <li class="nav-item dropdown">
-          <a class="nav-link dropdown-toggle {% if request.url.path.startswith('/admin') and request.url.path != '/admin/report-copertura' and not request.url.path.startswith('/admin/operatori') %}active fw-bold{% endif %}" href="#" id="adminDropdown" role="button" data-bs-toggle="dropdown" aria-expanded="false">
-            <i class="bi bi-gear"></i> Amministrazione
-            {% set total_pending = get_operators_count(user) + get_users_count(user) %}
-            {% if total_pending > 0 %}
-            <span class="badge bg-danger rounded-pill ms-1">{{ total_pending }}</span>
-            {% endif %}
-          </a>
-          <ul class="dropdown-menu shadow" aria-labelledby="adminDropdown">
-            <li><a class="dropdown-item" href="/admin">Dashboard Admin</a></li>
-            <li><hr class="dropdown-divider"></li>
-            <li>
-              <a class="dropdown-item d-flex justify-content-between align-items-center" href="/admin/operatori">
-                <span>Gestione Operatori</span>
-                {% set cnt_ops = get_operators_count(user) %}
-                {% if cnt_ops > 0 %}
-                <span class="badge bg-warning text-dark rounded-pill ms-2">{{ cnt_ops }}</span>
-                {% endif %}
-              </a>
-            </li>
-            <li>
-              <a class="dropdown-item d-flex justify-content-between align-items-center" href="/admin/utenti">
-                <span>Gestione Utenti</span>
-                {% set cnt_uts = get_users_count(user) %}
-                {% if cnt_uts > 0 %}
-                <span class="badge bg-danger rounded-pill ms-2">{{ cnt_uts }}</span>
-                {% endif %}
-              </a>
-            </li>
-            <li><a class="dropdown-item" href="/admin/reparti">Gestione Reparti</a></li>
-            <li><a class="dropdown-item" href="/admin/servizi">Gestione Servizi</a></li>
-            <li><a class="dropdown-item" href="/admin/sedi">Gestione Sedi</a></li>
-            <li><a class="dropdown-item" href="/admin/magazzini">Gestione Magazzini</a></li>
-            <li><a class="dropdown-item" href="/admin/comuni">Gestione Comuni</a></li>
-            {% if cfg.get('modulo_presenze', True) %}
-            <li><a class="dropdown-item" href="/admin/festivita">Gestione Festività</a></li>
-            {% endif %}
-            <li><hr class="dropdown-divider"></li>
-            <li><a class="dropdown-item" href="/admin/categorie">Categorie Materiali</a></li>
-            <li><a class="dropdown-item" href="/admin/materiali">Anagrafica Materiali</a></li>
-            {% if cfg.get('modulo_autopark', True) %}
-            {% if user and user.ruolo == 'admin' %}
-            <li><a class="dropdown-item" href="/admin/automezzi/gestione">Gestione Autopark</a></li>
-            <li><a class="dropdown-item" href="/admin/automezzi/marche">Gestione Marche Automezzi</a></li>
-            {% endif %}
-            {% endif %}
-            {% if cfg.get('modulo_presenze', True) %}
-            <li><a class="dropdown-item" href="/admin/report-copertura">Report Copertura</a></li>
-            {% endif %}
-            <li><a class="dropdown-item" href="/magazzini/report">Report Magazzini</a></li>
-            <li><hr class="dropdown-divider"></li>
-            <li><a class="dropdown-item" href="/admin/import-export">Import / Export</a></li>
-            <li><a class="dropdown-item" href="/admin/impostazioni">Impostazioni Globali</a></li>
-          </ul>
-        </li>
-        {% endif %}
+
       </ul>
       
+      <!-- Right Side User Dropdown -->
       <div class="d-flex align-items-center">
         <div class="nav-item dropdown">
           <a class="nav-link dropdown-toggle text-light" href="#" id="userDropdown" role="button" data-bs-toggle="dropdown" aria-expanded="false">
@@ -200,6 +372,7 @@
           </ul>
         </div>
       </div>
+      
       {% else %}
       <ul class="navbar-nav ms-auto mb-2 mb-lg-0">
          <li class="nav-item"><a href="/login" class="btn btn-outline-light btn-sm">Accedi..</a></li>
