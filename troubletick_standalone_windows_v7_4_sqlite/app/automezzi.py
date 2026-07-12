@@ -89,6 +89,12 @@ with engine.begin() as conn:
     except Exception:
         pass
     
+    # Reset vehicles stuck in 'In Uso' from old booking logic (bookings no longer change vehicle stato)
+    try:
+        conn.execute(text("UPDATE automezzi SET stato = 'Disponibile' WHERE stato = 'In Uso'"))
+    except Exception:
+        pass
+    
     # Check if empty to seed initial data for marche
     count_marche = conn.execute(text("SELECT COUNT(*) FROM marche_automezzi")).scalar() or 0
     if count_marche == 0:
@@ -1053,16 +1059,37 @@ def prenota_automezzo(
     # Validate return hour is after departure hour
     if ora_riconsegna_prevista <= ora_partenza:
         import urllib.parse
-        return RedirectResponse(url=f"/autopark?error={urllib.parse.quote('L\\'ora di riconsegna deve essere successiva all\\'ora di partenza.')}", status_code=303)
+        err_msg = urllib.parse.quote("L'ora di riconsegna deve essere successiva all'ora di partenza.")
+        return RedirectResponse(url=f"/autopark?error={err_msg}", status_code=303)
     
     with engine.begin() as conn:
-        # Check if the vehicle is available and currently at the correct location
+        # Check if the vehicle exists, is not excluded, and is at the correct location
         car = conn.execute(text("SELECT stato, km_attuali, escluso_prenotazione, sede_attuale_id FROM automezzi WHERE automezzo_id = :id"), {"id": automezzo_id}).first()
-        if not car or car.stato != 'Disponibile' or car.escluso_prenotazione == 1 or car.sede_attuale_id != sede_partenza_id:
+        if not car or car.escluso_prenotazione == 1 or car.sede_attuale_id != sede_partenza_id:
             import urllib.parse
             return RedirectResponse(url=f"/autopark?error={urllib.parse.quote('Il veicolo selezionato non è disponibile per questa sede di partenza.')}", status_code=303)
             
         km_iniziali = car.km_attuali or 0
+        
+        # Check for time-slot overlap with existing bookings for this vehicle on this date
+        overlap = conn.execute(text("""
+            SELECT viaggio_id FROM viaggi_automezzi
+            WHERE automezzo_id = :automezzo_id
+              AND data_viaggio = :data_viaggio
+              AND ora_arrivo IS NULL
+              AND ora_partenza < :ora_riconsegna
+              AND ora_riconsegna_prevista > :ora_partenza
+        """), {
+            "automezzo_id": automezzo_id,
+            "data_viaggio": data_viaggio,
+            "ora_partenza": ora_partenza,
+            "ora_riconsegna": ora_riconsegna_prevista
+        }).first()
+        
+        if overlap:
+            import urllib.parse
+            err_msg = urllib.parse.quote("Il veicolo è già prenotato in questa fascia oraria.")
+            return RedirectResponse(url=f"/autopark?error={err_msg}", status_code=303)
         
         # Insert new voyage record
         conn.execute(text("""
@@ -1082,17 +1109,6 @@ def prenota_automezzo(
             "sede_partenza_id": sede_partenza_id,
             "user_id": uid,
             "note": note
-        })
-        
-        # Update vehicle status to 'In Uso'
-        conn.execute(text("""
-            UPDATE automezzi
-            SET stato = 'In Uso',
-                sede_attuale_id = :sede_partenza_id
-            WHERE automezzo_id = :automezzo_id
-        """), {
-            "sede_partenza_id": sede_partenza_id,
-            "automezzo_id": automezzo_id
         })
         
     return RedirectResponse(url="/autopark?msg=booked", status_code=303)
@@ -1151,11 +1167,10 @@ def completa_prenotazione(
             "note": note_complete
         })
         
-        # Update vehicle status and km
+        # Update vehicle km and location
         conn.execute(text("""
             UPDATE automezzi
-            SET stato = 'Disponibile',
-                km_attuali = MAX(km_attuali, :km_finali),
+            SET km_attuali = MAX(km_attuali, :km_finali),
                 sede_attuale_id = :sede_arrivo_id
             WHERE automezzo_id = :automezzo_id
         """), {
@@ -1189,10 +1204,6 @@ def elimina_prenotazione(id: int, r: Request):
             v = conn.execute(text("SELECT automezzo_id, ora_arrivo FROM viaggi_automezzi WHERE viaggio_id = :id AND user_id = :uid"), {"id": id, "uid": uid}).first()
             
         if v:
-            if not v.ora_arrivo:
-                # Set vehicle back to 'Disponibile'
-                conn.execute(text("UPDATE automezzi SET stato = 'Disponibile' WHERE automezzo_id = :automezzo_id"), {"automezzo_id": v.automezzo_id})
-            
             conn.execute(text("DELETE FROM viaggi_automezzi WHERE viaggio_id = :id"), {"id": id})
             
     return RedirectResponse(url="/autopark?msg=deleted", status_code=303)
