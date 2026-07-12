@@ -2685,16 +2685,18 @@ def edit_utente_form(r: Request, user_id: int):
         
         reparti = c.execute(text("SELECT reparto_id, nome FROM reparti ORDER BY nome")).mappings().all()
         sedi = c.execute(text("SELECT sede_id, nome FROM sedi ORDER BY nome")).mappings().all()
+        ruoli = c.execute(text("SELECT nome, descrizione FROM ruoli ORDER BY ruolo_id")).mappings().all()
     
     return templates.TemplateResponse(r, "edit_utente.html", {
-        "request": r, "cfg": CFG, "user": user, "utente": utente, "reparti": reparti, "sedi": sedi
+        "request": r, "cfg": CFG, "user": user, "utente": utente, "reparti": reparti, "sedi": sedi, "ruoli": ruoli
     })
 
 @app.post("/admin/utente/{user_id}/modifica")
 def edit_utente(r: Request, user_id: int, nome: str=Form(...), cognome: str=Form(...), 
                 email: str=Form(...), telefono: str=Form(None), 
                 reparto_id: str=Form(None), attivo: int=Form(0),
-                password: str=Form(""), sede_id: str=Form(None), is_test: int=Form(0)):
+                password: str=Form(""), sede_id: str=Form(None), is_test: int=Form(0),
+                ruolo: str=Form("normale")):
     user = require_superuser(r)
     if isinstance(user, RedirectResponse):
         return user
@@ -2710,14 +2712,14 @@ def edit_utente(r: Request, user_id: int, nome: str=Form(...), cognome: str=Form
     with engine.begin() as c:
         if password:
             c.execute(text("""
-                UPDATE users SET username=:u, nome=:n, cognome=:c, email=:e, telefono=:tel, reparto_id=:r, ruolo='normale', attivo=:a, password_hash=:p, sede_id=:sede, is_test=:is_test
+                UPDATE users SET username=:u, nome=:n, cognome=:c, email=:e, telefono=:tel, reparto_id=:r, ruolo=:ruolo, attivo=:a, password_hash=:p, sede_id=:sede, is_test=:is_test
                  WHERE user_id=:uid AND user_id != 1 AND ruolo='normale'
-            """), {"u": username, "n": nome, "c": cognome, "e": email, "tel": tel_val, "r": reparto_id_val, "a": attivo, "p": h(password), "sede": sede_id_val, "is_test": is_test, "uid": user_id})
+            """), {"u": username, "n": nome, "c": cognome, "e": email, "tel": tel_val, "r": reparto_id_val, "ruolo": ruolo, "a": attivo, "p": h(password), "sede": sede_id_val, "is_test": is_test, "uid": user_id})
         else:
             c.execute(text("""
-                UPDATE users SET username=:u, nome=:n, cognome=:c, email=:e, telefono=:tel, reparto_id=:r, ruolo='normale', attivo=:a, sede_id=:sede, is_test=:is_test
+                UPDATE users SET username=:u, nome=:n, cognome=:c, email=:e, telefono=:tel, reparto_id=:r, ruolo=:ruolo, attivo=:a, sede_id=:sede, is_test=:is_test
                  WHERE user_id=:uid AND user_id != 1 AND ruolo='normale'
-            """), {"u": username, "n": nome, "c": cognome, "e": email, "tel": tel_val, "r": reparto_id_val, "a": attivo, "sede": sede_id_val, "is_test": is_test, "uid": user_id})
+            """), {"u": username, "n": nome, "c": cognome, "e": email, "tel": tel_val, "r": reparto_id_val, "ruolo": ruolo, "a": attivo, "sede": sede_id_val, "is_test": is_test, "uid": user_id})
     
     return RedirectResponse(url="/admin/utenti", status_code=303)
 
