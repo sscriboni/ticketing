@@ -1064,13 +1064,23 @@ def prenota_automezzo(
     ora_riconsegna_prevista: str = Form(...),
     sede_partenza_id: int = Form(...),
     email_conducente: str = Form(None),
-    note: str = Form(None)
+    note: str = Form(None),
+    parti_ora: str = Form(None)
 ):
     if "user" not in r.session:
         return RedirectResponse(url="/login", status_code=303)
     user = r.session.get("user")
     uid = user.get("id")
     
+    # If parti_ora is set, override date and departure hour with current local values
+    if parti_ora:
+        now_dt = datetime.datetime.now()
+        data_viaggio = now_dt.strftime("%Y-%m-%d")
+        ora_partenza = now_dt.strftime("%H:00")  # Round to the hour for database consistency
+        ora_partenza_eff = now_dt.strftime("%H:%M")
+    else:
+        ora_partenza_eff = None
+
     # Validate return hour is after departure hour
     if ora_riconsegna_prevista <= ora_partenza:
         import urllib.parse
@@ -1113,10 +1123,10 @@ def prenota_automezzo(
         conn.execute(text("""
             INSERT INTO viaggi_automezzi (
                 automezzo_id, data_viaggio, ora_partenza, ora_riconsegna_prevista, ora_arrivo, 
-                km_iniziali, km_finali, sede_partenza_id, sede_arrivo_id, user_id, email_conducente, note
+                km_iniziali, km_finali, sede_partenza_id, sede_arrivo_id, user_id, email_conducente, ora_partenza_effettiva, note
             ) VALUES (
                 :automezzo_id, :data_viaggio, :ora_partenza, :ora_riconsegna_prevista, NULL,
-                :km_iniziali, NULL, :sede_partenza_id, NULL, :user_id, :email_conducente, :note
+                :km_iniziali, NULL, :sede_partenza_id, NULL, :user_id, :email_conducente, :ora_partenza_eff, :note
             )
         """), {
             "automezzo_id": automezzo_id,
@@ -1127,9 +1137,12 @@ def prenota_automezzo(
             "sede_partenza_id": sede_partenza_id,
             "user_id": uid,
             "email_conducente": final_email,
+            "ora_partenza_eff": ora_partenza_eff,
             "note": note
         })
         
+    if parti_ora:
+        return RedirectResponse(url="/autopark?msg=started", status_code=303)
     return RedirectResponse(url="/autopark?msg=booked", status_code=303)
 
 @router.post("/autopark/parti/{id}")

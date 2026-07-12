@@ -132,11 +132,20 @@ def prenota(
     sede_partenza_id: int = Form(...),
     email_conducente: str = Form(None),
     note: str = Form(None),
+    parti_ora: str = Form(None),
 ):
     user = r.session.get("user")
     if not user:
         return RedirectResponse(url="/login", status_code=303)
     uid = user.get("id")
+
+    if parti_ora:
+        now_dt = datetime.datetime.now()
+        data_viaggio = now_dt.strftime("%Y-%m-%d")
+        ora_partenza = now_dt.strftime("%H:00")
+        ora_partenza_eff = now_dt.strftime("%H:%M")
+    else:
+        ora_partenza_eff = None
 
     if ora_riconsegna_prevista <= ora_partenza:
         return _redirect_err("L'ora di riconsegna deve essere successiva all'ora di partenza.")
@@ -169,17 +178,19 @@ def prenota(
             INSERT INTO viaggi_automezzi (
                 automezzo_id, data_viaggio, ora_partenza, ora_riconsegna_prevista,
                 ora_arrivo, km_iniziali, km_finali,
-                sede_partenza_id, sede_arrivo_id, user_id, email_conducente, note
+                sede_partenza_id, sede_arrivo_id, user_id, email_conducente, ora_partenza_effettiva, note
             ) VALUES (
-                :aid, :dv, :op, :orc, NULL, :km, NULL, :sp, NULL, :uid, :email, :note
+                :aid, :dv, :op, :orc, NULL, :km, NULL, :sp, NULL, :uid, :email, :ora_partenza_eff, :note
             )
         """), {
             "aid": automezzo_id, "dv": data_viaggio,
             "op": ora_partenza, "orc": ora_riconsegna_prevista,
             "km": km_iniziali, "sp": sede_partenza_id,
-            "uid": uid, "email": final_email, "note": note,
+            "uid": uid, "email": final_email, "ora_partenza_eff": ora_partenza_eff, "note": note,
         })
 
+    if parti_ora:
+        return _redirect_ok("started")
     return _redirect_ok("booked")
 
 # ── PARTI ────────────────────────────────────────────────────────────────────────

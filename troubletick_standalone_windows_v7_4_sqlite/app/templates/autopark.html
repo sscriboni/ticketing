@@ -198,6 +198,12 @@
                             </select>
                         </div>
 
+                        <!-- 1b. Parti Ora Switch -->
+                        <div class="form-check form-switch mb-3" id="parti_ora_container">
+                            <input class="form-check-input" type="checkbox" id="parti_ora" name="parti_ora" value="1">
+                            <label class="form-check-label fw-semibold" for="parti_ora">Parti Ora (avvia viaggio immediatamente)</label>
+                        </div>
+
                         <!-- 2. Data Viaggio -->
                         <div class="mb-3">
                             <label for="data_viaggio" class="form-label fw-semibold">Data Viaggio</label>
@@ -336,7 +342,7 @@
                                                     <form action="/autopark/completa/{{ p.viaggio_id }}" method="POST">
                                                         <div class="mb-2">
                                                             <label class="form-label small mb-1 fw-semibold">Ora Arrivo</label>
-                                                            <input type="time" name="ora_arrivo" class="form-control form-control-sm rounded-2" required>
+                                                            <input type="time" name="ora_arrivo" class="form-control form-control-sm rounded-2 input-ora-arrivo" required>
                                                         </div>
                                                         
                                                         <div class="mb-2">
@@ -347,9 +353,8 @@
                                                         <div class="mb-2">
                                                             <label class="form-label small mb-1 fw-semibold">Sede Rientro</label>
                                                             <select name="sede_arrivo_id" class="form-select form-select-sm rounded-2" required>
-                                                                <option value="" disabled selected>Seleziona sede...</option>
                                                                 {% for s in sedi %}
-                                                                    <option value="{{ s.sede_id }}">{{ s.nome }}</option>
+                                                                    <option value="{{ s.sede_id }}" {% if s.sede_id == p.sede_partenza_id %}selected{% endif %}>{{ s.nome }}</option>
                                                                 {% endfor %}
                                                             </select>
                                                         </div>
@@ -564,8 +569,45 @@
             });
         }
 
+        // Prefill arrival times to current local time
+        document.querySelectorAll('.input-ora-arrivo').forEach(input => {
+            const now = new Date();
+            const hh = String(now.getHours()).padStart(2, '0');
+            const mm = String(now.getMinutes()).padStart(2, '0');
+            input.value = `${hh}:${mm}`;
+        });
+
+        // Handle 'Parti Ora' switch behavior
+        const partiOraChk = document.getElementById("parti_ora");
+        const dataGroup = document.getElementById("data_viaggio").closest(".mb-3");
+        const oraPGroup = document.getElementById("ora_partenza").closest(".mb-3");
+
+        if (partiOraChk) {
+            partiOraChk.addEventListener("change", function() {
+                if (partiOraChk.checked) {
+                    // Hide date and departure hour fields
+                    dataGroup.style.display = "none";
+                    oraPGroup.style.display = "none";
+                    
+                    // Prefill date and hour to now
+                    const now = new Date();
+                    document.getElementById("data_viaggio").value = now.toISOString().split('T')[0];
+                    const currentHourStr = String(now.getHours()).padStart(2, '0') + ":00";
+                    oraPartenza.value = currentHourStr;
+                    
+                    // Dispatch change to trigger return hour validation
+                    oraPartenza.dispatchEvent(new Event("change"));
+                } else {
+                    // Show date and departure hour fields
+                    dataGroup.style.display = "block";
+                    oraPGroup.style.display = "block";
+                }
+            });
+        }
+
         if (bookingForm) {
             bookingForm.addEventListener("submit", function(e) {
+                // If hidden, enable just in case, but display:none fields submit normally
                 if (oraPartenza && oraRiconsegna && oraPartenza.value && oraRiconsegna.value) {
                     if (oraRiconsegna.value <= oraPartenza.value) {
                         e.preventDefault();
