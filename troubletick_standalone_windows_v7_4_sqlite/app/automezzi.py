@@ -95,6 +95,11 @@ with engine.begin() as conn:
     except Exception:
         pass
     
+    try:
+        conn.execute(text("ALTER TABLE viaggi_automezzi ADD COLUMN email_conducente TEXT"))
+    except Exception:
+        pass
+    
     # Check if empty to seed initial data for marche
     count_marche = conn.execute(text("SELECT COUNT(*) FROM marche_automezzi")).scalar() or 0
     if count_marche == 0:
@@ -1049,6 +1054,7 @@ def prenota_automezzo(
     ora_partenza: str = Form(...),
     ora_riconsegna_prevista: str = Form(...),
     sede_partenza_id: int = Form(...),
+    email_conducente: str = Form(None),
     note: str = Form(None)
 ):
     if "user" not in r.session:
@@ -1091,14 +1097,17 @@ def prenota_automezzo(
             err_msg = urllib.parse.quote("Il veicolo è già prenotato in questa fascia oraria.")
             return RedirectResponse(url=f"/autopark?error={err_msg}", status_code=303)
         
+        # Default email to user's email if not specified
+        final_email = (email_conducente or "").strip() or user.get("email", "")
+        
         # Insert new voyage record
         conn.execute(text("""
             INSERT INTO viaggi_automezzi (
                 automezzo_id, data_viaggio, ora_partenza, ora_riconsegna_prevista, ora_arrivo, 
-                km_iniziali, km_finali, sede_partenza_id, sede_arrivo_id, user_id, note
+                km_iniziali, km_finali, sede_partenza_id, sede_arrivo_id, user_id, email_conducente, note
             ) VALUES (
                 :automezzo_id, :data_viaggio, :ora_partenza, :ora_riconsegna_prevista, NULL,
-                :km_iniziali, NULL, :sede_partenza_id, NULL, :user_id, :note
+                :km_iniziali, NULL, :sede_partenza_id, NULL, :user_id, :email_conducente, :note
             )
         """), {
             "automezzo_id": automezzo_id,
@@ -1108,6 +1117,7 @@ def prenota_automezzo(
             "km_iniziali": km_iniziali,
             "sede_partenza_id": sede_partenza_id,
             "user_id": uid,
+            "email_conducente": final_email,
             "note": note
         })
         

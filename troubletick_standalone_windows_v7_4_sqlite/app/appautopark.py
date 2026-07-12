@@ -126,6 +126,7 @@ def prenota(
     ora_partenza: str = Form(...),
     ora_riconsegna_prevista: str = Form(...),
     sede_partenza_id: int = Form(...),
+    email_conducente: str = Form(None),
     note: str = Form(None),
 ):
     user = r.session.get("user")
@@ -159,19 +160,20 @@ def prenota(
             return _redirect_err("Il veicolo è già prenotato in questa fascia oraria.")
 
         km_iniziali = car.km_attuali or 0
+        final_email = (email_conducente or "").strip() or user.get("email", "")
         conn.execute(text("""
             INSERT INTO viaggi_automezzi (
                 automezzo_id, data_viaggio, ora_partenza, ora_riconsegna_prevista,
                 ora_arrivo, km_iniziali, km_finali,
-                sede_partenza_id, sede_arrivo_id, user_id, note
+                sede_partenza_id, sede_arrivo_id, user_id, email_conducente, note
             ) VALUES (
-                :aid, :dv, :op, :orc, NULL, :km, NULL, :sp, NULL, :uid, :note
+                :aid, :dv, :op, :orc, NULL, :km, NULL, :sp, NULL, :uid, :email, :note
             )
         """), {
             "aid": automezzo_id, "dv": data_viaggio,
             "op": ora_partenza, "orc": ora_riconsegna_prevista,
             "km": km_iniziali, "sp": sede_partenza_id,
-            "uid": uid, "note": note,
+            "uid": uid, "email": final_email, "note": note,
         })
 
     return _redirect_ok("booked")

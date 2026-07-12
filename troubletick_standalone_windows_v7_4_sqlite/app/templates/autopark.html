@@ -230,7 +230,14 @@
                             </div>
                         </div>
 
-                        <!-- 5. Note / Destinazione -->
+                        <!-- 5. Email Conducente -->
+                        <div class="mb-3">
+                            <label for="email_conducente" class="form-label fw-semibold">Email Conducente</label>
+                            <input type="email" class="form-control rounded-3" id="email_conducente" name="email_conducente" placeholder="Se diverso, inserisci l'email del conducente" value="{{ user.email or '' }}">
+                            <div class="form-text">Se non specificata, verrà usata la tua email.</div>
+                        </div>
+
+                        <!-- 6. Note / Destinazione -->
                         <div class="mb-3">
                             <label for="note" class="form-label fw-semibold">Note / Destinazione</label>
                             <textarea class="form-control rounded-3" id="note" name="note" rows="2" placeholder="Es. Visita clienti a Milano"></textarea>
@@ -272,6 +279,9 @@
                                             <li class="mb-1"><i class="bi bi-clock me-2"></i><strong>Orario:</strong> {{ p.ora_partenza }}{% if p.ora_riconsegna_prevista %} - {{ p.ora_riconsegna_prevista }}{% endif %}</li>
                                             <li class="mb-1"><i class="bi bi-geo-alt me-2"></i><strong>Da:</strong> {{ p.sede_partenza_nome }}</li>
                                             <li class="mb-1"><i class="bi bi-speedometer2 me-2"></i><strong>KM Iniziali:</strong> {{ p.km_iniziali }} km</li>
+                                            {% if p.email_conducente %}
+                                                <li class="mb-1"><i class="bi bi-envelope me-2"></i><strong>Conducente:</strong> {{ p.email_conducente }}</li>
+                                            {% endif %}
                                             {% if p.note %}
                                                 <li class="mt-2"><i class="bi bi-pencil-square me-2"></i><strong>Note:</strong> {{ p.note }}</li>
                                             {% endif %}

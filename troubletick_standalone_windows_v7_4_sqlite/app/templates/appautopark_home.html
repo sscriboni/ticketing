@@ -281,7 +281,13 @@
                             <i class="bi bi-geo-alt-fill"></i> Posizione: <strong id="vehicleSedeText">--</strong>
                         </div>
                     </div>
-                    <!-- 6. Note -->
+                    <!-- 6. Email Conducente -->
+                    <div class="mb-3">
+                        <label for="email_conducente" class="form-label">Email Conducente</label>
+                        <input type="email" class="form-control form-control-dark" id="email_conducente" name="email_conducente" placeholder="Se diverso, inserisci l'email del conducente" value="{{ user.email or '' }}">
+                        <div class="form-text" style="color:#475569;">Se non specificata, verrà usata la tua email.</div>
+                    </div>
+                    <!-- 7. Note -->
                     <div class="mb-3">
                         <label for="note" class="form-label">Note / Destinazione</label>
                         <textarea class="form-control form-control-dark" id="note" name="note" rows="2" placeholder="Es. Visita clienti a Milano"></textarea>
@@ -326,6 +332,9 @@
                             <div class="detail-row"><i class="bi bi-clock"></i> {{ p.ora_partenza }}{% if p.ora_riconsegna_prevista %} – {{ p.ora_riconsegna_prevista }}{% endif %}</div>
                             <div class="detail-row"><i class="bi bi-geo-alt"></i> {{ p.sede_partenza_nome }}</div>
                             <div class="detail-row"><i class="bi bi-speedometer2"></i> {{ p.km_iniziali }} km</div>
+                            {% if p.email_conducente %}
+                            <div class="detail-row"><i class="bi bi-envelope"></i> {{ p.email_conducente }}</div>
+                            {% endif %}
                             {% if p.note %}
                             <div class="detail-row"><i class="bi bi-pencil-square"></i> {{ p.note }}</div>
                             {% endif %}
