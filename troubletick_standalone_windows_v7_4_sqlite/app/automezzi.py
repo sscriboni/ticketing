@@ -100,6 +100,11 @@ with engine.begin() as conn:
     except Exception:
         pass
     
+    try:
+        conn.execute(text("ALTER TABLE viaggi_automezzi ADD COLUMN ora_partenza_effettiva TEXT"))
+    except Exception:
+        pass
+    
     # Check if empty to seed initial data for marche
     count_marche = conn.execute(text("SELECT COUNT(*) FROM marche_automezzi")).scalar() or 0
     if count_marche == 0:
@@ -1007,17 +1012,20 @@ def get_autopark(r: Request, msg: str = None, error: str = None):
             ORDER BY v.data_viaggio DESC, v.ora_partenza DESC
         """), {"uid": uid}).mappings().all()
         
-        import datetime
         now = datetime.datetime.now()
-        prenotazioni_attive_list = []
+        attive_list = []
         for p in prenotazioni_attive:
             p_dict = dict(p)
             try:
                 booking_dt = datetime.datetime.strptime(f"{p['data_viaggio']} {p['ora_partenza']}", "%Y-%m-%d %H:%M")
-                p_dict["can_complete"] = now >= booking_dt
+                p_dict["can_start"] = (not p.get("ora_partenza_effettiva")) and now >= booking_dt
+                p_dict["can_complete"] = bool(p.get("ora_partenza_effettiva"))
+                p_dict["is_in_corso"] = bool(p.get("ora_partenza_effettiva"))
             except Exception:
-                p_dict["can_complete"] = True
-            prenotazioni_attive_list.append(p_dict)
+                p_dict["can_start"] = not p.get("ora_partenza_effettiva")
+                p_dict["can_complete"] = bool(p.get("ora_partenza_effettiva"))
+                p_dict["is_in_corso"] = bool(p.get("ora_partenza_effettiva"))
+            attive_list.append(p_dict)
         
         # Fetch user's completed bookings
         prenotazioni_passate = conn.execute(text("""
@@ -1039,7 +1047,7 @@ def get_autopark(r: Request, msg: str = None, error: str = None):
         "cfg": CFG, 
         "user": user, 
         "veicoli": veicoli_dicts, 
-        "prenotazioni_attive": prenotazioni_attive_list, 
+        "prenotazioni_attive": attive_list, 
         "prenotazioni_passate": prenotazioni_passate, 
         "sedi": sedi_list,
         "msg": msg,
@@ -1123,6 +1131,37 @@ def prenota_automezzo(
         
     return RedirectResponse(url="/autopark?msg=booked", status_code=303)
 
+@router.post("/autopark/parti/{id}")
+def parti_viaggio(id: int, r: Request):
+    if "user" not in r.session:
+        return RedirectResponse(url="/login", status_code=303)
+    user = r.session.get("user")
+    uid = user.get("id")
+    
+    with engine.begin() as conn:
+        v = conn.execute(text("""
+            SELECT viaggio_id, ora_partenza_effettiva
+            FROM viaggi_automezzi
+            WHERE viaggio_id = :id AND user_id = :uid AND ora_arrivo IS NULL
+        """), {"id": id, "uid": uid}).first()
+        
+        if not v:
+            import urllib.parse
+            err_msg = urllib.parse.quote("Prenotazione non trovata.")
+            return RedirectResponse(url=f"/autopark?error={err_msg}", status_code=303)
+        
+        if v.ora_partenza_effettiva:
+            import urllib.parse
+            err_msg = urllib.parse.quote("Il viaggio è già stato avviato.")
+            return RedirectResponse(url=f"/autopark?error={err_msg}", status_code=303)
+        
+        now_str = datetime.datetime.now().strftime("%H:%M")
+        conn.execute(text("""
+            UPDATE viaggi_automezzi SET ora_partenza_effettiva = :ora WHERE viaggio_id = :id
+        """), {"ora": now_str, "id": id})
+    
+    return RedirectResponse(url="/autopark?msg=started", status_code=303)
+
 @router.post("/autopark/completa/{id}")
 def completa_prenotazione(
     id: int,
@@ -1140,7 +1179,7 @@ def completa_prenotazione(
     with engine.begin() as conn:
         # Fetch the voyage, verifying it belongs to the user
         v = conn.execute(text("""
-            SELECT automezzo_id, km_iniziali, note, data_viaggio, ora_partenza
+            SELECT automezzo_id, km_iniziali, note, data_viaggio, ora_partenza, ora_partenza_effettiva
             FROM viaggi_automezzi 
             WHERE viaggio_id = :id AND user_id = :uid AND ora_arrivo IS NULL
         """), {"id": id, "uid": uid}).first()
@@ -1148,6 +1187,10 @@ def completa_prenotazione(
         if not v:
             import urllib.parse
             return RedirectResponse(url=f"/autopark?error={urllib.parse.quote('Prenotazione non trovata o già completata.')}", status_code=303)
+        
+        if not v.ora_partenza_effettiva:
+            import urllib.parse
+            return RedirectResponse(url=f"/autopark?error={urllib.parse.quote('Devi prima avviare il viaggio con il pulsante Parti.')}", status_code=303)
             
         import datetime
         try:

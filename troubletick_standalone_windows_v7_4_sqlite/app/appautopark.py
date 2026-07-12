@@ -81,9 +81,13 @@ def home(r: Request, msg: str = None, error: str = None):
                 bdt = datetime.datetime.strptime(
                     f"{p['data_viaggio']} {p['ora_partenza']}", "%Y-%m-%d %H:%M"
                 )
-                d["can_complete"] = now >= bdt
+                d["can_start"] = (not p.get("ora_partenza_effettiva")) and now >= bdt
+                d["can_complete"] = bool(p.get("ora_partenza_effettiva"))
+                d["is_in_corso"] = bool(p.get("ora_partenza_effettiva"))
             except Exception:
-                d["can_complete"] = True
+                d["can_start"] = not p.get("ora_partenza_effettiva")
+                d["can_complete"] = bool(p.get("ora_partenza_effettiva"))
+                d["is_in_corso"] = bool(p.get("ora_partenza_effettiva"))
             attive_list.append(d)
 
         # User's completed bookings
@@ -178,6 +182,34 @@ def prenota(
 
     return _redirect_ok("booked")
 
+# ── PARTI ────────────────────────────────────────────────────────────────────────
+
+@app.post("/parti/{id}")
+def parti(id: int, r: Request):
+    user = r.session.get("user")
+    if not user:
+        return RedirectResponse(url="/login", status_code=303)
+    uid = user.get("id")
+
+    with engine.begin() as conn:
+        v = conn.execute(text("""
+            SELECT viaggio_id, ora_partenza_effettiva
+            FROM viaggi_automezzi
+            WHERE viaggio_id = :id AND user_id = :uid AND ora_arrivo IS NULL
+        """), {"id": id, "uid": uid}).first()
+
+        if not v:
+            return _redirect_err("Prenotazione non trovata.")
+        if v.ora_partenza_effettiva:
+            return _redirect_err("Il viaggio è già stato avviato.")
+
+        now_str = datetime.datetime.now().strftime("%H:%M")
+        conn.execute(text("""
+            UPDATE viaggi_automezzi SET ora_partenza_effettiva = :ora WHERE viaggio_id = :id
+        """), {"ora": now_str, "id": id})
+
+    return _redirect_ok("started")
+
 # ── COMPLETA ──────────────────────────────────────────────────────────────
 
 @app.post("/completa/{id}")
@@ -195,13 +227,16 @@ def completa(
 
     with engine.begin() as conn:
         v = conn.execute(text("""
-            SELECT automezzo_id, km_iniziali, note, data_viaggio, ora_partenza
+            SELECT automezzo_id, km_iniziali, note, data_viaggio, ora_partenza, ora_partenza_effettiva
             FROM viaggi_automezzi
             WHERE viaggio_id = :id AND user_id = :uid AND ora_arrivo IS NULL
         """), {"id": id, "uid": uid}).first()
 
         if not v:
             return _redirect_err("Prenotazione non trovata o già completata.")
+
+        if not v.ora_partenza_effettiva:
+            return _redirect_err("Devi prima avviare il viaggio con il pulsante Parti.")
 
         try:
             bdt = datetime.datetime.strptime(f"{v.data_viaggio} {v.ora_partenza}", "%Y-%m-%d %H:%M")

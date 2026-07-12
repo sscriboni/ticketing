@@ -207,6 +207,11 @@
         <i class="bi bi-exclamation-triangle-fill me-2"></i><strong>Prenotazione annullata.</strong> Il veicolo è tornato disponibile.
         <button type="button" class="btn-close btn-close-white" data-bs-dismiss="alert"></button>
     </div>
+    {% elif msg == 'started' %}
+    <div class="alert alert-glass alert-glass-success alert-dismissible fade show" role="alert">
+        <i class="bi bi-play-circle-fill me-2"></i><strong>Viaggio avviato!</strong> L'ora di partenza effettiva è stata registrata. Buon viaggio!
+        <button type="button" class="btn-close btn-close-white" data-bs-dismiss="alert"></button>
+    </div>
     {% endif %}
 
     {% if error %}
@@ -323,13 +328,22 @@
                                     <div class="vehicle-name">{{ p.marca_nome }} {{ p.modello }}</div>
                                     <div class="targa"><i class="bi bi-tag-fill me-1"></i>{{ p.targa }}</div>
                                 </div>
-                                <span class="badge badge-active rounded-pill px-3 py-1">
-                                    <i class="bi bi-play-fill me-1"></i>Attiva
+                                {% if p.is_in_corso %}
+                                <span class="badge rounded-pill px-3 py-1" style="background:rgba(245,158,11,.15);color:#fbbf24;font-weight:600;">
+                                    <i class="bi bi-play-fill me-1"></i>In Corso
                                 </span>
+                                {% else %}
+                                <span class="badge badge-active rounded-pill px-3 py-1">
+                                    <i class="bi bi-bookmark-fill me-1"></i>Prenotata
+                                </span>
+                                {% endif %}
                             </div>
 
                             <div class="detail-row"><i class="bi bi-calendar-event"></i> {{ p.data_viaggio }}</div>
-                            <div class="detail-row"><i class="bi bi-clock"></i> {{ p.ora_partenza }}{% if p.ora_riconsegna_prevista %} – {{ p.ora_riconsegna_prevista }}{% endif %}</div>
+                            <div class="detail-row"><i class="bi bi-clock"></i> Previsto: {{ p.ora_partenza }}{% if p.ora_riconsegna_prevista %} – {{ p.ora_riconsegna_prevista }}{% endif %}</div>
+                            {% if p.ora_partenza_effettiva %}
+                            <div class="detail-row"><i class="bi bi-play-circle"></i> Partenza effettiva: {{ p.ora_partenza_effettiva }}</div>
+                            {% endif %}
                             <div class="detail-row"><i class="bi bi-geo-alt"></i> {{ p.sede_partenza_nome }}</div>
                             <div class="detail-row"><i class="bi bi-speedometer2"></i> {{ p.km_iniziali }} km</div>
                             {% if p.email_conducente %}
@@ -340,6 +354,14 @@
                             {% endif %}
 
                             <div class="d-flex gap-2 mt-3">
+                                {% if p.can_start %}
+                                <form action="/parti/{{ p.viaggio_id }}" method="POST" class="flex-fill"
+                                      onsubmit="return confirm('Confermi la partenza effettiva?');">
+                                    <button type="submit" class="btn btn-sm w-100 rounded-3 fw-bold" style="border:1px solid rgba(99,102,241,.4);color:#818cf8;">
+                                        <i class="bi bi-play-fill me-1"></i> Parti
+                                    </button>
+                                </form>
+                                {% endif %}
                                 {% if p.can_complete %}
                                 <button type="button" class="btn btn-sm btn-outline-glow flex-fill"
                                         data-bs-toggle="collapse" data-bs-target="#cf-{{ p.viaggio_id }}">
