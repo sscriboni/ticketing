@@ -17,9 +17,9 @@
         <h2>Gestione Operatori</h2>
     </div>
 
-    <div class="row gap-4">
+    <div class="row g-4">
         <!-- LISTA OPERATORI -->
-        <div class="col-12 col-lg-8">
+        <div class="col-12 col-lg-9">
             <div class="bg-white p-4 rounded shadow-sm">
                 <h4 class="mb-3">Operatori Attuali</h4>
                 {% if operatori %}
@@ -86,17 +86,19 @@
                                     {% endif %}
                                 </td>
                                 <td>
-                                    <a href="/admin/operatore/{{ op.user_id }}/modifica" class="btn btn-sm btn-warning">Modifica</a>
-                                    <form method="post" action="/admin/operatore/{{ op.user_id }}/toggle" class="d-inline">
-                                        <button type="submit" class="btn btn-sm {% if op.attivo %}btn-outline-danger{% else %}btn-outline-success{% endif %}">
-                                            {% if op.attivo %}Disabilita{% else %}Abilita{% endif %}
-                                        </button>
-                                    </form>
-                                    {% if not op.attivo %}
-                                    <form method="post" action="/admin/operatore/{{ op.user_id }}/delete" class="d-inline" onsubmit="return confirm('Eliminare questo operatore e le relative assegnazioni?')">
-                                        <button type="submit" class="btn btn-sm btn-danger">Elimina</button>
-                                    </form>
-                                    {% endif %}
+                                    <div class="d-flex gap-1 flex-wrap flex-xl-nowrap">
+                                        <a href="/admin/operatore/{{ op.user_id }}/modifica" class="btn btn-sm btn-warning">Modifica</a>
+                                        <form method="post" action="/admin/operatore/{{ op.user_id }}/toggle" class="d-inline">
+                                            <button type="submit" class="btn btn-sm {% if op.attivo %}btn-outline-danger{% else %}btn-outline-success{% endif %}">
+                                                {% if op.attivo %}Disabilita{% else %}Abilita{% endif %}
+                                            </button>
+                                        </form>
+                                        {% if not op.attivo %}
+                                        <form method="post" action="/admin/operatore/{{ op.user_id }}/delete" class="d-inline" onsubmit="return confirm('Eliminare questo operatore e le relative assegnazioni?')">
+                                            <button type="submit" class="btn btn-sm btn-danger">Elimina</button>
+                                        </form>
+                                        {% endif %}
+                                    </div>
                                 </td>
                             </tr>
                         {% endfor %}
@@ -110,7 +112,7 @@
         </div>
 
         <!-- FORM NUOVO OPERATORE -->
-        <div class="col-12 col-lg-4">
+        <div class="col-12 col-lg-3">
             <div class="bg-white p-4 rounded shadow-sm">
                 <h4 class="mb-3">Nuovo Operatore</h4>
                 <form method="post" action="/admin/operatore/nuovo">
