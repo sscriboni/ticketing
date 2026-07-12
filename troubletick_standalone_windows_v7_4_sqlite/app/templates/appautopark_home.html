@@ -1,0 +1,562 @@
+<!doctype html>
+<html lang="it">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Autopark — {{ cfg.app_title }}</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700&family=Inter:wght@300;400;500;600&display=swap" rel="stylesheet">
+
+    <style>
+        :root {
+            --primary: #4f46e5;
+            --primary-light: #6366f1;
+            --bg-body: #0f172a;
+            --bg-card: rgba(30, 41, 59, 0.7);
+            --bg-card-solid: #1e293b;
+            --border-subtle: rgba(255,255,255,0.08);
+            --text-main: #f1f5f9;
+            --text-muted: #94a3b8;
+            --font-outfit: 'Outfit', sans-serif;
+            --font-inter: 'Inter', sans-serif;
+            --success: #10b981;
+            --danger: #ef4444;
+            --warning: #f59e0b;
+        }
+
+        body {
+            font-family: var(--font-inter);
+            background: linear-gradient(160deg, #0f172a 0%, #1e1b4b 50%, #312e81 100%);
+            color: var(--text-main);
+            min-height: 100vh;
+        }
+
+        /* ── topbar ── */
+        .topbar {
+            background: rgba(15,23,42,.85);
+            backdrop-filter: blur(14px);
+            border-bottom: 1px solid var(--border-subtle);
+            padding: 14px 0;
+            position: sticky; top: 0; z-index: 100;
+        }
+        .topbar .brand { font-family: var(--font-outfit); font-weight: 700; font-size: 1.25rem; color: #fff; text-decoration: none; }
+        .topbar .brand i { color: var(--primary-light); margin-right: 8px; }
+        .topbar .user-pill {
+            display: inline-flex; align-items: center; gap: 8px;
+            background: rgba(99,102,241,.12); border: 1px solid rgba(99,102,241,.25);
+            border-radius: 50px; padding: 6px 16px; font-size: .85rem; color: #c7d2fe;
+        }
+        .topbar .btn-logout { color: #94a3b8; font-size: .85rem; text-decoration: none; transition: color .2s; }
+        .topbar .btn-logout:hover { color: var(--danger); }
+
+        /* ── glass card ── */
+        .glass-card {
+            background: var(--bg-card);
+            backdrop-filter: blur(12px);
+            border: 1px solid var(--border-subtle);
+            border-radius: 20px;
+            padding: 1.75rem;
+        }
+        .section-title {
+            font-family: var(--font-outfit); font-weight: 700; font-size: 1.15rem;
+            color: #e2e8f0; display: flex; align-items: center; gap: .5rem;
+            border-bottom: 1px solid rgba(255,255,255,.06); padding-bottom: .75rem; margin-bottom: 1.25rem;
+        }
+        .section-title i { color: var(--primary-light); font-size: 1.3rem; }
+
+        /* ── form controls (dark) ── */
+        .form-label { font-size: .85rem; font-weight: 500; color: var(--text-muted); margin-bottom: 5px; }
+        .form-control-dark, .form-select-dark {
+            background: rgba(15,23,42,.5); border: 1px solid rgba(255,255,255,.1);
+            color: #fff; border-radius: 12px; padding: 10px 14px; font-size: .9rem;
+            transition: border-color .3s, box-shadow .3s;
+        }
+        .form-control-dark:focus, .form-select-dark:focus {
+            background: rgba(15,23,42,.8); border-color: var(--primary-light);
+            box-shadow: 0 0 0 3px rgba(99,102,241,.25); color: #fff;
+        }
+        .form-control-dark::placeholder { color: #475569; }
+        .form-select-dark option { background: #1e293b; color: #e2e8f0; }
+        .form-select-dark option:disabled { color: #64748b; }
+
+        /* ── btn primary ── */
+        .btn-glow {
+            background: linear-gradient(135deg, var(--primary-light) 0%, var(--primary) 100%);
+            color: #fff; border: none; border-radius: 12px; padding: 11px 20px;
+            font-weight: 600; font-family: var(--font-outfit);
+            box-shadow: 0 4px 15px rgba(99,102,241,.3);
+            transition: all .25s;
+        }
+        .btn-glow:hover { transform: translateY(-2px); box-shadow: 0 6px 22px rgba(99,102,241,.45); color: #fff; }
+
+        /* ── booking cards ── */
+        .booking-card {
+            background: rgba(15,23,42,.45);
+            border: 1px solid var(--border-subtle);
+            border-radius: 16px; padding: 1.25rem;
+            transition: transform .2s, box-shadow .2s;
+        }
+        .booking-card:hover { transform: translateY(-2px); box-shadow: 0 8px 24px rgba(0,0,0,.25); }
+        .booking-card .vehicle-name { font-family: var(--font-outfit); font-weight: 600; font-size: 1.05rem; color: #fff; }
+        .booking-card .targa { color: var(--primary-light); font-weight: 600; font-size: .85rem; }
+        .booking-card .detail-row { color: var(--text-muted); font-size: .85rem; margin-bottom: .25rem; }
+        .booking-card .detail-row i { width: 20px; text-align: center; margin-right: 6px; color: #64748b; }
+        .badge-active { background: rgba(16,185,129,.15); color: #34d399; font-weight: 600; }
+        .badge-completed { background: rgba(99,102,241,.15); color: #818cf8; font-weight: 600; }
+
+        /* ── buttons ── */
+        .btn-outline-glow {
+            border: 1px solid rgba(16,185,129,.4); color: #34d399;
+            border-radius: 10px; font-weight: 600; font-size: .8rem;
+            transition: all .2s;
+        }
+        .btn-outline-glow:hover { background: rgba(16,185,129,.15); color: #34d399; border-color: #34d399; }
+        .btn-outline-danger-glow {
+            border: 1px solid rgba(239,68,68,.35); color: #f87171;
+            border-radius: 10px; font-weight: 600; font-size: .8rem;
+            transition: all .2s;
+        }
+        .btn-outline-danger-glow:hover { background: rgba(239,68,68,.15); color: #f87171; border-color: #f87171; }
+
+        /* ── history table ── */
+        .table-dark-custom { --bs-table-bg: transparent; --bs-table-color: #cbd5e1; }
+        .table-dark-custom th {
+            color: #64748b; font-weight: 600; text-transform: uppercase;
+            font-size: .72rem; letter-spacing: .06em;
+            border-bottom: 1px solid rgba(255,255,255,.06);
+            padding: .85rem .75rem;
+        }
+        .table-dark-custom td {
+            padding: .85rem .75rem; vertical-align: middle;
+            border-bottom: 1px solid rgba(255,255,255,.04);
+            font-size: .85rem;
+        }
+
+        /* ── vehicle info ── */
+        .vehicle-info-box {
+            background: rgba(99,102,241,.08);
+            border: 1px solid rgba(99,102,241,.2);
+            border-radius: 10px; padding: 10px 14px;
+            font-size: .83rem; color: #a5b4fc;
+        }
+
+        /* ── complete form collapse ── */
+        .complete-form-inner {
+            background: rgba(16,185,129,.06);
+            border: 1px solid rgba(16,185,129,.15);
+            border-radius: 12px; padding: 1rem;
+        }
+
+        /* ── alert overrides ── */
+        .alert-glass {
+            border-radius: 14px; border: none;
+            backdrop-filter: blur(8px);
+            font-size: .9rem; padding: .85rem 1.25rem;
+        }
+        .alert-glass-success { background: rgba(16,185,129,.12); color: #6ee7b7; }
+        .alert-glass-danger  { background: rgba(239,68,68,.12); color: #fca5a5; }
+        .alert-glass-warning { background: rgba(245,158,11,.12); color: #fcd34d; }
+
+        /* ── empty state ── */
+        .empty-state {
+            text-align: center; padding: 2.5rem 1rem;
+            color: #475569;
+        }
+        .empty-state i { font-size: 2.5rem; margin-bottom: .75rem; display: block; opacity: .5; }
+
+        /* ── responsive ── */
+        @media (max-width: 767.98px) {
+            .glass-card { padding: 1.25rem; border-radius: 16px; }
+            .topbar .user-pill span.d-none-sm { display: none; }
+        }
+    </style>
+</head>
+<body>
+
+<!-- ═══ TOP BAR ═══ -->
+<nav class="topbar">
+    <div class="container d-flex justify-content-between align-items-center">
+        <a class="brand" href="/"><i class="bi bi-car-front-fill"></i>Autopark</a>
+        <div class="d-flex align-items-center gap-3">
+            <span class="user-pill">
+                <i class="bi bi-person-circle"></i>
+                <span>{{ user.nome }} {{ user.cognome }}</span>
+            </span>
+            <a href="/logout" class="btn-logout"><i class="bi bi-box-arrow-right"></i> Esci</a>
+        </div>
+    </div>
+</nav>
+
+<!-- ═══ ALERTS ═══ -->
+<div class="container mt-3">
+    {% if msg == 'booked' %}
+    <div class="alert alert-glass alert-glass-success alert-dismissible fade show" role="alert">
+        <i class="bi bi-check-circle-fill me-2"></i><strong>Prenotazione confermata!</strong> Il veicolo è stato riservato. Buon viaggio!
+        <button type="button" class="btn-close btn-close-white" data-bs-dismiss="alert"></button>
+    </div>
+    {% elif msg == 'completed' %}
+    <div class="alert alert-glass alert-glass-success alert-dismissible fade show" role="alert">
+        <i class="bi bi-check-circle-fill me-2"></i><strong>Viaggio completato!</strong> I dati sono stati registrati correttamente.
+        <button type="button" class="btn-close btn-close-white" data-bs-dismiss="alert"></button>
+    </div>
+    {% elif msg == 'deleted' %}
+    <div class="alert alert-glass alert-glass-warning alert-dismissible fade show" role="alert">
+        <i class="bi bi-exclamation-triangle-fill me-2"></i><strong>Prenotazione annullata.</strong> Il veicolo è tornato disponibile.
+        <button type="button" class="btn-close btn-close-white" data-bs-dismiss="alert"></button>
+    </div>
+    {% endif %}
+
+    {% if error %}
+    <div class="alert alert-glass alert-glass-danger alert-dismissible fade show" role="alert">
+        <i class="bi bi-x-circle-fill me-2"></i><strong>Errore:</strong> {{ error }}
+        <button type="button" class="btn-close btn-close-white" data-bs-dismiss="alert"></button>
+    </div>
+    {% endif %}
+</div>
+
+<!-- ═══ MAIN CONTENT ═══ -->
+<div class="container py-4">
+    <div class="row g-4">
+
+        <!-- ── LEFT: BOOKING FORM ── -->
+        <div class="col-lg-4">
+            <div class="glass-card h-100">
+                <h4 class="section-title"><i class="bi bi-calendar-plus"></i> Prenota Automezzo</h4>
+
+                {% if veicoli|length == 0 %}
+                <div class="empty-state">
+                    <i class="bi bi-car-front"></i>
+                    <p>Nessun veicolo registrato nel sistema.</p>
+                </div>
+                {% else %}
+                <form action="/prenota" method="POST" id="bookingForm">
+                    <!-- 1. Sede -->
+                    <div class="mb-3">
+                        <label for="sede_partenza_id" class="form-label">Sede di Partenza</label>
+                        <select class="form-select form-select-dark" id="sede_partenza_id" name="sede_partenza_id" required>
+                            <option value="" disabled selected>Seleziona sede…</option>
+                            {% for s in sedi %}
+                            <option value="{{ s.sede_id }}">{{ s.nome }}</option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                    <!-- 2. Data -->
+                    <div class="mb-3">
+                        <label for="data_viaggio" class="form-label">Data Viaggio</label>
+                        <input type="date" class="form-control form-control-dark" id="data_viaggio" name="data_viaggio" required>
+                    </div>
+                    <!-- 3. Ora Partenza -->
+                    <div class="mb-3">
+                        <label for="ora_partenza" class="form-label">Ora Partenza</label>
+                        <select class="form-select form-select-dark" id="ora_partenza" name="ora_partenza" required>
+                            <option value="" disabled selected>Seleziona ora…</option>
+                            {% for h in range(0, 24) %}
+                            {% set hr = "%02d:00" | format(h) %}
+                            <option value="{{ hr }}">{{ hr }}</option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                    <!-- 4. Ora Riconsegna -->
+                    <div class="mb-3">
+                        <label for="ora_riconsegna_prevista" class="form-label">Ora Riconsegna</label>
+                        <select class="form-select form-select-dark" id="ora_riconsegna_prevista" name="ora_riconsegna_prevista" required>
+                            <option value="" disabled selected>Seleziona ora…</option>
+                            {% for h in range(0, 24) %}
+                            {% set hr = "%02d:00" | format(h) %}
+                            <option value="{{ hr }}">{{ hr }}</option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                    <!-- 5. Veicolo -->
+                    <div class="mb-3">
+                        <label for="automezzo_id" class="form-label">Veicolo</label>
+                        <select class="form-select form-select-dark" id="automezzo_id" name="automezzo_id" required disabled>
+                            <option value="" disabled selected>Seleziona prima la sede…</option>
+                        </select>
+                        <div class="vehicle-info-box mt-2 d-none" id="vehicleInfoBox">
+                            <i class="bi bi-speedometer2"></i> Odometro: <strong id="vehicleKmText">--</strong> km<br>
+                            <i class="bi bi-geo-alt-fill"></i> Posizione: <strong id="vehicleSedeText">--</strong>
+                        </div>
+                    </div>
+                    <!-- 6. Note -->
+                    <div class="mb-3">
+                        <label for="note" class="form-label">Note / Destinazione</label>
+                        <textarea class="form-control form-control-dark" id="note" name="note" rows="2" placeholder="Es. Visita clienti a Milano"></textarea>
+                    </div>
+
+                    <button type="submit" class="btn btn-glow w-100 mt-1">
+                        <i class="bi bi-check-lg me-1"></i> Conferma Prenotazione
+                    </button>
+                </form>
+                {% endif %}
+            </div>
+        </div>
+
+        <!-- ── RIGHT: BOOKINGS ── -->
+        <div class="col-lg-8">
+
+            <!-- Active bookings -->
+            <div class="glass-card mb-4">
+                <h4 class="section-title"><i class="bi bi-alarm"></i> Le mie Prenotazioni Attive</h4>
+
+                {% if prenotazioni_attive|length == 0 %}
+                <div class="empty-state">
+                    <i class="bi bi-calendar-x"></i>
+                    <p>Nessuna prenotazione attiva al momento.</p>
+                </div>
+                {% else %}
+                <div class="row row-cols-1 row-cols-md-2 g-3">
+                    {% for p in prenotazioni_attive %}
+                    <div class="col">
+                        <div class="booking-card">
+                            <div class="d-flex justify-content-between align-items-start mb-2">
+                                <div>
+                                    <div class="vehicle-name">{{ p.marca_nome }} {{ p.modello }}</div>
+                                    <div class="targa"><i class="bi bi-tag-fill me-1"></i>{{ p.targa }}</div>
+                                </div>
+                                <span class="badge badge-active rounded-pill px-3 py-1">
+                                    <i class="bi bi-play-fill me-1"></i>Attiva
+                                </span>
+                            </div>
+
+                            <div class="detail-row"><i class="bi bi-calendar-event"></i> {{ p.data_viaggio }}</div>
+                            <div class="detail-row"><i class="bi bi-clock"></i> {{ p.ora_partenza }}{% if p.ora_riconsegna_prevista %} – {{ p.ora_riconsegna_prevista }}{% endif %}</div>
+                            <div class="detail-row"><i class="bi bi-geo-alt"></i> {{ p.sede_partenza_nome }}</div>
+                            <div class="detail-row"><i class="bi bi-speedometer2"></i> {{ p.km_iniziali }} km</div>
+                            {% if p.note %}
+                            <div class="detail-row"><i class="bi bi-pencil-square"></i> {{ p.note }}</div>
+                            {% endif %}
+
+                            <div class="d-flex gap-2 mt-3">
+                                {% if p.can_complete %}
+                                <button type="button" class="btn btn-sm btn-outline-glow flex-fill"
+                                        data-bs-toggle="collapse" data-bs-target="#cf-{{ p.viaggio_id }}">
+                                    <i class="bi bi-flag-fill me-1"></i> Termina
+                                </button>
+                                {% endif %}
+                                <form action="/elimina/{{ p.viaggio_id }}" method="POST" class="flex-fill"
+                                      onsubmit="return confirm('Annullare questa prenotazione?');">
+                                    <button type="submit" class="btn btn-sm btn-outline-danger-glow w-100">
+                                        <i class="bi bi-trash-fill me-1"></i> Annulla
+                                    </button>
+                                </form>
+                            </div>
+
+                            {% if p.can_complete %}
+                            <div class="collapse mt-3" id="cf-{{ p.viaggio_id }}">
+                                <div class="complete-form-inner">
+                                    <h6 class="fw-bold mb-3" style="color:#34d399; font-size:.9rem;">
+                                        <i class="bi bi-check-circle-fill me-1"></i> Dettagli Rientro
+                                    </h6>
+                                    <form action="/completa/{{ p.viaggio_id }}" method="POST">
+                                        <div class="mb-2">
+                                            <label class="form-label small mb-1">Ora Arrivo</label>
+                                            <input type="time" name="ora_arrivo" class="form-control form-control-dark form-control-sm" required>
+                                        </div>
+                                        <div class="mb-2">
+                                            <label class="form-label small mb-1">KM Finali (min. {{ p.km_iniziali }})</label>
+                                            <input type="number" name="km_finali" min="{{ p.km_iniziali }}" class="form-control form-control-dark form-control-sm" required>
+                                        </div>
+                                        <div class="mb-2">
+                                            <label class="form-label small mb-1">Sede Rientro</label>
+                                            <select name="sede_arrivo_id" class="form-select form-select-dark form-select-sm" required>
+                                                <option value="" disabled selected>Seleziona sede…</option>
+                                                {% for s in sedi %}
+                                                <option value="{{ s.sede_id }}">{{ s.nome }}</option>
+                                                {% endfor %}
+                                            </select>
+                                        </div>
+                                        <div class="mb-3">
+                                            <label class="form-label small mb-1">Note Rientro</label>
+                                            <input type="text" name="note_finali" class="form-control form-control-dark form-control-sm" placeholder="Facoltative">
+                                        </div>
+                                        <button type="submit" class="btn btn-sm btn-glow w-100" style="background:linear-gradient(135deg,#10b981,#059669);">
+                                            Conferma Rientro
+                                        </button>
+                                    </form>
+                                </div>
+                            </div>
+                            {% endif %}
+                        </div>
+                    </div>
+                    {% endfor %}
+                </div>
+                {% endif %}
+            </div>
+
+            <!-- History -->
+            <div class="glass-card">
+                <h4 class="section-title"><i class="bi bi-clock-history"></i> Storico Viaggi</h4>
+
+                {% if prenotazioni_passate|length == 0 %}
+                <div class="empty-state">
+                    <i class="bi bi-journal-text"></i>
+                    <p>Nessun viaggio completato nello storico.</p>
+                </div>
+                {% else %}
+                <div class="table-responsive" style="border-radius:12px;">
+                    <table class="table table-dark-custom mb-0">
+                        <thead>
+                            <tr>
+                                <th>Veicolo</th>
+                                <th>Data</th>
+                                <th>Percorso</th>
+                                <th>KM</th>
+                                <th>Note</th>
+                                <th></th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for p in prenotazioni_passate %}
+                            <tr>
+                                <td>
+                                    <span class="fw-bold text-white">{{ p.marca_nome }} {{ p.modello }}</span><br>
+                                    <span class="small" style="color:#818cf8;">{{ p.targa }}</span>
+                                </td>
+                                <td>
+                                    {{ p.data_viaggio }}<br>
+                                    <span class="small text-muted">{{ p.ora_partenza }} – {{ p.ora_arrivo }}</span>
+                                </td>
+                                <td>
+                                    {{ p.sede_partenza_nome }}
+                                    <i class="bi bi-arrow-right mx-1" style="color:#475569;"></i>
+                                    {{ p.sede_arrivo_nome }}
+                                </td>
+                                <td>
+                                    {% if p.km_finali is not none and p.km_iniziali is not none %}
+                                    <span class="fw-bold" style="color:#34d399;">{{ p.km_finali - p.km_iniziali }} km</span><br>
+                                    <span class="small text-muted">({{ p.km_iniziali }} ➔ {{ p.km_finali }})</span>
+                                    {% else %}--{% endif %}
+                                </td>
+                                <td class="text-wrap small text-muted" style="max-width:140px;">{{ p.note or '–' }}</td>
+                                <td>
+                                    <form action="/elimina/{{ p.viaggio_id }}" method="POST"
+                                          onsubmit="return confirm('Eliminare questo record?');">
+                                        <button type="submit" class="btn btn-sm btn-link p-0" style="color:#f87171;">
+                                            <i class="bi bi-trash fs-5"></i>
+                                        </button>
+                                    </form>
+                                </td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+                {% endif %}
+            </div>
+
+        </div>
+    </div>
+</div>
+
+<!-- Bootstrap JS -->
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
+
+<script>
+document.addEventListener("DOMContentLoaded", function() {
+    /* ── date default = today ── */
+    const dateInput = document.getElementById("data_viaggio");
+    if (dateInput) {
+        const today = new Date().toISOString().split("T")[0];
+        dateInput.min = today;
+        dateInput.value = today;
+    }
+
+    /* ── vehicle filtering by sede ── */
+    const allVehicles = {{ veicoli | tojson }};
+    const sedeSelect  = document.getElementById("sede_partenza_id");
+    const vSelect     = document.getElementById("automezzo_id");
+    const infoBox     = document.getElementById("vehicleInfoBox");
+    const kmText      = document.getElementById("vehicleKmText");
+    const sedeText    = document.getElementById("vehicleSedeText");
+
+    if (sedeSelect && vSelect) {
+        sedeSelect.addEventListener("change", function() {
+            const sid = parseInt(sedeSelect.value);
+            const filtered = allVehicles
+                .filter(v => v.sede_attuale_id === sid)
+                .sort((a, b) => {
+                    const aa = (a.stato === "Disponibile" && a.escluso_prenotazione === 0) ? 1 : 0;
+                    const bb = (b.stato === "Disponibile" && b.escluso_prenotazione === 0) ? 1 : 0;
+                    return bb - aa;
+                });
+
+            vSelect.innerHTML = "";
+            infoBox.classList.add("d-none");
+
+            if (filtered.length === 0) {
+                vSelect.disabled = true;
+                const o = document.createElement("option");
+                o.value = ""; o.disabled = true; o.selected = true;
+                o.textContent = "Nessun veicolo in questa sede.";
+                vSelect.appendChild(o);
+            } else {
+                vSelect.disabled = false;
+                const ph = document.createElement("option");
+                ph.value = ""; ph.disabled = true; ph.selected = true;
+                ph.textContent = "Scegli un veicolo…";
+                vSelect.appendChild(ph);
+
+                filtered.forEach(v => {
+                    const o = document.createElement("option");
+                    o.value = v.automezzo_id;
+                    o.setAttribute("data-km", v.km_attuali);
+                    o.setAttribute("data-sede", v.sede_attuale_nome);
+                    const avail = (v.stato === "Disponibile" && v.escluso_prenotazione === 0);
+                    if (avail) {
+                        o.textContent = `${v.marca_nome} ${v.modello} (${v.targa}) – Disponibile`;
+                    } else {
+                        o.disabled = true;
+                        const reason = v.escluso_prenotazione === 1 ? "Escluso" : v.stato;
+                        o.textContent = `${v.marca_nome} ${v.modello} (${v.targa}) – ${reason}`;
+                    }
+                    vSelect.appendChild(o);
+                });
+            }
+        });
+
+        vSelect.addEventListener("change", function() {
+            const sel = vSelect.options[vSelect.selectedIndex];
+            if (sel && sel.value) {
+                kmText.textContent = sel.getAttribute("data-km");
+                sedeText.textContent = sel.getAttribute("data-sede") || "N/D";
+                infoBox.classList.remove("d-none");
+            } else {
+                infoBox.classList.add("d-none");
+            }
+        });
+    }
+
+    /* ── return-hour validation ── */
+    const oraP = document.getElementById("ora_partenza");
+    const oraR = document.getElementById("ora_riconsegna_prevista");
+
+    if (oraP && oraR) {
+        oraP.addEventListener("change", function() {
+            if (!oraP.value) return;
+            const ph = parseInt(oraP.value.split(":")[0]);
+            for (let i = 0; i < oraR.options.length; i++) {
+                const opt = oraR.options[i];
+                if (opt.value === "") continue;
+                opt.disabled = parseInt(opt.value.split(":")[0]) <= ph;
+            }
+            if (oraR.value && parseInt(oraR.value.split(":")[0]) <= ph) oraR.value = "";
+        });
+    }
+
+    const form = document.getElementById("bookingForm");
+    if (form) {
+        form.addEventListener("submit", function(e) {
+            if (oraP && oraR && oraP.value && oraR.value && oraR.value <= oraP.value) {
+                e.preventDefault();
+                alert("L'ora di riconsegna deve essere successiva all'ora di partenza.");
+            }
+        });
+    }
+});
+</script>
+</body>
+</html>
