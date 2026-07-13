@@ -212,6 +212,16 @@
         <i class="bi bi-play-circle-fill me-2"></i><strong>Viaggio avviato!</strong> L'ora di partenza effettiva è stata registrata. Buon viaggio!
         <button type="button" class="btn-close btn-close-white" data-bs-dismiss="alert"></button>
     </div>
+    {% elif msg == 'paused' %}
+    <div class="alert alert-glass alert-glass-warning alert-dismissible fade show" role="alert">
+        <i class="bi bi-pause-circle-fill me-2"></i><strong>Viaggio in pausa!</strong> Il veicolo è stato registrato come fermo.
+        <button type="button" class="btn-close btn-close-white" data-bs-dismiss="alert"></button>
+    </div>
+    {% elif msg == 'resumed' %}
+    <div class="alert alert-glass alert-glass-success alert-dismissible fade show" role="alert">
+        <i class="bi bi-play-circle-fill me-2"></i><strong>Viaggio ripreso!</strong> Il veicolo è di nuovo in movimento.
+        <button type="button" class="btn-close btn-close-white" data-bs-dismiss="alert"></button>
+    </div>
     {% endif %}
 
     {% if error %}
@@ -224,12 +234,25 @@
 
 <!-- ═══ MAIN CONTENT ═══ -->
 <div class="container py-4">
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <h3 class="fw-bold mb-0 text-white" style="font-family: var(--font-outfit);">Autopark Webapp</h3>
+        <form action="/registra-viaggio" method="POST" class="d-inline">
+            <button type="submit" class="btn btn-glow" style="background: linear-gradient(135deg, #10b981 0%, #059669 100%); box-shadow: 0 4px 15px rgba(16,185,129,.3);">
+                <i class="bi bi-play-circle-fill me-1"></i> Registra Viaggio
+            </button>
+        </form>
+    </div>
+
     <div class="row g-4">
 
         <!-- ── LEFT: BOOKING FORM ── -->
         <div class="col-lg-4">
             <div class="glass-card h-100">
+                {% if instant %}
+                <h4 class="section-title text-success"><i class="bi bi-play-circle-fill"></i> Registra Viaggio Istantaneo</h4>
+                {% else %}
                 <h4 class="section-title"><i class="bi bi-calendar-plus"></i> Prenota Automezzo</h4>
+                {% endif %}
 
                 {% if veicoli|length == 0 %}
                 <div class="empty-state">
@@ -237,7 +260,7 @@
                     <p>Nessun veicolo registrato nel sistema.</p>
                 </div>
                 {% else %}
-                <form action="/prenota" method="POST" id="bookingForm">
+                <form action="{% if instant %}/registra-viaggio-istantaneo{% else %}/prenota{% endif %}" method="POST" id="bookingForm">
                     <!-- 1. Sede -->
                     <div class="mb-3">
                         <label for="sede_partenza_id" class="form-label">Sede di Partenza</label>
@@ -248,6 +271,20 @@
                             {% endfor %}
                         </select>
                     </div>
+                    {% if instant %}
+                    <input type="hidden" name="data_viaggio" id="data_viaggio" value="{{ instant_date }}">
+                    <input type="hidden" name="ora_partenza" id="ora_partenza" value="{{ instant_hour }}">
+
+                    <div class="mb-3">
+                        <label class="form-label">Data Partenza</label>
+                        <div class="p-2 border border-secondary rounded text-muted fw-bold small bg-dark bg-opacity-25">{{ instant_date }}</div>
+                    </div>
+
+                    <div class="mb-3">
+                        <label class="form-label">Ora Partenza (Minuti a 0)</label>
+                        <div class="p-2 border border-secondary rounded text-muted fw-bold small bg-dark bg-opacity-25">{{ instant_hour }}</div>
+                    </div>
+                    {% else %}
                     <!-- 2. Data -->
                     <div class="mb-3">
                         <label for="data_viaggio" class="form-label">Data Viaggio</label>
@@ -264,6 +301,7 @@
                             {% endfor %}
                         </select>
                     </div>
+                    {% endif %}
                     <!-- 4. Ora Riconsegna -->
                     <div class="mb-3">
                         <label for="ora_riconsegna_prevista" class="form-label">Ora Riconsegna</label>
@@ -287,7 +325,7 @@
                         </div>
                     </div>
                     <!-- 6. Email Conducente -->
-                    {% if user.ruolo in ('admin', 'fleet_manager', 'global_fleet_manager') %}
+                    {% if not instant and user.ruolo in ('admin', 'fleet_manager', 'global_fleet_manager') %}
                     <div class="mb-3">
                         <label for="email_conducente" class="form-label">Email Conducente</label>
                         <input type="email" class="form-control form-control-dark" id="email_conducente" name="email_conducente" placeholder="Email del guidatore" value="{{ user.email or '' }}" required>
@@ -302,9 +340,20 @@
                         <textarea class="form-control form-control-dark" id="note" name="note" rows="2" placeholder="Es. Visita clienti a Milano"></textarea>
                     </div>
 
+                    {% if instant %}
+                    <button type="submit" class="btn btn-glow w-100 mt-1" style="background: linear-gradient(135deg, #10b981 0%, #059669 100%);">
+                        <i class="bi bi-play-circle-fill me-1"></i> Avvia Viaggio
+                    </button>
+                    <div class="text-center mt-2">
+                        <a href="/" class="btn btn-sm btn-link text-decoration-none text-muted small">
+                            <i class="bi bi-arrow-left"></i> Torna a prenotazione standard
+                        </a>
+                    </div>
+                    {% else %}
                     <button type="submit" class="btn btn-glow w-100 mt-1">
                         <i class="bi bi-check-lg me-1"></i> Conferma Prenotazione
                     </button>
+                    {% endif %}
                 </form>
                 {% endif %}
             </div>
@@ -333,19 +382,30 @@
                 <div class="row row-cols-1 row-cols-md-2 g-3">
                     {% for p in prenotazioni_attive %}
                     <div class="col">
-                        <div class="booking-card">
+                        <div class="booking-card {% if p.is_in_corso %}{% if p.in_pausa %}border-warning{% else %}border-success shadow{% endif %}{% endif %}" style="{% if p.is_in_corso %}{% if p.in_pausa %}border: 1px solid #f59e0b;{% else %}border: 1px solid #10b981;{% endif %}{% endif %}">
                             <div class="d-flex justify-content-between align-items-start mb-2">
                                 <div>
                                     <div class="vehicle-name">{{ p.marca_nome }} {{ p.modello }}</div>
                                     <div class="targa"><i class="bi bi-tag-fill me-1"></i>{{ p.targa }}</div>
                                 </div>
-                                <span class="badge badge-active rounded-pill px-3 py-1">
-                                    <i class="bi bi-bookmark-fill me-1"></i>Prenotata
-                                </span>
+                                {% if p.is_in_corso %}
+                                    {% if p.in_pausa %}
+                                        <span class="badge bg-warning text-dark px-3 py-1 rounded-pill"><i class="bi bi-pause-fill me-1"></i>In Pausa</span>
+                                    {% else %}
+                                        <span class="badge bg-success text-white px-3 py-1 rounded-pill animate-pulse"><i class="bi bi-play-fill me-1"></i>In Corso</span>
+                                    {% endif %}
+                                {% else %}
+                                    <span class="badge badge-active rounded-pill px-3 py-1">
+                                        <i class="bi bi-bookmark-fill me-1"></i>Prenotata
+                                    </span>
+                                {% endif %}
                             </div>
 
                             <div class="detail-row"><i class="bi bi-calendar-event"></i> {{ p.data_viaggio }}</div>
                             <div class="detail-row"><i class="bi bi-clock"></i> Previsto: {{ p.ora_partenza }}{% if p.ora_riconsegna_prevista %} – {{ p.ora_riconsegna_prevista }}{% endif %}</div>
+                            {% if p.ora_partenza_effettiva %}
+                                <div class="detail-row text-success"><i class="bi bi-play-fill"></i> Partenza: {{ p.ora_partenza_effettiva }}</div>
+                            {% endif %}
                             <div class="detail-row"><i class="bi bi-geo-alt"></i> {{ p.sede_partenza_nome }}</div>
                             <div class="detail-row"><i class="bi bi-person-fill"></i> Guidatore: {{ p.driver_nome }} {{ p.driver_cognome }}</div>
                             <div class="detail-row"><i class="bi bi-envelope"></i> {{ p.driver_email }}</div>
@@ -353,14 +413,62 @@
                             <div class="detail-row"><i class="bi bi-pencil-square"></i> {{ p.note }}</div>
                             {% endif %}
 
-                            <div class="d-flex gap-2 mt-3">
-                                <form action="/elimina/{{ p.viaggio_id }}" method="POST" class="w-100"
-                                      onsubmit="return confirm('Annullare questa prenotazione?');">
-                                    <button type="submit" class="btn btn-sm btn-outline-danger-glow w-100 py-2">
-                                        <i class="bi bi-trash-fill me-1"></i> Annulla Prenotazione
+                            {% if p.is_in_corso %}
+                                <div class="d-flex gap-2 mt-3">
+                                    <form action="/pausa/{{ p.viaggio_id }}" method="POST" class="w-100">
+                                        <button type="submit" class="btn btn-sm btn-outline-warning w-100 py-2 fw-bold">
+                                            {% if p.in_pausa %}
+                                                <i class="bi bi-play-fill me-1"></i> Riprendi
+                                            {% else %}
+                                                <i class="bi bi-pause-fill me-1"></i> Pausa
+                                            {% endif %}
+                                        </button>
+                                    </form>
+                                    <button type="button" class="btn btn-sm btn-success w-100 py-2 fw-bold" data-bs-toggle="collapse" data-bs-target="#cf-{{ p.viaggio_id }}">
+                                        <i class="bi bi-flag-fill me-1"></i> Termina
                                     </button>
-                                </form>
-                            </div>
+                                </div>
+                                <div class="collapse mt-3" id="cf-{{ p.viaggio_id }}">
+                                    <div class="p-3 border border-secondary rounded bg-dark bg-opacity-50">
+                                        <h6 class="fw-bold mb-2 text-success">Dettagli Rientro</h6>
+                                        <form action="/completa/{{ p.viaggio_id }}" method="POST">
+                                            <div class="mb-2">
+                                                <label class="form-label small mb-1 fw-bold text-white">KM Finali</label>
+                                                <input type="number" name="km_finali" class="form-control form-control-sm form-control-dark" placeholder="Odometro finale" required>
+                                            </div>
+                                            <div class="mb-2">
+                                                <label class="form-label small mb-1 fw-bold text-white">Sede Rientro</label>
+                                                <select name="sede_arrivo_id" class="form-select form-select-sm form-select-dark" required>
+                                                    {% for s in sedi %}
+                                                        <option value="{{ s.sede_id }}" {% if s.sede_id == p.sede_partenza_id %}selected{% endif %}>{{ s.nome }}</option>
+                                                    {% endfor %}
+                                                </select>
+                                            </div>
+                                            <div class="mb-2">
+                                                <label class="form-label small mb-1 fw-bold text-white">Note Rientro</label>
+                                                <input type="text" name="note_finali" class="form-control form-control-sm form-control-dark" placeholder="Facoltative">
+                                            </div>
+                                            <div class="mb-2 small text-muted">
+                                                <i class="bi bi-info-circle"></i> L'orario di rientro verrà registrato automaticamente all'ora attuale.
+                                            </div>
+                                            <button type="submit" class="btn btn-sm btn-success w-100 mt-2 fw-bold">Conferma Rientro</button>
+                                        </form>
+                                    </div>
+                                </div>
+                            {% else %}
+                                <div class="d-flex gap-2 mt-3">
+                                    <form action="/avvia/{{ p.viaggio_id }}" method="POST" class="w-100" onsubmit="return confirm('Avviare questo viaggio registrando la partenza adesso?');">
+                                        <button type="submit" class="btn btn-sm btn-success w-100 py-2 fw-bold text-white">
+                                            <i class="bi bi-play-fill me-1"></i> Registra Viaggio
+                                        </button>
+                                    </form>
+                                    <form action="/elimina/{{ p.viaggio_id }}" method="POST" class="w-100" onsubmit="return confirm('Annullare questa prenotazione?');">
+                                        <button type="submit" class="btn btn-sm btn-outline-danger-glow w-100 py-2">
+                                            <i class="bi bi-trash-fill me-1"></i> Annulla
+                                        </button>
+                                    </form>
+                                </div>
+                            {% endif %}
                         </div>
                     </div>
                     {% endfor %}

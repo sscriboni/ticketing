@@ -95,17 +95,23 @@ def home(r: Request, msg: str = None, error: str = None):
 
         for p in bookings_raw:
             d = dict(p)
+            has_started = bool(p.get("ora_partenza_effettiva"))
+            has_ended = bool(p.get("ora_arrivo"))
+            
+            d["is_in_corso"] = has_started and not has_ended
+            d["in_pausa"] = bool(p.get("in_pausa", 0))
+            d["can_start"] = not has_started and not has_ended
+            d["can_complete"] = has_started and not has_ended
+
             try:
                 reconsegna_dt = datetime.datetime.strptime(f"{p['data_viaggio']} {p['ora_riconsegna_prevista']}", "%Y-%m-%d %H:%M")
                 is_past = now > reconsegna_dt
             except Exception:
                 is_past = False
 
-            d["is_in_corso"] = False
-            d["can_start"] = False
-            d["can_complete"] = False
-
-            if is_past:
+            if has_ended:
+                passate_list.append(d)
+            elif is_past and not has_started:
                 passate_list.append(d)
             else:
                 attive_list.append(d)
@@ -114,6 +120,10 @@ def home(r: Request, msg: str = None, error: str = None):
         sedi_list = conn.execute(
             text("SELECT sede_id, nome FROM sedi ORDER BY nome")
         ).mappings().all()
+
+        instant_mode = r.query_params.get("instant") == "1"
+        instant_date = now.strftime("%Y-%m-%d")
+        instant_hour = now.strftime("%H:00")
 
     return templates.TemplateResponse(r, "appautopark_home.html", {
         "request": r,
@@ -125,6 +135,9 @@ def home(r: Request, msg: str = None, error: str = None):
         "sedi": sedi_list,
         "msg": msg,
         "error": error,
+        "instant": instant_mode,
+        "instant_date": instant_date,
+        "instant_hour": instant_hour
     })
 
 # ── PRENOTA ───────────────────────────────────────────────────────────────
@@ -226,42 +239,160 @@ def prenota(
             "driver_uid": driver.user_id, "email": driver.email, "note": note,
         })
 
-    return _redirect_ok("booked")
-
-# ── PARTI ────────────────────────────────────────────────────────────────────────
-
-@app.post("/parti/{id}")
-def parti(id: int, r: Request):
+@app.post("/registra-viaggio")
+def registra_viaggio(r: Request):
     user = r.session.get("user")
     if not user:
         return RedirectResponse(url="/login", status_code=303)
     uid = user.get("id")
-
+    today_str = datetime.date.today().isoformat()
+    
     with engine.begin() as conn:
-        v = conn.execute(text("""
-            SELECT viaggio_id, ora_partenza_effettiva
-            FROM viaggi_automezzi
-            WHERE viaggio_id = :id AND user_id = :uid AND ora_arrivo IS NULL
-        """), {"id": id, "uid": uid}).first()
+        b = conn.execute(text("""
+            SELECT viaggio_id FROM viaggi_automezzi
+            WHERE user_id = :uid AND data_viaggio = :today AND ora_partenza_effettiva IS NULL AND ora_arrivo IS NULL
+            ORDER BY ora_partenza ASC
+        """), {"uid": uid, "today": today_str}).first()
+        
+        if b:
+            now_str = datetime.datetime.now().strftime("%H:%M")
+            conn.execute(text("""
+                UPDATE viaggi_automezzi
+                SET ora_partenza_effettiva = :now_time, in_pausa = 0
+                WHERE viaggio_id = :id
+            """), {"now_time": now_str, "id": b.viaggio_id})
+            return _redirect_ok("started")
+        else:
+            return RedirectResponse(url="/?instant=1&error=no_booking", status_code=303)
 
-        if not v:
-            return _redirect_err("Prenotazione non trovata.")
-        if v.ora_partenza_effettiva:
-            return _redirect_err("Il viaggio è già stato avviato.")
 
-        now_str = datetime.datetime.now().strftime("%H:%M")
+@app.post("/registra-viaggio-istantaneo")
+def registra_viaggio_istantaneo(
+    r: Request,
+    automezzo_id: int = Form(...),
+    sede_partenza_id: int = Form(...),
+    ora_riconsegna_prevista: str = Form(...),
+    note: str = Form(None)
+):
+    user = r.session.get("user")
+    if not user:
+        return RedirectResponse(url="/login", status_code=303)
+    uid = user.get("id")
+    
+    now = datetime.datetime.now()
+    data_viaggio = now.strftime("%Y-%m-%d")
+    ora_partenza = now.strftime("%H:00")
+    ora_partenza_eff = now.strftime("%H:%M")
+    
+    if ora_riconsegna_prevista <= ora_partenza:
+        return RedirectResponse(url="/?instant=1&error=L'ora+di+riconsegna+deve+essere+successiva+all'ora+di+partenza.", status_code=303)
+        
+    with engine.connect() as conn:
+        driver = conn.execute(text("""
+            SELECT user_id, reparto_id, email, nome, cognome 
+            FROM users 
+            WHERE user_id = :uid AND attivo = 1
+        """), {"uid": uid}).first()
+        
+    if not driver:
+        return RedirectResponse(url="/?instant=1&error=Utente+non+trovato+o+non+attivo.", status_code=303)
+        
+    with engine.begin() as conn:
+        car = conn.execute(
+            text("SELECT km_attuali, escluso_prenotazione, sede_attuale_id FROM automezzi WHERE automezzo_id = :id"),
+            {"id": automezzo_id},
+        ).first()
+        
+        if not car or car.escluso_prenotazione == 1 or car.sede_attuale_id != sede_partenza_id:
+            return RedirectResponse(url="/?instant=1&error=Il+veicolo+selezionato+non+è+disponibile+per+questa+sede.", status_code=303)
+            
+        overlap = conn.execute(text("""
+            SELECT viaggio_id FROM viaggi_automezzi
+            WHERE automezzo_id = :aid AND data_viaggio = :dv AND ora_arrivo IS NULL
+              AND ora_partenza < :orc AND ora_riconsegna_prevista > :op
+        """), {
+            "aid": automezzo_id, "dv": data_viaggio,
+            "op": ora_partenza, "orc": ora_riconsegna_prevista,
+        }).first()
+        
+        if overlap:
+            return RedirectResponse(url="/?instant=1&error=Il+veicolo+è+già+prenotato+in+questa+fascia.", status_code=303)
+            
+        driver_overlap = conn.execute(text("""
+            SELECT viaggio_id FROM viaggi_automezzi
+            WHERE user_id = :driver_id AND data_viaggio = :dv AND ora_arrivo IS NULL
+              AND ora_partenza < :orc AND ora_riconsegna_prevista > :op
+        """), {
+            "driver_id": uid, "dv": data_viaggio,
+            "op": ora_partenza, "orc": ora_riconsegna_prevista,
+        }).first()
+        
+        if driver_overlap:
+            return RedirectResponse(url="/?instant=1&error=Hai+già+un'altra+prenotazione+attiva+in+questa+fascia.", status_code=303)
+            
+        km_iniziali = car.km_attuali or 0
         conn.execute(text("""
-            UPDATE viaggi_automezzi SET ora_partenza_effettiva = :ora WHERE viaggio_id = :id
-        """), {"ora": now_str, "id": id})
-
+            INSERT INTO viaggi_automezzi (
+                automezzo_id, data_viaggio, ora_partenza, ora_riconsegna_prevista,
+                ora_arrivo, km_iniziali, km_finali,
+                sede_partenza_id, sede_arrivo_id, user_id, email_conducente, ora_partenza_effettiva, note, in_pausa
+            ) VALUES (
+                :aid, :dv, :op, :orc, NULL, :km, NULL, :sp, NULL, :driver_uid, :email, :ora_partenza_eff, :note, 0
+            )
+        """), {
+            "aid": automezzo_id, "dv": data_viaggio,
+            "op": ora_partenza, "orc": ora_riconsegna_prevista,
+            "km": km_iniziali, "sp": sede_partenza_id,
+            "driver_uid": uid, "email": driver.email, "ora_partenza_eff": ora_partenza_eff, "note": note,
+        })
+        
     return _redirect_ok("started")
 
-# ── COMPLETA ──────────────────────────────────────────────────────────────
+
+@app.post("/avvia/{id}")
+def avvia(id: int, r: Request):
+    user = r.session.get("user")
+    if not user:
+        return RedirectResponse(url="/login", status_code=303)
+    uid = user.get("id")
+    
+    with engine.begin() as conn:
+        booking = conn.execute(text("SELECT user_id, ora_partenza_effettiva FROM viaggi_automezzi WHERE viaggio_id = :id"), {"id": id}).first()
+        if not booking:
+            return _redirect_err("Prenotazione non trovata.")
+        if booking.user_id != uid and user.get("ruolo") not in ("admin", "global_fleet_manager"):
+            return _redirect_err("Non sei autorizzato ad avviare questo viaggio.")
+            
+        now_str = datetime.datetime.now().strftime("%H:%M")
+        conn.execute(text("UPDATE viaggi_automezzi SET ora_partenza_effettiva = :now, in_pausa = 0 WHERE viaggio_id = :id"), {"now": now_str, "id": id})
+        
+    return _redirect_ok("started")
+
+
+@app.post("/pausa/{id}")
+def toggle_pausa(id: int, r: Request):
+    user = r.session.get("user")
+    if not user:
+        return RedirectResponse(url="/login", status_code=303)
+    uid = user.get("id")
+    
+    with engine.begin() as conn:
+        booking = conn.execute(text("SELECT user_id, in_pausa FROM viaggi_automezzi WHERE viaggio_id = :id"), {"id": id}).first()
+        if not booking:
+            return _redirect_err("Prenotazione non trovata.")
+        if booking.user_id != uid and user.get("ruolo") not in ("admin", "global_fleet_manager"):
+            return _redirect_err("Non sei autorizzato ad effettuare questa operazione.")
+            
+        new_val = 1 if not booking.in_pausa else 0
+        conn.execute(text("UPDATE viaggi_automezzi SET in_pausa = :new_val WHERE viaggio_id = :id"), {"new_val": new_val, "id": id})
+        
+    msg_type = "paused" if new_val == 1 else "resumed"
+    return _redirect_ok(msg_type)
+
 
 @app.post("/completa/{id}")
 def completa(
     id: int, r: Request,
-    ora_arrivo: str = Form(...),
     km_finali: int = Form(...),
     sede_arrivo_id: int = Form(...),
     note_finali: str = Form(None),
@@ -282,14 +413,9 @@ def completa(
             return _redirect_err("Prenotazione non trovata o già completata.")
 
         if not v.ora_partenza_effettiva:
-            return _redirect_err("Devi prima avviare il viaggio con il pulsante Parti.")
+            return _redirect_err("Devi prima avviare il viaggio con il pulsante Registra Viaggio.")
 
-        try:
-            bdt = datetime.datetime.strptime(f"{v.data_viaggio} {v.ora_partenza}", "%Y-%m-%d %H:%M")
-            if datetime.datetime.now() < bdt:
-                return _redirect_err("Non puoi terminare un viaggio prima della data e ora di prenotazione.")
-        except Exception:
-            pass
+        now_time = datetime.datetime.now().strftime("%H:%M")
 
         if km_finali < v.km_iniziali:
             return _redirect_err(f"I km finali ({km_finali}) non possono essere inferiori a quelli iniziali ({v.km_iniziali}).")
@@ -300,7 +426,7 @@ def completa(
             UPDATE viaggi_automezzi
             SET ora_arrivo = :oa, km_finali = :kf, sede_arrivo_id = :sa, note = :n
             WHERE viaggio_id = :id
-        """), {"id": id, "oa": ora_arrivo.strip(), "kf": km_finali, "sa": sede_arrivo_id, "n": note_complete})
+        """), {"id": id, "oa": now_time, "kf": km_finali, "sa": sede_arrivo_id, "n": note_complete})
 
         conn.execute(text("""
             UPDATE automezzi
