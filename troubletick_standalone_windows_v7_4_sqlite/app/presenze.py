@@ -138,10 +138,11 @@ def nuova_assenza(r: Request, data_inizio: str = Form(...), data_fine: str = For
                 
             with engine.connect() as c_read:
                 servizi = c_read.execute(text("""
-                    SELECT servizio_id, descrizione 
-                    FROM servizi 
-                    WHERE reparto_id = :rid
-                """), {"rid": reparto_id}).mappings().all()
+                    SELECT s.servizio_id, s.descrizione 
+                    FROM servizi s
+                    JOIN operatori_servizi os ON s.servizio_id = os.servizio_id
+                    WHERE s.reparto_id = :rid AND os.user_id = :uid
+                """), {"rid": reparto_id, "uid": user.get("id")}).mappings().all()
                 
                 servizi_ops = {}
                 for s in servizi:
