@@ -978,7 +978,12 @@ def get_autopark(r: Request, msg: str = None, error: str = None):
         return RedirectResponse(url="/")
     
     uid = user.get("id")
+    role = user.get("ruolo")
+    
     with engine.connect() as conn:
+        # Get user's own reparto_id
+        user_reparto_id = conn.execute(text("SELECT reparto_id FROM users WHERE user_id = :uid"), {"uid": uid}).scalar()
+        
         # Fetch all vehicles
         veicoli_all = conn.execute(text("""
             SELECT a.*, m.nome AS marca_nome, s.nome AS sede_attuale_nome
@@ -1002,44 +1007,52 @@ def get_autopark(r: Request, msg: str = None, error: str = None):
                 "sede_attuale_nome": v["sede_attuale_nome"] or "N/D"
             })
         
-        # Fetch user's active bookings
-        prenotazioni_attive = conn.execute(text("""
-            SELECT v.*, a.modello, a.targa, m.nome AS marca_nome, s.nome AS sede_partenza_nome
+        # Build query for bookings
+        base_query = """
+            SELECT v.*, a.modello, a.targa, m.nome AS marca_nome, s.nome AS sede_partenza_nome,
+                   u.nome AS driver_nome, u.cognome AS driver_cognome, u.email AS driver_email
             FROM viaggi_automezzi v
             JOIN automezzi a ON v.automezzo_id = a.automezzo_id
             JOIN marche_automezzi m ON a.marca_id = m.marca_id
             LEFT JOIN sedi s ON v.sede_partenza_id = s.sede_id
-            WHERE v.user_id = :uid AND v.ora_arrivo IS NULL
-            ORDER BY v.data_viaggio DESC, v.ora_partenza DESC
-        """), {"uid": uid}).mappings().all()
+            JOIN users u ON v.user_id = u.user_id
+        """
         
+        if role in ("admin", "global_fleet_manager"):
+            bookings_raw = conn.execute(text(base_query + " ORDER BY v.data_viaggio DESC, v.ora_partenza DESC")).mappings().all()
+        elif role == "fleet_manager" and user_reparto_id is not None:
+            bookings_raw = conn.execute(text(base_query + """
+                WHERE u.reparto_id = :rep_id
+                ORDER BY v.data_viaggio DESC, v.ora_partenza DESC
+            """), {"rep_id": user_reparto_id}).mappings().all()
+        else:
+            bookings_raw = conn.execute(text(base_query + """
+                WHERE v.user_id = :uid
+                ORDER BY v.data_viaggio DESC, v.ora_partenza DESC
+            """), {"uid": uid}).mappings().all()
+            
         now = datetime.datetime.now()
         attive_list = []
-        for p in prenotazioni_attive:
+        passate_list = []
+        
+        for p in bookings_raw:
             p_dict = dict(p)
+            # Check if booking is in the past
             try:
-                booking_dt = datetime.datetime.strptime(f"{p['data_viaggio']} {p['ora_partenza']}", "%Y-%m-%d %H:%M")
-                p_dict["can_start"] = (not p.get("ora_partenza_effettiva")) and now >= booking_dt
-                p_dict["can_complete"] = bool(p.get("ora_partenza_effettiva"))
-                p_dict["is_in_corso"] = bool(p.get("ora_partenza_effettiva"))
+                reconsegna_dt = datetime.datetime.strptime(f"{p['data_viaggio']} {p['ora_riconsegna_prevista']}", "%Y-%m-%d %H:%M")
+                is_past = now > reconsegna_dt
             except Exception:
-                p_dict["can_start"] = not p.get("ora_partenza_effettiva")
-                p_dict["can_complete"] = bool(p.get("ora_partenza_effettiva"))
-                p_dict["is_in_corso"] = bool(p.get("ora_partenza_effettiva"))
-            attive_list.append(p_dict)
-        
-        # Fetch user's completed bookings
-        prenotazioni_passate = conn.execute(text("""
-            SELECT v.*, a.modello, a.targa, m.nome AS marca_nome, sp.nome AS sede_partenza_nome, sa.nome AS sede_arrivo_nome
-            FROM viaggi_automezzi v
-            JOIN automezzi a ON v.automezzo_id = a.automezzo_id
-            JOIN marche_automezzi m ON a.marca_id = m.marca_id
-            LEFT JOIN sedi sp ON v.sede_partenza_id = sp.sede_id
-            LEFT JOIN sedi sa ON v.sede_arrivo_id = sa.sede_id
-            WHERE v.user_id = :uid AND v.ora_arrivo IS NOT NULL
-            ORDER BY v.data_viaggio DESC, v.ora_arrivo DESC
-        """), {"uid": uid}).mappings().all()
-        
+                is_past = False
+                
+            p_dict["is_in_corso"] = False  # Deactivated
+            p_dict["can_start"] = False
+            p_dict["can_complete"] = False
+            
+            if is_past:
+                passate_list.append(p_dict)
+            else:
+                attive_list.append(p_dict)
+                
         # Fetch all locations (sedi)
         sedi_list = conn.execute(text("SELECT sede_id, nome FROM sedi ORDER BY nome")).mappings().all()
         
@@ -1049,7 +1062,7 @@ def get_autopark(r: Request, msg: str = None, error: str = None):
         "user": user, 
         "veicoli": veicoli_dicts, 
         "prenotazioni_attive": attive_list, 
-        "prenotazioni_passate": prenotazioni_passate, 
+        "prenotazioni_passate": passate_list, 
         "sedi": sedi_list,
         "msg": msg,
         "error": error
@@ -1064,22 +1077,14 @@ def prenota_automezzo(
     ora_riconsegna_prevista: str = Form(...),
     sede_partenza_id: int = Form(...),
     email_conducente: str = Form(None),
-    note: str = Form(None),
-    parti_ora: str = Form(None)
+    note: str = Form(None)
 ):
     if "user" not in r.session:
         return RedirectResponse(url="/login", status_code=303)
     user = r.session.get("user")
     uid = user.get("id")
-    
-    # If parti_ora is set, override date and departure hour with current local values
-    if parti_ora:
-        now_dt = datetime.datetime.now()
-        data_viaggio = now_dt.strftime("%Y-%m-%d")
-        ora_partenza = now_dt.strftime("%H:00")  # Round to the hour for database consistency
-        ora_partenza_eff = now_dt.strftime("%H:%M")
-    else:
-        ora_partenza_eff = None
+    role = user.get("ruolo")
+    current_email = user.get("email")
 
     # Validate return hour is after departure hour
     if ora_riconsegna_prevista <= ora_partenza:
@@ -1087,8 +1092,35 @@ def prenota_automezzo(
         err_msg = urllib.parse.quote("L'ora di riconsegna deve essere successiva all'ora di partenza.")
         return RedirectResponse(url=f"/autopark?error={err_msg}", status_code=303)
     
+    # 1. Resolve final_email of the driver based on role permissions
+    if role in ("admin", "fleet_manager", "global_fleet_manager") and email_conducente:
+        final_email = email_conducente.strip().lower()
+    else:
+        final_email = current_email.strip().lower() if current_email else ""
+        
+    with engine.connect() as conn:
+        # Check if the driver user exists and is active
+        driver = conn.execute(text("""
+            SELECT user_id, reparto_id, email, nome, cognome 
+            FROM users 
+            WHERE LOWER(email) = LOWER(:email) AND attivo = 1
+        """), {"email": final_email}).first()
+        
+    if not driver:
+        import urllib.parse
+        err_msg = urllib.parse.quote("Nessun utente attivo trovato con l'email del conducente indicata.")
+        return RedirectResponse(url=f"/autopark?error={err_msg}", status_code=303)
+        
     with engine.begin() as conn:
-        # Check if the vehicle exists, is not excluded, and is at the correct location
+        # 2. Check department constraint for fleet manager
+        if role == "fleet_manager":
+            fm_reparto_id = conn.execute(text("SELECT reparto_id FROM users WHERE user_id = :uid"), {"uid": uid}).scalar()
+            if driver.reparto_id != fm_reparto_id:
+                import urllib.parse
+                err_msg = urllib.parse.quote("Puoi prenotare solo per utenti appartenenti al tuo stesso reparto.")
+                return RedirectResponse(url=f"/autopark?error={err_msg}", status_code=303)
+                
+        # 3. Check if the vehicle exists, is not excluded, and is at the correct location
         car = conn.execute(text("SELECT stato, km_attuali, escluso_prenotazione, sede_attuale_id FROM automezzi WHERE automezzo_id = :id"), {"id": automezzo_id}).first()
         if not car or car.escluso_prenotazione == 1 or car.sede_attuale_id != sede_partenza_id:
             import urllib.parse
@@ -1096,7 +1128,7 @@ def prenota_automezzo(
             
         km_iniziali = car.km_attuali or 0
         
-        # Check for time-slot overlap with existing bookings for this vehicle on this date
+        # 4. Check for time-slot overlap with existing bookings for this vehicle on this date
         overlap = conn.execute(text("""
             SELECT viaggio_id FROM viaggi_automezzi
             WHERE automezzo_id = :automezzo_id
@@ -1115,18 +1147,35 @@ def prenota_automezzo(
             import urllib.parse
             err_msg = urllib.parse.quote("Il veicolo è già prenotato in questa fascia oraria.")
             return RedirectResponse(url=f"/autopark?error={err_msg}", status_code=303)
+            
+        # 5. Check for driver time-slot overlap on this date
+        driver_overlap = conn.execute(text("""
+            SELECT viaggio_id FROM viaggi_automezzi
+            WHERE user_id = :driver_id
+              AND data_viaggio = :data_viaggio
+              AND ora_arrivo IS NULL
+              AND ora_partenza < :ora_riconsegna
+              AND ora_riconsegna_prevista > :ora_partenza
+        """), {
+            "driver_id": driver.user_id,
+            "data_viaggio": data_viaggio,
+            "ora_partenza": ora_partenza,
+            "ora_riconsegna": ora_riconsegna_prevista
+        }).first()
         
-        # Default email to user's email if not specified
-        final_email = (email_conducente or "").strip() or user.get("email", "")
+        if driver_overlap:
+            import urllib.parse
+            err_msg = urllib.parse.quote("Il guidatore indicato ha già un'altra prenotazione attiva in questa fascia oraria.")
+            return RedirectResponse(url=f"/autopark?error={err_msg}", status_code=303)
         
-        # Insert new voyage record
+        # 6. Insert new voyage record
         conn.execute(text("""
             INSERT INTO viaggi_automezzi (
                 automezzo_id, data_viaggio, ora_partenza, ora_riconsegna_prevista, ora_arrivo, 
                 km_iniziali, km_finali, sede_partenza_id, sede_arrivo_id, user_id, email_conducente, ora_partenza_effettiva, note
             ) VALUES (
                 :automezzo_id, :data_viaggio, :ora_partenza, :ora_riconsegna_prevista, NULL,
-                :km_iniziali, NULL, :sede_partenza_id, NULL, :user_id, :email_conducente, :ora_partenza_eff, :note
+                :km_iniziali, NULL, :sede_partenza_id, NULL, :user_id, :email_conducente, NULL, :note
             )
         """), {
             "automezzo_id": automezzo_id,
@@ -1135,14 +1184,11 @@ def prenota_automezzo(
             "ora_riconsegna_prevista": ora_riconsegna_prevista,
             "km_iniziali": km_iniziali,
             "sede_partenza_id": sede_partenza_id,
-            "user_id": uid,
-            "email_conducente": final_email,
-            "ora_partenza_eff": ora_partenza_eff,
+            "user_id": driver.user_id,
+            "email_conducente": driver.email,
             "note": note
         })
         
-    if parti_ora:
-        return RedirectResponse(url="/autopark?msg=started", status_code=303)
     return RedirectResponse(url="/autopark?msg=booked", status_code=303)
 
 @router.post("/autopark/parti/{id}")
@@ -1258,17 +1304,17 @@ def elimina_prenotazione(id: int, r: Request):
     with engine.begin() as conn:
         role = user.get("ruolo")
         if role in ("admin", "global_fleet_manager"):
-            v = conn.execute(text("SELECT automezzo_id, ora_arrivo FROM viaggi_automezzi WHERE viaggio_id = :id"), {"id": id}).first()
+            v = conn.execute(text("SELECT automezzo_id FROM viaggi_automezzi WHERE viaggio_id = :id"), {"id": id}).first()
         elif role == "fleet_manager":
             user_reparto_id = conn.execute(text("SELECT reparto_id FROM users WHERE user_id = :uid"), {"uid": uid}).scalar() or 0
             v = conn.execute(text("""
-                SELECT v.automezzo_id, v.ora_arrivo 
+                SELECT v.automezzo_id
                 FROM viaggi_automezzi v
-                JOIN automezzi a ON v.automezzo_id = a.automezzo_id
-                WHERE v.viaggio_id = :id AND a.reparto_assegnato_id = :rep
+                JOIN users u ON v.user_id = u.user_id
+                WHERE v.viaggio_id = :id AND u.reparto_id = :rep
             """), {"id": id, "rep": user_reparto_id}).first()
         else:
-            v = conn.execute(text("SELECT automezzo_id, ora_arrivo FROM viaggi_automezzi WHERE viaggio_id = :id AND user_id = :uid"), {"id": id, "uid": uid}).first()
+            v = conn.execute(text("SELECT automezzo_id FROM viaggi_automezzi WHERE viaggio_id = :id AND user_id = :uid"), {"id": id, "uid": uid}).first()
             
         if v:
             conn.execute(text("DELETE FROM viaggi_automezzi WHERE viaggio_id = :id"), {"id": id})
