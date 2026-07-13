@@ -217,7 +217,14 @@
           {% endif %}
 
           {% if cfg.get('modulo_autopark', True) %}
-          <li class="nav-item"><a class="nav-link {% if request.url.path == '/autopark' %}active fw-bold{% endif %}" href="/autopark"><i class="bi bi-p-circle"></i> Autopark</a></li>
+          <li class="nav-item dropdown">
+            <a class="nav-link dropdown-toggle {% if request.url.path == '/autopark' %}active fw-bold{% endif %}" href="#" id="autoparkDropdownRep" role="button" data-bs-toggle="dropdown" aria-expanded="false">
+              <i class="bi bi-p-circle"></i> Autopark
+            </a>
+            <ul class="dropdown-menu shadow" aria-labelledby="autoparkDropdownRep">
+              <li><a class="dropdown-item" href="/autopark">Prenotazioni</a></li>
+            </ul>
+          </li>
           {% endif %}
 
           <li class="nav-item dropdown">
@@ -290,7 +297,14 @@
           {% endif %}
 
           {% if cfg.get('modulo_autopark', True) %}
-          <li class="nav-item"><a class="nav-link {% if request.url.path == '/autopark' %}active fw-bold{% endif %}" href="/autopark"><i class="bi bi-p-circle"></i> Autopark</a></li>
+          <li class="nav-item dropdown">
+            <a class="nav-link dropdown-toggle {% if request.url.path == '/autopark' %}active fw-bold{% endif %}" href="#" id="autoparkDropdownAss" role="button" data-bs-toggle="dropdown" aria-expanded="false">
+              <i class="bi bi-p-circle"></i> Autopark
+            </a>
+            <ul class="dropdown-menu shadow" aria-labelledby="autoparkDropdownAss">
+              <li><a class="dropdown-item" href="/autopark">Prenotazioni</a></li>
+            </ul>
+          </li>
           {% endif %}
 
         <!-- NAVBAR FLEET MANAGER -->
@@ -334,7 +348,14 @@
           </li>
 
           {# {% if cfg.get('modulo_autopark', True) %}
-          <li class="nav-item"><a class="nav-link {% if request.url.path == '/autopark' %}active fw-bold{% endif %}" href="/autopark"><i class="bi bi-p-circle"></i> Autopark</a></li>
+          <li class="nav-item dropdown">
+            <a class="nav-link dropdown-toggle {% if request.url.path == '/autopark' %}active fw-bold{% endif %}" href="#" id="autoparkDropdownNorm" role="button" data-bs-toggle="dropdown" aria-expanded="false">
+              <i class="bi bi-p-circle"></i> Autopark
+            </a>
+            <ul class="dropdown-menu shadow" aria-labelledby="autoparkDropdownNorm">
+              <li><a class="dropdown-item" href="/autopark">Prenotazioni</a></li>
+            </ul>
+          </li>
           {% endif %} #}
         {% endif %}
 

@@ -4,3 +4,4 @@ troubletick_standalone_windows_v7_4_sqlite/app/config_esempio.json
 troubletick_standalone_windows_v7_4_sqlite/app/configurazione_iniziale_esempio.json
 troubletick_standalone_windows_v7_4_sqlite/app/config.json
 troubletick_standalone_windows_v7_4_sqlite/app/esportazione_anagrafiche.json
+*.gdoc
