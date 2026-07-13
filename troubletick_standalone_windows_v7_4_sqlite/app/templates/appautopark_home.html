@@ -224,6 +224,13 @@
     </div>
     {% endif %}
 
+    {% if info == 'no_booking' %}
+    <div class="alert alert-glass alert-glass-warning alert-dismissible fade show" role="alert">
+        <i class="bi bi-info-circle-fill me-2"></i>Per iniziare un viaggio è necessario creare una <strong>prenotazione istantanea</strong>.
+        <button type="button" class="btn-close btn-close-white" data-bs-dismiss="alert"></button>
+    </div>
+    {% endif %}
+
     {% if error %}
     <div class="alert alert-glass alert-glass-danger alert-dismissible fade show" role="alert">
         <i class="bi bi-x-circle-fill me-2"></i><strong>Errore:</strong> {{ error }}
@@ -249,7 +256,7 @@
         <div class="col-lg-4">
             <div class="glass-card h-100">
                 {% if instant %}
-                <h4 class="section-title text-success"><i class="bi bi-play-circle-fill"></i> Registra Viaggio Istantaneo</h4>
+                <h4 class="section-title text-success"><i class="bi bi-play-circle-fill"></i> Prenotazione istantanea</h4>
                 {% else %}
                 <h4 class="section-title"><i class="bi bi-calendar-plus"></i> Prenota Automezzo</h4>
                 {% endif %}
@@ -281,8 +288,8 @@
                     </div>
 
                     <div class="mb-3">
-                        <label class="form-label">Ora Partenza (Minuti a 0)</label>
-                        <div class="p-2 border border-secondary rounded text-muted fw-bold small bg-dark bg-opacity-25">{{ instant_hour }}</div>
+                        <label class="form-label">Ora Partenza Effettiva</label>
+                        <div class="p-2 border border-secondary rounded text-muted fw-bold small bg-dark bg-opacity-25">{{ instant_actual_time }}</div>
                     </div>
                     {% else %}
                     <!-- 2. Data -->

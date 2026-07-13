@@ -1070,6 +1070,8 @@ def get_autopark(r: Request, msg: str = None, error: str = None):
         instant_mode = r.query_params.get("instant") == "1"
         instant_date = now.strftime("%Y-%m-%d")
         instant_hour = now.strftime("%H:00")
+        instant_actual_time = now.strftime("%H:%M")
+        info = r.query_params.get("info")
         
     return templates.TemplateResponse(r, "autopark.html", {
         "request": r, 
@@ -1081,9 +1083,11 @@ def get_autopark(r: Request, msg: str = None, error: str = None):
         "sedi": sedi_list,
         "msg": msg,
         "error": error,
+        "info": info,
         "instant": instant_mode,
         "instant_date": instant_date,
-        "instant_hour": instant_hour
+        "instant_hour": instant_hour,
+        "instant_actual_time": instant_actual_time
     })
 
 @router.post("/autopark/prenota")
@@ -1384,7 +1388,7 @@ def registra_viaggio(r: Request):
             """), {"now_time": now_str, "id": b.viaggio_id})
             return RedirectResponse(url="/autopark?msg=started", status_code=303)
         else:
-            return RedirectResponse(url="/autopark?instant=1&error=no_booking", status_code=303)
+            return RedirectResponse(url="/autopark?instant=1&info=no_booking", status_code=303)
 
 
 @router.post("/autopark/registra-viaggio-istantaneo")
