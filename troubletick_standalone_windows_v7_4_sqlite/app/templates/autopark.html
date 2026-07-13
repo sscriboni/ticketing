@@ -383,6 +383,7 @@
                                             {% if p.ora_partenza_effettiva %}
                                                 <li class="mb-1 text-success"><i class="bi bi-play-fill me-2"></i><strong>Partenza registrata:</strong> {{ p.ora_partenza_effettiva }}</li>
                                             {% endif %}
+                                            <li class="mb-1"><i class="bi bi-speedometer2 me-2"></i><strong>KM di partenza:</strong> {{ p.km_iniziali }} km</li>
                                             <li class="mb-1"><i class="bi bi-geo-alt me-2"></i><strong>Partenza da:</strong> {{ p.sede_partenza_nome }}</li>
                                             <li class="mb-1"><i class="bi bi-person-fill me-2"></i><strong>Guidatore:</strong> {{ p.driver_nome }} {{ p.driver_cognome }}</li>
                                             <li class="mb-1"><i class="bi bi-envelope me-2"></i><strong>Email:</strong> {{ p.driver_email }}</li>
@@ -414,7 +415,7 @@
                                                     <h6 class="fw-bold mb-2 text-success">Dettagli Rientro</h6>
                                                     <form action="/autopark/completa/{{ p.viaggio_id }}" method="POST">
                                                         <div class="mb-2">
-                                                            <label class="form-label small mb-1 fw-bold">KM Finali</label>
+                                                            <label class="form-label small mb-1 fw-bold">KM Finali (KM Partenza: {{ p.km_iniziali }} km)</label>
                                                             <input type="number" name="km_finali" class="form-control form-control-sm" placeholder="Odometro finale" required>
                                                         </div>
                                                         <div class="mb-2">
@@ -480,6 +481,7 @@
                                     <th>Veicolo</th>
                                     <th>Data / Ora</th>
                                     <th>Sede Partenza</th>
+                                    <th>KM (Inizio/Fine)</th>
                                     {% if user.ruolo in ('admin', 'fleet_manager', 'global_fleet_manager') %}
                                         <th>Guidatore</th>
                                     {% endif %}
@@ -500,6 +502,9 @@
                                         </td>
                                         <td>
                                             <span>{{ p.sede_partenza_nome }}</span>
+                                        </td>
+                                        <td>
+                                            <span class="fw-semibold text-primary">{{ p.km_iniziali or '0' }}</span> / <span class="fw-semibold text-success">{{ p.km_finali or '-' }}</span>
                                         </td>
                                         {% if user.ruolo in ('admin', 'fleet_manager', 'global_fleet_manager') %}
                                             <td>
@@ -590,14 +595,14 @@
                         
                         const is_available = (v.stato === 'Disponibile' && v.escluso_prenotazione === 0);
                         if (is_available) {
-                            opt.textContent = `${v.marca_nome} ${v.modello} (${v.targa}) - Disponibile`;
+                            opt.textContent = `${v.marca_nome} ${v.modello} (${v.targa}) - Disponibile - ${v.km_attuali} km`;
                         } else {
                             opt.disabled = true;
                             let reason = v.stato;
                             if (v.escluso_prenotazione === 1) {
                                 reason = "Escluso";
                             }
-                            opt.textContent = `${v.marca_nome} ${v.modello} (${v.targa}) - Non Disponibile (${reason})`;
+                            opt.textContent = `${v.marca_nome} ${v.modello} (${v.targa}) - Non Disponibile (${reason}) - ${v.km_attuali} km`;
                             opt.classList.add("text-muted", "bg-light");
                         }
                         vehicleSelect.appendChild(opt);

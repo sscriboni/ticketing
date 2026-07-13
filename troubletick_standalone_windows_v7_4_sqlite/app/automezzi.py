@@ -599,13 +599,13 @@ def add_manutenzione(
         if bloccante == 1:
             conn.execute(text("""
                 UPDATE automezzi 
-                SET stato = 'In Manutenzione', km_attuali = MAX(km_attuali, :km_registrati)
+                SET stato = 'In Manutenzione', km_attuali = CASE WHEN :km_registrati > km_attuali THEN :km_registrati ELSE km_attuali END
                 WHERE automezzo_id = :automezzo_id
             """), {"automezzo_id": automezzo_id, "km_registrati": km_registrati})
         else:
             conn.execute(text("""
                 UPDATE automezzi 
-                SET km_attuali = MAX(km_attuali, :km_registrati)
+                SET km_attuali = CASE WHEN :km_registrati > km_attuali THEN :km_registrati ELSE km_attuali END
                 WHERE automezzo_id = :automezzo_id
             """), {"automezzo_id": automezzo_id, "km_registrati": km_registrati})
             
@@ -638,7 +638,7 @@ def complete_manutenzione(
             
             conn.execute(text("""
                 UPDATE automezzi
-                SET stato = 'Disponibile', km_attuali = MAX(km_attuali, :km_fine)
+                SET stato = 'Disponibile', km_attuali = CASE WHEN :km_fine > km_attuali THEN :km_fine ELSE km_attuali END
                 WHERE automezzo_id = :automezzo_id
             """), {"automezzo_id": m.automezzo_id, "km_fine": km_fine})
             
@@ -866,7 +866,7 @@ def add_viaggio(
             conn.execute(text("""
                 UPDATE automezzi
                 SET stato = 'Disponibile', 
-                    km_attuali = MAX(km_attuali, :km_finali),
+                    km_attuali = CASE WHEN :km_finali > km_attuali THEN :km_finali ELSE km_attuali END,
                     sede_attuale_id = COALESCE(:sede_arrivo_id, sede_attuale_id)
                 WHERE automezzo_id = :automezzo_id
             """), {
@@ -878,7 +878,7 @@ def add_viaggio(
             conn.execute(text("""
                 UPDATE automezzi
                 SET stato = 'In Uso',
-                    km_attuali = MAX(km_attuali, :km_iniziali),
+                    km_attuali = CASE WHEN :km_iniziali > km_attuali THEN :km_iniziali ELSE km_attuali END,
                     sede_attuale_id = :sede_partenza_id
                 WHERE automezzo_id = :automezzo_id
             """), {
@@ -933,7 +933,7 @@ def complete_viaggio(
             conn.execute(text("""
                 UPDATE automezzi
                 SET stato = 'Disponibile', 
-                    km_attuali = MAX(km_attuali, :km_finali),
+                    km_attuali = CASE WHEN :km_finali > km_attuali THEN :km_finali ELSE km_attuali END,
                     sede_attuale_id = :sede_arrivo_id
                 WHERE automezzo_id = :automezzo_id
             """), {
@@ -1298,7 +1298,7 @@ def completa_prenotazione(
         # Update vehicle km and location
         conn.execute(text("""
             UPDATE automezzi
-            SET km_attuali = MAX(km_attuali, :km_finali),
+            SET km_attuali = CASE WHEN :km_finali > km_attuali THEN :km_finali ELSE km_attuali END,
                 sede_attuale_id = :sede_arrivo_id
             WHERE automezzo_id = :automezzo_id
         """), {

@@ -434,7 +434,7 @@ def completa(
 
         conn.execute(text("""
             UPDATE automezzi
-            SET km_attuali = MAX(km_attuali, :kf), sede_attuale_id = :sa
+            SET km_attuali = CASE WHEN :kf > km_attuali THEN :kf ELSE km_attuali END, sede_attuale_id = :sa
             WHERE automezzo_id = :aid
         """), {"aid": v.automezzo_id, "kf": km_finali, "sa": sede_arrivo_id})
 
