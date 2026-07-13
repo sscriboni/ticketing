@@ -248,11 +248,6 @@
                             {% endfor %}
                         </select>
                     </div>
-                    <!-- 1b. Parti Ora Switch -->
-                    <div class="form-check form-switch mb-3" id="parti_ora_container">
-                        <input class="form-check-input" type="checkbox" id="parti_ora" name="parti_ora" value="1">
-                        <label class="form-check-label" for="parti_ora" style="color:var(--text-muted); font-size: 0.85rem; font-weight:500;">Parti Ora (avvia viaggio immediatamente)</label>
-                    </div>
                     <!-- 2. Data -->
                     <div class="mb-3">
                         <label for="data_viaggio" class="form-label">Data Viaggio</label>
@@ -292,11 +287,15 @@
                         </div>
                     </div>
                     <!-- 6. Email Conducente -->
+                    {% if user.ruolo in ('admin', 'fleet_manager', 'global_fleet_manager') %}
                     <div class="mb-3">
                         <label for="email_conducente" class="form-label">Email Conducente</label>
-                        <input type="email" class="form-control form-control-dark" id="email_conducente" name="email_conducente" placeholder="Se diverso, inserisci l'email del conducente" value="{{ user.email or '' }}">
-                        <div class="form-text" style="color:#475569;">Se non specificata, verrà usata la tua email.</div>
+                        <input type="email" class="form-control form-control-dark" id="email_conducente" name="email_conducente" placeholder="Email del guidatore" value="{{ user.email or '' }}" required>
+                        <div class="form-text" style="color:#475569;">Deve appartenere al tuo stesso reparto.</div>
                     </div>
+                    {% else %}
+                    <input type="hidden" id="email_conducente" name="email_conducente" value="{{ user.email or '' }}">
+                    {% endif %}
                     <!-- 7. Note -->
                     <div class="mb-3">
                         <label for="note" class="form-label">Note / Destinazione</label>
@@ -316,7 +315,14 @@
 
             <!-- Active bookings -->
             <div class="glass-card mb-4">
-                <h4 class="section-title"><i class="bi bi-alarm"></i> Le mie Prenotazioni Attive</h4>
+                <h4 class="section-title">
+                    <i class="bi bi-alarm"></i>
+                    {% if user.ruolo in ('admin', 'fleet_manager', 'global_fleet_manager') %}
+                        Prenotazioni Attive
+                    {% else %}
+                        Le mie Prenotazioni Attive
+                    {% endif %}
+                </h4>
 
                 {% if prenotazioni_attive|length == 0 %}
                 <div class="empty-state">
@@ -333,88 +339,28 @@
                                     <div class="vehicle-name">{{ p.marca_nome }} {{ p.modello }}</div>
                                     <div class="targa"><i class="bi bi-tag-fill me-1"></i>{{ p.targa }}</div>
                                 </div>
-                                {% if p.is_in_corso %}
-                                <span class="badge rounded-pill px-3 py-1" style="background:rgba(245,158,11,.15);color:#fbbf24;font-weight:600;">
-                                    <i class="bi bi-play-fill me-1"></i>In Corso
-                                </span>
-                                {% else %}
                                 <span class="badge badge-active rounded-pill px-3 py-1">
                                     <i class="bi bi-bookmark-fill me-1"></i>Prenotata
                                 </span>
-                                {% endif %}
                             </div>
 
                             <div class="detail-row"><i class="bi bi-calendar-event"></i> {{ p.data_viaggio }}</div>
                             <div class="detail-row"><i class="bi bi-clock"></i> Previsto: {{ p.ora_partenza }}{% if p.ora_riconsegna_prevista %} – {{ p.ora_riconsegna_prevista }}{% endif %}</div>
-                            {% if p.ora_partenza_effettiva %}
-                            <div class="detail-row"><i class="bi bi-play-circle"></i> Partenza effettiva: {{ p.ora_partenza_effettiva }}</div>
-                            {% endif %}
                             <div class="detail-row"><i class="bi bi-geo-alt"></i> {{ p.sede_partenza_nome }}</div>
-                            <div class="detail-row"><i class="bi bi-speedometer2"></i> {{ p.km_iniziali }} km</div>
-                            {% if p.email_conducente %}
-                            <div class="detail-row"><i class="bi bi-envelope"></i> {{ p.email_conducente }}</div>
-                            {% endif %}
+                            <div class="detail-row"><i class="bi bi-person-fill"></i> Guidatore: {{ p.driver_nome }} {{ p.driver_cognome }}</div>
+                            <div class="detail-row"><i class="bi bi-envelope"></i> {{ p.driver_email }}</div>
                             {% if p.note %}
                             <div class="detail-row"><i class="bi bi-pencil-square"></i> {{ p.note }}</div>
                             {% endif %}
 
                             <div class="d-flex gap-2 mt-3">
-                                {% if p.can_start %}
-                                <form action="/parti/{{ p.viaggio_id }}" method="POST" class="flex-fill"
-                                      onsubmit="return confirm('Confermi la partenza effettiva?');">
-                                    <button type="submit" class="btn btn-sm w-100 rounded-3 fw-bold" style="border:1px solid rgba(99,102,241,.4);color:#818cf8;">
-                                        <i class="bi bi-play-fill me-1"></i> Parti
-                                    </button>
-                                </form>
-                                {% endif %}
-                                {% if p.can_complete %}
-                                <button type="button" class="btn btn-sm btn-outline-glow flex-fill"
-                                        data-bs-toggle="collapse" data-bs-target="#cf-{{ p.viaggio_id }}">
-                                    <i class="bi bi-flag-fill me-1"></i> Termina
-                                </button>
-                                {% endif %}
-                                <form action="/elimina/{{ p.viaggio_id }}" method="POST" class="flex-fill"
+                                <form action="/elimina/{{ p.viaggio_id }}" method="POST" class="w-100"
                                       onsubmit="return confirm('Annullare questa prenotazione?');">
-                                    <button type="submit" class="btn btn-sm btn-outline-danger-glow w-100">
-                                        <i class="bi bi-trash-fill me-1"></i> Annulla
+                                    <button type="submit" class="btn btn-sm btn-outline-danger-glow w-100 py-2">
+                                        <i class="bi bi-trash-fill me-1"></i> Annulla Prenotazione
                                     </button>
                                 </form>
                             </div>
-
-                            {% if p.can_complete %}
-                            <div class="collapse mt-3" id="cf-{{ p.viaggio_id }}">
-                                <div class="complete-form-inner">
-                                    <h6 class="fw-bold mb-3" style="color:#34d399; font-size:.9rem;">
-                                        <i class="bi bi-check-circle-fill me-1"></i> Dettagli Rientro
-                                    </h6>
-                                    <form action="/completa/{{ p.viaggio_id }}" method="POST">
-                                        <div class="mb-2">
-                                            <label class="form-label small mb-1">Ora Arrivo</label>
-                                            <input type="time" name="ora_arrivo" class="form-control form-control-dark form-control-sm input-ora-arrivo" required>
-                                        </div>
-                                        <div class="mb-2">
-                                            <label class="form-label small mb-1">KM Finali (min. {{ p.km_iniziali }})</label>
-                                            <input type="number" name="km_finali" min="{{ p.km_iniziali }}" class="form-control form-control-dark form-control-sm" required>
-                                        </div>
-                                        <div class="mb-2">
-                                            <label class="form-label small mb-1">Sede Rientro</label>
-                                            <select name="sede_arrivo_id" class="form-select form-select-dark form-select-sm" required>
-                                                {% for s in sedi %}
-                                                <option value="{{ s.sede_id }}" {% if s.sede_id == p.sede_partenza_id %}selected{% endif %}>{{ s.nome }}</option>
-                                                {% endfor %}
-                                            </select>
-                                        </div>
-                                        <div class="mb-3">
-                                            <label class="form-label small mb-1">Note Rientro</label>
-                                            <input type="text" name="note_finali" class="form-control form-control-dark form-control-sm" placeholder="Facoltative">
-                                        </div>
-                                        <button type="submit" class="btn btn-sm btn-glow w-100" style="background:linear-gradient(135deg,#10b981,#059669);">
-                                            Conferma Rientro
-                                        </button>
-                                    </form>
-                                </div>
-                            </div>
-                            {% endif %}
                         </div>
                     </div>
                     {% endfor %}
@@ -437,9 +383,11 @@
                         <thead>
                             <tr>
                                 <th>Veicolo</th>
-                                <th>Data</th>
-                                <th>Percorso</th>
-                                <th>KM</th>
+                                <th>Data e Ora</th>
+                                <th>Sede Partenza</th>
+                                {% if user.ruolo in ('admin', 'fleet_manager', 'global_fleet_manager') %}
+                                    <th>Guidatore</th>
+                                {% endif %}
                                 <th>Note</th>
                                 <th></th>
                             </tr>
@@ -452,24 +400,22 @@
                                     <span class="small" style="color:#818cf8;">{{ p.targa }}</span>
                                 </td>
                                 <td>
-                                    {{ p.data_viaggio }}<br>
-                                    <span class="small text-muted">{{ p.ora_partenza }} – {{ p.ora_arrivo }}</span>
+                                    <span>{{ p.data_viaggio }}</span><br>
+                                    <span class="small text-muted">{{ p.ora_partenza }} - {{ p.ora_riconsegna_prevista or '-' }}</span>
                                 </td>
                                 <td>
-                                    {{ p.sede_partenza_nome }}
-                                    <i class="bi bi-arrow-right mx-1" style="color:#475569;"></i>
-                                    {{ p.sede_arrivo_nome }}
+                                    <span>{{ p.sede_partenza_nome }}</span>
                                 </td>
-                                <td>
-                                    {% if p.km_finali is not none and p.km_iniziali is not none %}
-                                    <span class="fw-bold" style="color:#34d399;">{{ p.km_finali - p.km_iniziali }} km</span><br>
-                                    <span class="small text-muted">({{ p.km_iniziali }} ➔ {{ p.km_finali }})</span>
-                                    {% else %}--{% endif %}
-                                </td>
+                                {% if user.ruolo in ('admin', 'fleet_manager', 'global_fleet_manager') %}
+                                    <td>
+                                        <span class="fw-bold text-white">{{ p.driver_nome }} {{ p.driver_cognome }}</span><br>
+                                        <span class="small text-muted">{{ p.driver_email }}</span>
+                                    </td>
+                                {% endif %}
                                 <td class="text-wrap small text-muted" style="max-width:140px;">{{ p.note or '–' }}</td>
                                 <td>
                                     <form action="/elimina/{{ p.viaggio_id }}" method="POST"
-                                          onsubmit="return confirm('Eliminare questo record?');">
+                                          onsubmit="return confirm('Eliminare questo record dallo storico?');">
                                         <button type="submit" class="btn btn-sm btn-link p-0" style="color:#f87171;">
                                             <i class="bi bi-trash fs-5"></i>
                                         </button>
@@ -579,42 +525,6 @@ document.addEventListener("DOMContentLoaded", function() {
                 opt.disabled = parseInt(opt.value.split(":")[0]) <= ph;
             }
             if (oraR.value && parseInt(oraR.value.split(":")[0]) <= ph) oraR.value = "";
-        });
-    }
-
-    // Prefill arrival times to current local time
-    document.querySelectorAll('.input-ora-arrivo').forEach(input => {
-        const now = new Date();
-        const hh = String(now.getHours()).padStart(2, '0');
-        const mm = String(now.getMinutes()).padStart(2, '0');
-        input.value = `${hh}:${mm}`;
-    });
-
-    // Handle 'Parti Ora' switch behavior
-    const partiOraChk = document.getElementById("parti_ora");
-    const dataGroup = document.getElementById("data_viaggio").closest(".mb-3");
-    const oraPGroup = document.getElementById("ora_partenza").closest(".mb-3");
-
-    if (partiOraChk) {
-        partiOraChk.addEventListener("change", function() {
-            if (partiOraChk.checked) {
-                // Hide date and departure hour fields
-                dataGroup.style.display = "none";
-                oraPGroup.style.display = "none";
-                
-                // Prefill date and hour to now
-                const now = new Date();
-                document.getElementById("data_viaggio").value = now.toISOString().split('T')[0];
-                const currentHourStr = String(now.getHours()).padStart(2, '0') + ":00";
-                oraP.value = currentHourStr;
-                
-                // Dispatch change to trigger return hour validation
-                oraP.dispatchEvent(new Event("change"));
-            } else {
-                // Show date and departure hour fields
-                dataGroup.style.display = "block";
-                oraPGroup.style.display = "block";
-            }
         });
     }
 
