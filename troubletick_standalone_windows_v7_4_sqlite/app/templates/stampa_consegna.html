@@ -9,7 +9,7 @@
     <style>
         body {
             background-color: #f8f9fa;
-            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+            font-family: Arial, sans-serif;
             color: #000;
         }
 
@@ -18,32 +18,148 @@
             background-color: #fff;
             border: 1px solid #dee2e6;
             box-shadow: 0 0.5rem 1rem rgba(0, 0, 0, 0.05);
-            padding: 40px;
-            margin: 40px auto;
+            padding: 25px 35px;
+            margin: 20px auto;
+            font-size: 0.8rem;
         }
 
-        .form-section-title {
-            background-color: #e9ecef;
-            font-size: 0.85rem;
+        .header-title-block {
+            font-family: Arial, sans-serif;
+            text-align: center;
+        }
+
+        .header-title-block h3 {
+            font-size: 1.15rem;
             font-weight: bold;
-            padding: 6px 12px;
-            border: 1px solid #ced4da;
-            text-transform: uppercase;
-            letter-spacing: 0.5px;
+            margin: 0;
         }
 
-        .field-label {
+        .header-title-block .sub-email {
+            font-size: 0.8rem;
+            font-weight: bold;
+        }
+
+        .doc-title-main {
+            font-size: 1.1rem;
+            font-weight: bold;
+            letter-spacing: 0.5px;
+            margin-top: 10px;
+            margin-bottom: 2px;
+        }
+
+        .doc-law-text {
+            font-size: 0.65rem;
+            font-weight: bold;
+            margin-bottom: 12px;
+        }
+
+        .info-header-table th {
+            font-size: 0.68rem;
+            font-weight: bold;
+            background-color: #fff !important;
+            border: 1px solid #000 !important;
+            padding: 4px;
+        }
+
+        .info-header-table td {
+            font-size: 0.75rem;
+            border: 1px solid #000 !important;
+            padding: 6px;
+        }
+
+        .warning-strip {
+            font-size: 0.65rem;
+            font-weight: bold;
+            text-decoration: underline;
+            text-align: center;
+            margin: 8px 0;
+        }
+
+        .checkbox-label {
+            font-size: 0.72rem;
+            font-weight: bold;
+        }
+
+        .square-box {
+            display: inline-block;
+            width: 10px;
+            height: 10px;
+            border: 1px solid #000;
+            margin-right: 4px;
+            vertical-align: middle;
+            background-color: #fff;
+        }
+
+        .square-box.checked {
+            background-color: #000;
+            position: relative;
+        }
+
+        .square-box.checked::after {
+            content: "X";
+            color: #fff;
+            font-size: 7px;
+            font-weight: bold;
+            position: absolute;
+            top: -2px;
+            left: 1px;
+        }
+
+        .section-box {
+            border: 1px solid #000;
+            margin-bottom: 10px;
+        }
+
+        .section-box-header {
             font-size: 0.75rem;
             font-weight: bold;
-            color: #495057;
-            text-transform: uppercase;
+            border-bottom: 1px solid #000;
+            padding: 2px 8px;
         }
 
-        .field-value {
-            font-size: 0.85rem;
-            border-bottom: 1px dotted #495057;
-            padding-bottom: 2px;
-            min-height: 20px;
+        .section-box-body {
+            padding: 6px 8px;
+        }
+
+        .field-line {
+            border-bottom: 1px solid #000;
+            display: inline-block;
+            min-height: 18px;
+            padding-left: 5px;
+        }
+
+        .signature-title {
+            font-size: 0.7rem;
+            font-weight: bold;
+            margin-bottom: 1px;
+        }
+
+        .signature-sub {
+            font-size: 0.58rem;
+            color: #555;
+            margin-bottom: 15px;
+        }
+
+        .signature-line {
+            border-top: 1px solid #000;
+            width: 80%;
+            margin: 0 auto;
+            padding-top: 2px;
+            font-size: 0.6rem;
+        }
+
+        .disclaimer-text {
+            font-size: 0.62rem;
+            font-style: italic;
+            line-height: 1.2;
+        }
+
+        .footer-contacts {
+            font-size: 0.68rem;
+            line-height: 1.3;
+            border-top: 1px solid #ccc;
+            padding-top: 8px;
+            margin-top: 12px;
         }
 
         @media print {
@@ -63,16 +179,9 @@
                 max-width: 100% !important;
             }
 
-            /* Garantisce che stia in una singola pagina A4 */
             html,
             body {
                 height: 99%;
-                font-size: 13px !important;
-            }
-
-            .table th,
-            .table td {
-                padding: 4px 8px !important;
             }
         }
     </style>
@@ -114,302 +223,289 @@
     {% endif %}
 
     <div class="buono-container">
-        <!-- Intestazione ASL AL -->
-        <div class="row align-items-center mb-3">
-            <div class="col-4 border-end border-secondary pe-3 d-flex align-items-center gap-2">
-                <img src="/static/asl-al-logo.png" alt="Logo Azienda" width="65" height="65">
-
-                <div>
-                    <div class="fw-bold" style="font-size: 1.1rem; line-height: 1.1; color: #005C8A;">ASL AL</div>
-                    <div style="font-size: 0.6rem; font-weight: 900; color: #5A6B7C; letter-spacing: 0.5px;">REGIONE
-                        PIEMONTE</div>
+        <!-- Logo and Top Header Section -->
+        <div class="row align-items-center mb-1">
+            <div class="col-3 text-center">
+                <img src="/static/asl-al-logo.png" alt="Logo ASL AL" width="55" height="55" class="d-block mx-auto mb-1">
+                <div style="font-size: 0.52rem; font-weight: bold; line-height: 1.1; letter-spacing: 0.2px;">
+                    REGIONE PIEMONTE
                 </div>
             </div>
-            <div class="col-8 ps-3" style="font-size: 0.7rem; line-height: 1.3;">
-                <strong class="text-uppercase" style="color: #005C8A;">S.C. Economato Logistica Approvvigionamenti
-                    Patrimoniale</strong><br>
-                <strong>S.S. Patrimoniale</strong><br>
-                <span class="text-muted">
-                    piazza Antico Borgo del Loreto - 15057 Tortona (AL)<br>
-                    Tel. 0131.865443/865641/865704/865333/865767/865717 | Fax 0131.865450<br>
-                    E-mail: patrimonio@aslal.it - patrimonio@pec.aslal.it - www.aslal.it
-                </span>
-            </div>
-        </div>
-
-        <!-- Titolo Documento -->
-        <div class="text-center my-3 p-2 border-top border-bottom border-secondary border-2"
-            style="background-color: #f8f9fa;">
-            <h4 class="mb-1 fw-bold" style="letter-spacing: 1px;">BUONO DI MOVIMENTO</h4>
-            <div class="small" style="font-size: 0.7rem; font-style: italic; color: #495057;">
-                ai sensi del "Regolamento per la tenuta e la gestione dei beni mobili" (deliberazione n. 938 del
-                23/12/2016)
-            </div>
-        </div>
-
-        <!-- USCITA DAL SERVIZIO -->
-        <div class="mb-3">
-            <div class="form-section-title">Uscita dal Servizio</div>
-            <div class="border border-secondary p-3" style="background-color: #fcfcfc;">
-                <div class="row mb-2">
-                    <div class="col-4">
-                        <div class="field-label">Data</div>
-                        <div class="field-value">{{ data_mov_ita }}</div>
-                    </div>
-                    <div class="col-4">
-                        <div class="field-label">Centro di Costo</div>
-                        <div class="field-value">&nbsp;</div>
-                    </div>
-                    <div class="col-4">
-                        <div class="field-label">Codice di Reparto</div>
-                        <div class="field-value">&nbsp;</div>
-                    </div>
-                </div>
-                <div class="row">
-                    <div class="col-6 mb-2">
-                        <div class="field-label">Servizio</div>
-                        <div class="field-value">
-                            {% if is_multiplo %}
-                            {% set mag_names = [] %}
-                            {% for m in movements %}
-                            {% if m.magazzino_nome not in mag_names %}
-                            {% if mag_names.append(m.magazzino_nome) %}{% endif %}
-                            {% endif %}
-                            {% endfor %}
-                            {{ mag_names|join(', ') }}
-                            {% else %}
-                            {{ mov.magazzino_nome }}
-                            {% endif %}
-                        </div>
-                    </div>
-                    <div class="col-6 mb-2">
-                        <div class="field-label">Sede</div>
-                        <div class="field-value">
-                            {% if is_multiplo %}
-                            {% set sede_names = [] %}
-                            {% for m in movements %}
-                            {% set s_name = m.magazzino_sede_nome or 'Sede Centrale' %}
-                            {% if s_name not in sede_names %}
-                            {% if sede_names.append(s_name) %}{% endif %}
-                            {% endif %}
-                            {% endfor %}
-                            {{ sede_names|join(', ') }}
-                            {% else %}
-                            {{ mov.magazzino_sede_nome or 'Sede Centrale' }}
-                            {% endif %}
-                        </div>
-                    </div>
-                    <div class="col-6">
-                        <div class="field-label">Referente</div>
-                        <div class="field-value">{{ mov.user_nome }} {{ mov.user_cognome }}</div>
-                    </div>
-                    <div class="col-6">
-                        <div class="field-label">Telefono</div>
-                        <div class="field-value">{{ mov.user_telefono or '——' }}</div>
-                    </div>
+            <div class="col-9 text-center header-title-block">
+                <h3>SETTORE PATRIMONIO ASL AL</h3>
+                <div class="sub-email">patrimonio@aslal.it</div>
+                <div class="sub-email">patrimonio@pec.aslal.it</div>
+                
+                <div class="doc-title-main">BUONO DI MOVIMENTO</div>
+                <div class="doc-law-text">
+                    ai sensi del “Regolamento per la tenuta dell’inventario dell’ASL AL (deliberazione n. 630 del 12.06.2026)
                 </div>
             </div>
         </div>
 
-        <!-- Checkbox Opzioni -->
-        <div class="row border border-secondary rounded p-3 mx-0 mb-3"
-            style="font-size: 0.8rem; background-color: #fff;">
-            <div class="col-3">
-                <div class="form-check">
-                    <input class="form-check-input border-dark" type="checkbox" checked id="chkTrasf">
-                    <label class="form-check-label fw-bold" for="chkTrasf">TRASFERIMENTO</label>
-                </div>
-            </div>
-            <div class="col-3">
-                <div class="form-check">
-                    <input class="form-check-input border-dark" type="checkbox" id="chkDona">
-                    <label class="form-check-label fw-bold" for="chkDona">DONAZIONE</label>
-                </div>
-            </div>
-            <div class="col-3">
-                <div class="form-check">
-                    <input class="form-check-input border-dark" type="checkbox" id="chkComo">
-                    <label class="form-check-label fw-bold" for="chkComo">COMODATO D'USO</label>
-                </div>
-            </div>
-            <div class="col-3">
-                <div class="form-check">
-                    <input class="form-check-input border-dark" type="checkbox" id="chkServ">
-                    <label class="form-check-label fw-bold" for="chkServ">SERVICE</label>
-                </div>
-            </div>
-            <div class="col-12 mt-2">
-                <div class="form-check">
-                    <input class="form-check-input border-dark" type="checkbox" id="chkAltr">
-                    <label class="form-check-label fw-bold" for="chkAltr">
-                        ALTRO: <span
-                            style="border-bottom: 1px solid #000; display: inline-block; min-width: 250px;">___________________________________</span>
-                    </label>
-                </div>
-            </div>
-
-        </div>
-
-        <!-- ENTRATA NEL SERVIZIO -->
-        <div class="mb-3">
-            <div class="form-section-title">Entrata nel Servizio</div>
-            <div class="border border-secondary p-3" style="background-color: #fcfcfc;">
-                <div class="row mb-2">
-                    <div class="col-4">
-                        <div class="field-label">Data</div>
-                        <div class="field-value">{{ data_mov_ita }}</div>
-                    </div>
-                    <div class="col-4">
-                        <div class="field-label">Centro di Costo</div>
-                        <div class="field-value">&nbsp;</div>
-                    </div>
-                    <div class="col-4">
-                        <div class="field-label">Codice di Reparto</div>
-                        <div class="field-value">&nbsp;</div>
-                    </div>
-                </div>
-                <div class="row">
-                    <div class="col-6 mb-2">
-                        <div class="field-label">Servizio</div>
-                        <div class="field-value">{{ entry_servizio }}</div>
-                    </div>
-                    <div class="col-6 mb-2">
-                        <div class="field-label">Sede</div>
-                        <div class="field-value">{{ mov.sede_nome or '——' }}</div>
-                    </div>
-                    <div class="col-6">
-                        <div class="field-label">Referente</div>
-                        <div class="field-value">{{ mov.nominativo_consegna or '——' }}</div>
-                    </div>
-                    <div class="col-6">
-                        <div class="field-label">E-mail / Telefono</div>
-                        <div class="field-value">{{ mov.email_consegna or '——' }}</div>
-                    </div>
-                </div>
-            </div>
-        </div>
-
-        <!-- TABELLA DESCRIZIONE BENI -->
-        <div class="mb-3">
-            <table class="table table-bordered border-secondary mb-0" style="font-size: 0.75rem;">
-                <thead class="text-center table-light align-middle" style="font-size: 0.7rem;">
-                    <tr style="border-bottom: 2px solid #495057;">
-                        <th style="width: 60%;" class="p-1">
-                            DESCRIZIONE BENE<br>
-                            <small class="text-muted fw-normal" style="font-size: 0.6rem;">eventualmente predisporre un
-                                elenco da allegare fermo restando le firme di responsabilità</small>
-                        </th>
-                        <th style="width: 20%;" class="p-1">NUMERO INVENTARIO</th>
-                        <th style="width: 20%;" class="p-1">NUMERO TECNOLOGIE BIOMEDICHE</th>
-                    </tr>
-                </thead>
-                <tbody>
-                    {% if is_multiplo %}
+        <!-- Descrizione Tipologia Bene Table -->
+        <table class="table info-header-table text-center align-middle mb-1">
+            <thead>
+                <tr>
+                    <th style="width: 50%;">DESCRIZIONE TIPOLOGIA BENE</th>
+                    <th style="width: 25%;">NUMERO INVENTARIO</th>
+                    <th style="width: 25%;">NUMERO TECNOLOGIE BIOMEDICHE</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% if is_multiplo %}
                     {% for item in movements %}
-                    <tr style="height: 40px; vertical-align: middle;">
-                        <td class="px-2">
+                    <tr style="height: 28px;">
+                        <td class="text-start px-2 py-1">
                             <strong>{{ item.quantita }}x {{ item.materiale_nome }}</strong>
                             {% if item.marca or item.modello %}
-                            <span class="text-muted d-block" style="font-size: 0.65rem;">Marca: {{ item.marca or '—' }}
-                                | Modello: {{ item.modello or '—' }}</span>
+                                <span class="text-muted" style="font-size: 0.65rem;"> - {{ item.marca or '' }} {{ item.modello or '' }}</span>
                             {% endif %}
-                            <span class="text-muted" style="font-size: 0.65rem; font-style: italic;">(Mag: {{
-                                item.magazzino_nome }})</span>
                         </td>
-                        <td class="text-center align-middle" style="font-family: monospace;">——</td>
-                        <td class="text-center align-middle">——</td>
+                        <td>——</td>
+                        <td>——</td>
                     </tr>
                     {% endfor %}
-                    {% if movements|length < 4 %} {% for i in range(4 - movements|length) %} <tr style="height: 32px;">
-                        <td></td>
-                        <td></td>
-                        <td></td>
-                        </tr>
-                        {% endfor %}
-                        {% endif %}
-                        {% else %}
-                        <!-- Riga con il materiale effettivo -->
-                        <tr style="height: 40px; vertical-align: middle;">
-                            <td class="px-2">
-                                <strong>{{ mov.quantita }}x {{ mov.materiale_nome }}</strong>
-                                {% if mov.marca or mov.modello %}
-                                <span class="text-muted d-block" style="font-size: 0.65rem;">Marca: {{ mov.marca or '—'
-                                    }} |
-                                    Modello: {{ mov.modello or '—' }}</span>
-                                {% endif %}
-                            </td>
-                            <td class="text-center align-middle" style="font-family: monospace;">——</td>
-                            <td class="text-center align-middle">——</td>
-                        </tr>
-                        <!-- Righe vuote aggiuntive per riempire il foglio stampato come da modulo -->
-                        {% for i in range(3) %}
-                        <tr style="height: 32px;">
+                    {% if movements|length < 3 %}
+                        {% for i in range(3 - movements|length) %}
+                        <tr style="height: 24px;">
                             <td></td>
                             <td></td>
                             <td></td>
                         </tr>
                         {% endfor %}
-                        {% endif %}
-                </tbody>
-            </table>
+                    {% endif %}
+                {% else %}
+                    <tr style="height: 28px;">
+                        <td class="text-start px-2 py-1">
+                            <strong>{{ mov.quantita }}x {{ mov.materiale_nome }}</strong>
+                            {% if mov.marca or mov.modello %}
+                                <span class="text-muted" style="font-size: 0.65rem;"> - {{ mov.marca or '' }} {{ mov.modello or '' }}</span>
+                            {% endif %}
+                        </td>
+                        <td>——</td>
+                        <td>——</td>
+                    </tr>
+                    {% for i in range(2) %}
+                    <tr style="height: 24px;">
+                        <td></td>
+                        <td></td>
+                        <td></td>
+                    </tr>
+                    {% endfor %}
+                {% endif %}
+            </tbody>
+        </table>
+
+        <!-- Warning Strip -->
+        <div class="warning-strip">
+            ALLEGARE, SE DEL CASO, L'ELENCO DEI BENI, CON LE FIRME RICHIESTE DA APPORRE SUL PRESENTE MODULO
         </div>
 
-        <!-- BLOCCO FIRME TRASFERIMENTO -->
-        <div class="border border-secondary p-3 mb-3 bg-light" style="font-size: 0.7rem;">
-            <div class="text-center fw-bold mb-2 text-uppercase d-flex justify-content-center align-items-center gap-1">
-                <input type="checkbox" {% if is_transfer %}checked{% endif %} class="form-check-input border-dark">
-                TRASFERIMENTO
+        <!-- Checkboxes Properties Section -->
+        <div class="row mx-0 mb-2 py-1 border border-dark rounded bg-light checkbox-label justify-content-center">
+            <div class="col-12 mb-1">
+                - IL BENE E' DI PROPRIETA' ASL AL A TITOLO DI: &nbsp;&nbsp;&nbsp;&nbsp;
+                <span class="square-box"></span> ACQUISTO &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;
+                <span class="square-box"></span> DONAZIONE
             </div>
-            <div class="row text-center mt-2">
-                <div class="col-4">
-                    <div class="border border-dark p-2 bg-white rounded"
-                        style="min-height: 95px; border-style: dashed !important;">
-                        <div class="fw-bold mb-1" style="font-size: 0.6rem; color: #495057;">CONSEGNATARIO CEDENTE</div>
-                        <div class="text-muted mb-2" style="font-size: 0.55rem;">Cognome e nome leggibile</div>
-                        <div class="fw-semibold text-dark mb-3" style="font-size: 0.75rem;">{{ mov.user_nome }} {{
-                            mov.user_cognome }}</div>
-                        <div class="border-top border-dark mx-auto"
-                            style="width: 70%; font-size: 0.55rem; padding-top: 1px;">Firma</div>
+            <div class="col-12 mb-1">
+                - IL BENE APPARTIENE ALLA CATEGORIA “BENI DI TERZI” A TITOLO DI: &nbsp;&nbsp;&nbsp;&nbsp;
+                <span class="square-box"></span> COMODATO &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;
+                <span class="square-box"></span> NOLEGGIO &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;
+                <span class="square-box"></span> SERVICE
+            </div>
+            <div class="col-12">
+                <span class="square-box checked"></span> <strong>TRASFERIMENTO</strong>
+            </div>
+        </div>
+
+        <!-- Box: USCITA DEL BENE -->
+        <div class="section-box">
+            <div class="section-box-header bg-light d-flex justify-content-between">
+                <span>USCITA DEL BENE</span>
+                <span>DATA: <span class="field-line" style="width: 80px; text-align: center;">{{ data_mov_ita }}</span></span>
+            </div>
+            <div class="section-box-body">
+                <div class="row g-2 mb-1">
+                    <div class="col-7">
+                        DAL SERVIZIO: 
+                        <span class="field-line" style="width: 70%;">
+                            {% if is_multiplo %}
+                                {% set mag_names = [] %}
+                                {% for m in movements %}
+                                    {% if m.magazzino_nome not in mag_names %}
+                                        {% if mag_names.append(m.magazzino_nome) %}{% endif %}
+                                    {% endif %}
+                                {% endfor %}
+                                {{ mag_names|join(', ') }}
+                            {% else %}
+                                {{ mov.magazzino_nome }}
+                            {% endif %}
+                        </span>
+                    </div>
+                    <div class="col-5">
+                        SEDE: 
+                        <span class="field-line" style="width: 75%;">
+                            {% if is_multiplo %}
+                                {% set sede_names = [] %}
+                                {% for m in movements %}
+                                    {% set s_name = m.magazzino_sede_nome or 'Sede Centrale' %}
+                                    {% if s_name not in sede_names %}
+                                        {% if sede_names.append(s_name) %}{% endif %}
+                                    {% endif %}
+                                {% endfor %}
+                                {{ sede_names|join(', ') }}
+                            {% else %}
+                                {{ mov.magazzino_sede_nome or 'Sede Centrale' }}
+                            {% endif %}
+                        </span>
                     </div>
                 </div>
-                <div class="col-4">
-                    <div class="border border-dark p-2 bg-white rounded"
-                        style="min-height: 95px; border-style: dashed !important;">
-                        <div class="fw-bold mb-1" style="font-size: 0.6rem; color: #495057;">CONSEGNATARIO RICEVENTE
-                        </div>
-                        <div class="text-muted mb-4" style="font-size: 0.55rem;">Cognome e nome leggibile</div>
-                        <div class="border-top border-dark mx-auto"
-                            style="width: 70%; font-size: 0.55rem; padding-top: 1px;">Firma</div>
+                <div class="row g-2">
+                    <div class="col-7">
+                        REFERENTE DI RIFERIMENTO: <span class="field-line" style="width: 53%;">{{ mov.user_nome }} {{ mov.user_cognome }}</span>
                     </div>
-                </div>
-                <div class="col-4">
-                    <div class="border border-dark p-2 bg-white rounded"
-                        style="min-height: 95px; border-style: dashed !important;">
-                        <div class="fw-bold mb-1" style="font-size: 0.6rem; color: #495057;">VISTO ADDETTO PATRIMONIO
-                        </div>
-                        <div class="text-muted mb-4" style="font-size: 0.55rem;">Cognome e nome leggibile</div>
-                        <div class="border-top border-dark mx-auto"
-                            style="width: 70%; font-size: 0.55rem; padding-top: 1px;">Firma</div>
+                    <div class="col-5">
+                        TELEFONO: <span class="field-line" style="width: 65%;">{{ mov.user_telefono or '——' }}</span>
                     </div>
                 </div>
             </div>
         </div>
 
-        <!-- Piè di Pagina con data caricamento del sistema -->
-        <div class="d-flex justify-content-between align-items-center border-top border-secondary pt-3 mt-4"
-            style="font-size: 0.75rem;">
+        <!-- Box: ENTRATA DEL BENE -->
+        <div class="section-box">
+            <div class="section-box-header bg-light d-flex justify-content-between">
+                <span>ENTRATA DEL BENE</span>
+                <span>DATA: <span class="field-line" style="width: 80px; text-align: center;">{{ data_mov_ita }}</span></span>
+            </div>
+            <div class="section-box-body">
+                <div class="row g-2 mb-1">
+                    <div class="col-7">
+                        NEL SERVIZIO: <span class="field-line" style="width: 70%;">{{ entry_servizio }}</span>
+                    </div>
+                    <div class="col-5">
+                        SEDE: <span class="field-line" style="width: 75%;">{{ mov.sede_nome or '——' }}</span>
+                    </div>
+                </div>
+                <div class="row g-2">
+                    <div class="col-7">
+                        REFERENTE DI RIFERIMENTO: <span class="field-line" style="width: 53%;">{{ mov.nominativo_consegna or '——' }}</span>
+                    </div>
+                    <div class="col-5">
+                        TELEFONO: <span class="field-line" style="width: 65%;">{{ mov.email_consegna or '——' }}</span>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Firme: Cedente / Ricevente / Patrimonio -->
+        <div class="row text-center mt-3 mb-2">
+            <div class="col-4">
+                <div class="signature-title">CONSEGNATARIO CEDENTE</div>
+                <div class="signature-sub">cognome e nome leggibile</div>
+                <div style="font-size: 0.75rem; font-weight: bold; margin-bottom: 8px;">{{ mov.user_nome }} {{ mov.user_cognome }}</div>
+                <div class="signature-line">Firma</div>
+            </div>
+            <div class="col-4">
+                <div class="signature-title">CONSEGNATARIO RICEVENTE</div>
+                <div class="signature-sub">cognome e nome leggibile</div>
+                <div style="font-size: 0.75rem; font-weight: bold; margin-bottom: 8px;">{{ mov.nominativo_consegna or '——' }}</div>
+                <div class="signature-line">Firma</div>
+            </div>
+            <div class="col-4">
+                <div class="signature-title">VISTO ADDETTO PATRIMONIO</div>
+                <div class="signature-sub">cognome e nome leggibile</div>
+                <div style="font-size: 0.75rem; font-weight: bold; margin-bottom: 8px;">&nbsp;</div>
+                <div class="signature-line">Firma</div>
+            </div>
+        </div>
+
+        <!-- Box: FINE USO / FUORI USO -->
+        <div class="section-box mt-3">
+            <div class="section-box-header bg-light">
+                <span class="square-box"></span> FINE USO &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;
+                <span class="square-box"></span> FUORI USO &nbsp;&nbsp;&nbsp;&nbsp;
+                <span style="font-size: 0.65rem; font-weight: normal;">(applicare una copia del Buono di Movimento sul bene stesso)</span>
+            </div>
+            <div class="section-box-body">
+                <div class="row g-2 mb-1">
+                    <div class="col-8">
+                        USCITA DEL BENE DAL SERVIZIO: <span class="field-line" style="width: 53%;">__________________________________</span>
+                    </div>
+                    <div class="col-4">
+                        SEDE: <span class="field-line" style="width: 70%;">__________________</span>
+                    </div>
+                </div>
+                <div class="row g-2 mb-1">
+                    <div class="col-4">
+                        IN DATA: <span class="field-line" style="width: 60%;">____/____/________</span>
+                    </div>
+                    <div class="col-4">
+                        REFERENTE: <span class="field-line" style="width: 55%;">__________________</span>
+                    </div>
+                    <div class="col-4">
+                        TELEFONO: <span class="field-line" style="width: 60%;">__________________</span>
+                    </div>
+                </div>
+                <div class="row g-2">
+                    <div class="col-6">
+                        MOTIVAZIONE: <span class="field-line" style="width: 65%;">_____________________________</span>
+                    </div>
+                    <div class="col-6">
+                        LUOGO OVE REPERIRE IL BENE: <span class="field-line" style="width: 42%;">_____________________________</span>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Firme Fine/Fuori Uso -->
+        <div class="row text-center mt-3">
+            <div class="col-4">
+                <div class="signature-title">DIRETTORE/RESPONSABILE</div>
+                <div class="signature-sub">cognome e nome leggibile</div>
+                <div class="signature-line" style="margin-top: 15px;">Firma</div>
+            </div>
+            <div class="col-4">
+                <div class="signature-title">*VISTO TBM / ICT</div>
+                <div class="signature-sub">cognome e nome leggibile</div>
+                <div class="signature-line" style="margin-top: 15px;">Firma</div>
+            </div>
+            <div class="col-4">
+                <div class="signature-title">VISTO ADDETTO PATRIMONIO</div>
+                <div class="signature-sub">cognome e nome leggibile</div>
+                <div class="signature-line" style="margin-top: 15px;">Firma</div>
+            </div>
+        </div>
+
+        <!-- ICT disclaimer -->
+        <div class="mt-2 disclaimer-text text-muted text-center">
+            *VISTO da apporre da parte del Settore Tecnologie Biomediche o dall’ICT, nei casi di fine uso o fuori uso di APPARECCHIATURE ELETTROMEDICALI oppure INFORMATICHE
+        </div>
+
+        <!-- Footer Contacts -->
+        <div class="footer-contacts text-center text-muted">
+            <strong>Settore Patrimonio – A.S.L. AL</strong><br>
+            Sede di Tortona <i class="bi bi-telephone-fill ms-1"></i> 0131/865641 – 865704 – 865767 &nbsp;|&nbsp; 
+            Sede di Casale M.to <i class="bi bi-telephone-fill ms-1"></i> 0142/434607 – 434672 - 434676 – 434649 - 434422<br>
+            <i class="bi bi-envelope-at-fill"></i> patrimonio@aslal.it &nbsp;|&nbsp; 
+            <i class="bi bi-envelope-at-fill"></i> patrimonio@pec.aslal.it &nbsp;|&nbsp; 
+            <i class="bi bi-globe"></i> www.aslal.it
+        </div>
+
+        <!-- Piè di Pagina di Tracciabilità -->
+        <div class="d-flex justify-content-between align-items-center border-top border-secondary pt-2 mt-3" style="font-size: 0.68rem;">
             <div>
-                Buono di movimento caricato in data: <strong>{{ creato_ita }}</strong> (Rif: {% if is_multiplo is
-                defined and is_multiplo %}{{ mov.gruppo_scarico }}{% else %}MOV-{{ mov.movimento_id }}{% endif %})
+                Buono generato automaticamente dal sistema in data: <strong>{{ creato_ita }}</strong> (Rif: {% if is_multiplo is defined and is_multiplo %}{{ mov.gruppo_scarico }}{% else %}MOV-{{ mov.movimento_id }}{% endif %})
             </div>
             <div class="text-end d-flex align-items-center gap-2" style="width: 40%;">
-                <span class="text-muted" style="font-size: 0.65rem;">Firma Operatore:</span>
-                <div class="border-bottom border-dark flex-grow-1" style="height: 18px;"></div>
+                <span class="text-muted" style="font-size: 0.62rem;">Firma Operatore:</span>
+                <div class="border-bottom border-dark flex-grow-1" style="height: 14px;"></div>
             </div>
         </div>
 
-        <!-- Bottoni di Stampa e Navigazione (Non verranno stampati) -->
-        <div class="text-center mt-5 no-print border-top pt-4">
+        <!-- Action Buttons (no-print) -->
+        <div class="text-center mt-4 no-print border-top pt-3">
             <button class="btn btn-primary btn-lg px-4 shadow-sm" onclick="window.print()">
                 <i class="bi bi-printer-fill"></i> Stampa o Salva PDF
             </button>
@@ -442,7 +538,6 @@
     {% endif %}
 
     <script>
-        // Avvia automaticamente la finestra di stampa dopo mezzo secondo dal caricamento della pagina
         window.onload = function () {
             setTimeout(function () { window.print(); }, 500);
             
