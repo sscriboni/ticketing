@@ -502,15 +502,19 @@ def login_action(r: Request, username: str = Form(...), password: str = Form(...
     password = password.strip()
 
     with engine.connect() as c:
-        row = c.execute(text("""
+        query = """
             SELECT u.user_id, u.username, u.password_hash, u.nome, u.cognome,
                    u.email, u.ruolo, u.magazzino_id, u.reparto_id,
                    r.nome AS reparto_nome, s.nome AS sede_nome
             FROM users u
             LEFT JOIN reparti r ON u.reparto_id = r.reparto_id
             LEFT JOIN sedi s ON u.sede_id = s.sede_id
-            WHERE u.username = :u AND u.attivo = 1
-        """), {"u": username}).mappings().first()
+            WHERE {field} = :u AND u.attivo = 1
+        """
+        if "@" in username:
+            row = c.execute(text(query.format(field="u.email")), {"u": username}).mappings().first()
+        else:
+            row = c.execute(text(query.format(field="u.username")), {"u": username}).mappings().first()
 
     if row and ok(password, row["password_hash"]):
         r.session["user"] = {
