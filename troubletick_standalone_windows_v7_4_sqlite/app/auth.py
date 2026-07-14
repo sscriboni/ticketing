@@ -153,15 +153,55 @@ def forgot_password_form(r: Request):
 @router.post("/forgot-password")
 def forgot_password_action(r: Request, email: str = Form(...)):
     with engine.begin() as c:
-        user = c.execute(text("SELECT user_id, username FROM users WHERE email = :e"), {"e": email}).mappings().first()
+        user = c.execute(text("SELECT user_id, username, nome, cognome FROM users WHERE email = :e"), {"e": email}).mappings().first()
         if user:
             token = secrets.token_urlsafe(32)
             expires = (datetime.now() + timedelta(hours=1)).isoformat()
+            
+            # Save token and expiry in database
+            c.execute(text("UPDATE users SET reset_token = :token, reset_expires = :expires WHERE user_id = :uid"), {
+                "token": token, "expires": expires, "uid": user["user_id"]
+            })
+            
             base_url = CFG.get("app_url", "").strip() or str(r.base_url)
             if not base_url.endswith("/"):
                 base_url += "/"
-            print(f"\n--- EMAIL SIMULATA ---\nLink di reset: {base_url}reset-password?token={token}\n----------------------\n")
-    return templates.TemplateResponse(r, "forgot_password.html", {"request": r, "cfg": CFG, "success": "Se l'email esiste, ti è stato inviato un link di reset."})
+            reset_link = f"{base_url}reset-password?token={token}"
+            
+            nome_utente = f"{user.get('nome', '')} {user.get('cognome', '')}".strip() or user.get("username", "Utente")
+            app_title = CFG.get("app_title", "Troubletick")
+            
+            body = f"""
+            <html><body style="font-family: Arial, sans-serif; line-height: 1.6; color: #333;">
+                <div style="max-width: 600px; margin: 0 auto; padding: 20px;">
+                    <h2 style="color: #2563eb;">🔑 Reset Password — {app_title}</h2>
+                    <p>Ciao <strong>{nome_utente}</strong>,</p>
+                    <p>Abbiamo ricevuto una richiesta di reset della tua password. Clicca sul pulsante qui sotto per impostare una nuova password:</p>
+                    <p style="text-align: center; margin: 30px 0;">
+                        <a href="{reset_link}" style="background-color: #2563eb; color: white; padding: 12px 30px; text-decoration: none; border-radius: 8px; font-weight: bold; display: inline-block;">
+                            Reimposta la password
+                        </a>
+                    </p>
+                    <p style="font-size: 0.9em; color: #666;">
+                        Se non hai richiesto il reset della password, ignora questa email. Il link scadrà tra <strong>1 ora</strong>.
+                    </p>
+                    <hr style="border: none; border-top: 1px solid #eee; margin: 20px 0;">
+                    <p style="font-size: 0.8em; color: #999;">
+                        Se il pulsante non funziona, copia e incolla il seguente link nel browser:<br>
+                        <a href="{reset_link}" style="color: #2563eb;">{reset_link}</a>
+                    </p>
+                </div>
+            </body></html>
+            """
+            
+            send_email_async(
+                dest_email=email,
+                subject=f"Reset Password — {app_title}",
+                body=body,
+                reason="Reset password richiesto dall'utente"
+            )
+            
+    return templates.TemplateResponse(r, "forgot_password.html", {"request": r, "cfg": CFG, "success": "Se l'email esiste nel sistema, ti è stato inviato un link per reimpostare la password. Controlla anche la cartella spam."})
 
 @router.get("/reset-password", response_class=HTMLResponse)
 def reset_password_form(r: Request, token: str):
