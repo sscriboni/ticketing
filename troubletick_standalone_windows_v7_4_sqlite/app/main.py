@@ -1177,8 +1177,75 @@ def ticket_detail(r: Request, ticket_id: int):
             WHERE rm.ticket_id = :id
             ORDER BY rm.creato_il DESC
         """), {"id": ticket_id}).mappings().all()
+
+        # Fetch warehouses and materials list to display inline requests creation
+        if user.get("ruolo") != "admin":
+            user_mag_ids = c.execute(text("SELECT magazzino_id FROM operatori_magazzini WHERE user_id = :uid"), {"uid": user.get("id")}).scalars().all()
+            if user_mag_ids:
+                from sqlalchemy import bindparam
+                stmt = text("""
+                    SELECT magazzino_id, nome, categoria_id 
+                    FROM magazzini 
+                    WHERE magazzino_id IN :mids 
+                    ORDER BY nome
+                """).bindparams(bindparam("mids", expanding=True))
+                magazzini = c.execute(stmt, {"mids": list(user_mag_ids)}).mappings().all()
+            else:
+                magazzini = []
+        else:
+            magazzini = c.execute(text("SELECT magazzino_id, nome, categoria_id FROM magazzini ORDER BY nome")).mappings().all()
+
+        if user.get("ruolo") == "admin":
+            categorie = c.execute(text("""
+                SELECT DISTINCT c.categoria_id, c.nome 
+                FROM categorie c
+                JOIN magazzini m ON (m.categoria_id IS NULL OR m.categoria_id = c.categoria_id)
+                ORDER BY c.nome
+            """)).mappings().all()
+        else:
+            if magazzini:
+                has_null_category = any(m["categoria_id"] is None for m in magazzini)
+                if has_null_category:
+                    categorie = c.execute(text("SELECT categoria_id, nome FROM categorie ORDER BY nome")).mappings().all()
+                else:
+                    cat_ids = list(set(m["categoria_id"] for m in magazzini if m["categoria_id"] is not None))
+                    if cat_ids:
+                        from sqlalchemy import bindparam
+                        stmt_cat = text("""
+                            SELECT categoria_id, nome 
+                            FROM categorie 
+                            WHERE categoria_id IN :cids 
+                            ORDER BY nome
+                        """).bindparams(bindparam("cids", expanding=True))
+                        categorie = c.execute(stmt_cat, {"cids": cat_ids}).mappings().all()
+                    else:
+                        categorie = []
+            else:
+                categorie = []
+
+        materiali = c.execute(text("SELECT materiale_id, nome, categoria_id FROM materiali ORDER BY nome")).mappings().all()
         
-    return templates.TemplateResponse(r, "ticket_detail.html", {"request": r, "cfg": CFG, "ticket": ticket, "notes": notes, "user": user, "reparti": reparti, "servizi": servizi, "richieste_mat": richieste_mat})
+        giacenze_raw = c.execute(text("SELECT magazzino_id, materiale_id, quantita FROM giacenze")).mappings().all()
+        giacenze_json = []
+        for g in giacenze_raw:
+            giacenze_json.append({"magazzino_id": g["magazzino_id"], "materiale_id": g["materiale_id"], "quantita": int(g["quantita"]) if g["quantita"] is not None else 0})
+            
+        giacenze_json_str = json.dumps(giacenze_json)
+        
+    return templates.TemplateResponse(r, "ticket_detail.html", {
+        "request": r, 
+        "cfg": CFG, 
+        "ticket": ticket, 
+        "notes": notes, 
+        "user": user, 
+        "reparti": reparti, 
+        "servizi": servizi, 
+        "richieste_mat": richieste_mat,
+        "categorie": categorie,
+        "materiali": materiali,
+        "magazzini": magazzini,
+        "giacenze_json": giacenze_json_str
+    })
 
 @app.post("/ticket/{ticket_id}/note")
 def add_ticket_note(r: Request, ticket_id: int, testo: str = Form(...), allegato: UploadFile = File(None), is_internal: int = Form(0)):

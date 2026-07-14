@@ -229,16 +229,68 @@
 
       <div class="d-flex gap-2">
         {% if ticket.stato == 'presa_in_carico' %}
-        <form method="get" action="/richiesta-materiale/nuova" class="mb-0">
-          <input type="hidden" name="ticket_id" value="{{ ticket.ticket_id }}">
-          <button type="submit" class="btn btn-outline-primary btn-sm"><i class="bi bi-box-seam"></i> Crea Nuova Richiesta</button>
-        </form>
+        <button type="button" class="btn btn-outline-primary btn-sm" data-bs-toggle="collapse" data-bs-target="#inlineMaterialRequestCollapse" aria-expanded="false" aria-controls="inlineMaterialRequestCollapse">
+          <i class="bi bi-box-seam"></i> Aggiungi materiale
+        </button>
         {% endif %}
         
         {% if ns.query != "" and ticket.stato == 'presa_in_carico' %}
         <a href="/magazzini/scarico-multiplo?ticket_id={{ ticket.ticket_id }}&{{ ns.query[1:] }}{% if ns.sede_id != '' %}&sede_assegnazione_id={{ ns.sede_id }}{% endif %}" class="btn btn-warning btn-sm fw-bold text-dark"><i class="bi bi-box-arrow-up"></i> Procedi con consegna</a>
         {% endif %}
       </div>
+
+      {% if ticket.stato == 'presa_in_carico' %}
+      <div class="collapse mt-3 border rounded p-3 bg-light text-start" id="inlineMaterialRequestCollapse">
+        <h6 class="fw-bold text-secondary mb-3"><i class="bi bi-plus-circle-fill"></i> Richiedi Materiale per questo Ticket</h6>
+        <form method="post" action="/richiesta-materiale/nuova">
+          <input type="hidden" name="ticket_id" value="{{ ticket.ticket_id }}">
+          
+          <div class="row g-2 mb-2">
+            <div class="col-md-6">
+              <label class="form-label small fw-semibold mb-1">Categoria</label>
+              <select name="categoria_id" class="form-select form-select-sm" id="inlineCategoriaSelect" required>
+                <option value="">-- Seleziona Categoria --</option>
+                {% for c in categorie %}
+                <option value="{{ c.categoria_id }}">{{ c.nome }}</option>
+                {% endfor %}
+              </select>
+            </div>
+            
+            <div class="col-md-6">
+              <label class="form-label small fw-semibold mb-1">Tipologia / Materiale</label>
+              <select name="materiale_id" class="form-select form-select-sm" id="inlineMaterialeSelect" required>
+                <option value="">-- Seleziona prima la categoria --</option>
+                {% for m in materiali %}
+                <option value="{{ m.materiale_id }}" data-categoria="{{ m.categoria_id }}">{{ m.nome }}</option>
+                {% endfor %}
+              </select>
+            </div>
+          </div>
+          
+          <div class="row g-2 mb-3">
+            <div class="col-md-8">
+              <label for="inlineMagazzinoSelect" class="form-label small fw-semibold mb-1">Magazzino di prelievo (Opzionale)</label>
+              <select name="magazzino_id" id="inlineMagazzinoSelect" class="form-select form-select-sm">
+                <option value="">-- Nessun magazzino --</option>
+                {% for mag in magazzini %}
+                <option value="{{ mag.magazzino_id }}" data-categoria="{{ mag.categoria_id or '' }}" data-nome-base="{{ mag.nome }}">{{ mag.nome }}</option>
+                {% endfor %}
+              </select>
+            </div>
+            
+            <div class="col-md-4">
+              <label class="form-label small fw-semibold mb-1">Quantità</label>
+              <input type="number" name="quantita" class="form-control form-control-sm" min="1" value="1" required>
+            </div>
+          </div>
+          
+          <div class="d-flex justify-content-end gap-2">
+            <button type="button" class="btn btn-secondary btn-sm" data-bs-toggle="collapse" data-bs-target="#inlineMaterialRequestCollapse">Annulla</button>
+            <button type="submit" class="btn btn-primary btn-sm"><i class="bi bi-check-lg"></i> Invia Richiesta</button>
+          </div>
+        </form>
+      </div>
+      {% endif %}
     </div></div>
 
     {% if ticket.stato == 'presa_in_carico' %}
@@ -310,6 +362,55 @@ document.addEventListener('DOMContentLoaded', function() {
         }
         repartoSelect.addEventListener('change', filterServizi);
         filterServizi(); // Avvia il filtro al caricamento iniziale della pagina
+    }
+
+    // Inline material request filters
+    const inlineCatSelect = document.getElementById('inlineCategoriaSelect');
+    const inlineMatSelect = document.getElementById('inlineMaterialeSelect');
+    const inlineMagSelect = document.getElementById('inlineMagazzinoSelect');
+    const giacenze = {% if giacenze_json is defined and giacenze_json %}{{ giacenze_json | safe }}{% else %}[]{% endif %};
+    
+    if (inlineCatSelect && inlineMatSelect && inlineMagSelect) {
+        function filterInlineMaterialiAndMagazzini() {
+            const catId = parseInt(inlineCatSelect.value);
+            const matId = parseInt(inlineMatSelect.value);
+            
+            // Filter materials
+            Array.from(inlineMatSelect.options).forEach(opt => {
+                if (opt.value === "") return;
+                let isMatch = parseInt(opt.dataset.categoria) === catId;
+                opt.hidden = !isMatch;
+                opt.style.display = isMatch ? '' : 'none';
+                if (!isMatch && opt.selected) inlineMatSelect.value = "";
+            });
+            
+            // Filter warehouses by category and show stock
+            Array.from(inlineMagSelect.options).forEach(opt => {
+                if (opt.value === "") return;
+                const magCatId = opt.dataset.categoria;
+                
+                // Show warehouses matching the category or with no restrictions (NULL category)
+                let isMatch = (!magCatId || parseInt(magCatId) === catId);
+                
+                opt.hidden = !isMatch;
+                opt.style.display = isMatch ? '' : 'none';
+                
+                if (isMatch) {
+                    const giac = giacenze.find(g => g.magazzino_id === parseInt(opt.value) && g.materiale_id === matId);
+                    const qta = giac ? giac.quantita : 0;
+                    opt.textContent = isNaN(matId) ? opt.dataset.nomeBase : `${opt.dataset.nomeBase} (Giacenza: ${qta})`;
+                }
+                
+                if (!isMatch && opt.selected) {
+                    inlineMagSelect.value = "";
+                }
+            });
+        }
+        
+        inlineCatSelect.addEventListener('change', filterInlineMaterialiAndMagazzini);
+        inlineMatSelect.addEventListener('change', filterInlineMaterialiAndMagazzini);
+        
+        filterInlineMaterialiAndMagazzini();
     }
 });
 </script>

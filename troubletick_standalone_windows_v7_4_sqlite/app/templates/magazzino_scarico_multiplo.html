@@ -339,6 +339,16 @@
                 matSelect.insertAdjacentHTML('beforeend', `<option value="${m.id}">${m.nome}</option>`);
             });
             matSelect.disabled = false;
+            
+            const prefillMat = matSelect.dataset.prefillMat;
+            if (prefillMat) {
+                const exists = Array.from(matSelect.options).some(opt => opt.value === prefillMat);
+                if (exists) {
+                    matSelect.value = prefillMat;
+                    delete matSelect.dataset.prefillMat;
+                    onMaterialeChange(id);
+                }
+            }
         }
     }
 
@@ -557,13 +567,14 @@
 
         const isFromTicket = urlParams.has('ticket_id');
 
-        if (magIds.length > 0 && !isFromTicket) {
+        if (magIds.length > 0 || matIds.length > 0) {
             // Se ci sono pre-popolamenti, creiamo le righe necessarie
-            for (let i = 0; i < magIds.length; i++) {
+            const loopLen = Math.max(magIds.length, matIds.length);
+            for (let i = 0; i < loopLen; i++) {
                 addNewRow();
                 
                 const currentId = rowCount;
-                const m_id = magIds[i];
+                const m_id = magIds[i] || "";
                 const mat_id = matIds[i] || "";
                 const qta = qtas[i] || "";
                 const req_id = reqIds[i] || "";
@@ -577,15 +588,16 @@
                         }
                     }
                     
-                    magSelect.value = m_id;
-                    onMagazzinoChange(currentId);
-                    
                     if (mat_id) {
                         const matSelect = document.getElementById(`mat-${currentId}`);
                         if (matSelect) {
-                            matSelect.value = mat_id;
-                            onMaterialeChange(currentId);
+                            matSelect.dataset.prefillMat = mat_id;
                         }
+                    }
+                    
+                    if (m_id) {
+                        magSelect.value = m_id;
+                        onMagazzinoChange(currentId);
                     }
                     
                     if (req_id) {

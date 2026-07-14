@@ -1574,7 +1574,7 @@ def get_scarico_multiplo(r: Request, error: str = None, ticket_id: int = None):
             if ticket_info:
                 print(f"DEBUG_TICKET_INFO: {dict(ticket_info)}")
                 rows = c.execute(text("""
-                    SELECT rm.richiesta_id, rm.materiale_id, m.nome AS materiale_nome, rm.quantita, rm.stato
+                    SELECT rm.richiesta_id, rm.materiale_id, m.nome AS materiale_nome, rm.quantita, rm.stato, rm.magazzino_id
                     FROM richieste_materiale rm
                     JOIN materiali m ON rm.materiale_id = m.materiale_id
                     WHERE rm.ticket_id = :tid AND rm.stato IN ('nuova', 'pronta_per_scarico')
