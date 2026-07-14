@@ -1315,24 +1315,37 @@ def elimina_prenotazione(id: int, r: Request):
         return RedirectResponse(url="/login", status_code=303)
     user = r.session.get("user")
     uid = user.get("id")
+    role = user.get("ruolo")
     
+    import urllib.parse
+    if role not in ("admin", "fleet_manager", "global_fleet_manager"):
+        return RedirectResponse(url=f"/autopark?error={urllib.parse.quote('Non sei autorizzato a eliminare prenotazioni.')}", status_code=303)
+        
     with engine.begin() as conn:
-        role = user.get("ruolo")
         if role in ("admin", "global_fleet_manager"):
-            v = conn.execute(text("SELECT automezzo_id FROM viaggi_automezzi WHERE viaggio_id = :id"), {"id": id}).first()
+            v = conn.execute(text("SELECT automezzo_id, km_iniziali, km_finali FROM viaggi_automezzi WHERE viaggio_id = :id"), {"id": id}).mappings().first()
         elif role == "fleet_manager":
             user_reparto_id = conn.execute(text("SELECT reparto_id FROM users WHERE user_id = :uid"), {"uid": uid}).scalar() or 0
             v = conn.execute(text("""
-                SELECT v.automezzo_id
+                SELECT v.automezzo_id, v.km_iniziali, v.km_finali
                 FROM viaggi_automezzi v
                 JOIN users u ON v.user_id = u.user_id
                 WHERE v.viaggio_id = :id AND u.reparto_id = :rep
-            """), {"id": id, "rep": user_reparto_id}).first()
+            """), {"id": id, "rep": user_reparto_id}).mappings().first()
         else:
-            v = conn.execute(text("SELECT automezzo_id FROM viaggi_automezzi WHERE viaggio_id = :id AND user_id = :uid"), {"id": id, "uid": uid}).first()
+            v = None
             
         if v:
+            k_init = v["km_iniziali"] or 0
+            k_fin = v["km_finali"]
+            if k_fin is not None:
+                diff = k_fin - k_init
+                msg_text = f"Viaggio eliminato con successo! Il tragitto comprendeva {diff} km (KM Partenza: {k_init}, KM Arrivo: {k_fin})."
+            else:
+                msg_text = f"Prenotazione eliminata con successo! (KM iniziali veicolo: {k_init})."
+                
             conn.execute(text("DELETE FROM viaggi_automezzi WHERE viaggio_id = :id"), {"id": id})
+            return RedirectResponse(url=f"/autopark?msg={urllib.parse.quote(msg_text)}", status_code=303)
             
     return RedirectResponse(url="/autopark?msg=deleted", status_code=303)
 

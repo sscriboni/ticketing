@@ -191,6 +191,16 @@
             </div>
             <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
         </div>
+    {% elif msg and msg not in ('started', 'paused', 'resumed', 'completed') %}
+        <div class="alert alert-info alert-dismissible fade show shadow-sm border-0 rounded-4 mb-4" role="alert">
+            <div class="d-flex align-items-center">
+                <i class="bi bi-info-circle-fill fs-4 me-3"></i>
+                <div>
+                    {{ msg }}
+                </div>
+            </div>
+            <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+        </div>
     {% endif %}
 
     {% if info == 'no_booking' %}
@@ -445,11 +455,13 @@
                                                     </button>
                                                 </form>
                                                 
+                                                {% if user.ruolo in ('admin', 'fleet_manager', 'global_fleet_manager') %}
                                                 <form action="/autopark/elimina/{{ p.viaggio_id }}" method="POST" class="d-inline flex-fill" onsubmit="return confirm('Sei sicuro di voler annullare questa prenotazione?');">
                                                     <button type="submit" class="btn btn-sm btn-outline-danger w-100 rounded-3 fw-bold">
                                                         <i class="bi bi-trash-fill me-1"></i> Annulla
                                                     </button>
                                                 </form>
+                                                {% endif %}
                                             </div>
                                         {% endif %}
                                     </div>
@@ -486,7 +498,9 @@
                                         <th>Guidatore</th>
                                     {% endif %}
                                     <th>Note</th>
-                                    <th>Azione</th>
+                                    {% if user.ruolo in ('admin', 'fleet_manager', 'global_fleet_manager') %}
+                                        <th>Azione</th>
+                                    {% endif %}
                                 </tr>
                             </thead>
                             <tbody>
@@ -515,6 +529,7 @@
                                         <td class="text-wrap small text-muted" style="max-width: 150px;">
                                             {{ p.note or '-' }}
                                         </td>
+                                        {% if user.ruolo in ('admin', 'fleet_manager', 'global_fleet_manager') %}
                                         <td>
                                             <form action="/autopark/elimina/{{ p.viaggio_id }}" method="POST" onsubmit="return confirm('Eliminare questo record dallo storico?');">
                                                 <button type="submit" class="btn btn-sm btn-link text-danger p-0" title="Elimina record">
@@ -522,6 +537,7 @@
                                                 </button>
                                             </form>
                                         </td>
+                                        {% endif %}
                                     </tr>
                                 {% endfor %}
                             </tbody>

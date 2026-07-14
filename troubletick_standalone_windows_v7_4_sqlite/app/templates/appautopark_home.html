@@ -222,6 +222,11 @@
         <i class="bi bi-play-circle-fill me-2"></i><strong>Viaggio ripreso!</strong> Il veicolo è di nuovo in movimento.
         <button type="button" class="btn-close btn-close-white" data-bs-dismiss="alert"></button>
     </div>
+    {% elif msg and msg not in ('started', 'paused', 'resumed', 'completed', 'deleted') %}
+    <div class="alert alert-glass alert-glass-info alert-dismissible fade show" role="alert">
+        <i class="bi bi-info-circle-fill me-2"></i>{{ msg }}
+        <button type="button" class="btn-close btn-close-white" data-bs-dismiss="alert"></button>
+    </div>
     {% endif %}
 
     {% if info == 'no_booking' %}
@@ -469,11 +474,13 @@
                                             <i class="bi bi-play-fill me-1"></i> Registra Viaggio
                                         </button>
                                     </form>
+                                    {% if user.ruolo in ('admin', 'fleet_manager', 'global_fleet_manager') %}
                                     <form action="/elimina/{{ p.viaggio_id }}" method="POST" class="w-100" onsubmit="return confirm('Annullare questa prenotazione?');">
                                         <button type="submit" class="btn btn-sm btn-outline-danger-glow w-100 py-2">
                                             <i class="bi bi-trash-fill me-1"></i> Annulla
                                         </button>
                                     </form>
+                                    {% endif %}
                                 </div>
                             {% endif %}
                         </div>
@@ -500,11 +507,14 @@
                                 <th>Veicolo</th>
                                 <th>Data e Ora</th>
                                 <th>Sede Partenza</th>
+                                <th>KM (Inizio/Fine)</th>
                                 {% if user.ruolo in ('admin', 'fleet_manager', 'global_fleet_manager') %}
                                     <th>Guidatore</th>
                                 {% endif %}
                                 <th>Note</th>
-                                <th></th>
+                                {% if user.ruolo in ('admin', 'fleet_manager', 'global_fleet_manager') %}
+                                    <th></th>
+                                {% endif %}
                             </tr>
                         </thead>
                         <tbody>
@@ -521,6 +531,9 @@
                                 <td>
                                     <span>{{ p.sede_partenza_nome }}</span>
                                 </td>
+                                <td>
+                                    <span style="color:#60a5fa;">{{ p.km_iniziali or '0' }}</span> / <span style="color:#34d399;">{{ p.km_finali or '-' }}</span>
+                                </td>
                                 {% if user.ruolo in ('admin', 'fleet_manager', 'global_fleet_manager') %}
                                     <td>
                                         <span class="fw-bold text-white">{{ p.driver_nome }} {{ p.driver_cognome }}</span><br>
@@ -528,6 +541,7 @@
                                     </td>
                                 {% endif %}
                                 <td class="text-wrap small text-muted" style="max-width:140px;">{{ p.note or '–' }}</td>
+                                {% if user.ruolo in ('admin', 'fleet_manager', 'global_fleet_manager') %}
                                 <td>
                                     <form action="/elimina/{{ p.viaggio_id }}" method="POST"
                                           onsubmit="return confirm('Eliminare questo record dallo storico?');">
@@ -536,6 +550,7 @@
                                         </button>
                                     </form>
                                 </td>
+                                {% endif %}
                             </tr>
                             {% endfor %}
                         </tbody>
