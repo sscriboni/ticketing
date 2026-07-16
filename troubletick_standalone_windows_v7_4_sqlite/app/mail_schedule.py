@@ -48,6 +48,40 @@ def format_date_italian(d):
     months = ["Gennaio", "Febbraio", "Marzo", "Aprile", "Maggio", "Giugno", "Luglio", "Agosto", "Settembre", "Ottobre", "Novembre", "Dicembre"]
     return f"{days[d.weekday()]} {d.day} {months[d.month - 1]} {d.year}"
 
+def get_next_week_working_days(conn):
+    """
+    Ritorna la lista delle date (date_obj, date_str, formatted_str) dei giorni lavorativi (lunedì-venerdì)
+    della settimana successiva.
+    """
+    from datetime import date, timedelta
+    
+    # Leggi festivita
+    festivita_dates = set()
+    try:
+        fest_rows = conn.execute(text("SELECT data FROM festivita")).mappings().all()
+        festivita_dates = {r["data"] for r in fest_rows}
+    except Exception:
+        pass
+        
+    today = date.today()
+    # Trova il lunedì della settimana successiva
+    # weekday(): 0=Lunedì, ..., 6=Domenica
+    days_to_next_monday = 7 - today.weekday()
+    next_monday = today + timedelta(days=days_to_next_monday)
+    
+    next_week_days = []
+    for i in range(5): # Da lunedì a venerdì
+        d = next_monday + timedelta(days=i)
+        d_str = d.strftime("%Y-%m-%d")
+        is_holiday = d_str in festivita_dates
+        next_week_days.append({
+            "date": d,
+            "date_str": d_str,
+            "formatted": format_date_italian(d),
+            "is_holiday": is_holiday
+        })
+    return next_week_days
+
 def query_admin_status(conn):
     """Raccoglie i dati per il report ADMIN_STATUS"""
     data = {}
@@ -206,7 +240,7 @@ def query_resp_status(conn):
             else:
                 services[None]["in_attesa"] += r["count"]
 
-        # Trasforma in lista, escludi servizi con tutti i conteggi a zero (per brevità) ma mantieni quelli con in attesa > 0
+        # Trasforma in lista
         servizi_stats = []
         for sid, sinfo in services.items():
             if sinfo["aperti_oggi"] > 0 or sinfo["chiusi_oggi"] > 0 or sinfo["in_attesa"] > 0:
@@ -218,7 +252,6 @@ def query_resp_status(conn):
                     "in_attesa": sinfo["in_attesa"]
                 })
         
-        # Ordina per in_attesa discendente (evidenziando i servizi che hanno più ticket in attesa)
         servizi_stats.sort(key=lambda x: x["in_attesa"], reverse=True)
         data["servizi_stats"] = servizi_stats
         
@@ -226,104 +259,128 @@ def query_resp_status(conn):
         print(f"[ERRORE] Recupero statistiche ticket per servizio fallito: {e}")
         data["servizi_stats"] = []
 
-    # 2. Giornata lavorativa successiva: calcolo operatori presenti, assenti e scoperture
-    next_day, next_day_str = get_next_working_day(conn)
-    data["next_working_day_obj"] = next_day
-    data["next_working_day_str"] = next_day_str
-    data["next_working_day_formatted"] = format_date_italian(next_day)
-
+    # Carica tutti gli operatori attivi ed i servizi associati una volta sola per ottimizzazione
     try:
-        # Recupera tutti gli operatori attivi (ruolo != 'normale' ed attivo = 1)
         ops_rows = conn.execute(text("""
             SELECT user_id, username, nome, cognome, ruolo, email 
             FROM users 
-            WHERE ruolo != 'normale' AND attivo = 1
+            WHERE ruolo != 'normale' AND attivo = 1 AND user_id != 1
         """)).mappings().all()
         operators = {r["user_id"]: dict(r) for r in ops_rows}
 
-        # Recupera assenze per il giorno successivo
-        assenze_rows = conn.execute(text("""
-            SELECT user_id, motivo FROM assenze 
-            WHERE data_inizio <= :target AND data_fine >= :target
-        """), {"target": next_day_str}).mappings().all()
-        absent_dict = {a["user_id"]: (a["motivo"] or "Assenza non specificata") for a in assenze_rows}
-
-        # Suddividi in presenti ed assenti
-        presenti = []
-        assenti = []
-        for uid, op in operators.items():
-            if uid == 1: # Ignora superuser generico se necessario, oppure inseriscilo. Manteniamolo per completezza
-                continue
-            if uid in absent_dict:
-                op["motivo"] = absent_dict[uid]
-                assenti.append(op)
-            else:
-                presenti.append(op)
-                
-        data["presenti"] = presenti
-        data["assenti"] = assenti
-
-        # 3. Mappatura servizi ed eventuali scoperture
-        # Recupera l'elenco dei servizi ed i loro operatori assegnati (escluso ruolo 'admin')
         service_ops_rows = conn.execute(text("""
             SELECT s.servizio_id, s.descrizione as servizio_desc, 
-                   r.reparto_id, r.nome as reparto_nome,
-                   u.user_id, u.nome, u.cognome
+                   r.nome as reparto_nome,
+                   os.user_id
             FROM servizi s
             JOIN reparti r ON s.reparto_id = r.reparto_id
             LEFT JOIN operatori_servizi os ON s.servizio_id = os.servizio_id
-            LEFT JOIN users u ON os.user_id = u.user_id AND u.attivo = 1 AND u.ruolo != 'admin'
-            ORDER BY r.nome, s.descrizione
         """)).mappings().all()
-
-        service_coverage = {}
+        
+        # Mappa dei servizi con i loro operatori attivi assegnati
+        services_ops_map = {}
         for row in service_ops_rows:
             sid = row["servizio_id"]
-            if sid not in service_coverage:
-                service_coverage[sid] = {
+            uid = row["user_id"]
+            if sid not in services_ops_map:
+                services_ops_map[sid] = {
                     "id": sid,
                     "descrizione": row["servizio_desc"],
                     "reparto": row["reparto_nome"],
-                    "totale_assegnati": 0,
-                    "presenti_nomi": [],
-                    "assenti_nomi": []
+                    "ops_uids": set()
                 }
-            uid = row["user_id"]
-            if uid:
-                service_coverage[sid]["totale_assegnati"] += 1
-                name_str = f"{row['nome']} {row['cognome']}".strip() or row['username']
-                if uid in absent_dict:
-                    service_coverage[sid]["assenti_nomi"].append(name_str)
-                else:
-                    service_coverage[sid]["presenti_nomi"].append(name_str)
-
-        # Classifica i servizi per stato di copertura
-        scoperti = [] # Assegnati > 0 ma presenti = 0
-        non_assegnati = [] # Assegnati = 0
-        coperti = [] # Presenti > 0
-        
-        for sid, cov in service_coverage.items():
-            presenti_cnt = len(cov["presenti_nomi"])
-            if cov["totale_assegnati"] == 0:
-                non_assegnati.append(cov)
-            elif presenti_cnt == 0:
-                cov["presenti_cnt"] = 0
-                scoperti.append(cov)
+            if uid in operators:
+                services_ops_map[sid]["ops_uids"].add(uid)
+                
+        # Estrai i servizi non assegnati ad alcun operatore attivo
+        non_assegnati = []
+        active_services_ops_map = {}
+        for sid, sinfo in services_ops_map.items():
+            if len(sinfo["ops_uids"]) == 0:
+                non_assegnati.append(sinfo)
             else:
-                cov["presenti_cnt"] = presenti_cnt
-                coperti.append(cov)
-
-        data["scoperti"] = scoperti
+                active_services_ops_map[sid] = sinfo
+                
         data["non_assegnati"] = non_assegnati
-        data["coperti"] = coperti
-
     except Exception as e:
-        print(f"[ERRORE] Analisi copertura operatori fallita: {e}")
-        data["presenti"] = []
-        data["assenti"] = []
-        data["scoperti"] = []
+        print(f"[ERRORE] Caricamento operatori/servizi fallito: {e}")
+        operators = {}
+        active_services_ops_map = {}
         data["non_assegnati"] = []
-        data["coperti"] = []
+
+    # Funzione interna helper per calcolare assenti e scoperture in una data
+    def get_absents_and_gaps(target_date_str):
+        try:
+            # Query assenze per il giorno specificato
+            assenze_rows = conn.execute(text("""
+                SELECT user_id, motivo FROM assenze 
+                WHERE data_inizio <= :target AND data_fine >= :target
+            """), {"target": target_date_str}).mappings().all()
+            absent_uids = {a["user_id"]: (a["motivo"] or "Assenza non specificata") for a in assenze_rows}
+            
+            # 1. Operatori assenti
+            absent_ops = []
+            for uid, op in operators.items():
+                if uid in absent_uids:
+                    op_copy = op.copy()
+                    op_copy["motivo"] = absent_uids[uid]
+                    absent_ops.append(op_copy)
+            
+            # 2. Scoperture servizi
+            gaps = []
+            for sid, sinfo in active_services_ops_map.items():
+                present_cnt = len(sinfo["ops_uids"] - set(absent_uids.keys()))
+                if present_cnt == 0 and len(sinfo["ops_uids"]) > 0:
+                    assenti_nomi = []
+                    for uid in sinfo["ops_uids"]:
+                        op_info = operators[uid]
+                        assenti_nomi.append(f"{op_info['nome']} {op_info['cognome']}".strip())
+                    gaps.append({
+                        "id": sid,
+                        "descrizione": sinfo["descrizione"],
+                        "reparto": sinfo["reparto"],
+                        "assenti_nomi": assenti_nomi
+                    })
+            return absent_ops, gaps
+        except Exception as ex:
+            print(f"[WARN] Impossibile calcolare copertura per {target_date_str}: {ex}")
+            return [], []
+
+    # 2. Giornata in corso (Oggi)
+    today_str = datetime.today().strftime("%Y-%m-%d")
+    data["today_formatted"] = format_date_italian(datetime.today())
+    today_absents, _ = get_absents_and_gaps(today_str)
+    data["today_assenti"] = today_absents
+
+    # 3. Giornata lavorativa successiva (Domani)
+    next_day, next_day_str = get_next_working_day(conn)
+    data["next_working_day_formatted"] = format_date_italian(next_day)
+    tomorrow_absents, tomorrow_gaps = get_absents_and_gaps(next_day_str)
+    data["tomorrow_assenti"] = tomorrow_absents
+    data["tomorrow_scoperti"] = tomorrow_gaps
+
+    # 4. Situazione settimana successiva
+    try:
+        next_week_days = get_next_week_working_days(conn)
+        next_week_summary = []
+        for day in next_week_days:
+            if day["is_holiday"]:
+                next_week_summary.append({
+                    "formatted_date": day["formatted"],
+                    "is_holiday": True,
+                    "scoperti": []
+                })
+            else:
+                _, day_gaps = get_absents_and_gaps(day["date_str"])
+                next_week_summary.append({
+                    "formatted_date": day["formatted"],
+                    "is_holiday": False,
+                    "scoperti": day_gaps
+                })
+        data["next_week_summary"] = next_week_summary
+    except Exception as e:
+        print(f"[ERRORE] Analisi settimana successiva fallita: {e}")
+        data["next_week_summary"] = []
 
     return data
 
@@ -523,11 +580,10 @@ def build_html_resp_status(data):
     servizi_rows_html = ""
     if data["servizi_stats"]:
         for s in data["servizi_stats"]:
-            # Evidenzia se ci sono ticket in attesa
             bg_style = ""
             badge_in_attesa = f"<span class='badge badge-neutral'>{s['in_attesa']}</span>"
             if s['in_attesa'] > 5:
-                bg_style = "background-color: #fffbeb;" # Amber background per carico di lavoro elevato
+                bg_style = "background-color: #fffbeb;"
                 badge_in_attesa = f"<span class='badge badge-danger'>{s['in_attesa']} in attesa</span>"
             elif s['in_attesa'] > 0:
                 badge_in_attesa = f"<span class='badge badge-warning'>{s['in_attesa']} in attesa</span>"
@@ -545,43 +601,42 @@ def build_html_resp_status(data):
     else:
         servizi_rows_html = "<tr><td colspan='4' style='padding: 15px; text-align: center; color: #64748b;'>Nessun movimento ticket registrato oggi.</td></tr>"
 
-    # 2. Operatori Presenti domani
-    presenti_html = ""
-    if data["presenti"]:
-        for op in data["presenti"]:
-            presenti_html += f"""
-            <div style="display: inline-block; width: 45%; margin: 5px; padding: 10px; background-color: #ecfdf5; border: 1px solid #a7f3d0; border-radius: 8px; vertical-align: top;">
-                <strong style="color: #065f46;">{op['nome']} {op['cognome']}</strong><br>
-                <span style="font-size: 11px; color: #34d399; background: #065f46; padding: 2px 6px; border-radius: 4px; font-weight: bold; display: inline-block; margin-top: 4px;">
-                    {op['ruolo'].upper()}
-                </span>
+    # 2. Operatori Assenti Oggi
+    today_assenti_html = ""
+    if data["today_assenti"]:
+        for op in data["today_assenti"]:
+            ruolo_lbl = op['ruolo'].upper()
+            today_assenti_html += f"""
+            <div style="padding: 10px; background-color: #fef2f2; border: 1px solid #fca5a5; border-radius: 8px; margin-bottom: 8px; display: inline-block; width: 45%; margin-right: 10px; vertical-align: top; box-sizing: border-box;">
+                <strong style="color: #991b1b; font-size: 13px;">{op['nome']} {op['cognome']}</strong> 
+                <span style="font-size: 10px; color: #b91c1c; background: #fee2e2; padding: 1px 5px; border-radius: 4px; font-weight: bold;">{ruolo_lbl}</span><br>
+                <span style="font-size: 11px; color: #7f1d1d; display: inline-block; margin-top: 4px;">ℹ️ Assenza: <em>{op['motivo']}</em></span>
             </div>
             """
     else:
-        presenti_html = "<p style='color: #ef4444; font-weight: bold;'>⚠️ Attenzione! Nessun operatore disponibile in servizio.</p>"
+        today_assenti_html = "<div style='padding: 10px; background-color: #f0fdf4; border: 1px solid #bcf0da; border-radius: 8px; color: #166534; font-size: 13px;'>✓ Tutti gli operatori sono presenti oggi.</div>"
 
-    # 3. Operatori Assenti domani
-    assenti_html = ""
-    if data["assenti"]:
-        for op in data["assenti"]:
-            assenti_html += f"""
-            <div style="padding: 10px; background-color: #fef2f2; border: 1px solid #fca5a5; border-radius: 8px; margin-bottom: 8px;">
-                <strong style="color: #991b1b;">{op['nome']} {op['cognome']}</strong> 
-                <span style="font-size: 11px; color: #b91c1c; background: #fee2e2; padding: 2px 6px; border-radius: 4px; font-weight: bold; margin-left: 6px;">
-                    {op['ruolo'].upper()}
-                </span><br>
-                <span style="font-size: 12px; color: #7f1d1d; display: inline-block; margin-top: 4px;">ℹ️ Motivo: <em>{op['motivo']}</em></span>
+    # 3. Operatori Assenti Domani (Giorno dopo)
+    tomorrow_assenti_html = ""
+    if data["tomorrow_assenti"]:
+        for op in data["tomorrow_assenti"]:
+            ruolo_lbl = op['ruolo'].upper()
+            tomorrow_assenti_html += f"""
+            <div style="padding: 10px; background-color: #fef2f2; border: 1px solid #fca5a5; border-radius: 8px; margin-bottom: 8px; display: inline-block; width: 45%; margin-right: 10px; vertical-align: top; box-sizing: border-box;">
+                <strong style="color: #991b1b; font-size: 13px;">{op['nome']} {op['cognome']}</strong> 
+                <span style="font-size: 10px; color: #b91c1c; background: #fee2e2; padding: 1px 5px; border-radius: 4px; font-weight: bold;">{ruolo_lbl}</span><br>
+                <span style="font-size: 11px; color: #7f1d1d; display: inline-block; margin-top: 4px;">ℹ️ Assenza: <em>{op['motivo']}</em></span>
             </div>
             """
     else:
-        assenti_html = "<p style='color: #065f46;'>Nessun operatore assente programmato per domani.</p>"
+        tomorrow_assenti_html = "<div style='padding: 10px; background-color: #f0fdf4; border: 1px solid #bcf0da; border-radius: 8px; color: #166534; font-size: 13px;'>✓ Nessun operatore assente domani.</div>"
 
-    # 4. Scoperture Servizi
-    scoperti_html = ""
-    if data["scoperti"]:
-        for cov in data["scoperti"]:
+    # 4. Scoperture Domani
+    tomorrow_scoperti_html = ""
+    if data["tomorrow_scoperti"]:
+        for cov in data["tomorrow_scoperti"]:
             assenti_list = ", ".join(cov["assenti_nomi"]) if cov["assenti_nomi"] else "Nessuno"
-            scoperti_html += f"""
+            tomorrow_scoperti_html += f"""
             <div style="padding: 12px; background-color: #fff5f5; border-left: 4px solid #ef4444; border-radius: 6px; margin-bottom: 10px; border: 1px solid #fee2e2; border-left-width: 4px;">
                 <strong style="color: #c53030; font-size: 14px;">{cov['descrizione']}</strong> <span style="font-size: 11px; color: #4a5568;">({cov['reparto']})</span><br>
                 <span style="font-size: 12px; color: #9b2c2c; font-weight: bold;">STATO: SCOPERTO (0 Operatori Presenti)</span><br>
@@ -589,9 +644,33 @@ def build_html_resp_status(data):
             </div>
             """
     else:
-        scoperti_html = "<div style='padding: 12px; background-color: #f0fdf4; border-left: 4px solid #10b981; border-radius: 6px; color: #166534; font-weight: bold;'>✓ Ottimo! Nessun servizio con operatori assegnati risulta scoperto.</div>"
+        tomorrow_scoperti_html = "<div style='padding: 12px; background-color: #f0fdf4; border-left: 4px solid #10b981; border-radius: 6px; color: #166534; font-weight: bold;'>✓ Ottimo! Nessun servizio con operatori assegnati risulta scoperto domani.</div>"
 
-    # 5. Servizi Senza Operatori Assegnati
+    # 5. Riassunto Settimana Successiva
+    week_rows_html = ""
+    if data["next_week_summary"]:
+        for day in data["next_week_summary"]:
+            if day["is_holiday"]:
+                status_html = "<span class='badge badge-neutral' style='background: #fee2e2; color: #991b1b;'>FESTIVITÀ (LAVORO SOSPESO)</span>"
+            elif day["scoperti"]:
+                service_names = [f"<strong>{s['descrizione']}</strong> ({s['reparto']})" for s in day["scoperti"]]
+                status_html = f"""
+                <span class='badge badge-danger' style='margin-bottom: 4px;'>⚠️ {len(day['scoperti'])} SCOPERTURE</span><br>
+                <span style='font-size: 12px; color: #7f1d1d;'>Servizi scoperti: {', '.join(service_names)}</span>
+                """
+            else:
+                status_html = "<span class='badge badge-success'>🟢 COPERTO</span>"
+                
+            week_rows_html += f"""
+            <tr>
+                <td style="padding: 12px 10px; border-bottom: 1px solid #e2e8f0; color: #1e293b; font-weight: bold; width: 35%;">{day['formatted_date']}</td>
+                <td style="padding: 12px 10px; border-bottom: 1px solid #e2e8f0; vertical-align: middle;">{status_html}</td>
+            </tr>
+            """
+    else:
+        week_rows_html = "<tr><td colspan='2' style='padding: 15px; text-align: center; color: #64748b;'>Dati non disponibili per la settimana successiva.</td></tr>"
+
+    # 6. Servizi Senza Operatori Assegnati
     non_assegnati_html = ""
     if data["non_assegnati"]:
         non_assegnati_html += "<ul style='margin: 0; padding-left: 20px; font-size: 13px; color: #7f5f07;'>"
@@ -627,9 +706,9 @@ def build_html_resp_status(data):
             <!-- Header -->
             <div style="background: linear-gradient(135deg, #4f46e5 0%, #3730a3 100%); padding: 30px; text-align: center; color: #ffffff;">
                 <h1 style="margin: 0; font-size: 24px; font-weight: 800; letter-spacing: -0.025em; display: flex; align-items: center; justify-content: center; gap: 10px;">
-                    📋 Report Attività & Presenze Servizi
+                    📋 Report Attività & Pianificazione Servizi
                 </h1>
-                <p style="margin: 5px 0 0 0; font-size: 14px; color: #c7d2fe;">Statistiche giornaliere ed organizzazione turni per i Responsabili</p>
+                <p style="margin: 5px 0 0 0; font-size: 14px; color: #c7d2fe;">Statistiche ticket, presenze ed anomalie di copertura</p>
             </div>
             
             <div style="padding: 25px;">
@@ -654,42 +733,47 @@ def build_html_resp_status(data):
                     </tbody>
                 </table>
 
-                <!-- SEZIONE 2: Giornata Lavorativa Successiva -->
-                <div style="background-color: #f8fafc; border: 1px solid #e2e8f0; border-radius: 12px; padding: 20px; margin-bottom: 30px;">
-                    <h3 style="margin-top: 0; margin-bottom: 15px; font-size: 15px; font-weight: bold; color: #1e1b4b; border-bottom: 1px solid #e2e8f0; padding-bottom: 8px;">
-                        🔮 Turno per la giornata successiva: <span style="color: #4f46e5;">{data['next_working_day_formatted']}</span>
-                    </h3>
-                    
-                    <div style="display: table; width: 100%;">
-                        <div style="display: table-row;">
-                            <!-- Operatori Presenti -->
-                            <div style="display: table-cell; width: 50%; padding-right: 10px; vertical-align: top;">
-                                <h4 style="margin: 0 0 10px 0; font-size: 13px; font-weight: bold; color: #065f46; text-transform: uppercase;">
-                                    🟢 Operatori Presenti ({len(data['presenti'])})
-                                </h4>
-                                {presenti_html}
-                            </div>
-                            
-                            <!-- Operatori Assenti -->
-                            <div style="display: table-cell; width: 50%; padding-left: 10px; vertical-align: top;">
-                                <h4 style="margin: 0 0 10px 0; font-size: 13px; font-weight: bold; color: #991b1b; text-transform: uppercase;">
-                                    🔴 Operatori Assenti ({len(data['assenti'])})
-                                </h4>
-                                {assenti_html}
-                            </div>
-                        </div>
-                    </div>
-                </div>
-
-                <!-- SEZIONE 3: Scoperture -->
-                <h2 style="font-size: 16px; font-weight: 700; color: #b91c1c; margin-top: 0; margin-bottom: 12px; border-bottom: 1px solid #e2e8f0; padding-bottom: 6px;">
-                    🚨 Scoperture Servizi Rilevate (Domani)
+                <!-- SEZIONE 2: Assenze Giornata in Corso (Oggi) -->
+                <h2 style="font-size: 16px; font-weight: 700; color: #4f46e5; margin-top: 0; margin-bottom: 12px; border-bottom: 1px solid #e2e8f0; padding-bottom: 6px;">
+                    🔴 Operatori Assenti Oggi: <span style="font-weight: normal; font-size: 14px; color: #4b5563;">{data['today_formatted']}</span>
                 </h2>
-                <div style="margin-bottom: 25px;">
-                    {scoperti_html}
+                <div style="margin-bottom: 30px;">
+                    {today_assenti_html}
                 </div>
 
-                <!-- SEZIONE 4: Servizi non assegnati -->
+                <!-- SEZIONE 3: Assenze Giornata Lavorativa Successiva (Domani) -->
+                <h2 style="font-size: 16px; font-weight: 700; color: #4f46e5; margin-top: 0; margin-bottom: 12px; border-bottom: 1px solid #e2e8f0; padding-bottom: 6px;">
+                    🔴 Operatori Assenti Domani: <span style="font-weight: normal; font-size: 14px; color: #4b5563;">{data['next_working_day_formatted']}</span>
+                </h2>
+                <div style="margin-bottom: 30px;">
+                    {tomorrow_assenti_html}
+                </div>
+
+                <!-- SEZIONE 4: Scoperture di Domani -->
+                <h2 style="font-size: 16px; font-weight: 700; color: #b91c1c; margin-top: 0; margin-bottom: 12px; border-bottom: 1px solid #e2e8f0; padding-bottom: 6px;">
+                    🚨 Scoperture Servizi Domani ({data['next_working_day_formatted']})
+                </h2>
+                <div style="margin-bottom: 30px;">
+                    {tomorrow_scoperti_html}
+                </div>
+
+                <!-- SEZIONE 5: Riassunto Settimana Successiva -->
+                <h2 style="font-size: 16px; font-weight: 700; color: #4f46e5; margin-top: 0; margin-bottom: 12px; border-bottom: 1px solid #e2e8f0; padding-bottom: 6px;">
+                    🗓️ Riassunto Copertura Settimana Successiva (Previsione)
+                </h2>
+                <table style="width: 100%; border-collapse: collapse; margin-bottom: 30px; font-size: 14px;">
+                    <thead>
+                        <tr style="background-color: #f1f5f9;">
+                            <th style="padding: 10px; text-align: left; border-bottom: 2px solid #cbd5e1; font-weight: bold; color: #475569;">Giorno</th>
+                            <th style="padding: 10px; text-align: left; border-bottom: 2px solid #cbd5e1; font-weight: bold; color: #475569;">Stato Copertura</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {week_rows_html}
+                    </tbody>
+                </table>
+
+                <!-- SEZIONE 6: Servizi non assegnati (Anomalia Configurazione) -->
                 <div style="background-color: #fffbeb; border: 1px solid #fef3c7; padding: 15px; border-radius: 8px; margin-bottom: 10px;">
                     <h3 style="margin-top: 0; margin-bottom: 8px; font-size: 13px; font-weight: bold; color: #7f5f07; text-transform: uppercase;">
                         ⚠️ Servizi senza operatori associati (Anomalia Configurazione)
