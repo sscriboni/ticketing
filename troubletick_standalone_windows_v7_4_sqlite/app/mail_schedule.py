@@ -145,6 +145,15 @@ def query_resp_status(conn):
     """Raccoglie i dati per il report RESP_STATUS"""
     data = {}
     
+    # Rileva il dialect del database per compatibilità SQLite / MySQL / MariaDB
+    is_sqlite = engine.dialect.name == 'sqlite'
+    if is_sqlite:
+        date_filter = "date(creato_il, 'localtime') = date('now', 'localtime')"
+        note_date_filter = "date(tn.creato_il, 'localtime') = date('now', 'localtime')"
+    else:
+        date_filter = "DATE(creato_il) = CURDATE()"
+        note_date_filter = "DATE(tn.creato_il) = CURDATE()"
+
     # 1. Ticket aperti oggi, chiusi oggi e totali in attesa raggruppati per Servizio
     try:
         # Recupera la lista di tutti i servizi
@@ -153,10 +162,10 @@ def query_resp_status(conn):
         services[None] = {"nome": "[Nessun Servizio / Altro]", "aperti_oggi": 0, "chiusi_oggi": 0, "in_attesa": 0}
         
         # Biglietti aperti oggi (creati oggi)
-        aperti_oggi_rows = conn.execute(text("""
+        aperti_oggi_rows = conn.execute(text(f"""
             SELECT servizio_id, COUNT(*) as count 
             FROM tickets 
-            WHERE date(creato_il, 'localtime') = date('now', 'localtime')
+            WHERE {date_filter}
             GROUP BY servizio_id
         """)).mappings().all()
         for r in aperti_oggi_rows:
@@ -167,13 +176,13 @@ def query_resp_status(conn):
                 services[None]["aperti_oggi"] += r["count"]
                 
         # Biglietti chiusi oggi (hanno nota di chiusura oggi)
-        chiusi_oggi_rows = conn.execute(text("""
+        chiusi_oggi_rows = conn.execute(text(f"""
             SELECT t.servizio_id, COUNT(DISTINCT t.ticket_id) as count
             FROM tickets t
             JOIN ticket_notes tn ON t.ticket_id = tn.ticket_id
             WHERE t.stato = 'chiusa'
               AND tn.testo LIKE 'Stato modificato in: %Chiusa%.'
-              AND date(tn.creato_il, 'localtime') = date('now', 'localtime')
+              AND {note_date_filter}
             GROUP BY t.servizio_id
         """)).mappings().all()
         for r in chiusi_oggi_rows:
