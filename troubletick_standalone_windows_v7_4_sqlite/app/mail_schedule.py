@@ -82,6 +82,36 @@ def get_next_week_working_days(conn):
         })
     return next_week_days
 
+def get_next_5_working_days(conn):
+    """
+    Ritorna la lista delle date (date_obj, date_str, formatted_str) dei prossimi 5 giorni lavorativi
+    (escludendo sabato, domenica e festivita) a partire da domani.
+    """
+    from datetime import date, timedelta
+    festivita_dates = set()
+    try:
+        fest_rows = conn.execute(text("SELECT data FROM festivita")).mappings().all()
+        festivita_dates = {r["data"] for r in fest_rows}
+    except Exception:
+        pass
+        
+    working_days = []
+    target = date.today()
+    while len(working_days) < 5:
+        target += timedelta(days=1)
+        # 5=Sabato, 6=Domenica
+        if target.weekday() >= 5:
+            continue
+        target_str = target.strftime("%Y-%m-%d")
+        if target_str in festivita_dates:
+            continue
+        working_days.append({
+            "date": target,
+            "date_str": target_str,
+            "formatted": format_date_italian(target)
+        })
+    return working_days
+
 def query_admin_status(conn):
     """Raccoglie i dati per il report ADMIN_STATUS"""
     data = {}
@@ -876,10 +906,238 @@ def build_html_resp_status(data):
     """
     return html
 
+def query_ope_status(conn, op_id, op_nome, op_cognome, reparto_id, reparto_nome):
+    """Raccoglie i dati per il report OPE_STATUS di un singolo operatore"""
+    data = {
+        "op_id": op_id,
+        "op_nome": op_nome,
+        "op_cognome": op_cognome,
+        "reparto_id": reparto_id,
+        "reparto_nome": reparto_nome
+    }
+    
+    # 1. Riepilogo ticket del proprio reparto (riutilizziamo la logica di query_resp_status_for_reparto)
+    rep_data = query_resp_status_for_reparto(conn, reparto_id, reparto_nome)
+    data["servizi_stats"] = rep_data["servizi_stats"]
+    data["non_assegnati"] = rep_data["non_assegnati"]
+    
+    # 2. Servizi assegnati a questo operatore
+    assigned_services = conn.execute(text("""
+        SELECT s.servizio_id, s.descrizione 
+        FROM operatori_servizi os 
+        JOIN servizi s ON os.servizio_id = s.servizio_id 
+        WHERE os.user_id = :uid
+    """), {"uid": op_id}).mappings().all()
+    
+    # Mappa degli operatori assegnati a ciascuno di questi servizi
+    services_ops = {}
+    for s in assigned_services:
+        sid = s["servizio_id"]
+        ops_rows = conn.execute(text("""
+            SELECT os.user_id 
+            FROM operatori_servizi os 
+            JOIN users u ON os.user_id = u.user_id 
+            WHERE os.servizio_id = :sid AND u.attivo = 1
+        """), {"sid": sid}).mappings().all()
+        services_ops[sid] = {
+            "descrizione": s["descrizione"],
+            "uids": {r["user_id"] for r in ops_rows}
+        }
+        
+    # 3. Calcolo situazione per i prossimi 5 giorni lavorativi
+    next_5_days = get_next_5_working_days(conn)
+    schedule = []
+    
+    # Carica tutti gli operatori attivi del reparto per poter verificare i dettagli nomi se serve
+    ops_rows = conn.execute(text("""
+        SELECT user_id, username, nome, cognome 
+        FROM users 
+        WHERE ruolo != 'normale' AND attivo = 1 AND user_id != 1 AND reparto_id = :rep_id
+    """), {"rep_id": reparto_id}).mappings().all()
+    operators = {r["user_id"]: dict(r) for r in ops_rows}
+    
+    for day in next_5_days:
+        date_str = day["date_str"]
+        
+        # a. Stato di questo operatore (Assenza)
+        absent_row = conn.execute(text("""
+            SELECT motivo FROM assenze 
+            WHERE user_id = :uid AND data_inizio <= :target AND data_fine >= :target
+        """), {"uid": op_id, "target": date_str}).mappings().all()
+        
+        # b. Stato di questo operatore (Presenza)
+        pres_row = conn.execute(text("""
+            SELECT tipo, nota FROM presenze 
+            WHERE user_id = :uid AND data_inizio <= :target AND data_fine >= :target
+        """), {"uid": op_id, "target": date_str}).mappings().all()
+        
+        if absent_row:
+            op_status = f"Assente ({absent_row[0]['motivo'] or 'Ferie/Altro'})"
+            is_op_absent = True
+        elif pres_row:
+            op_status = f"Presente ({pres_row[0]['tipo']}{' - ' + pres_row[0]['nota'] if pres_row[0]['nota'] else ''})"
+            is_op_absent = False
+        else:
+            op_status = "Presente (Standard)"
+            is_op_absent = False
+            
+        # c. Scoperture nei servizi a cui è assegnato
+        # Troviamo tutti gli operatori assenti in questa data per controllare la copertura
+        assenze_rows = conn.execute(text("""
+            SELECT user_id FROM assenze 
+            WHERE data_inizio <= :target AND data_fine >= :target
+        """), {"target": date_str}).mappings().all()
+        day_absents = {a["user_id"] for a in assenze_rows}
+        
+        scoperti = []
+        for sid, sinfo in services_ops.items():
+            presenti_cnt = len(sinfo["uids"] - day_absents)
+            if presenti_cnt == 0 and len(sinfo["uids"]) > 0:
+                scoperti.append(sinfo["descrizione"])
+                
+        schedule.append({
+            "formatted_date": day["formatted"],
+            "op_status": op_status,
+            "is_absent": is_op_absent,
+            "scoperti": scoperti
+        })
+        
+    data["schedule"] = schedule
+    return data
+
+def build_html_ope_status(data):
+    """Costruisce il corpo HTML premium per OPE_STATUS"""
+    # 1. Tabella Servizi (Aperti oggi, Chiusi oggi, In attesa)
+    servizi_rows_html = ""
+    if data["servizi_stats"]:
+        for s in data["servizi_stats"]:
+            badge_in_attesa = f"<span class='badge badge-neutral'>{s['in_attesa']}</span>"
+            if s['in_attesa'] > 5:
+                badge_in_attesa = f"<span class='badge badge-danger'>{s['in_attesa']} in attesa</span>"
+            elif s['in_attesa'] > 0:
+                badge_in_attesa = f"<span class='badge badge-warning'>{s['in_attesa']} in attesa</span>"
+            else:
+                badge_in_attesa = "<span class='badge badge-success'>0 - Libero</span>"
+
+            servizi_rows_html += f"""
+            <tr>
+                <td style="padding: 10px; border-bottom: 1px solid #e2e8f0; font-weight: bold; color: #334155;">{s['nome']}</td>
+                <td style="padding: 10px; border-bottom: 1px solid #e2e8f0; text-align: center; color: #1e40af;">+ {s['aperti_oggi']}</td>
+                <td style="padding: 10px; border-bottom: 1px solid #e2e8f0; text-align: center; color: #065f46;">✓ {s['chiusi_oggi']}</td>
+                <td style="padding: 10px; border-bottom: 1px solid #e2e8f0; text-align: right;">{badge_in_attesa}</td>
+            </tr>
+            """
+    else:
+        servizi_rows_html = "<tr><td colspan='4' style='padding: 15px; text-align: center; color: #64748b;'>Nessun movimento ticket registrato oggi.</td></tr>"
+
+    # 2. Tabella Assenze / Presenze prossimi 5 giorni e scoperture
+    schedule_rows_html = ""
+    for s in data["schedule"]:
+        status_color = "#0f766e" if not s["is_absent"] else "#991b1b"
+        status_bg = "#f0fdf4" if not s["is_absent"] else "#fef2f2"
+        status_border = "#bcf0da" if not s["is_absent"] else "#fca5a5"
+        
+        status_badge = f"<span style='display: inline-block; padding: 4px 8px; font-size: 11px; font-weight: bold; border-radius: 6px; background-color: {status_bg}; border: 1px solid {status_border}; color: {status_color};'>{s['op_status']}</span>"
+        
+        if s["scoperti"]:
+            gaps_list = ", ".join([f"<strong>{srv}</strong>" for srv in s["scoperti"]])
+            scoperti_badge = f"<span class='badge badge-danger' style='margin-bottom: 4px;'>🚨 SCOPERTO!</span><br><span style='font-size: 12px; color: #991b1b;'>I tuoi servizi scoperti: {gaps_list}</span>"
+        else:
+            scoperti_badge = "<span class='badge badge-success'>🟢 COPERTO</span>"
+            
+        schedule_rows_html += f"""
+        <tr>
+            <td style="padding: 12px 10px; border-bottom: 1px solid #e2e8f0; color: #1e293b; font-weight: bold; width: 30%;">{s['formatted_date']}</td>
+            <td style="padding: 12px 10px; border-bottom: 1px solid #e2e8f0; vertical-align: middle; width: 35%;">{status_badge}</td>
+            <td style="padding: 12px 10px; border-bottom: 1px solid #e2e8f0; vertical-align: middle;">{scoperti_badge}</td>
+        </tr>
+        """
+
+    html = f"""
+    <!DOCTYPE html>
+    <html>
+    <head>
+        <meta charset="utf-8">
+        <style>
+            .badge {{
+                display: inline-block;
+                padding: 3px 8px;
+                font-size: 11px;
+                font-weight: bold;
+                border-radius: 12px;
+                text-transform: uppercase;
+            }}
+            .badge-neutral {{ background-color: #e2e8f0; color: #334155; }}
+            .badge-success {{ background-color: #d1fae5; color: #065f46; }}
+            .badge-warning {{ background-color: #fef3c7; color: #92400e; }}
+            .badge-danger {{ background-color: #fee2e2; color: #991b1b; }}
+            .badge-primary {{ background-color: #dbeafe; color: #1e40af; }}
+        </style>
+    </head>
+    <body style="margin: 0; padding: 20px; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; background-color: #f8fafc; color: #1e293b; -webkit-font-smoothing: antialiased;">
+        <div style="max-width: 700px; margin: 0 auto; background: #ffffff; border-radius: 16px; overflow: hidden; box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.05), 0 4px 6px -4px rgba(0, 0, 0, 0.05); border: 1px solid #e2e8f0;">
+            <!-- Header -->
+            <div style="background: linear-gradient(135deg, #0284c7 0%, #0369a1 100%); padding: 30px; text-align: center; color: #ffffff;">
+                <h1 style="margin: 0; font-size: 24px; font-weight: 800; letter-spacing: -0.025em;">
+                    👋 Ciao {data['op_nome']}!
+                </h1>
+                <p style="margin: 5px 0 0 0; font-size: 14px; color: #e0f2fe;">Riepilogo ticket del reparto <strong>{data['reparto_nome']}</strong> e tuo piano turni</p>
+            </div>
+            
+            <div style="padding: 25px;">
+                <!-- SEZIONE 1: Riepilogo ticket di reparto -->
+                <h2 style="font-size: 16px; font-weight: 700; color: #0369a1; margin-top: 0; margin-bottom: 12px; border-bottom: 1px solid #e2e8f0; padding-bottom: 6px;">
+                    📋 Stato Ticket di Reparto (Oggi)
+                </h2>
+                <table style="width: 100%; border-collapse: collapse; margin-bottom: 30px; font-size: 14px;">
+                    <thead>
+                        <tr style="background-color: #f1f5f9;">
+                            <th style="padding: 10px; text-align: left; border-bottom: 2px solid #cbd5e1; font-weight: bold; color: #475569;">Servizio</th>
+                            <th style="padding: 10px; text-align: center; border-bottom: 2px solid #cbd5e1; font-weight: bold; color: #475569;">Aperti Oggi</th>
+                            <th style="padding: 10px; text-align: center; border-bottom: 2px solid #cbd5e1; font-weight: bold; color: #475569;">Chiusi Oggi</th>
+                            <th style="padding: 10px; text-align: right; border-bottom: 2px solid #cbd5e1; font-weight: bold; color: #475569;">In Attesa</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {servizi_rows_html}
+                    </tbody>
+                </table>
+
+                <!-- SEZIONE 2: Le mie presenze e coperture prossimi 5 giorni -->
+                <h2 style="font-size: 16px; font-weight: 700; color: #0369a1; margin-top: 0; margin-bottom: 12px; border-bottom: 1px solid #e2e8f0; padding-bottom: 6px;">
+                    🗓️ Tuo Turno e Stato Copertura Servizi (Prossimi 5 Giorni Lavorativi)
+                </h2>
+                <p style="font-size: 13px; color: #64748b; margin-top: 0; margin-bottom: 12px;">
+                    Verifica il tuo stato di presenza o assenza programmata. Se i servizi a cui sei assegnato risultano scoperti (0 operatori in turno) a causa di assenze concomitanti, verranno evidenziati in rosso:
+                </p>
+                <table style="width: 100%; border-collapse: collapse; margin-bottom: 30px; font-size: 14px;">
+                    <thead>
+                        <tr style="background-color: #f1f5f9;">
+                            <th style="padding: 10px; text-align: left; border-bottom: 2px solid #cbd5e1; font-weight: bold; color: #475569;">Giorno</th>
+                            <th style="padding: 10px; text-align: left; border-bottom: 2px solid #cbd5e1; font-weight: bold; color: #475569;">Tuo Stato</th>
+                            <th style="padding: 10px; text-align: left; border-bottom: 2px solid #cbd5e1; font-weight: bold; color: #475569;">Copertura Servizi Assegnati</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {schedule_rows_html}
+                    </tbody>
+                </table>
+            </div>
+            
+            <!-- Footer -->
+            <div style="background-color: #f1f5f9; padding: 20px; text-align: center; font-size: 12px; color: #64748b; border-top: 1px solid #e2e8f0;">
+                {CFG.get('company_name', 'Troubletick Helpdesk')} — Generato automaticamente tramite cron.
+            </div>
+        </div>
+    </body>
+    </html>
+    """
+    return html
+
 def main():
     parser = argparse.ArgumentParser(description="Script di notifica programmata per l'Helpdesk Troubletick")
-    parser.add_argument("type", nargs="?", choices=["ADMIN_STATUS", "RESP_STATUS"], help="Tipologia di email da inviare")
-    parser.add_argument("--type", dest="type_flag", choices=["ADMIN_STATUS", "RESP_STATUS"], help="Tipologia di email da inviare (opzione)")
+    parser.add_argument("type", nargs="?", choices=["ADMIN_STATUS", "RESP_STATUS", "OPE_STATUS"], help="Tipologia di email da inviare")
+    parser.add_argument("--type", dest="type_flag", choices=["ADMIN_STATUS", "RESP_STATUS", "OPE_STATUS"], help="Tipologia di email da inviare (opzione)")
     parser.add_argument("--to", help="Indirizzo email di destinazione personalizzato (sovrascrive la configurazione)")
     parser.add_argument("--cc", help="Indirizzo email in CC personalizzato")
     parser.add_argument("--mail", help="Indirizzo email a cui inviare SOLO ed ESCLUSIVAMENTE la mail, disattivando altri destinatari e CC")
@@ -890,7 +1148,7 @@ def main():
     email_type = args.type or args.type_flag
     
     if not email_type:
-        print("[ERRORE] Devi specificare una tipologia di mail da inviare: ADMIN_STATUS o RESP_STATUS.")
+        print("[ERRORE] Devi specificare una tipologia di mail da inviare: ADMIN_STATUS, RESP_STATUS o OPE_STATUS.")
         parser.print_help()
         sys.exit(1)
         
@@ -972,6 +1230,54 @@ def main():
                             cc_email=cc_email
                         )
                     print(f"[+] Inviato con successo per reparto '{rep_nome}'!")
+                    
+            elif email_type == "OPE_STATUS":
+                print("[*] Esecuzione query per OPE_STATUS per ciascun operatore...")
+                
+                # Trova tutti gli operatori attivi di reparti che offrono assistenza
+                operators_rows = conn.execute(text("""
+                    SELECT DISTINCT u.user_id, u.nome, u.cognome, u.email, u.reparto_id, r.nome as reparto_nome
+                    FROM users u
+                    JOIN reparti r ON u.reparto_id = r.reparto_id
+                    JOIN servizi s ON r.reparto_id = s.reparto_id
+                    WHERE u.ruolo = 'assistenza' AND u.attivo = 1 AND s.accetta_ticket = 1
+                """)).mappings().all()
+                
+                if not operators_rows:
+                    print("[*] Nessun operatore attivo in reparti di assistenza trovato.")
+                    sys.exit(0)
+                    
+                cc_email = None if args.mail else args.cc
+                
+                for op in operators_rows:
+                    op_id = op["user_id"]
+                    op_nome = op["nome"]
+                    op_cognome = op["cognome"]
+                    op_email = op["email"]
+                    rep_id = op["reparto_id"]
+                    rep_nome = op["reparto_nome"]
+                    
+                    # Se l'utente ha specificato --mail o --to sulla riga di comando, inviamo solo lì
+                    dest_email = args.mail or args.to or op_email
+                    if not dest_email:
+                        print(f"[*] Operatore {op_nome} {op_cognome} non ha un indirizzo email configurato. Invio saltato.")
+                        continue
+                        
+                    print(f"[*] Generazione report OPE_STATUS per operatore '{op_nome} {op_cognome}' (Destinatario: {dest_email})")
+                    data = query_ope_status(conn, op_id, op_nome, op_cognome, rep_id, rep_nome)
+                    
+                    subject = f"[{CFG.get('app_title', 'Troubletick')}] 🗓️ Riepilogo Ticket e Turni per {op_nome}"
+                    body = build_html_ope_status(data)
+                    reason = f"Report Attività e Copertura programmato per operatore {op_nome} {op_cognome} (OPE_STATUS)"
+                    
+                    send_email_async(
+                        dest_email=dest_email,
+                        subject=subject,
+                        body=body,
+                        reason=reason,
+                        cc_email=cc_email
+                    )
+                    print(f"[+] Inviato con successo a {op_nome} {op_cognome}!")
             
     except Exception as e:
         print(f"[ERRORE CRITICO] Esecuzione fallita: {e}")
