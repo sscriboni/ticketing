@@ -923,8 +923,14 @@ def main():
             elif email_type == "RESP_STATUS":
                 print("[*] Esecuzione query per RESP_STATUS per ciascun reparto...")
                 
-                # Recupera tutti i reparti
-                reparti_rows = conn.execute(text("SELECT reparto_id, nome FROM reparti ORDER BY nome")).mappings().all()
+                # Recupera solo i reparti che offrono assistenza (hanno almeno un servizio che accetta ticket)
+                reparti_rows = conn.execute(text("""
+                    SELECT DISTINCT r.reparto_id, r.nome 
+                    FROM reparti r 
+                    JOIN servizi s ON r.reparto_id = s.reparto_id 
+                    WHERE s.accetta_ticket = 1 
+                    ORDER BY r.nome
+                """)).mappings().all()
                 
                 if not reparti_rows:
                     print("[*] Nessun reparto configurato nel sistema.")
