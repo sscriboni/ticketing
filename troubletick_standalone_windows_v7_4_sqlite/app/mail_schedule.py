@@ -705,6 +705,7 @@ def main():
     parser.add_argument("--type", dest="type_flag", choices=["ADMIN_STATUS", "RESP_STATUS"], help="Tipologia di email da inviare (opzione)")
     parser.add_argument("--to", help="Indirizzo email di destinazione personalizzato (sovrascrive la configurazione)")
     parser.add_argument("--cc", help="Indirizzo email in CC personalizzato")
+    parser.add_argument("--mail", help="Indirizzo email a cui inviare SOLO ed ESCLUSIVAMENTE la mail, disattivando altri destinatari e CC")
     
     args = parser.parse_args()
     
@@ -720,8 +721,8 @@ def main():
     
     # Recupera indirizzo destinatario di default
     default_recipient = CFG.get("helpdesk_email", "admin@example.com")
-    dest_email = args.to or default_recipient
-    cc_email = args.cc
+    dest_email = args.mail or args.to or default_recipient
+    cc_email = None if args.mail else args.cc
     
     print(f"[*] Destinatario impostato: {dest_email} (CC: {cc_email or 'Nessuno'})")
 
