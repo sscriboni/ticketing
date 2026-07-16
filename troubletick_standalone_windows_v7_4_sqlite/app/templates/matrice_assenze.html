@@ -121,6 +121,12 @@
             font-weight: bold;
             cursor: pointer;
         }
+        .cell-presenza-mezza {
+            background-color: #e0f2fe !important; /* light teal/sky-blue */
+            color: #0369a1 !important;
+            font-weight: bold;
+            cursor: pointer;
+        }
     </style>
 </head>
 <body class="bg-light">
@@ -210,6 +216,7 @@
                                        {% elif cell.presenza_tipo == 'corsi' %}cell-presenza-corsi
                                        {% elif cell.presenza_tipo == 'trasferta' %}cell-presenza-trasferta
                                        {% elif cell.presenza_tipo == 'altra sede' %}cell-presenza-altra-sede
+                                       {% elif cell.presenza_tipo == 'presente 1/2 gg' %}cell-presenza-mezza
                                        {% else %}cell-absent-altro
                                        {% endif %}
                                    {% else %}cell-presente{% endif %}"
@@ -224,8 +231,8 @@
                             data-absent-text="{% if cell.motivo == 'ferie' %}F{% elif cell.motivo == 'malattia' %}M{% elif cell.motivo == 'permessi vari' %}P{% elif cell.motivo == 'fuori sede' %}FS{% elif cell.motivo == 'festività' %}FE{% else %}A{% endif %}"
                             data-absent-title="{{ row.operator_nome }}: Assente{% if cell.motivo %} - NOTA: {{ cell.motivo|capitalize }}{% endif %}"
                             data-present="{{ '1' if cell.present else '0' }}"
-                            data-present-class="{% if cell.presenza_tipo == 'smartwork' %}cell-presenza-smartwork{% elif cell.presenza_tipo == 'corsi' %}cell-presenza-corsi{% elif cell.presenza_tipo == 'trasferta' %}cell-presenza-trasferta{% elif cell.presenza_tipo == 'altra sede' %}cell-presenza-altra-sede{% else %}cell-absent-altro{% endif %}"
-                            data-present-text="{% if cell.presenza_tipo == 'smartwork' %}SW{% elif cell.presenza_tipo == 'corsi' %}CO{% elif cell.presenza_tipo == 'trasferta' %}TR{% elif cell.presenza_tipo == 'altra sede' %}AS{% else %}P{% endif %}"
+                            data-present-class="{% if cell.presenza_tipo == 'smartwork' %}cell-presenza-smartwork{% elif cell.presenza_tipo == 'corsi' %}cell-presenza-corsi{% elif cell.presenza_tipo == 'trasferta' %}cell-presenza-trasferta{% elif cell.presenza_tipo == 'altra sede' %}cell-presenza-altra-sede{% elif cell.presenza_tipo == 'presente 1/2 gg' %}cell-presenza-mezza{% else %}cell-absent-altro{% endif %}"
+                            data-present-text="{% if cell.presenza_tipo == 'smartwork' %}SW{% elif cell.presenza_tipo == 'corsi' %}CO{% elif cell.presenza_tipo == 'trasferta' %}TR{% elif cell.presenza_tipo == 'altra sede' %}AS{% elif cell.presenza_tipo == 'presente 1/2 gg' %}1/2{% else %}P{% endif %}"
                             data-present-title="{{ row.operator_nome }}: Presente in {{ cell.presenza_tipo|title }}{% if cell.presenza_nota %} - NOTA: {{ cell.presenza_nota }}{% endif %}"
                         >
                             {% if cell.absent %}
@@ -241,6 +248,7 @@
                                 {% elif cell.presenza_tipo == 'corsi' %}CO
                                 {% elif cell.presenza_tipo == 'trasferta' %}TR
                                 {% elif cell.presenza_tipo == 'altra sede' %}AS
+                                {% elif cell.presenza_tipo == 'presente 1/2 gg' %}1/2
                                 {% else %}P
                                 {% endif %}
                             {% endif %}
