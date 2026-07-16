@@ -346,11 +346,36 @@ def query_resp_status(conn):
             print(f"[WARN] Impossibile calcolare copertura per {target_date_str}: {ex}")
             return [], []
 
+    def get_attendance_modalities(target_date_str):
+        try:
+            pres_rows = conn.execute(text("""
+                SELECT user_id, tipo, nota FROM presenze
+                WHERE data_inizio <= :target AND data_fine >= :target
+            """), {"target": target_date_str}).mappings().all()
+            
+            modalita_list = []
+            for r in pres_rows:
+                uid = r["user_id"]
+                if uid in operators:
+                    op = operators[uid]
+                    modalita_list.append({
+                        "nome": op["nome"],
+                        "cognome": op["cognome"],
+                        "ruolo": op["ruolo"],
+                        "tipo": r["tipo"],
+                        "nota": r["nota"] or ""
+                    })
+            return modalita_list
+        except Exception as ex:
+            print(f"[WARN] Impossibile recuperare modalità di presenza per {target_date_str}: {ex}")
+            return []
+
     # 2. Giornata in corso (Oggi)
     today_str = datetime.today().strftime("%Y-%m-%d")
     data["today_formatted"] = format_date_italian(datetime.today())
     today_absents, _ = get_absents_and_gaps(today_str)
     data["today_assenti"] = today_absents
+    data["today_presenze_mod"] = get_attendance_modalities(today_str)
 
     # 3. Giornata lavorativa successiva (Domani)
     next_day, next_day_str = get_next_working_day(conn)
@@ -358,6 +383,7 @@ def query_resp_status(conn):
     tomorrow_absents, tomorrow_gaps = get_absents_and_gaps(next_day_str)
     data["tomorrow_assenti"] = tomorrow_absents
     data["tomorrow_scoperti"] = tomorrow_gaps
+    data["tomorrow_presenze_mod"] = get_attendance_modalities(next_day_str)
 
     # 4. Situazione settimana successiva
     try:
@@ -616,6 +642,22 @@ def build_html_resp_status(data):
     else:
         today_assenti_html = "<div style='padding: 10px; background-color: #f0fdf4; border: 1px solid #bcf0da; border-radius: 8px; color: #166534; font-size: 13px;'>✓ Tutti gli operatori sono presenti oggi.</div>"
 
+    # 2b. Modalità Presenza Oggi
+    today_presenze_mod_html = ""
+    if data["today_presenze_mod"]:
+        for op in data["today_presenze_mod"]:
+            ruolo_lbl = op['ruolo'].upper()
+            nota_lbl = f" ({op['nota']})" if op['nota'] else ""
+            today_presenze_mod_html += f"""
+            <div style="padding: 10px; background-color: #f0fdf4; border: 1px solid #bcf0da; border-radius: 8px; margin-bottom: 8px; display: inline-block; width: 45%; margin-right: 10px; vertical-align: top; box-sizing: border-box;">
+                <strong style="color: #166534; font-size: 13px;">{op['nome']} {op['cognome']}</strong> 
+                <span style="font-size: 10px; color: #166534; background: #d1fae5; padding: 1px 5px; border-radius: 4px; font-weight: bold;">{ruolo_lbl}</span><br>
+                <span style="font-size: 11px; color: #14532d; display: inline-block; margin-top: 4px;">📍 Presenza: <strong>{op['tipo']}</strong>{nota_lbl}</span>
+            </div>
+            """
+    else:
+        today_presenze_mod_html = "<p style='color: #64748b; font-size: 13px; margin: 0;'>Nessuna modalità di presenza specifica registrata oggi.</p>"
+
     # 3. Operatori Assenti Domani (Giorno dopo)
     tomorrow_assenti_html = ""
     if data["tomorrow_assenti"]:
@@ -630,6 +672,22 @@ def build_html_resp_status(data):
             """
     else:
         tomorrow_assenti_html = "<div style='padding: 10px; background-color: #f0fdf4; border: 1px solid #bcf0da; border-radius: 8px; color: #166534; font-size: 13px;'>✓ Nessun operatore assente domani.</div>"
+
+    # 3b. Modalità Presenza Domani
+    tomorrow_presenze_mod_html = ""
+    if data["tomorrow_presenze_mod"]:
+        for op in data["tomorrow_presenze_mod"]:
+            ruolo_lbl = op['ruolo'].upper()
+            nota_lbl = f" ({op['nota']})" if op['nota'] else ""
+            tomorrow_presenze_mod_html += f"""
+            <div style="padding: 10px; background-color: #f0fdf4; border: 1px solid #bcf0da; border-radius: 8px; margin-bottom: 8px; display: inline-block; width: 45%; margin-right: 10px; vertical-align: top; box-sizing: border-box;">
+                <strong style="color: #166534; font-size: 13px;">{op['nome']} {op['cognome']}</strong> 
+                <span style="font-size: 10px; color: #166534; background: #d1fae5; padding: 1px 5px; border-radius: 4px; font-weight: bold;">{ruolo_lbl}</span><br>
+                <span style="font-size: 11px; color: #14532d; display: inline-block; margin-top: 4px;">📍 Presenza: <strong>{op['tipo']}</strong>{nota_lbl}</span>
+            </div>
+            """
+    else:
+        tomorrow_presenze_mod_html = "<p style='color: #64748b; font-size: 13px; margin: 0;'>Nessuna modalità di presenza specifica registrata per domani.</p>"
 
     # 4. Scoperture Domani
     tomorrow_scoperti_html = ""
@@ -741,12 +799,28 @@ def build_html_resp_status(data):
                     {today_assenti_html}
                 </div>
 
+                <!-- SEZIONE 2b: Modalità Presenza Oggi -->
+                <h2 style="font-size: 16px; font-weight: 700; color: #0f766e; margin-top: 0; margin-bottom: 12px; border-bottom: 1px solid #e2e8f0; padding-bottom: 6px;">
+                    🗓️ Modalità di Presenza Oggi: <span style="font-weight: normal; font-size: 14px; color: #4b5563;">{data['today_formatted']}</span>
+                </h2>
+                <div style="margin-bottom: 30px;">
+                    {today_presenze_mod_html}
+                </div>
+
                 <!-- SEZIONE 3: Assenze Giornata Lavorativa Successiva (Domani) -->
                 <h2 style="font-size: 16px; font-weight: 700; color: #4f46e5; margin-top: 0; margin-bottom: 12px; border-bottom: 1px solid #e2e8f0; padding-bottom: 6px;">
                     🔴 Operatori Assenti Domani: <span style="font-weight: normal; font-size: 14px; color: #4b5563;">{data['next_working_day_formatted']}</span>
                 </h2>
                 <div style="margin-bottom: 30px;">
                     {tomorrow_assenti_html}
+                </div>
+
+                <!-- SEZIONE 3b: Modalità Presenza Domani -->
+                <h2 style="font-size: 16px; font-weight: 700; color: #0f766e; margin-top: 0; margin-bottom: 12px; border-bottom: 1px solid #e2e8f0; padding-bottom: 6px;">
+                    🗓️ Modalità di Presenza Domani: <span style="font-weight: normal; font-size: 14px; color: #4b5563;">{data['next_working_day_formatted']}</span>
+                </h2>
+                <div style="margin-bottom: 30px;">
+                    {tomorrow_presenze_mod_html}
                 </div>
 
                 <!-- SEZIONE 4: Scoperture di Domani -->
