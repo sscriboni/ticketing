@@ -45,12 +45,12 @@
 
 <div class="bg-white p-4 rounded shadow-sm overflow-auto">
     <h5 class="mb-4">Copertura mensile: {{ nome_mese }} {{ anno }}</h5>
-    <table class="table table-report table-sm table-hover">
+    <table class="table table-report table-sm table-hover" style="width: max-content; min-width: 100%;">
         <thead class="table-light">
             <tr>
-                <th class="text-start" style="min-width: 250px;">Reparto / Servizio</th>
+                <th class="text-start" style="width: 200px; min-width: 200px; max-width: 200px;">Reparto / Servizio</th>
                 {% for d in days_range %}
-                <th style="width: 30px;">{{ d }}</th>
+                <th style="width: 30px; min-width: 30px;">{{ d }}</th>
                 {% endfor %}
             </tr>
         </thead>

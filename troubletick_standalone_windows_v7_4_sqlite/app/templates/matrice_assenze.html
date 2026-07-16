@@ -36,7 +36,9 @@
             font-weight: bold;
             text-align: left !important;
             padding-left: 12px !important;
-            min-width: 180px;
+            width: 150px;
+            min-width: 150px;
+            max-width: 150px;
             z-index: 10;
             box-shadow: 2px 0 5px rgba(0,0,0,0.05);
         }
@@ -174,7 +176,7 @@
     {% else %}
     <div class="matrix-container mb-4">
         <div class="table-responsive">
-            <table class="matrix-table">
+            <table class="matrix-table" style="width: max-content; min-width: 100%;">
                 <thead>
                     <tr>
                         <th class="operator-col" style="z-index: 11;">Operatore</th>
