@@ -175,9 +175,12 @@ def query_admin_status(conn):
 
     return data
 
-def query_resp_status(conn):
-    """Raccoglie i dati per il report RESP_STATUS"""
-    data = {}
+def query_resp_status_for_reparto(conn, reparto_id, reparto_nome):
+    """Raccoglie i dati per il report RESP_STATUS limitatamente ad un singolo reparto"""
+    data = {
+        "reparto_id": reparto_id,
+        "reparto_nome": reparto_nome
+    }
     
     # Rileva il dialect del database per compatibilità SQLite / MySQL / MariaDB
     is_sqlite = engine.dialect.name == 'sqlite'
@@ -188,26 +191,29 @@ def query_resp_status(conn):
         date_filter = "DATE(creato_il) = CURDATE()"
         note_date_filter = "DATE(tn.creato_il) = CURDATE()"
 
-    # 1. Ticket aperti oggi, chiusi oggi e totali in attesa raggruppati per Servizio
+    # 1. Ticket aperti oggi, chiusi oggi e totali in attesa raggruppati per Servizio (solo per questo reparto)
     try:
-        # Recupera la lista di tutti i servizi
-        servizi_rows = conn.execute(text("SELECT servizio_id, descrizione FROM servizi ORDER BY descrizione")).mappings().all()
+        # Recupera la lista dei servizi di questo reparto
+        servizi_rows = conn.execute(text("""
+            SELECT servizio_id, descrizione 
+            FROM servizi 
+            WHERE reparto_id = :rep_id 
+            ORDER BY descrizione
+        """), {"rep_id": reparto_id}).mappings().all()
+        
         services = {r["servizio_id"]: {"nome": r["descrizione"], "aperti_oggi": 0, "chiusi_oggi": 0, "in_attesa": 0} for r in servizi_rows}
-        services[None] = {"nome": "[Nessun Servizio / Altro]", "aperti_oggi": 0, "chiusi_oggi": 0, "in_attesa": 0}
         
         # Biglietti aperti oggi (creati oggi)
         aperti_oggi_rows = conn.execute(text(f"""
             SELECT servizio_id, COUNT(*) as count 
             FROM tickets 
-            WHERE {date_filter}
+            WHERE {date_filter} AND reparto_id = :rep_id
             GROUP BY servizio_id
-        """)).mappings().all()
+        """), {"rep_id": reparto_id}).mappings().all()
         for r in aperti_oggi_rows:
             sid = r["servizio_id"]
             if sid in services:
                 services[sid]["aperti_oggi"] = r["count"]
-            else:
-                services[None]["aperti_oggi"] += r["count"]
                 
         # Biglietti chiusi oggi (hanno nota di chiusura oggi)
         chiusi_oggi_rows = conn.execute(text(f"""
@@ -217,28 +223,25 @@ def query_resp_status(conn):
             WHERE t.stato = 'chiusa'
               AND tn.testo LIKE 'Stato modificato in: %Chiusa%.'
               AND {note_date_filter}
+              AND t.reparto_id = :rep_id
             GROUP BY t.servizio_id
-        """)).mappings().all()
+        """), {"rep_id": reparto_id}).mappings().all()
         for r in chiusi_oggi_rows:
             sid = r["servizio_id"]
             if sid in services:
                 services[sid]["chiusi_oggi"] = r["count"]
-            else:
-                services[None]["chiusi_oggi"] += r["count"]
 
         # Biglietti totali in attesa (stato != 'chiusa')
         in_attesa_rows = conn.execute(text("""
             SELECT servizio_id, COUNT(*) as count 
             FROM tickets 
-            WHERE stato != 'chiusa'
+            WHERE stato != 'chiusa' AND reparto_id = :rep_id
             GROUP BY servizio_id
-        """)).mappings().all()
+        """), {"rep_id": reparto_id}).mappings().all()
         for r in in_attesa_rows:
             sid = r["servizio_id"]
             if sid in services:
                 services[sid]["in_attesa"] = r["count"]
-            else:
-                services[None]["in_attesa"] += r["count"]
 
         # Trasforma in lista
         servizi_stats = []
@@ -256,16 +259,16 @@ def query_resp_status(conn):
         data["servizi_stats"] = servizi_stats
         
     except Exception as e:
-        print(f"[ERRORE] Recupero statistiche ticket per servizio fallito: {e}")
+        print(f"[ERRORE] Recupero statistiche ticket per reparto {reparto_nome} fallito: {e}")
         data["servizi_stats"] = []
 
-    # Carica tutti gli operatori attivi ed i servizi associati una volta sola per ottimizzazione
+    # Carica tutti gli operatori attivi di questo reparto ed i servizi associati
     try:
         ops_rows = conn.execute(text("""
-            SELECT user_id, username, nome, cognome, ruolo, email 
+            SELECT user_id, username, nome, cognome, ruolo, email, reparto_id
             FROM users 
-            WHERE ruolo != 'normale' AND attivo = 1 AND user_id != 1
-        """)).mappings().all()
+            WHERE ruolo != 'normale' AND attivo = 1 AND user_id != 1 AND reparto_id = :rep_id
+        """), {"rep_id": reparto_id}).mappings().all()
         operators = {r["user_id"]: dict(r) for r in ops_rows}
 
         service_ops_rows = conn.execute(text("""
@@ -275,7 +278,8 @@ def query_resp_status(conn):
             FROM servizi s
             JOIN reparti r ON s.reparto_id = r.reparto_id
             LEFT JOIN operatori_servizi os ON s.servizio_id = os.servizio_id
-        """)).mappings().all()
+            WHERE s.reparto_id = :rep_id
+        """), {"rep_id": reparto_id}).mappings().all()
         
         # Mappa dei servizi con i loro operatori attivi assegnati
         services_ops_map = {}
@@ -311,12 +315,16 @@ def query_resp_status(conn):
     # Funzione interna helper per calcolare assenti e scoperture in una data
     def get_absents_and_gaps(target_date_str):
         try:
-            # Query assenze per il giorno specificato
+            if not operators:
+                return [], []
+                
             assenze_rows = conn.execute(text("""
                 SELECT user_id, motivo FROM assenze 
                 WHERE data_inizio <= :target AND data_fine >= :target
             """), {"target": target_date_str}).mappings().all()
-            absent_uids = {a["user_id"]: (a["motivo"] or "Assenza non specificata") for a in assenze_rows}
+            
+            absent_uids = {a["user_id"]: (a["motivo"] or "Assenza non specificata") 
+                           for a in assenze_rows if a["user_id"] in operators}
             
             # 1. Operatori assenti
             absent_ops = []
@@ -348,6 +356,8 @@ def query_resp_status(conn):
 
     def get_attendance_modalities(target_date_str):
         try:
+            if not operators:
+                return []
             pres_rows = conn.execute(text("""
                 SELECT user_id, tipo, nota FROM presenze
                 WHERE data_inizio <= :target AND data_fine >= :target
@@ -766,7 +776,7 @@ def build_html_resp_status(data):
                 <h1 style="margin: 0; font-size: 24px; font-weight: 800; letter-spacing: -0.025em; display: flex; align-items: center; justify-content: center; gap: 10px;">
                     📋 Report Attività & Pianificazione Servizi
                 </h1>
-                <p style="margin: 5px 0 0 0; font-size: 14px; color: #c7d2fe;">Statistiche ticket, presenze ed anomalie di copertura</p>
+                <p style="margin: 5px 0 0 0; font-size: 14px; color: #c7d2fe;">Reparto: <strong>{data.get('reparto_nome', 'N/D')}</strong> — Statistiche ticket, presenze ed anomalie di copertura</p>
             </div>
             
             <div style="padding: 25px;">
@@ -885,39 +895,77 @@ def main():
         sys.exit(1)
         
     print(f"[*] Avvio generazione notifica: {email_type}")
-    
-    # Recupera indirizzo destinatario di default
-    default_recipient = CFG.get("helpdesk_email", "admin@example.com")
-    dest_email = args.mail or args.to or default_recipient
-    cc_email = None if args.mail else args.cc
-    
-    print(f"[*] Destinatario impostato: {dest_email} (CC: {cc_email or 'Nessuno'})")
 
     try:
         with engine.connect() as conn:
             if email_type == "ADMIN_STATUS":
                 print("[*] Esecuzione query per ADMIN_STATUS...")
+                default_recipient = CFG.get("helpdesk_email", "admin@example.com")
+                dest_email = args.mail or args.to or default_recipient
+                cc_email = None if args.mail else args.cc
+                print(f"[*] Destinatario impostato: {dest_email} (CC: {cc_email or 'Nessuno'})")
+                
                 data = query_admin_status(conn)
                 subject = f"[{CFG.get('app_title', 'Troubletick')}] ⚙️ Stato del Sistema ed Accessi"
                 body = build_html_admin_status(data)
                 reason = "Report Amministrativo programmato (ADMIN_STATUS)"
                 
+                print("[*] Generazione email completata. Invio in corso...")
+                send_email_async(
+                    dest_email=dest_email,
+                    subject=subject,
+                    body=body,
+                    reason=reason,
+                    cc_email=cc_email
+                )
+                print("[+] Inviata con successo!")
+                
             elif email_type == "RESP_STATUS":
-                print("[*] Esecuzione query per RESP_STATUS...")
-                data = query_resp_status(conn)
-                subject = f"[{CFG.get('app_title', 'Troubletick')}] 📋 Report Attività Ticket & Presenze"
-                body = build_html_resp_status(data)
-                reason = "Report Attività e Copertura Servizi programmato (RESP_STATUS)"
-            
-            print("[*] Generazione email completata. Invio in corso...")
-            send_email_async(
-                dest_email=dest_email,
-                subject=subject,
-                body=body,
-                reason=reason,
-                cc_email=cc_email
-            )
-            print("[+] Inviata con successo!")
+                print("[*] Esecuzione query per RESP_STATUS per ciascun reparto...")
+                
+                # Recupera tutti i reparti
+                reparti_rows = conn.execute(text("SELECT reparto_id, nome FROM reparti ORDER BY nome")).mappings().all()
+                
+                if not reparti_rows:
+                    print("[*] Nessun reparto configurato nel sistema.")
+                    sys.exit(0)
+                    
+                cc_email = None if args.mail else args.cc
+                
+                for rep in reparti_rows:
+                    rep_id = rep["reparto_id"]
+                    rep_nome = rep["nome"]
+                    
+                    # Determina destinatari
+                    if args.mail or args.to:
+                        dest_emails = [args.mail or args.to]
+                    else:
+                        resp_rows = conn.execute(text("""
+                            SELECT email FROM users 
+                            WHERE ruolo = 'responsabile' AND reparto_id = :rep_id AND attivo = 1
+                        """), {"rep_id": rep_id}).mappings().all()
+                        dest_emails = [r["email"] for r in resp_rows if r["email"]]
+                        
+                    if not dest_emails:
+                        print(f"[*] Nessun responsabile attivo configurato per il reparto '{rep_nome}' (ID: {rep_id}). Invio report saltato.")
+                        continue
+                        
+                    print(f"[*] Generazione report RESP_STATUS per reparto '{rep_nome}' (Destinatari: {', '.join(dest_emails)})")
+                    data = query_resp_status_for_reparto(conn, rep_id, rep_nome)
+                    
+                    subject = f"[{CFG.get('app_title', 'Troubletick')}] 📋 Report Attività & Presenze - Reparto: {rep_nome}"
+                    body = build_html_resp_status(data)
+                    reason = f"Report Attività e Copertura Servizi programmato per reparto {rep_nome} (RESP_STATUS)"
+                    
+                    for dest in dest_emails:
+                        send_email_async(
+                            dest_email=dest,
+                            subject=subject,
+                            body=body,
+                            reason=reason,
+                            cc_email=cc_email
+                        )
+                    print(f"[+] Inviato con successo per reparto '{rep_nome}'!")
             
     except Exception as e:
         print(f"[ERRORE CRITICO] Esecuzione fallita: {e}")
