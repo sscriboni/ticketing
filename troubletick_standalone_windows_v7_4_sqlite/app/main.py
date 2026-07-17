@@ -370,7 +370,7 @@ try:
             
         c.execute(text("""CREATE TABLE IF NOT EXISTS user_roles (
             user_id INTEGER NOT NULL,
-            ruolo TEXT NOT NULL,
+            ruolo VARCHAR(50) NOT NULL,
             PRIMARY KEY (user_id, ruolo)
         )"""))
         
