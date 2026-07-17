@@ -19,6 +19,24 @@ except ImportError as e:
     print(f"[ERRORE] Impossibile importare moduli core. Assicurati che l'ambiente virtuale sia attivo. Dettagli: {e}")
     sys.exit(1)
 
+# Schema initialization check for standalone execution
+try:
+    with engine.begin() as c:
+        c.execute(text("""CREATE TABLE IF NOT EXISTS user_roles (
+            user_id INTEGER NOT NULL,
+            ruolo VARCHAR(50) NOT NULL,
+            PRIMARY KEY (user_id, ruolo)
+        )"""))
+        
+        # Populate user_roles for any user that doesn't have roles
+        c.execute(text("""
+            INSERT INTO user_roles (user_id, ruolo)
+            SELECT user_id, ruolo FROM users
+            WHERE user_id NOT IN (SELECT DISTINCT user_id FROM user_roles)
+        """))
+except Exception as e:
+    print(f"[WARN] Inizializzazione schema user_roles saltata: {e}")
+
 def get_next_working_day(conn):
     """
     Calcola la data della giornata lavorativa successiva escludendo sabati, domeniche 
