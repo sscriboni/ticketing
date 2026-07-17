@@ -46,7 +46,43 @@ def login_action(r: Request, username: str=Form(...), password: str=Form(...)):
         else:
             row = c.execute(text(query.format(field="u.username")), {"u": username}).mappings().first()
     if row and ok(password, row["password_hash"]):
-        r.session["user"] = {"id":row["user_id"],"username":row["username"],"email":row["email"],"nome":row["nome"],"cognome":row["cognome"],"ruolo":row["ruolo"], "reparto_nome":row["reparto_nome"], "sede_nome":row["sede_nome"], "magazzino_id":row["magazzino_id"]}
+        # Fetch user roles
+        with engine.connect() as c_roles:
+            roles_rows = c_roles.execute(text("SELECT ruolo FROM user_roles WHERE user_id = :uid"), {"uid": row["user_id"]}).mappings().all()
+            roles = [rr["ruolo"] for rr in roles_rows]
+            
+        if not roles:
+            # Fallback
+            roles = [row["ruolo"] or "normale"]
+            
+        if len(roles) > 1:
+            # Redirect to role selection page
+            r.session["pending_login_user"] = {
+                "id": row["user_id"],
+                "username": row["username"],
+                "email": row["email"],
+                "nome": row["nome"],
+                "cognome": row["cognome"],
+                "reparto_nome": row["reparto_nome"],
+                "sede_nome": row["sede_nome"],
+                "magazzino_id": row["magazzino_id"],
+                "roles": roles
+            }
+            return RedirectResponse(url="/login/select-role", status_code=303)
+            
+        # Single role login
+        r.session["user"] = {
+            "id": row["user_id"],
+            "username": row["username"],
+            "email": row["email"],
+            "nome": row["nome"],
+            "cognome": row["cognome"],
+            "ruolo": roles[0],
+            "reparto_nome": row["reparto_nome"],
+            "sede_nome": row["sede_nome"],
+            "magazzino_id": row["magazzino_id"],
+            "roles": roles
+        }
         ip = r.client.host if r.client else "Sconosciuto"
         with engine.begin() as c_update:
             c_update.execute(text("UPDATE users SET ultimo_accesso = :now, ultimo_ip = :ip WHERE user_id = :uid"), {"now": datetime.now().strftime("%Y-%m-%d %H:%M:%S"), "ip": ip, "uid": row["user_id"]})
@@ -58,6 +94,68 @@ def login_action(r: Request, username: str=Form(...), password: str=Form(...)):
         f.write(f"[{now}] IP: {ip} - Tentativo fallito per: {username}\n")
         
     return templates.TemplateResponse(r, "login.html", {"request": r, "cfg": CFG, "error":"Credenziali errate"})
+
+@router.get("/login/select-role", response_class=HTMLResponse)
+def select_role_form(r: Request):
+    pending = r.session.get("pending_login_user")
+    user = r.session.get("user")
+    
+    if not pending and not user:
+        return RedirectResponse(url="/login")
+        
+    roles = pending["roles"] if pending else user.get("roles", [])
+    if not roles:
+        return RedirectResponse(url="/login")
+        
+    with engine.connect() as c:
+        ruoli_rows = c.execute(text("SELECT nome, descrizione FROM ruoli")).mappings().all()
+        ruoli_dict = {rr["nome"]: rr["descrizione"] for rr in ruoli_rows}
+        
+    roles_data = [{"nome": role, "descrizione": ruoli_dict.get(role, role)} for role in roles]
+    return templates.TemplateResponse(r, "select_role.html", {"request": r, "cfg": CFG, "roles": roles_data, "user": user})
+
+@router.post("/login/select-role")
+def select_role_action(r: Request, ruolo: str = Form(...)):
+    pending = r.session.get("pending_login_user")
+    user = r.session.get("user")
+    
+    if not pending and not user:
+        return RedirectResponse(url="/login")
+        
+    roles = pending["roles"] if pending else user.get("roles", [])
+    if ruolo not in roles:
+        return RedirectResponse(url="/login")
+        
+    if pending:
+        # Complete login
+        r.session["user"] = {
+            "id": pending["id"],
+            "username": pending["username"],
+            "email": pending["email"],
+            "nome": pending["nome"],
+            "cognome": pending["cognome"],
+            "ruolo": ruolo,
+            "reparto_nome": pending["reparto_nome"],
+            "sede_nome": pending["sede_nome"],
+            "magazzino_id": pending["magazzino_id"],
+            "roles": roles
+        }
+        r.session.pop("pending_login_user", None)
+        
+        # Update last login info
+        ip = r.client.host if r.client else "Sconosciuto"
+        with engine.begin() as c_update:
+            c_update.execute(text("UPDATE users SET ultimo_accesso = :now, ultimo_ip = :ip WHERE user_id = :uid"), {
+                "now": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+                "ip": ip,
+                "uid": pending["id"]
+            })
+    else:
+        # Switch active role
+        user["ruolo"] = ruolo
+        r.session["user"] = user
+        
+    return RedirectResponse(url="/", status_code=303)
 
 @router.get("/register", response_class=HTMLResponse)
 def register_form(r: Request):
@@ -86,6 +184,11 @@ def register_action(r: Request, username: str=Form(...), password: str=Form(...)
             INSERT INTO users (username, password_hash, nome, cognome, email, telefono, ruolo, reparto_id, sede_id, attivo)
             VALUES (:u, :h, :n, :c, :e, :tel, 'assistenza', :rid, :sid, 0)
         """), {"u": username, "h": hashed, "n": nome, "c": cognome, "e": email, "tel": telefono, "rid": reparto_id, "sid": sede_id})
+        
+        user_id = c.execute(text("SELECT user_id FROM users WHERE username = :u"), {"u": username}).scalar()
+        if user_id:
+            from utils import save_user_roles
+            save_user_roles(c, user_id, ['assistenza'])
 
     return RedirectResponse(url="/login?msg=registrazione_operatore_ok", status_code=303)
 
@@ -117,6 +220,11 @@ def register_utente_action(r: Request, background_tasks: BackgroundTasks, passwo
             INSERT INTO users (username, password_hash, nome, cognome, email, telefono, ruolo, reparto_id, sede_id, attivo, activation_token)
             VALUES (:u, :h, :n, :c, :e, :tel, 'normale', :rid, :sid, 0, :token)
         """), {"u": username, "h": hashed, "n": nome, "c": cognome, "e": email, "tel": tel_val, "rid": reparto_id, "sid": sede_id, "token": activation_token})
+
+        user_id = c.execute(text("SELECT user_id FROM users WHERE username = :u"), {"u": username}).scalar()
+        if user_id:
+            from utils import save_user_roles
+            save_user_roles(c, user_id, ['normale'])
 
     # Send activation email in background
     subject = f"Attiva il tuo account — {CFG.get('app_title')}"

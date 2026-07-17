@@ -10,7 +10,7 @@ from sqlalchemy import create_engine, text
 import bcrypt
 
 from core import CFG, BASE_DIR, UPLOAD_DIR, engine, DB_TYPE, DB_PK, DB_DRIVER, templates
-from utils import current_user, require_superuser, save_upload
+from utils import current_user, require_superuser, save_upload, save_user_roles
 from email_utils import send_email_async
 import auth
 import magazzini
@@ -367,11 +367,36 @@ try:
             c.execute(text("UPDATE users SET ruolo = 'assistenza' WHERE ruolo = 'reparto'"))
         except:
             pass
+            
+        c.execute(text("""CREATE TABLE IF NOT EXISTS user_roles (
+            user_id INTEGER NOT NULL,
+            ruolo TEXT NOT NULL,
+            PRIMARY KEY (user_id, ruolo)
+        )"""))
+        
+        try:
+            c.execute(text("""
+                INSERT INTO user_roles (user_id, ruolo)
+                SELECT user_id, ruolo FROM users
+                WHERE user_id NOT IN (SELECT DISTINCT user_id FROM user_roles)
+            """))
+        except Exception as e:
+            print("Error migrating user roles:", e)
     
         # Crea account amministratore base
         def h(p): return bcrypt.hashpw(p.encode('utf-8'), bcrypt.gensalt()).decode('utf-8')
         sql_insert_ignore("INSERT OR IGNORE INTO users(username,password_hash,nome,cognome,email,ruolo,attivo,is_test) VALUES (:u,:h,:n,:c,:e,:r,1,0)",
                          {"u":'admin',"h":h('admin'),"n":'Admin',"c":'Super',"e":'admin@example.com',"r":'admin'})
+        
+        # Sync roles for newly inserted/seeded base admin if needed
+        try:
+            c.execute(text("""
+                INSERT INTO user_roles (user_id, ruolo)
+                SELECT user_id, ruolo FROM users
+                WHERE user_id NOT IN (SELECT DISTINCT user_id FROM user_roles)
+            """))
+        except Exception:
+            pass
 except Exception as e:
     print(f"Skipping DB init on this worker (possible concurrency lock): {e}")
 
@@ -1985,12 +2010,15 @@ async def import_full(r: Request, file: UploadFile = File(...), svuota_db: str =
                 rep_id = c.execute(text("SELECT reparto_id FROM reparti WHERE nome = :n"), {"n": op.get("reparto")}).scalar()
                 sede_id = c.execute(text("SELECT sede_id FROM sedi WHERE nome = :n"), {"n": op.get("sede")}).scalar()
                 if not c.execute(text("SELECT user_id FROM users WHERE username = :u OR email = :e"), {"u": op["username"], "e": op.get("email")}).scalar():
+                    role_val = op.get("ruolo", "assistenza")
                     c.execute(text("""INSERT INTO users (username, password_hash, nome, cognome, email, telefono, ruolo, reparto_id, sede_id, attivo) 
                                       VALUES (:u, :h, :n, :c, :e, :tel, :ruolo, :rid, :sid, 1)"""),
                               {"u": op["username"], "h": h(op["password"]), "n": op.get("nome", ""), "c": op.get("cognome", ""), 
-                               "e": op.get("email", ""), "tel": op.get("telefono", ""), "ruolo": op.get("ruolo", "assistenza"), "rid": rep_id, "sid": sede_id})
+                               "e": op.get("email", ""), "tel": op.get("telefono", ""), "ruolo": role_val, "rid": rep_id, "sid": sede_id})
                     
                     user_id = c.execute(text("SELECT user_id FROM users WHERE username = :u"), {"u": op["username"]}).scalar()
+                    if user_id:
+                        save_user_roles(c, user_id, [role_val])
                     
                     mags = op.get("magazzino", "")
                     if mags:
@@ -2407,6 +2435,10 @@ async def import_operatori(r: Request, file: UploadFile = File(...)):
                              "email": row.get("email", "").strip(),
                              "telefono": row.get("telefono", "").strip() if "telefono" in row else "",
                              "reparto_id": int(row.get("reparto_id")) if row.get("reparto_id") else None})
+                        
+                        user_id = c.execute(text("SELECT user_id FROM users WHERE username = :u"), {"u": row.get("username").strip()}).scalar()
+                        if user_id:
+                            save_user_roles(c, user_id, ['assistenza'])
                     except:
                         pass
     except Exception as e:
@@ -2483,17 +2515,19 @@ def admin_operatori(r: Request):
         return user
     with engine.connect() as c:
         operatori = c.execute(text("""
-            SELECT u.user_id, u.username, u.nome, u.cognome, u.email, u.telefono, u.ruolo, u.reparto_id, u.attivo, u.is_test, u.ultimo_accesso, u.ultimo_ip,
+            SELECT u.user_id, u.username, u.nome, u.cognome, u.email, u.telefono, u.reparto_id, u.attivo, u.is_test, u.ultimo_accesso, u.ultimo_ip,
+                   GROUP_CONCAT(DISTINCT ur.ruolo) AS ruoli_assegnati,
                    GROUP_CONCAT(DISTINCT s.descrizione) AS servizi, r.nome AS reparto_nome, sd.nome AS sede_nome, GROUP_CONCAT(DISTINCT m.nome) AS magazzino_nome
               FROM users u
+              LEFT JOIN user_roles ur ON ur.user_id = u.user_id
               LEFT JOIN operatori_servizi os ON os.user_id = u.user_id
               LEFT JOIN servizi s ON s.servizio_id = os.servizio_id
               LEFT JOIN reparti r ON u.reparto_id = r.reparto_id
               LEFT JOIN sedi sd ON u.sede_id = sd.sede_id
               LEFT JOIN operatori_magazzini om ON om.user_id = u.user_id
               LEFT JOIN magazzini m ON om.magazzino_id = m.magazzino_id
-             WHERE u.user_id != 1 AND u.ruolo != 'normale'
-             GROUP BY u.user_id, u.username, u.nome, u.cognome, u.email, u.telefono, u.ruolo, u.reparto_id, u.attivo, u.is_test, u.ultimo_accesso, u.ultimo_ip, r.nome, sd.nome
+             WHERE u.user_id != 1 AND u.user_id IN (SELECT DISTINCT user_id FROM user_roles WHERE ruolo != 'normale')
+             GROUP BY u.user_id, u.username, u.nome, u.cognome, u.email, u.telefono, u.reparto_id, u.attivo, u.is_test, u.ultimo_accesso, u.ultimo_ip, r.nome, sd.nome
              ORDER BY u.nome
         """)).mappings().all()
         reparti = c.execute(text("SELECT reparto_id, nome FROM reparti ORDER BY nome")).mappings().all()
@@ -2506,12 +2540,13 @@ def admin_operatori(r: Request):
 @app.post("/admin/operatore/nuovo")
 def new_operatore(r: Request, username: str=Form(...), password: str=Form(...), nome: str=Form(...), 
                   cognome: str=Form(...), email: str=Form(...), telefono: str=Form(None), 
-                  reparto_id: str=Form(None), ruolo: str=Form('assistenza'), sede_id: str=Form(None), is_test: int=Form(0),
+                  reparto_id: str=Form(None), ruoli: list=Form(None), sede_id: str=Form(None), is_test: int=Form(0),
                   servizi: list=Form(None), magazzini: list=Form(None)):
     user = require_superuser(r)
     if isinstance(user, RedirectResponse):
         return user
     
+    ruoli = ruoli or []
     servizi = servizi or []
     username = username.strip()
     password = password.strip()
@@ -2522,14 +2557,16 @@ def new_operatore(r: Request, username: str=Form(...), password: str=Form(...), 
     
     try:
         with engine.begin() as c:
+            role_val = ruoli[0] if ruoli else 'assistenza'
             c.execute(text("""
                 INSERT INTO users (username, password_hash, nome, cognome, email, telefono, ruolo, reparto_id, attivo, sede_id, is_test)
                 VALUES (:u, :h, :n, :c, :e, :tel, :ruolo, :r, 1, :sede, :is_test)
-            """), {"u": username, "h": h(password), "n": nome, "c": cognome, "e": email, "tel": telefono, "ruolo": ruolo, "r": reparto_id_val, "sede": sede_id_val, "is_test": is_test})
+            """), {"u": username, "h": h(password), "n": nome, "c": cognome, "e": email, "tel": telefono, "ruolo": role_val, "r": reparto_id_val, "sede": sede_id_val, "is_test": is_test})
             
             user_id = c.execute(text("SELECT user_id FROM users WHERE username = :u"), {"u": username}).scalar()
             
             if user_id:
+                save_user_roles(c, user_id, ruoli)
                 for servizio_id in servizi:
                     try:
                         c.execute(text("""
@@ -2556,13 +2593,17 @@ def edit_operatore_form(r: Request, user_id: int):
         return user
     with engine.connect() as c:
         operatore = c.execute(text("""
-            SELECT u.user_id, u.username, u.nome, u.cognome, u.email, u.telefono, u.ruolo, u.reparto_id, u.attivo, u.ultimo_accesso, u.sede_id, u.is_test
+            SELECT u.user_id, u.username, u.nome, u.cognome, u.email, u.telefono, u.reparto_id, u.attivo, u.ultimo_accesso, u.sede_id, u.is_test
               FROM users u
              WHERE u.user_id = :id AND u.user_id != 1
         """), {"id": user_id}).mappings().first()
         
         if not operatore:
             return RedirectResponse(url="/admin/operatori")
+        
+        operatore_ruoli = c.execute(text("""
+            SELECT ruolo FROM user_roles WHERE user_id = :uid
+        """), {"uid": user_id}).scalars().all()
         
         reparti = c.execute(text("SELECT reparto_id, nome FROM reparti ORDER BY nome")).mappings().all()
         servizi_assegnati = c.execute(text("""
@@ -2577,19 +2618,20 @@ def edit_operatore_form(r: Request, user_id: int):
         magazzini = c.execute(text("SELECT magazzino_id, nome, reparto_id FROM magazzini ORDER BY nome")).mappings().all()
     
     return templates.TemplateResponse(r, "edit_operatore.html", {
-        "request": r, "cfg": CFG, "user": user, "operatore": operatore, 
+        "request": r, "cfg": CFG, "user": user, "operatore": operatore, "operatore_ruoli": operatore_ruoli,
         "reparti": reparti, "servizi": servizi, "servizi_assegnati": servizi_assegnati, "sedi": sedi, "ruoli": ruoli, "magazzini": magazzini, "magazzini_assegnati": magazzini_assegnati
     })
 
 @app.post("/admin/operatore/{user_id}/modifica")
 def edit_operatore(r: Request, user_id: int, background_tasks: BackgroundTasks, nome: str=Form(...), cognome: str=Form(...), 
                    email: str=Form(...), telefono: str=Form(None), 
-                   reparto_id: str=Form(None), ruolo: str=Form(...), attivo: int=Form(0),
+                   reparto_id: str=Form(None), ruoli: list=Form(None), attivo: int=Form(0),
                    password: str=Form(""), servizi: list=Form(None), sede_id: str=Form(None), magazzini: list=Form(None), is_test: int=Form(0)):
     user = require_superuser(r)
     if isinstance(user, RedirectResponse):
         return user
     
+    ruoli = ruoli or []
     servizi = servizi or []
     email = email.strip()
     password = password.strip()
@@ -2602,17 +2644,20 @@ def edit_operatore(r: Request, user_id: int, background_tasks: BackgroundTasks, 
     
     with engine.begin() as c:
         op_prev = c.execute(text("SELECT attivo, email, username FROM users WHERE user_id=:uid"), {"uid": user_id}).mappings().first()
+        role_val = ruoli[0] if ruoli else 'assistenza'
         
         if password:
             c.execute(text(f"""
                 UPDATE users SET nome=:n, cognome=:c, email=:e, {tel_sql}reparto_id=:r, ruolo=:ruolo, attivo=:a, password_hash=:p, sede_id=:sede, is_test=:is_test
                  WHERE user_id=:uid AND user_id != 1
-            """), {"n": nome, "c": cognome, "e": email, "r": reparto_id_val, "ruolo": ruolo, "a": attivo, "p": h(password), "sede": sede_id_val, "is_test": is_test, "uid": user_id, **tel_param})
+            """), {"n": nome, "c": cognome, "e": email, "r": reparto_id_val, "ruolo": role_val, "a": attivo, "p": h(password), "sede": sede_id_val, "is_test": is_test, "uid": user_id, **tel_param})
         else:
             c.execute(text(f"""
                 UPDATE users SET nome=:n, cognome=:c, email=:e, {tel_sql}reparto_id=:r, ruolo=:ruolo, attivo=:a, sede_id=:sede, is_test=:is_test
                  WHERE user_id=:uid AND user_id != 1
-            """), {"n": nome, "c": cognome, "e": email, "r": reparto_id_val, "ruolo": ruolo, "a": attivo, "sede": sede_id_val, "is_test": is_test, "uid": user_id, **tel_param})
+            """), {"n": nome, "c": cognome, "e": email, "r": reparto_id_val, "ruolo": role_val, "a": attivo, "sede": sede_id_val, "is_test": is_test, "uid": user_id, **tel_param})
+        
+        save_user_roles(c, user_id, ruoli)
         
         # Aggiorna servizi assegnati
         c.execute(text("DELETE FROM operatori_servizi WHERE user_id = :uid"), {"uid": user_id})
@@ -2712,12 +2757,15 @@ def admin_utenti(r: Request):
         return user
     with engine.connect() as c:
         utenti = c.execute(text("""
-            SELECT u.user_id, u.username, u.nome, u.cognome, u.email, u.telefono, u.ruolo, u.reparto_id, u.attivo, u.is_test, u.ultimo_accesso, u.ultimo_ip,
+            SELECT u.user_id, u.username, u.nome, u.cognome, u.email, u.telefono, u.reparto_id, u.attivo, u.is_test, u.ultimo_accesso, u.ultimo_ip,
+                   GROUP_CONCAT(DISTINCT ur.ruolo) AS ruoli_assegnati,
                    r.nome AS reparto_nome, sd.nome AS sede_nome
               FROM users u
+              LEFT JOIN user_roles ur ON ur.user_id = u.user_id
               LEFT JOIN reparti r ON u.reparto_id = r.reparto_id
               LEFT JOIN sedi sd ON u.sede_id = sd.sede_id
-             WHERE u.user_id != 1 AND u.ruolo = 'normale'
+             WHERE u.user_id != 1 AND u.user_id NOT IN (SELECT DISTINCT user_id FROM user_roles WHERE ruolo != 'normale')
+             GROUP BY u.user_id, u.username, u.nome, u.cognome, u.email, u.telefono, u.reparto_id, u.attivo, u.is_test, u.ultimo_accesso, u.ultimo_ip, r.nome, sd.nome
              ORDER BY u.nome
         """)).mappings().all()
         reparti = c.execute(text("SELECT reparto_id, nome FROM reparti ORDER BY nome")).mappings().all()
@@ -2746,6 +2794,9 @@ def new_utente(r: Request, password: str=Form(...), nome: str=Form(...),
                 INSERT INTO users (username, password_hash, nome, cognome, email, telefono, ruolo, reparto_id, attivo, sede_id, is_test)
                 VALUES (:u, :h, :n, :c, :e, :tel, 'normale', :r, 1, :sede, :is_test)
             """), {"u": username, "h": h(password), "n": nome, "c": cognome, "e": email, "tel": tel_val, "r": reparto_id_val, "sede": sede_id_val, "is_test": is_test})
+            user_id = c.execute(text("SELECT user_id FROM users WHERE username = :u"), {"u": username}).scalar()
+            if user_id:
+                save_user_roles(c, user_id, ['normale'])
         return RedirectResponse(url="/admin/utenti", status_code=303)
     except Exception as e:
         return RedirectResponse(url="/admin/utenti", status_code=303)
@@ -2757,20 +2808,24 @@ def edit_utente_form(r: Request, user_id: int):
         return user
     with engine.connect() as c:
         utente = c.execute(text("""
-            SELECT u.user_id, u.username, u.nome, u.cognome, u.email, u.telefono, u.ruolo, u.reparto_id, u.attivo, u.ultimo_accesso, u.sede_id, u.is_test
+            SELECT u.user_id, u.username, u.nome, u.cognome, u.email, u.telefono, u.reparto_id, u.attivo, u.ultimo_accesso, u.sede_id, u.is_test
               FROM users u
-              WHERE u.user_id = :id AND u.user_id != 1 AND u.ruolo = 'normale'
+              WHERE u.user_id = :id AND u.user_id != 1
         """), {"id": user_id}).mappings().first()
         
         if not utente:
             return RedirectResponse(url="/admin/utenti")
+            
+        utente_ruoli = c.execute(text("""
+            SELECT ruolo FROM user_roles WHERE user_id = :uid
+        """), {"uid": user_id}).scalars().all()
         
         reparti = c.execute(text("SELECT reparto_id, nome FROM reparti ORDER BY nome")).mappings().all()
         sedi = c.execute(text("SELECT sede_id, nome FROM sedi ORDER BY nome")).mappings().all()
         ruoli = c.execute(text("SELECT nome, descrizione FROM ruoli ORDER BY ruolo_id")).mappings().all()
     
     return templates.TemplateResponse(r, "edit_utente.html", {
-        "request": r, "cfg": CFG, "user": user, "utente": utente, "reparti": reparti, "sedi": sedi, "ruoli": ruoli
+        "request": r, "cfg": CFG, "user": user, "utente": utente, "utente_ruoli": utente_ruoli, "reparti": reparti, "sedi": sedi, "ruoli": ruoli
     })
 
 @app.post("/admin/utente/{user_id}/modifica")
@@ -2778,7 +2833,7 @@ def edit_utente(r: Request, user_id: int, nome: str=Form(...), cognome: str=Form
                 email: str=Form(...), telefono: str=Form(None), 
                 reparto_id: str=Form(None), attivo: int=Form(0),
                 password: str=Form(""), sede_id: str=Form(None), is_test: int=Form(0),
-                ruolo: str=Form("normale")):
+                ruoli: list=Form(None)):
     user = require_superuser(r)
     if isinstance(user, RedirectResponse):
         return user
@@ -2791,17 +2846,22 @@ def edit_utente(r: Request, user_id: int, nome: str=Form(...), cognome: str=Form
     sede_id_val = int(sede_id) if sede_id and str(sede_id).isdigit() else None
     tel_val = telefono.strip() if telefono else None
     
+    ruoli = ruoli or []
+    role_val = ruoli[0] if ruoli else 'normale'
+    
     with engine.begin() as c:
         if password:
             c.execute(text("""
                 UPDATE users SET username=:u, nome=:n, cognome=:c, email=:e, telefono=:tel, reparto_id=:r, ruolo=:ruolo, attivo=:a, password_hash=:p, sede_id=:sede, is_test=:is_test
-                 WHERE user_id=:uid AND user_id != 1 AND ruolo='normale'
-            """), {"u": username, "n": nome, "c": cognome, "e": email, "tel": tel_val, "r": reparto_id_val, "ruolo": ruolo, "a": attivo, "p": h(password), "sede": sede_id_val, "is_test": is_test, "uid": user_id})
+                 WHERE user_id=:uid AND user_id != 1
+            """), {"u": username, "n": nome, "c": cognome, "e": email, "tel": tel_val, "r": reparto_id_val, "ruolo": role_val, "a": attivo, "p": h(password), "sede": sede_id_val, "is_test": is_test, "uid": user_id})
         else:
             c.execute(text("""
                 UPDATE users SET username=:u, nome=:n, cognome=:c, email=:e, telefono=:tel, reparto_id=:r, ruolo=:ruolo, attivo=:a, sede_id=:sede, is_test=:is_test
-                 WHERE user_id=:uid AND user_id != 1 AND ruolo='normale'
-            """), {"u": username, "n": nome, "c": cognome, "e": email, "tel": tel_val, "r": reparto_id_val, "ruolo": ruolo, "a": attivo, "sede": sede_id_val, "is_test": is_test, "uid": user_id})
+                 WHERE user_id=:uid AND user_id != 1
+            """), {"u": username, "n": nome, "c": cognome, "e": email, "tel": tel_val, "r": reparto_id_val, "ruolo": role_val, "a": attivo, "sede": sede_id_val, "is_test": is_test, "uid": user_id})
+            
+        save_user_roles(c, user_id, ruoli)
     
     return RedirectResponse(url="/admin/utenti", status_code=303)
 

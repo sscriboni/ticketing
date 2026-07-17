@@ -34,3 +34,24 @@ def save_upload(upload_file: UploadFile):
             shutil.copyfileobj(upload_file.file, buffer)
         return filename
     return None
+
+def save_user_roles(conn, user_id, roles):
+    from sqlalchemy import text
+    if not isinstance(roles, list):
+        if roles:
+            roles = [roles]
+        else:
+            roles = []
+    
+    # filter out empty values
+    roles = [r.strip() for r in roles if r and str(r).strip()]
+    if not roles:
+        roles = ['normale']
+        
+    # Delete existing roles
+    conn.execute(text("DELETE FROM user_roles WHERE user_id = :uid"), {"uid": user_id})
+    for r in roles:
+        try:
+            conn.execute(text("INSERT INTO user_roles (user_id, ruolo) VALUES (:uid, :ruolo)"), {"uid": user_id, "ruolo": r})
+        except Exception:
+            pass

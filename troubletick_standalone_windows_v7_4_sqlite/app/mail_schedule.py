@@ -168,15 +168,15 @@ def query_admin_status(conn):
 
     # 2. Conteggio Utenti ed Operatori per ruolo e stato
     try:
-        # Utenti (ruolo = 'normale')
-        data["users_total"] = conn.execute(text("SELECT COUNT(*) FROM users WHERE ruolo = 'normale'")).scalar() or 0
-        data["users_active"] = conn.execute(text("SELECT COUNT(*) FROM users WHERE ruolo = 'normale' AND attivo = 1")).scalar() or 0
-        data["users_inactive"] = conn.execute(text("SELECT COUNT(*) FROM users WHERE ruolo = 'normale' AND attivo = 0")).scalar() or 0
+        # Utenti (only have 'normale')
+        data["users_total"] = conn.execute(text("SELECT COUNT(*) FROM users WHERE user_id NOT IN (SELECT DISTINCT user_id FROM user_roles WHERE ruolo != 'normale')")).scalar() or 0
+        data["users_active"] = conn.execute(text("SELECT COUNT(*) FROM users WHERE user_id NOT IN (SELECT DISTINCT user_id FROM user_roles WHERE ruolo != 'normale') AND attivo = 1")).scalar() or 0
+        data["users_inactive"] = conn.execute(text("SELECT COUNT(*) FROM users WHERE user_id NOT IN (SELECT DISTINCT user_id FROM user_roles WHERE ruolo != 'normale') AND attivo = 0")).scalar() or 0
         
-        # Operatori (ruolo != 'normale')
-        data["ops_total"] = conn.execute(text("SELECT COUNT(*) FROM users WHERE ruolo != 'normale'")).scalar() or 0
-        data["ops_active"] = conn.execute(text("SELECT COUNT(*) FROM users WHERE ruolo != 'normale' AND attivo = 1")).scalar() or 0
-        data["ops_inactive"] = conn.execute(text("SELECT COUNT(*) FROM users WHERE ruolo != 'normale' AND attivo = 0")).scalar() or 0
+        # Operatori (have at least one non-normal role)
+        data["ops_total"] = conn.execute(text("SELECT COUNT(*) FROM users WHERE user_id IN (SELECT DISTINCT user_id FROM user_roles WHERE ruolo != 'normale')")).scalar() or 0
+        data["ops_active"] = conn.execute(text("SELECT COUNT(*) FROM users WHERE user_id IN (SELECT DISTINCT user_id FROM user_roles WHERE ruolo != 'normale') AND attivo = 1")).scalar() or 0
+        data["ops_inactive"] = conn.execute(text("SELECT COUNT(*) FROM users WHERE user_id IN (SELECT DISTINCT user_id FROM user_roles WHERE ruolo != 'normale') AND attivo = 0")).scalar() or 0
     except Exception as e:
         print(f"[ERRORE] Conteggi utenti/operatori falliti: {e}")
         data["users_total"] = data["users_active"] = data["users_inactive"] = "N/D"
@@ -345,7 +345,7 @@ def query_resp_status_for_reparto(conn, reparto_id, reparto_nome):
         ops_rows = conn.execute(text("""
             SELECT user_id, username, nome, cognome, ruolo, email, reparto_id
             FROM users 
-            WHERE ruolo != 'normale' AND attivo = 1 AND user_id != 1 AND reparto_id = :rep_id
+            WHERE user_id IN (SELECT DISTINCT user_id FROM user_roles WHERE ruolo != 'normale') AND attivo = 1 AND user_id != 1 AND reparto_id = :rep_id
         """), {"rep_id": reparto_id}).mappings().all()
         operators = {r["user_id"]: dict(r) for r in ops_rows}
 
@@ -1004,7 +1004,7 @@ def query_ope_status(conn, op_id, op_nome, op_cognome, reparto_id, reparto_nome)
     ops_rows = conn.execute(text("""
         SELECT user_id, username, nome, cognome 
         FROM users 
-        WHERE ruolo != 'normale' AND attivo = 1 AND user_id != 1 AND reparto_id = :rep_id
+        WHERE user_id IN (SELECT DISTINCT user_id FROM user_roles WHERE ruolo != 'normale') AND attivo = 1 AND user_id != 1 AND reparto_id = :rep_id
     """), {"rep_id": reparto_id}).mappings().all()
     operators = {r["user_id"]: dict(r) for r in ops_rows}
     
@@ -1263,8 +1263,9 @@ def main():
                         dest_emails = [args.mail or args.to]
                     else:
                         resp_rows = conn.execute(text("""
-                            SELECT email FROM users 
-                            WHERE ruolo = 'responsabile' AND reparto_id = :rep_id AND attivo = 1
+                            SELECT DISTINCT u.email FROM users u
+                            JOIN user_roles ur ON u.user_id = ur.user_id
+                            WHERE ur.ruolo = 'responsabile' AND u.reparto_id = :rep_id AND u.attivo = 1
                         """), {"rep_id": rep_id}).mappings().all()
                         dest_emails = [r["email"] for r in resp_rows if r["email"]]
                         
@@ -1296,9 +1297,10 @@ def main():
                 operators_rows = conn.execute(text("""
                     SELECT DISTINCT u.user_id, u.nome, u.cognome, u.email, u.reparto_id, r.nome as reparto_nome
                     FROM users u
+                    JOIN user_roles ur ON u.user_id = ur.user_id
                     JOIN reparti r ON u.reparto_id = r.reparto_id
                     JOIN servizi s ON r.reparto_id = s.reparto_id
-                    WHERE u.ruolo = 'assistenza' AND u.attivo = 1 AND s.accetta_ticket = 1
+                    WHERE ur.ruolo = 'assistenza' AND u.attivo = 1 AND s.accetta_ticket = 1
                 """)).mappings().all()
                 
                 if not operators_rows:

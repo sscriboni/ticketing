@@ -47,7 +47,15 @@
                                     {{ op.email }}
                                     {% if op.telefono %}<br><small class="text-muted">Tel: {{ op.telefono }}</small>{% endif %}
                                 </td>
-                                <td>{{ op.ruolo }}</td>
+                                <td>
+                                    {% if op.ruoli_assegnati %}
+                                        {% for r_name in op.ruoli_assegnati.split(',') %}
+                                            <span class="badge bg-secondary mb-1 d-block text-start" style="font-size: 0.75em; font-weight: normal;">{{ r_name|capitalize }}</span>
+                                        {% endfor %}
+                                    {% else %}
+                                        —
+                                    {% endif %}
+                                </td>
                                 <td>
                                     {{ op.reparto_nome or '—' }}<br>
                                     <small class="text-muted">Sede: {{ op.sede_nome or '—' }}</small><br>
@@ -147,12 +155,18 @@
                     </div>
 
                     <div class="mb-3">
-                        <label class="form-label fw-bold">Ruolo <span class="text-danger">*</span></label>
-                        <select name="ruolo" class="form-select" required>
+                        <label class="form-label fw-bold">Ruoli <span class="text-danger">*</span></label>
+                        <div class="border p-2 rounded bg-light" style="max-height: 150px; overflow-y: auto;">
                             {% for r in ruoli %}
-                            <option value="{{ r.nome }}" {% if r.nome == 'assistenza' %}selected{% endif %}>{{ r.descrizione }}</option>
+                            <div class="form-check">
+                                <input class="form-check-input" type="checkbox" name="ruoli" value="{{ r.nome }}" id="ruolo_{{ r.nome }}"
+                                       {% if r.nome == 'assistenza' %}checked{% endif %}>
+                                <label class="form-check-label" for="ruolo_{{ r.nome }}">
+                                    {{ r.descrizione }}
+                                </label>
+                            </div>
                             {% endfor %}
-                        </select>
+                        </div>
                     </div>
 
                     <div class="mb-3">

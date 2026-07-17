@@ -83,14 +83,18 @@
 
                     <div class="row mb-3">
                         <div class="col-md-6">
-                            <label class="form-label fw-bold">Ruolo <span class="text-danger">*</span></label>
-                            <select name="ruolo" class="form-select" required>
+                            <label class="form-label fw-bold">Ruoli <span class="text-danger">*</span></label>
+                            <div class="border p-2 rounded bg-light" style="max-height: 150px; overflow-y: auto;">
                                 {% for r in ruoli %}
-                                <option value="{{ r.nome }}" {% if utente.ruolo == r.nome %}selected{% endif %}>
-                                    {{ r.descrizione }}
-                                </option>
+                                <div class="form-check">
+                                    <input class="form-check-input" type="checkbox" name="ruoli" value="{{ r.nome }}" id="ruolo_{{ r.nome }}"
+                                           {% if r.nome in utente_ruoli %}checked{% endif %}>
+                                    <label class="form-check-label" for="ruolo_{{ r.nome }}">
+                                        {{ r.descrizione }}
+                                    </label>
+                                </div>
                                 {% endfor %}
-                            </select>
+                            </div>
                         </div>
                     </div>
 
