@@ -2514,6 +2514,26 @@ def admin_operatori(r: Request):
     if isinstance(user, RedirectResponse):
         return user
     with engine.connect() as c:
+        # Self-healing roles check
+        try:
+            with engine.begin() as conn:
+                for r_nome, r_desc in [
+                    ('admin', 'Amministratore (massima visibilità)'),
+                    ('responsabile', 'Responsabile del reparto (vede operatori, ticket, report)'),
+                    ('assistenza', 'Operatore di assistenza (gestisce ticket dei propri servizi)'),
+                    ('normale', 'Operatore normale (non vede/gestisce ticket)'),
+                    ('fleet_manager', 'Fleet Manager (gestisce gli automezzi)'),
+                    ('global_fleet_manager', 'Global Fleet Manager (gestisce tutti gli automezzi)')
+                ]:
+                    exists = conn.execute(text("SELECT COUNT(*) FROM ruoli WHERE nome = :name"), {"name": r_nome}).scalar() or 0
+                    if not exists:
+                        if DB_DRIVER.startswith("mysql"):
+                            conn.execute(text("INSERT IGNORE INTO ruoli (nome, descrizione) VALUES (:name, :desc)"), {"name": r_nome, "desc": r_desc})
+                        else:
+                            conn.execute(text("INSERT OR IGNORE INTO ruoli (nome, descrizione) VALUES (:name, :desc)"), {"name": r_nome, "desc": r_desc})
+        except Exception as e:
+            print("Self-healing roles seeding failed:", e)
+
         operatori = c.execute(text("""
             SELECT u.user_id, u.username, u.nome, u.cognome, u.email, u.telefono, u.reparto_id, u.attivo, u.is_test, u.ultimo_accesso, u.ultimo_ip,
                    GROUP_CONCAT(DISTINCT ur.ruolo) AS ruoli_assegnati,
@@ -2592,6 +2612,26 @@ def edit_operatore_form(r: Request, user_id: int):
     if isinstance(user, RedirectResponse):
         return user
     with engine.connect() as c:
+        # Self-healing roles check
+        try:
+            with engine.begin() as conn:
+                for r_nome, r_desc in [
+                    ('admin', 'Amministratore (massima visibilità)'),
+                    ('responsabile', 'Responsabile del reparto (vede operatori, ticket, report)'),
+                    ('assistenza', 'Operatore di assistenza (gestisce ticket dei propri servizi)'),
+                    ('normale', 'Operatore normale (non vede/gestisce ticket)'),
+                    ('fleet_manager', 'Fleet Manager (gestisce gli automezzi)'),
+                    ('global_fleet_manager', 'Global Fleet Manager (gestisce tutti gli automezzi)')
+                ]:
+                    exists = conn.execute(text("SELECT COUNT(*) FROM ruoli WHERE nome = :name"), {"name": r_nome}).scalar() or 0
+                    if not exists:
+                        if DB_DRIVER.startswith("mysql"):
+                            conn.execute(text("INSERT IGNORE INTO ruoli (nome, descrizione) VALUES (:name, :desc)"), {"name": r_nome, "desc": r_desc})
+                        else:
+                            conn.execute(text("INSERT OR IGNORE INTO ruoli (nome, descrizione) VALUES (:name, :desc)"), {"name": r_nome, "desc": r_desc})
+        except Exception as e:
+            print("Self-healing roles seeding failed:", e)
+
         operatore = c.execute(text("""
             SELECT u.user_id, u.username, u.nome, u.cognome, u.email, u.telefono, u.reparto_id, u.attivo, u.ultimo_accesso, u.sede_id, u.is_test
               FROM users u
@@ -2807,6 +2847,26 @@ def edit_utente_form(r: Request, user_id: int):
     if isinstance(user, RedirectResponse):
         return user
     with engine.connect() as c:
+        # Self-healing roles check
+        try:
+            with engine.begin() as conn:
+                for r_nome, r_desc in [
+                    ('admin', 'Amministratore (massima visibilità)'),
+                    ('responsabile', 'Responsabile del reparto (vede operatori, ticket, report)'),
+                    ('assistenza', 'Operatore di assistenza (gestisce ticket dei propri servizi)'),
+                    ('normale', 'Operatore normale (non vede/gestisce ticket)'),
+                    ('fleet_manager', 'Fleet Manager (gestisce gli automezzi)'),
+                    ('global_fleet_manager', 'Global Fleet Manager (gestisce tutti gli automezzi)')
+                ]:
+                    exists = conn.execute(text("SELECT COUNT(*) FROM ruoli WHERE nome = :name"), {"name": r_nome}).scalar() or 0
+                    if not exists:
+                        if DB_DRIVER.startswith("mysql"):
+                            conn.execute(text("INSERT IGNORE INTO ruoli (nome, descrizione) VALUES (:name, :desc)"), {"name": r_nome, "desc": r_desc})
+                        else:
+                            conn.execute(text("INSERT OR IGNORE INTO ruoli (nome, descrizione) VALUES (:name, :desc)"), {"name": r_nome, "desc": r_desc})
+        except Exception as e:
+            print("Self-healing roles seeding failed:", e)
+
         utente = c.execute(text("""
             SELECT u.user_id, u.username, u.nome, u.cognome, u.email, u.telefono, u.reparto_id, u.attivo, u.ultimo_accesso, u.sede_id, u.is_test
               FROM users u
