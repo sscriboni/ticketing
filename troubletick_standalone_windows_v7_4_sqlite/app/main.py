@@ -325,21 +325,21 @@ try:
             c.execute(text(stmt), params or {})
             
         # seed ruoli
-        for r_id, r_nome, r_desc in [
-            (1, 'admin', 'Amministratore (massima visibilità)'),
-            (2, 'responsabile', 'Responsabile del reparto (vede operatori, ticket, report)'),
-            (3, 'assistenza', 'Operatore di assistenza (gestisce ticket dei propri servizi)'),
-            (4, 'normale', 'Operatore normale (non vede/gestisce ticket)'),
-            (5, 'fleet_manager', 'Fleet Manager (gestisce gli automezzi)'),
-            (6, 'global_fleet_manager', 'Global Fleet Manager (gestisce tutti gli automezzi)')
+        for r_nome, r_desc in [
+            ('admin', 'Amministratore (massima visibilità)'),
+            ('responsabile', 'Responsabile del reparto (vede operatori, ticket, report)'),
+            ('assistenza', 'Operatore di assistenza (gestisce ticket dei propri servizi)'),
+            ('normale', 'Operatore normale (non vede/gestisce ticket)'),
+            ('fleet_manager', 'Fleet Manager (gestisce gli automezzi)'),
+            ('global_fleet_manager', 'Global Fleet Manager (gestisce tutti gli automezzi)')
         ]:
             try:
                 exists = c.execute(text("SELECT COUNT(*) FROM ruoli WHERE nome = :name"), {"name": r_nome}).scalar() or 0
                 if not exists:
                     if DB_DRIVER.startswith("mysql"):
-                        c.execute(text("INSERT IGNORE INTO ruoli (ruolo_id, nome, descrizione) VALUES (:id, :name, :desc)"), {"id": r_id, "name": r_nome, "desc": r_desc})
+                        c.execute(text("INSERT IGNORE INTO ruoli (nome, descrizione) VALUES (:name, :desc)"), {"name": r_nome, "desc": r_desc})
                     else:
-                        c.execute(text("INSERT OR IGNORE INTO ruoli (ruolo_id, nome, descrizione) VALUES (:id, :name, :desc)"), {"id": r_id, "name": r_nome, "desc": r_desc})
+                        c.execute(text("INSERT OR IGNORE INTO ruoli (nome, descrizione) VALUES (:name, :desc)"), {"name": r_nome, "desc": r_desc})
             except Exception as e:
                 pass
         
