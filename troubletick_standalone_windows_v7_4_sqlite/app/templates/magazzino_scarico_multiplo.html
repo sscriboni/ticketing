@@ -2,7 +2,7 @@
 <html lang="it">
 <head>
     <meta charset="utf-8">
-    <title>Scarico Multiplo Materiale — {{ cfg.app_title }}</title>
+    <title>Scarico Materiale — {{ cfg.app_title }}</title>
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css">
     <style>
@@ -25,7 +25,7 @@
             {% if ticket_info %}
                 Consegna Materiale per Ticket #{{ ticket_info.codice_ticket }}
             {% else %}
-                Scarico Multiplo Materiale
+                Scarico Materiale
             {% endif %}
         </h2>
         <div>
@@ -37,6 +37,10 @@
     {% if request.query_params.get('error') == 'destinazione_invalida' %}
     <div class="alert alert-danger mb-4 shadow-sm">
         <i class="bi bi-exclamation-triangle-fill me-2"></i> Impossibile completare il trasferimento: il magazzino di partenza non può coincidere con il magazzino di destinazione.
+    </div>
+    {% elif request.query_params.get('error') == 'sede_obbligatoria' %}
+    <div class="alert alert-danger mb-4 shadow-sm">
+        <i class="bi bi-exclamation-triangle-fill me-2"></i> La sede di destinazione è obbligatoria per completare lo scarico del materiale.
     </div>
     {% elif request.query_params.get('error') == 'giacenza_insufficiente' %}
     <div class="alert alert-danger mb-4 shadow-sm">
@@ -68,9 +72,9 @@
                     </div>
 
                     <div class="mb-3">
-                        <label class="form-label fw-bold">Sede di destinazione</label>
-                        <select name="sede_assegnazione_id" id="sedeSelect" class="form-select" onchange="onSedeSelectChange()">
-                            <option value="">-- Nessuna / Uso generico --</option>
+                        <label class="form-label fw-bold">Sede di destinazione <span class="text-danger">*</span></label>
+                        <select name="sede_assegnazione_id" id="sedeSelect" class="form-select border-danger" onchange="onSedeSelectChange()" required>
+                            <option value="" disabled selected>-- Seleziona Sede Destinazione --</option>
                             {% for sede in sedi %}
                             <option value="{{ sede.sede_id }}">{{ sede.nome }}</option>
                             {% endfor %}
@@ -108,7 +112,7 @@
                     <div class="mb-3">
                         <label class="form-label fw-bold">Note / Causale <span class="text-danger">*</span></label>
                         <input type="text" name="descrizione" class="form-control border-danger" placeholder="Es. Assegnazione postazioni di lavoro, storno..." required>
-                        <small class="text-muted">Nota unica che descrive questo scarico multiplo.</small>
+                        <small class="text-muted">Nota unica che descrive questo scarico materiale.</small>
                     </div>
 
                     <div class="mb-3">
@@ -185,7 +189,7 @@
                     </div>
 
                     <button type="submit" id="submitBtn" class="btn btn-danger w-100 fw-bold py-2 fs-5 mt-3 d-none">
-                        <i class="bi bi-check-circle-fill me-1"></i> Conferma Scarico Multiplo
+                        <i class="bi bi-check-circle-fill me-1"></i> Conferma Scarico Materiale
                     </button>
                 </div>
             </div>
@@ -197,7 +201,7 @@
         <div class="col-12 col-lg-8 offset-lg-4">
             <div class="card shadow-sm border-0 bg-white mb-4">
                 <div class="card-body p-4 small text-muted">
-                    <h6 class="fw-bold text-dark mb-3"><i class="bi bi-info-circle-fill text-info me-1"></i> Guida Operativa allo Scarico Multiplo</h6>
+                    <h6 class="fw-bold text-dark mb-3"><i class="bi bi-info-circle-fill text-info me-1"></i> Guida Operativa allo Scarico Materiale</h6>
                     
                     {% if ticket_info %}
                     <div class="mb-3">
@@ -214,7 +218,7 @@
                     <div>
                         <strong class="text-warning"><i class="bi bi-exclamation-triangle-fill"></i> Gestione Rettifiche ed Errori:</strong>
                         <p class="mb-0 mt-1">
-                            Tutti i movimenti registrati sono immutabili per fini di tracciabilità logistica. Se si commette un errore di inserimento nello scarico multiplo, l'operazione non può essere annullata direttamente. Sarà necessario effettuare dei <strong>Carichi di rettifica</strong> per i singoli articoli inseriti erroneamente, specificando nelle note che si tratta di uno storno/rettifica dell'operazione di scarico.
+                            Tutti i movimenti registrati sono immutabili per fini di tracciabilità logistica. Se si commette un errore di inserimento nello scarico materiale, l'operazione non può essere annullata direttamente. Sarà necessario effettuare dei <strong>Carichi di rettifica</strong> per i singoli articoli inseriti erroneamente, specificando nelle note che si tratta di uno storno/rettifica dell'operazione di scarico.
                         </p>
                     </div>
                 </div>
@@ -433,7 +437,11 @@
         const emailInput = document.getElementById('emailConsegnaInput');
         
         if (magDestSelect && magDestSelect.value !== "") {
-            if (sedeSelect) sedeSelect.value = "";
+            if (sedeSelect) {
+                sedeSelect.value = "";
+                sedeSelect.required = false;
+                sedeSelect.classList.remove('border-danger');
+            }
             if (generaPdfLabel) generaPdfLabel.textContent = "Stampa DDT (Documento di Trasporto)";
             if (generaPdfHelp) generaPdfHelp.textContent = "Verrà aperto il Documento di Trasporto (DDT) da stampare.";
             if (emailDiv) emailDiv.classList.add('d-none');
@@ -442,6 +450,10 @@
                 emailInput.value = "";
             }
         } else {
+            if (sedeSelect) {
+                sedeSelect.required = true;
+                sedeSelect.classList.add('border-danger');
+            }
             if (generaPdfLabel) generaPdfLabel.textContent = "Genera PDF (Buono di Movimento)";
             if (generaPdfHelp) generaPdfHelp.textContent = "Verrà generato il Buono di Movimento firmato da stampare.";
             if (emailDiv) emailDiv.classList.remove('d-none');
@@ -615,13 +627,7 @@
 
         toggleDestinationFields();
 
-        if (prefilledSedeId) {
-            const sedeSelect = document.getElementById('sedeSelect');
-            if (sedeSelect) {
-                sedeSelect.value = prefilledSedeId;
-                onSedeSelectChange();
-            }
-        }
+        // Prefill of destination branch is disabled.
     });
 </script>
 </body>

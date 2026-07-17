@@ -1626,6 +1626,11 @@ async def post_scarico_multiplo(
         
     if not magazzino_id or not (len(magazzino_id) == len(materiale_id) == len(posizione_fisica) == len(quantita)):
         return RedirectResponse(url="/magazzini?error=parametri_invalidi", status_code=303)
+
+    mag_dest_id = int(magazzino_destinazione_id) if magazzino_destinazione_id and str(magazzino_destinazione_id).isdigit() else None
+    if not mag_dest_id and not (sede_assegnazione_id and str(sede_assegnazione_id).strip()):
+        t_param = f"ticket_id={ticket_id}" if ticket_id else ""
+        return RedirectResponse(url=f"/magazzini/scarico-multiplo?{t_param}&error=sede_obbligatoria", status_code=303)
         
     with engine.connect() as c:
         user_mag_ids = []
@@ -1802,7 +1807,7 @@ async def post_scarico_multiplo(
                     if richiesta_info and richiesta_info["ticket_id"]:
                         mat_nome = c.execute(text("SELECT nome FROM materiali WHERE materiale_id = :mid"), {"mid": richiesta_info["materiale_id"]}).scalar()
                         autore = f"{user.get('nome', '')} {user.get('cognome', '')}".strip()
-                        testo = f"Richiesta materiale evasa dal magazzino tramite scarico multiplo: {qta}x {mat_nome}."
+                        testo = f"Richiesta materiale evasa dal magazzino tramite scarico materiale: {qta}x {mat_nome}."
                         c.execute(text("""
                             INSERT INTO ticket_notes (ticket_id, autore, testo, is_internal)
                             VALUES (:tid, :a, :t, 0)
@@ -1899,7 +1904,7 @@ async def post_scarico_multiplo(
                     notes_lines.append(f"- {qty}x {mat_name}")
                     
                 autore = f"{user.get('nome', '')} {user.get('cognome', '')}".strip() or user.get('username')
-                testo = "Richieste materiale evase dal magazzino tramite scarico multiplo:\n" + "\n".join(notes_lines)
+                testo = "Richieste materiale evase dal magazzino tramite scarico materiale:\n" + "\n".join(notes_lines)
                 c.execute(text("""
                     INSERT INTO ticket_notes (ticket_id, autore, testo, is_internal)
                     VALUES (:tid, :a, :t, 0)
@@ -1934,7 +1939,7 @@ async def post_scarico_multiplo(
         cc_emails_str = ", ".join(cc_emails) if cc_emails else None
         operatore_nome = f"{user.get('nome', '')} {user.get('cognome', '')}".strip() or user.get('username')
         
-        subject = f"[{CFG.get('company_name', 'Helpdesk')}] Ricevuta Consegna Materiali - Scarico Multiplo"
+        subject = f"[{CFG.get('company_name', 'Helpdesk')}] Ricevuta Consegna Materiali - Scarico Materiale"
         body = templates.get_template("email_riepilogo_scarico_multiplo.html").render({
             "cfg": CFG,
             "email_consegna": email_consegna.strip(),
