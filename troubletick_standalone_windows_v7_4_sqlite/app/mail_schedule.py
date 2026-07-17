@@ -112,6 +112,32 @@ def get_next_5_working_days(conn):
         })
     return working_days
 
+def get_date_5_working_days_ago(conn):
+    """
+    Ritorna la data (sotto forma di stringa YYYY-MM-DD 00:00:00) di 5 giorni lavorativi fa,
+    escludendo sabati, domeniche e festivita.
+    """
+    from datetime import date, timedelta
+    festivita_dates = set()
+    try:
+        fest_rows = conn.execute(text("SELECT data FROM festivita")).mappings().all()
+        festivita_dates = {r["data"] for r in fest_rows}
+    except Exception:
+        pass
+        
+    target = date.today()
+    working_days_count = 0
+    while working_days_count < 5:
+        target -= timedelta(days=1)
+        # 5=Sabato, 6=Domenica
+        if target.weekday() >= 5:
+            continue
+        target_str = target.strftime("%Y-%m-%d")
+        if target_str in festivita_dates:
+            continue
+        working_days_count += 1
+    return f"{target.strftime('%Y-%m-%d')} 00:00:00"
+
 def query_admin_status(conn):
     """Raccoglie i dati per il report ADMIN_STATUS"""
     data = {}
@@ -221,7 +247,7 @@ def query_resp_status_for_reparto(conn, reparto_id, reparto_nome):
         date_filter = "DATE(creato_il) = CURDATE()"
         note_date_filter = "DATE(tn.creato_il) = CURDATE()"
 
-    # 1. Ticket aperti oggi, chiusi oggi e totali in attesa raggruppati per Servizio (solo per questo reparto)
+    # 1. Ticket aperti oggi, chiusi oggi, aperti negli ultimi 5 gg lavorativi, da prendere, in lavorazione (solo per questo reparto)
     try:
         # Recupera la lista dei servizi di questo reparto
         servizi_rows = conn.execute(text("""
@@ -231,7 +257,14 @@ def query_resp_status_for_reparto(conn, reparto_id, reparto_nome):
             ORDER BY descrizione
         """), {"rep_id": reparto_id}).mappings().all()
         
-        services = {r["servizio_id"]: {"nome": r["descrizione"], "aperti_oggi": 0, "chiusi_oggi": 0, "in_attesa": 0} for r in servizi_rows}
+        services = {r["servizio_id"]: {
+            "nome": r["descrizione"], 
+            "aperti_oggi": 0, 
+            "aperti_5gg": 0,
+            "da_prendere": 0,
+            "in_lavorazione": 0,
+            "chiusi_oggi": 0
+        } for r in servizi_rows}
         
         # Biglietti aperti oggi (creati oggi)
         aperti_oggi_rows = conn.execute(text(f"""
@@ -245,6 +278,43 @@ def query_resp_status_for_reparto(conn, reparto_id, reparto_nome):
             if sid in services:
                 services[sid]["aperti_oggi"] = r["count"]
                 
+        # Biglietti aperti negli ultimi 5 giorni lavorativi
+        five_days_ago_str = get_date_5_working_days_ago(conn)
+        aperti_5gg_rows = conn.execute(text("""
+            SELECT servizio_id, COUNT(*) as count 
+            FROM tickets 
+            WHERE creato_il >= :five_days_ago AND reparto_id = :rep_id
+            GROUP BY servizio_id
+        """), {"rep_id": reparto_id, "five_days_ago": five_days_ago_str}).mappings().all()
+        for r in aperti_5gg_rows:
+            sid = r["servizio_id"]
+            if sid in services:
+                services[sid]["aperti_5gg"] = r["count"]
+
+        # Biglietti in attesa di essere presi in carico (stato = 'nuova')
+        da_prendere_rows = conn.execute(text("""
+            SELECT servizio_id, COUNT(*) as count 
+            FROM tickets 
+            WHERE stato = 'nuova' AND reparto_id = :rep_id
+            GROUP BY servizio_id
+        """), {"rep_id": reparto_id}).mappings().all()
+        for r in da_prendere_rows:
+            sid = r["servizio_id"]
+            if sid in services:
+                services[sid]["da_prendere"] = r["count"]
+
+        # Biglietti in lavorazione (stato = 'presa_in_carico')
+        in_lavorazione_rows = conn.execute(text("""
+            SELECT servizio_id, COUNT(*) as count 
+            FROM tickets 
+            WHERE stato = 'presa_in_carico' AND reparto_id = :rep_id
+            GROUP BY servizio_id
+        """), {"rep_id": reparto_id}).mappings().all()
+        for r in in_lavorazione_rows:
+            sid = r["servizio_id"]
+            if sid in services:
+                services[sid]["in_lavorazione"] = r["count"]
+
         # Biglietti chiusi oggi (hanno nota di chiusura oggi)
         chiusi_oggi_rows = conn.execute(text(f"""
             SELECT t.servizio_id, COUNT(DISTINCT t.ticket_id) as count
@@ -261,31 +331,23 @@ def query_resp_status_for_reparto(conn, reparto_id, reparto_nome):
             if sid in services:
                 services[sid]["chiusi_oggi"] = r["count"]
 
-        # Biglietti totali in attesa (stato != 'chiusa')
-        in_attesa_rows = conn.execute(text("""
-            SELECT servizio_id, COUNT(*) as count 
-            FROM tickets 
-            WHERE stato != 'chiusa' AND reparto_id = :rep_id
-            GROUP BY servizio_id
-        """), {"rep_id": reparto_id}).mappings().all()
-        for r in in_attesa_rows:
-            sid = r["servizio_id"]
-            if sid in services:
-                services[sid]["in_attesa"] = r["count"]
-
         # Trasforma in lista
         servizi_stats = []
         for sid, sinfo in services.items():
-            if sinfo["aperti_oggi"] > 0 or sinfo["chiusi_oggi"] > 0 or sinfo["in_attesa"] > 0:
+            if (sinfo["aperti_oggi"] > 0 or sinfo["chiusi_oggi"] > 0 or 
+                sinfo["aperti_5gg"] > 0 or sinfo["da_prendere"] > 0 or sinfo["in_lavorazione"] > 0):
                 servizi_stats.append({
                     "id": sid,
                     "nome": sinfo["nome"],
                     "aperti_oggi": sinfo["aperti_oggi"],
-                    "chiusi_oggi": sinfo["chiusi_oggi"],
-                    "in_attesa": sinfo["in_attesa"]
+                    "aperti_5gg": sinfo["aperti_5gg"],
+                    "da_prendere": sinfo["da_prendere"],
+                    "in_lavorazione": sinfo["in_lavorazione"],
+                    "chiusi_oggi": sinfo["chiusi_oggi"]
                 })
         
-        servizi_stats.sort(key=lambda x: x["in_attesa"], reverse=True)
+        # Ordina per "da prendere in carico" desc, poi "in lavorazione" desc
+        servizi_stats.sort(key=lambda x: (x["da_prendere"], x["in_lavorazione"]), reverse=True)
         data["servizi_stats"] = servizi_stats
         
     except Exception as e:
@@ -642,30 +704,33 @@ def build_html_resp_status(data):
     """Costruisce il corpo HTML premium per RESP_STATUS"""
     now_str = datetime.now().strftime("%d/%m/%Y %H:%M:%S")
     
-    # 1. Tabella Servizi (Aperti oggi, Chiusi oggi, In attesa)
+    # 1. Tabella Servizi (Aperti 5gg, Da Prendere, In Lavorazione, Chiusi Oggi)
     servizi_rows_html = ""
     if data["servizi_stats"]:
         for s in data["servizi_stats"]:
             bg_style = ""
-            badge_in_attesa = f"<span class='badge badge-neutral'>{s['in_attesa']}</span>"
-            if s['in_attesa'] > 5:
+            badge_da_prendere = f"<span class='badge badge-neutral'>{s['da_prendere']}</span>"
+            if s['da_prendere'] > 5:
                 bg_style = "background-color: #fffbeb;"
-                badge_in_attesa = f"<span class='badge badge-danger'>{s['in_attesa']} in attesa</span>"
-            elif s['in_attesa'] > 0:
-                badge_in_attesa = f"<span class='badge badge-warning'>{s['in_attesa']} in attesa</span>"
+                badge_da_prendere = f"<span class='badge badge-danger'>{s['da_prendere']} da prendere</span>"
+            elif s['da_prendere'] > 0:
+                badge_da_prendere = f"<span class='badge badge-warning'>{s['da_prendere']} da prendere</span>"
             else:
-                badge_in_attesa = "<span class='badge badge-success'>0 - Libero</span>"
+                badge_da_prendere = "<span class='badge badge-success'>0</span>"
+
+            badge_in_lavorazione = f"<span class='badge badge-primary'>{s['in_lavorazione']}</span>" if s['in_lavorazione'] > 0 else "<span class='badge badge-neutral'>0</span>"
 
             servizi_rows_html += f"""
             <tr style="{bg_style}">
                 <td style="padding: 10px; border-bottom: 1px solid #e2e8f0; font-weight: bold; color: #334155;">{s['nome']}</td>
-                <td style="padding: 10px; border-bottom: 1px solid #e2e8f0; text-align: center; color: #1e40af;">+ {s['aperti_oggi']}</td>
-                <td style="padding: 10px; border-bottom: 1px solid #e2e8f0; text-align: center; color: #065f46;">✓ {s['chiusi_oggi']}</td>
-                <td style="padding: 10px; border-bottom: 1px solid #e2e8f0; text-align: right;">{badge_in_attesa}</td>
+                <td style="padding: 10px; border-bottom: 1px solid #e2e8f0; text-align: center; color: #1e40af; font-weight: bold;">{s['aperti_5gg']}</td>
+                <td style="padding: 10px; border-bottom: 1px solid #e2e8f0; text-align: center;">{badge_da_prendere}</td>
+                <td style="padding: 10px; border-bottom: 1px solid #e2e8f0; text-align: center;">{badge_in_lavorazione}</td>
+                <td style="padding: 10px; border-bottom: 1px solid #e2e8f0; text-align: right; color: #065f46; font-weight: bold;">✓ {s['chiusi_oggi']}</td>
             </tr>
             """
     else:
-        servizi_rows_html = "<tr><td colspan='4' style='padding: 15px; text-align: center; color: #64748b;'>Nessun movimento ticket registrato oggi.</td></tr>"
+        servizi_rows_html = "<tr><td colspan='5' style='padding: 15px; text-align: center; color: #64748b;'>Nessun movimento ticket registrato di recente.</td></tr>"
 
     # 2. Operatori Assenti Oggi
     today_assenti_html = ""
@@ -815,15 +880,16 @@ def build_html_resp_status(data):
                     📅 Attività Ticket Odierna (Giornata in Corso)
                 </h2>
                 <p style="font-size: 13px; color: #64748b; margin-top: 0; margin-bottom: 12px;">
-                    Riepilogo dei ticket aperti e chiusi oggi, ordinati per backlog residuo (Servizi con più ticket in attesa in alto):
+                    Riepilogo dei ticket per servizio, ordinati per priorità di gestione (servizi con più ticket da prendere in carico in alto):
                 </p>
                 <table style="width: 100%; border-collapse: collapse; margin-bottom: 30px; font-size: 14px;">
                     <thead>
                         <tr style="background-color: #f1f5f9;">
                             <th style="padding: 10px; text-align: left; border-bottom: 2px solid #cbd5e1; font-weight: bold; color: #475569;">Servizio</th>
-                            <th style="padding: 10px; text-align: center; border-bottom: 2px solid #cbd5e1; font-weight: bold; color: #475569;">Aperti Oggi</th>
-                            <th style="padding: 10px; text-align: center; border-bottom: 2px solid #cbd5e1; font-weight: bold; color: #475569;">Chiusi Oggi</th>
-                            <th style="padding: 10px; text-align: right; border-bottom: 2px solid #cbd5e1; font-weight: bold; color: #475569;">Totale in Attesa</th>
+                            <th style="padding: 10px; text-align: center; border-bottom: 2px solid #cbd5e1; font-weight: bold; color: #475569;">Aperti (5gg lav.)</th>
+                            <th style="padding: 10px; text-align: center; border-bottom: 2px solid #cbd5e1; font-weight: bold; color: #475569;">Da Prendere</th>
+                            <th style="padding: 10px; text-align: center; border-bottom: 2px solid #cbd5e1; font-weight: bold; color: #475569;">In Lavorazione</th>
+                            <th style="padding: 10px; text-align: right; border-bottom: 2px solid #cbd5e1; font-weight: bold; color: #475569;">Chiusi Oggi</th>
                         </tr>
                     </thead>
                     <tbody>
@@ -1007,28 +1073,33 @@ def query_ope_status(conn, op_id, op_nome, op_cognome, reparto_id, reparto_nome)
 
 def build_html_ope_status(data):
     """Costruisce il corpo HTML premium per OPE_STATUS"""
-    # 1. Tabella Servizi (Aperti oggi, Chiusi oggi, In attesa)
+    # 1. Tabella Servizi (Aperti 5gg, Da Prendere, In Lavorazione, Chiusi Oggi)
     servizi_rows_html = ""
     if data["servizi_stats"]:
         for s in data["servizi_stats"]:
-            badge_in_attesa = f"<span class='badge badge-neutral'>{s['in_attesa']}</span>"
-            if s['in_attesa'] > 5:
-                badge_in_attesa = f"<span class='badge badge-danger'>{s['in_attesa']} in attesa</span>"
-            elif s['in_attesa'] > 0:
-                badge_in_attesa = f"<span class='badge badge-warning'>{s['in_attesa']} in attesa</span>"
+            bg_style = ""
+            badge_da_prendere = f"<span class='badge badge-neutral'>{s['da_prendere']}</span>"
+            if s['da_prendere'] > 5:
+                bg_style = "background-color: #fffbeb;"
+                badge_da_prendere = f"<span class='badge badge-danger'>{s['da_prendere']} da prendere</span>"
+            elif s['da_prendere'] > 0:
+                badge_da_prendere = f"<span class='badge badge-warning'>{s['da_prendere']} da prendere</span>"
             else:
-                badge_in_attesa = "<span class='badge badge-success'>0 - Libero</span>"
+                badge_da_prendere = "<span class='badge badge-success'>0</span>"
+
+            badge_in_lavorazione = f"<span class='badge badge-primary'>{s['in_lavorazione']}</span>" if s['in_lavorazione'] > 0 else "<span class='badge badge-neutral'>0</span>"
 
             servizi_rows_html += f"""
-            <tr>
+            <tr style="{bg_style}">
                 <td style="padding: 10px; border-bottom: 1px solid #e2e8f0; font-weight: bold; color: #334155;">{s['nome']}</td>
-                <td style="padding: 10px; border-bottom: 1px solid #e2e8f0; text-align: center; color: #1e40af;">+ {s['aperti_oggi']}</td>
-                <td style="padding: 10px; border-bottom: 1px solid #e2e8f0; text-align: center; color: #065f46;">✓ {s['chiusi_oggi']}</td>
-                <td style="padding: 10px; border-bottom: 1px solid #e2e8f0; text-align: right;">{badge_in_attesa}</td>
+                <td style="padding: 10px; border-bottom: 1px solid #e2e8f0; text-align: center; color: #1e40af; font-weight: bold;">{s['aperti_5gg']}</td>
+                <td style="padding: 10px; border-bottom: 1px solid #e2e8f0; text-align: center;">{badge_da_prendere}</td>
+                <td style="padding: 10px; border-bottom: 1px solid #e2e8f0; text-align: center;">{badge_in_lavorazione}</td>
+                <td style="padding: 10px; border-bottom: 1px solid #e2e8f0; text-align: right; color: #065f46; font-weight: bold;">✓ {s['chiusi_oggi']}</td>
             </tr>
             """
     else:
-        servizi_rows_html = "<tr><td colspan='4' style='padding: 15px; text-align: center; color: #64748b;'>Nessun movimento ticket registrato oggi.</td></tr>"
+        servizi_rows_html = "<tr><td colspan='5' style='padding: 15px; text-align: center; color: #64748b;'>Nessun movimento ticket registrato di recente.</td></tr>"
 
     # 2. Tabella Assenze / Presenze prossimi 5 giorni e scoperture
     schedule_rows_html = ""
@@ -1093,9 +1164,10 @@ def build_html_ope_status(data):
                     <thead>
                         <tr style="background-color: #f1f5f9;">
                             <th style="padding: 10px; text-align: left; border-bottom: 2px solid #cbd5e1; font-weight: bold; color: #475569;">Servizio</th>
-                            <th style="padding: 10px; text-align: center; border-bottom: 2px solid #cbd5e1; font-weight: bold; color: #475569;">Aperti Oggi</th>
-                            <th style="padding: 10px; text-align: center; border-bottom: 2px solid #cbd5e1; font-weight: bold; color: #475569;">Chiusi Oggi</th>
-                            <th style="padding: 10px; text-align: right; border-bottom: 2px solid #cbd5e1; font-weight: bold; color: #475569;">In Attesa</th>
+                            <th style="padding: 10px; text-align: center; border-bottom: 2px solid #cbd5e1; font-weight: bold; color: #475569;">Aperti (5gg lav.)</th>
+                            <th style="padding: 10px; text-align: center; border-bottom: 2px solid #cbd5e1; font-weight: bold; color: #475569;">Da Prendere</th>
+                            <th style="padding: 10px; text-align: center; border-bottom: 2px solid #cbd5e1; font-weight: bold; color: #475569;">In Lavorazione</th>
+                            <th style="padding: 10px; text-align: right; border-bottom: 2px solid #cbd5e1; font-weight: bold; color: #475569;">Chiusi Oggi</th>
                         </tr>
                     </thead>
                     <tbody>
