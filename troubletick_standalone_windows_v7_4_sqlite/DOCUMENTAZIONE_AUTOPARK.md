@@ -40,6 +40,7 @@ Se l'utilizzatore ha la necessità di partire immediatamente senza aver prenotat
 Quando la prenotazione diventa attiva, l'utilizzatore gestisce lo stato tramite la bacheca:
 * **Avvio Viaggio**: Cliccando su **Registra Viaggio**, il sistema registra l'ora esatta di partenza effettiva. Lo stato del viaggio passa a *In Corso*.
 * **Pausa / Ripresa**: Durante il tragitto, il conducente può mettere in pausa il viaggio (es. durante una sosta prolungata o fermata intermedia) contrassegnando il veicolo come *In Pausa*. Lo stato può essere ripristinato a *In Corso* con un click.
+* **Annulla Viaggio (Errore di Avvio)**: Se l'utilizzatore ha avviato il viaggio per errore, può cliccare su **Annulla**. Questo resetta l'ora di partenza effettiva e l'eventuale stato di pausa, ripristinando il viaggio allo stato di semplice prenotazione attiva/futura.
 * **Termina Viaggio (Chiusura)**: Al rientro, l'utilizzatore clicca su **Termina** e compila il modulo di rientro obbligatorio:
   * **KM Finali**: L'odometro finale registrato (il sistema verifica che non sia inferiore ai km iniziali registrati alla partenza).
   * **Sede di Rientro**: La sede in cui viene parcheggiato il veicolo (se diversa da quella di partenza, la posizione attuale del veicolo viene aggiornata automaticamente nel database).

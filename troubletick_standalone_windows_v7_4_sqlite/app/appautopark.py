@@ -446,6 +446,27 @@ def completa(
 
     return _redirect_ok("completed")
 
+
+@app.post("/annulla-viaggio/{id}")
+def annulla_viaggio(id: int, r: Request):
+    user = r.session.get("user")
+    if not user:
+        return RedirectResponse(url="/login", status_code=303)
+    uid = user.get("id")
+    role = user.get("ruolo")
+    
+    with engine.begin() as conn:
+        booking = conn.execute(text("SELECT user_id, ora_partenza_effettiva FROM viaggi_automezzi WHERE viaggio_id = :id"), {"id": id}).first()
+        if not booking:
+            return _redirect_err("Prenotazione non trovata.")
+        if booking.user_id != uid and role not in ("admin", "global_fleet_manager"):
+            return _redirect_err("Non sei autorizzato ad annullare questo viaggio.")
+            
+        conn.execute(text("UPDATE viaggi_automezzi SET ora_partenza_effettiva = NULL, in_pausa = 0 WHERE viaggio_id = :id"), {"id": id})
+        
+    return _redirect_ok("Avvio viaggio annullato. Stato prenotazione ripristinato.")
+
+
 # ── ELIMINA ───────────────────────────────────────────────────────────────
 
 @app.post("/elimina/{id}")

@@ -1317,6 +1317,28 @@ def completa_prenotazione(
         
     return RedirectResponse(url="/autopark?msg=completed", status_code=303)
 
+
+@router.post("/autopark/annulla-viaggio/{id}")
+def annulla_viaggio_fleet(id: int, r: Request):
+    if "user" not in r.session:
+        return RedirectResponse(url="/login", status_code=303)
+    user = r.session.get("user")
+    uid = user.get("id")
+    role = user.get("ruolo")
+    
+    import urllib.parse
+    with engine.begin() as conn:
+        booking = conn.execute(text("SELECT user_id, ora_partenza_effettiva FROM viaggi_automezzi WHERE viaggio_id = :id"), {"id": id}).first()
+        if not booking:
+            return RedirectResponse(url=f"/autopark?error={urllib.parse.quote('Prenotazione non trovata.')}", status_code=303)
+        if booking.user_id != uid and role not in ("admin", "global_fleet_manager"):
+            return RedirectResponse(url=f"/autopark?error={urllib.parse.quote('Non sei autorizzato ad annullare questo viaggio.')}", status_code=303)
+            
+        conn.execute(text("UPDATE viaggi_automezzi SET ora_partenza_effettiva = NULL, in_pausa = 0 WHERE viaggio_id = :id"), {"id": id})
+        
+    return RedirectResponse(url=f"/autopark?msg={urllib.parse.quote('Avvio viaggio annullato. Stato prenotazione ripristinato.')}", status_code=303)
+
+
 @router.post("/autopark/elimina/{id}")
 def elimina_prenotazione(id: int, r: Request):
     if "user" not in r.session:

@@ -418,6 +418,12 @@
                                                 <button type="button" class="btn btn-sm btn-success w-100 rounded-3 fw-bold flex-fill" data-bs-toggle="collapse" data-bs-target="#cf-{{ p.viaggio_id }}">
                                                     <i class="bi bi-flag-fill me-1"></i> Termina
                                                 </button>
+                                                
+                                                <form action="/autopark/annulla-viaggio/{{ p.viaggio_id }}" method="POST" class="d-inline flex-fill" onsubmit="return confirm('Annullare l\'avvio di questo viaggio ripristinando lo stato di prenotazione?');">
+                                                    <button type="submit" class="btn btn-sm btn-outline-danger w-100 rounded-3 fw-bold">
+                                                        <i class="bi bi-x-circle-fill me-1"></i> Annulla
+                                                    </button>
+                                                </form>
                                             </div>
                                             
                                             <div class="collapse mt-3" id="cf-{{ p.viaggio_id }}">
