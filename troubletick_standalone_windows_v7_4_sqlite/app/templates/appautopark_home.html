@@ -450,7 +450,7 @@
                                         <h6 class="fw-bold mb-2 text-success">Dettagli Rientro</h6>
                                         <form action="/completa/{{ p.viaggio_id }}" method="POST">
                                             <div class="mb-2">
-                                                <label class="form-label small mb-1 fw-bold text-white">KM Finali</label>
+                                                <label class="form-label small mb-1 fw-bold text-white">KM Finali (KM Partenza: {{ p.km_iniziali }} km)</label>
                                                 <input type="number" name="km_finali" class="form-control form-control-sm form-control-dark" placeholder="Odometro finale" required>
                                             </div>
                                             <div class="mb-2">
