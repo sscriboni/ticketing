@@ -248,6 +248,9 @@ def prenota(
             "km": km_iniziali, "sp": sede_partenza_id,
             "driver_uid": driver.user_id, "email": driver.email, "note": note,
         })
+        
+    return _redirect_ok("booked")
+
 
 @app.post("/registra-viaggio")
 def registra_viaggio(r: Request):
