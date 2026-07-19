@@ -111,6 +111,16 @@ with engine.begin() as conn:
     except Exception:
         pass
     
+    try:
+        conn.execute(text("ALTER TABLE viaggi_automezzi ADD COLUMN minuti_fermo INTEGER DEFAULT 0"))
+    except Exception:
+        pass
+        
+    try:
+        conn.execute(text("ALTER TABLE viaggi_automezzi ADD COLUMN inizio_pausa TEXT"))
+    except Exception:
+        pass
+    
     # Check if empty to seed initial data for marche
     count_marche = conn.execute(text("SELECT COUNT(*) FROM marche_automezzi")).scalar() or 0
     if count_marche == 0:
@@ -1268,7 +1278,7 @@ def completa_prenotazione(
     with engine.begin() as conn:
         # Fetch the voyage, verifying it belongs to the user
         v = conn.execute(text("""
-            SELECT automezzo_id, km_iniziali, note, data_viaggio, ora_partenza, ora_partenza_effettiva
+            SELECT automezzo_id, km_iniziali, note, data_viaggio, ora_partenza, ora_partenza_effettiva, in_pausa, inizio_pausa, minuti_fermo
             FROM viaggi_automezzi 
             WHERE viaggio_id = :id AND user_id = :uid AND ora_arrivo IS NULL
         """), {"id": id, "uid": uid}).first()
@@ -1283,6 +1293,15 @@ def completa_prenotazione(
             
         import datetime
         now_time = datetime.datetime.now().strftime("%H:%M")
+        
+        minutes_fermo = v.minuti_fermo or 0
+        if v.in_pausa and v.inizio_pausa:
+            try:
+                inizio = datetime.datetime.fromisoformat(v.inizio_pausa)
+                delta = datetime.datetime.now() - inizio
+                minutes_fermo += int(delta.total_seconds() / 60)
+            except Exception:
+                pass
             
         if km_finali < v.km_iniziali:
             import urllib.parse
@@ -1293,14 +1312,16 @@ def completa_prenotazione(
         # Update voyage record
         conn.execute(text("""
             UPDATE viaggi_automezzi
-            SET ora_arrivo = :ora_arrivo, km_finali = :km_finali, sede_arrivo_id = :sede_arrivo_id, note = :note
+            SET ora_arrivo = :ora_arrivo, km_finali = :km_finali, sede_arrivo_id = :sede_arrivo_id, note = :note,
+                in_pausa = 0, inizio_pausa = NULL, minuti_fermo = :minuti_fermo
             WHERE viaggio_id = :id
         """), {
             "id": id,
             "ora_arrivo": now_time,
             "km_finali": km_finali,
             "sede_arrivo_id": sede_arrivo_id,
-            "note": note_complete
+            "note": note_complete,
+            "minuti_fermo": minutes_fermo
         })
         
         # Update vehicle km and location
@@ -1558,7 +1579,7 @@ def toggle_pausa(id: int, r: Request):
     uid = user.get("id")
     
     with engine.begin() as conn:
-        booking = conn.execute(text("SELECT user_id, in_pausa FROM viaggi_automezzi WHERE viaggio_id = :id"), {"id": id}).first()
+        booking = conn.execute(text("SELECT user_id, in_pausa, inizio_pausa, minuti_fermo FROM viaggi_automezzi WHERE viaggio_id = :id"), {"id": id}).first()
         import urllib.parse
         if not booking:
             err_msg = "Prenotazione non trovata."
@@ -1567,8 +1588,30 @@ def toggle_pausa(id: int, r: Request):
             err_msg = "Non sei autorizzato a modificare questo viaggio."
             return RedirectResponse(url=f"/autopark?error={urllib.parse.quote(err_msg)}", status_code=303)
             
-        new_val = 1 if not booking.in_pausa else 0
-        conn.execute(text("UPDATE viaggi_automezzi SET in_pausa = :new_val WHERE viaggio_id = :id"), {"new_val": new_val, "id": id})
+        now = datetime.datetime.now()
+        if not booking.in_pausa:
+            # Entering pause
+            conn.execute(text("""
+                UPDATE viaggi_automezzi 
+                SET in_pausa = 1, inizio_pausa = :inizio 
+                WHERE viaggio_id = :id
+            """), {"inizio": now.isoformat(), "id": id})
+            msg_type = "paused"
+        else:
+            # Resuming from pause
+            minutes_elapsed = 0
+            if booking.inizio_pausa:
+                try:
+                    inizio = datetime.datetime.fromisoformat(booking.inizio_pausa)
+                    delta = now - inizio
+                    minutes_elapsed = int(delta.total_seconds() / 60)
+                except Exception:
+                    pass
+            conn.execute(text("""
+                UPDATE viaggi_automezzi 
+                SET in_pausa = 0, inizio_pausa = NULL, minuti_fermo = COALESCE(minuti_fermo, 0) + :elapsed 
+                WHERE viaggio_id = :id
+            """), {"elapsed": minutes_elapsed, "id": id})
+            msg_type = "resumed"
         
-    msg_type = "paused" if new_val == 1 else "resumed"
     return RedirectResponse(url=f"/autopark?msg={msg_type}", status_code=303)

@@ -532,6 +532,9 @@
                                 <td>
                                     <span>{{ p.data_viaggio }}</span><br>
                                     <span class="small text-muted">{{ p.ora_partenza }} - {{ p.ora_riconsegna_prevista or '-' }}</span>
+                                    {% if p.minuti_fermo and p.minuti_fermo > 0 %}
+                                        <br><span class="badge bg-warning text-dark small" style="font-size: 0.72rem; padding: 2px 6px;"><i class="bi bi-clock-history"></i> Fermo: {{ p.minuti_fermo }} min</span>
+                                    {% endif %}
                                 </td>
                                 <td>
                                     <span>{{ p.sede_partenza_nome }}</span>

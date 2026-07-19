@@ -414,7 +414,7 @@ def completa(
 
     with engine.begin() as conn:
         v = conn.execute(text("""
-            SELECT automezzo_id, km_iniziali, note, data_viaggio, ora_partenza, ora_partenza_effettiva
+            SELECT automezzo_id, km_iniziali, note, data_viaggio, ora_partenza, ora_partenza_effettiva, in_pausa, inizio_pausa, minuti_fermo
             FROM viaggi_automezzi
             WHERE viaggio_id = :id AND user_id = :uid AND ora_arrivo IS NULL
         """), {"id": id, "uid": uid}).first()
@@ -425,6 +425,15 @@ def completa(
         if not v.ora_partenza_effettiva:
             return _redirect_err("Devi prima avviare il viaggio con il pulsante Registra Viaggio.")
 
+        minutes_fermo = v.minuti_fermo or 0
+        if v.in_pausa and v.inizio_pausa:
+            try:
+                inizio = datetime.datetime.fromisoformat(v.inizio_pausa)
+                delta = datetime.datetime.now() - inizio
+                minutes_fermo += int(delta.total_seconds() / 60)
+            except Exception:
+                pass
+
         now_time = datetime.datetime.now().strftime("%H:%M")
 
         if km_finali < v.km_iniziali:
@@ -434,9 +443,10 @@ def completa(
 
         conn.execute(text("""
             UPDATE viaggi_automezzi
-            SET ora_arrivo = :oa, km_finali = :kf, sede_arrivo_id = :sa, note = :n
+            SET ora_arrivo = :oa, km_finali = :kf, sede_arrivo_id = :sa, note = :n,
+                in_pausa = 0, inizio_pausa = NULL, minuti_fermo = :mf
             WHERE viaggio_id = :id
-        """), {"id": id, "oa": now_time, "kf": km_finali, "sa": sede_arrivo_id, "n": note_complete})
+        """), {"id": id, "oa": now_time, "kf": km_finali, "sa": sede_arrivo_id, "n": note_complete, "mf": minutes_fermo})
 
         conn.execute(text("""
             UPDATE automezzi
