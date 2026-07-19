@@ -170,6 +170,13 @@ def prenota(
     role = user.get("ruolo")
     current_email = user.get("email")
 
+    try:
+        travel_dt = datetime.datetime.strptime(f"{data_viaggio} {ora_partenza}", "%Y-%m-%d %H:%M")
+        if travel_dt <= datetime.datetime.now():
+            return _redirect_err("La data e l'ora di partenza devono essere nel futuro.")
+    except Exception:
+        return _redirect_err("Formato data o ora non valido.")
+
     if ora_riconsegna_prevista <= ora_partenza:
         return _redirect_err("L'ora di riconsegna deve essere successiva all'ora di partenza.")
 

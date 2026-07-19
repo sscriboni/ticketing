@@ -22,7 +22,7 @@ Ogni utente abilitato nel sistema (con ruoli come `normale`, `assistenza` o `res
 ### A. Prenotazione Standard (Pianificata)
 La prenotazione consente di bloccare un veicolo in anticipo per un viaggio futuro:
 1. **Selezione Sede di Partenza**: L'utilizzatore sceglie da quale sede aziendale desidera ritirare l'auto.
-2. **Selezione Data e Ora**: Vengono inserite la data del viaggio, l'ora di partenza prevista e l'ora di riconsegna prevista (l'ora di riconsegna deve sempre essere successiva a quella di partenza).
+2. **Selezione Data e Ora**: Vengono inserite la data del viaggio, l'ora di partenza prevista e l'ora di riconsegna prevista (la data e l'ora di partenza devono essere obbligatoriamente nel futuro rispetto al momento attuale, e l'ora di riconsegna deve essere successiva a quella di partenza).
 3. **Selezione Veicolo**: In base alla sede selezionata, il sistema mostra solo i veicoli **attualmente presenti in quella sede** e contrassegnati come **Disponibili**. 
    * Vengono visualizzati i km attuali e la posizione.
    * I veicoli occupati in quella fascia oraria o esclusi dalla flotta non sono selezionabili.

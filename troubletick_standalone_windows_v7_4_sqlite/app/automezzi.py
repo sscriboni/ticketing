@@ -1126,6 +1126,17 @@ def prenota_automezzo(
     role = user.get("ruolo")
     current_email = user.get("email")
 
+    try:
+        travel_dt = datetime.datetime.strptime(f"{data_viaggio} {ora_partenza}", "%Y-%m-%d %H:%M")
+        if travel_dt <= datetime.datetime.now():
+            import urllib.parse
+            err_msg = urllib.parse.quote("La data e l'ora di partenza devono essere nel futuro.")
+            return RedirectResponse(url=f"/autopark?error={err_msg}", status_code=303)
+    except Exception:
+        import urllib.parse
+        err_msg = urllib.parse.quote("Formato data o ora non valido.")
+        return RedirectResponse(url=f"/autopark?error={err_msg}", status_code=303)
+
     # Validate return hour is after departure hour
     if ora_riconsegna_prevista <= ora_partenza:
         import urllib.parse
