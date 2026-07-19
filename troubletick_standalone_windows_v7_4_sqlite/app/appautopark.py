@@ -415,6 +415,7 @@ def completa(
     id: int, r: Request,
     km_finali: int = Form(...),
     sede_arrivo_id: int = Form(...),
+    ora_arrivo: str = Form(...),
     note_finali: str = Form(None),
 ):
     user = r.session.get("user")
@@ -435,16 +436,27 @@ def completa(
         if not v.ora_partenza_effettiva:
             return _redirect_err("Devi prima avviare il viaggio con il pulsante Registra Viaggio.")
 
+        # Validate that ora_arrivo is greater than ora_partenza_effettiva
+        if ora_arrivo <= v.ora_partenza_effettiva:
+            return _redirect_err(f"L'orario di rientro ({ora_arrivo}) deve essere successivo all'orario di partenza effettiva ({v.ora_partenza_effettiva}).")
+
+        # Check if date has changed (compare today's date with data_viaggio)
+        today_str = datetime.date.today().isoformat()
+        warning_msg = None
+        if today_str != v.data_viaggio:
+            warning_msg = "Attenzione: la data corrente è diversa da quella di partenza. Il viaggio è stato registrato con data di fine pari alla data di partenza."
+
         minutes_fermo = v.minuti_fermo or 0
         if v.in_pausa and v.inizio_pausa:
             try:
+                # Calculate pause duration up to the return time on data_viaggio
                 inizio = datetime.datetime.fromisoformat(v.inizio_pausa)
-                delta = datetime.datetime.now() - inizio
-                minutes_fermo += int(delta.total_seconds() / 60)
+                rientro_dt = datetime.datetime.strptime(f"{v.data_viaggio} {ora_arrivo}", "%Y-%m-%d %H:%M")
+                if rientro_dt > inizio:
+                    delta = rientro_dt - inizio
+                    minutes_fermo += int(delta.total_seconds() / 60)
             except Exception:
                 pass
-
-        now_time = datetime.datetime.now().strftime("%H:%M")
 
         if km_finali < v.km_iniziali:
             return _redirect_err(f"I km finali ({km_finali}) non possono essere inferiori a quelli iniziali ({v.km_iniziali}).")
@@ -456,7 +468,7 @@ def completa(
             SET ora_arrivo = :oa, km_finali = :kf, sede_arrivo_id = :sa, note = :n,
                 in_pausa = 0, inizio_pausa = NULL, minuti_fermo = :mf
             WHERE viaggio_id = :id
-        """), {"id": id, "oa": now_time, "kf": km_finali, "sa": sede_arrivo_id, "n": note_complete, "mf": minutes_fermo})
+        """), {"id": id, "oa": ora_arrivo, "kf": km_finali, "sa": sede_arrivo_id, "n": note_complete, "mf": minutes_fermo})
 
         conn.execute(text("""
             UPDATE automezzi
@@ -464,7 +476,10 @@ def completa(
             WHERE automezzo_id = :aid
         """), {"aid": v.automezzo_id, "kf": km_finali, "sa": sede_arrivo_id})
 
-    return _redirect_ok("completed")
+    if warning_msg:
+        return _redirect_ok(warning_msg)
+    else:
+        return _redirect_ok("completed")
 
 
 @app.post("/annulla-viaggio/{id}")

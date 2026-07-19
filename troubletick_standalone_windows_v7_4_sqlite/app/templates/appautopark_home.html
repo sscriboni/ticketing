@@ -448,7 +448,7 @@
                                 <div class="collapse mt-3" id="cf-{{ p.viaggio_id }}">
                                     <div class="p-3 border border-secondary rounded bg-dark bg-opacity-50">
                                         <h6 class="fw-bold mb-2 text-success">Dettagli Rientro</h6>
-                                        <form action="/completa/{{ p.viaggio_id }}" method="POST">
+                                        <form action="/completa/{{ p.viaggio_id }}" method="POST" class="completa-viaggio-form" data-partenza="{{ p.ora_partenza_effettiva }}">
                                             <div class="mb-2">
                                                 <label class="form-label small mb-1 fw-bold text-white">KM Finali (KM Partenza: {{ p.km_iniziali }} km)</label>
                                                 <input type="number" name="km_finali" class="form-control form-control-sm form-control-dark" placeholder="Odometro finale" required>
@@ -465,8 +465,9 @@
                                                 <label class="form-label small mb-1 fw-bold text-white">Note Rientro</label>
                                                 <input type="text" name="note_finali" class="form-control form-control-sm form-control-dark" placeholder="Facoltative">
                                             </div>
-                                            <div class="mb-2 small text-muted">
-                                                <i class="bi bi-info-circle"></i> L'orario di rientro verrà registrato automaticamente all'ora attuale.
+                                            <div class="mb-2">
+                                                <label class="form-label small mb-1 fw-bold text-white">Ora Rientro</label>
+                                                <input type="time" name="ora_arrivo" class="form-control form-control-sm form-control-dark" required>
                                             </div>
                                             <button type="submit" class="btn btn-sm btn-success w-100 mt-2 fw-bold">Conferma Rientro</button>
                                         </form>
@@ -677,6 +678,26 @@ document.addEventListener("DOMContentLoaded", function() {
             }
         });
     }
+
+        // Prefill return time inputs with current time
+    const nowTimeStr = new Date().toTimeString().split(' ')[0].substring(0, 5); // "HH:MM"
+    document.querySelectorAll('input[type="time"][name="ora_arrivo"]').forEach(input => {
+        input.value = nowTimeStr;
+    });
+
+    // Client-side validation for return time
+    document.querySelectorAll('.completa-viaggio-form').forEach(form => {
+        form.addEventListener('submit', function(e) {
+            const departureTime = this.getAttribute('data-partenza');
+            const returnInput = this.querySelector('input[name="ora_arrivo"]');
+            if (departureTime && returnInput && returnInput.value) {
+                if (returnInput.value <= departureTime) {
+                    e.preventDefault();
+                    alert(`L'orario di rientro (${returnInput.value}) deve essere successivo all'orario di partenza effettiva (${departureTime}).`);
+                }
+            }
+        });
+    });
 
     /* ── return-hour validation ── */
     const oraP = document.getElementById("ora_partenza");

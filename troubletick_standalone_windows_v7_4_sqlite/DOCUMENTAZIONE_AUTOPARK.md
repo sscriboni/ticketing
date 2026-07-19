@@ -42,10 +42,11 @@ Quando la prenotazione diventa attiva, l'utilizzatore gestisce lo stato tramite 
 * **Pausa / Ripresa**: Durante il tragitto, il conducente può mettere in pausa il viaggio (da utilizzare obbligatoriamente nel caso in cui il veicolo debba rimanere parcheggiato o fermo per più di un'ora) contrassegnando il veicolo come *In Pausa*. Lo stato può essere ripristinato a *In Corso* con un click. Il sistema calcola e accumula automaticamente la durata complessiva delle pause (in minuti), mostrandola poi nel registro dei viaggi storici.
 * **Annulla Viaggio (Errore di Avvio)**: Se l'utilizzatore ha avviato il viaggio per errore, può cliccare su **Annulla**. Questo resetta l'ora di partenza effettiva e l'eventuale stato di pausa, ripristinando il viaggio allo stato di semplice prenotazione attiva/futura.
 * **Termina Viaggio (Chiusura)**: Al rientro, l'utilizzatore clicca su **Termina** e compila il modulo di rientro obbligatorio:
+  * **Ora Rientro**: L'orario effettivo di riconsegna (deve essere inserito dall'utente e non può essere inferiore o uguale a quello di partenza).
   * **KM Finali**: L'odometro finale registrato (il sistema verifica che non sia inferiore ai km iniziali registrati alla partenza).
   * **Sede di Rientro**: La sede in cui viene parcheggiato il veicolo (se diversa da quella di partenza, la posizione attuale del veicolo viene aggiornata automaticamente nel database).
   * **Note Rientro**: Note facoltative su problemi riscontrati, rifornimento o anomalie.
-  * Il sistema registra l'ora di arrivo attuale e aggiorna lo stato dell'automezzo a *Disponibile*.
+  * **Controllo Data**: Se l'utente termina il viaggio in una data diversa rispetto a quella di partenza, il sistema mostra un avviso, registrando comunque la data di fine uguale alla data di partenza. Lo stato dell'automezzo viene riportato a *Disponibile*.
 
 ---
 

@@ -1279,6 +1279,7 @@ def completa_prenotazione(
     r: Request,
     km_finali: int = Form(...),
     sede_arrivo_id: int = Form(...),
+    ora_arrivo: str = Form(...),
     note_finali: str = Form(None)
 ):
     if "user" not in r.session:
@@ -1301,16 +1302,29 @@ def completa_prenotazione(
         if not v.ora_partenza_effettiva:
             import urllib.parse
             return RedirectResponse(url=f"/autopark?error={urllib.parse.quote('Devi prima avviare il viaggio con il pulsante Registra Viaggio.')}", status_code=303)
+
+        # Validate that ora_arrivo is greater than ora_partenza_effettiva
+        if ora_arrivo <= v.ora_partenza_effettiva:
+            import urllib.parse
+            err_msg = urllib.parse.quote(f"L'orario di rientro ({ora_arrivo}) deve essere successivo all'orario di partenza effettiva ({v.ora_partenza_effettiva}).")
+            return RedirectResponse(url=f"/autopark?error={err_msg}", status_code=303)
+
+        # Check if date has changed (compare today's date with data_viaggio)
+        today_str = datetime.date.today().isoformat()
+        warning_msg = None
+        if today_str != v.data_viaggio:
+            warning_msg = "Attenzione: la data corrente è diversa da quella di partenza. Il viaggio è stato registrato con data di fine pari alla data di partenza."
             
-        import datetime
-        now_time = datetime.datetime.now().strftime("%H:%M")
-        
+        import datetime as dt_mod
         minutes_fermo = v.minuti_fermo or 0
         if v.in_pausa and v.inizio_pausa:
             try:
-                inizio = datetime.datetime.fromisoformat(v.inizio_pausa)
-                delta = datetime.datetime.now() - inizio
-                minutes_fermo += int(delta.total_seconds() / 60)
+                # Calculate pause duration up to the return time on data_viaggio
+                inizio = dt_mod.datetime.fromisoformat(v.inizio_pausa)
+                rientro_dt = dt_mod.datetime.strptime(f"{v.data_viaggio} {ora_arrivo}", "%Y-%m-%d %H:%M")
+                if rientro_dt > inizio:
+                    delta = rientro_dt - inizio
+                    minutes_fermo += int(delta.total_seconds() / 60)
             except Exception:
                 pass
             
@@ -1328,7 +1342,7 @@ def completa_prenotazione(
             WHERE viaggio_id = :id
         """), {
             "id": id,
-            "ora_arrivo": now_time,
+            "ora_arrivo": ora_arrivo,
             "km_finali": km_finali,
             "sede_arrivo_id": sede_arrivo_id,
             "note": note_complete,
@@ -1347,7 +1361,11 @@ def completa_prenotazione(
             "sede_arrivo_id": sede_arrivo_id
         })
         
-    return RedirectResponse(url="/autopark?msg=completed", status_code=303)
+    import urllib.parse
+    if warning_msg:
+        return RedirectResponse(url=f"/autopark?msg={urllib.parse.quote(warning_msg)}", status_code=303)
+    else:
+        return RedirectResponse(url="/autopark?msg=completed", status_code=303)
 
 
 @router.post("/autopark/annulla-viaggio/{id}")
