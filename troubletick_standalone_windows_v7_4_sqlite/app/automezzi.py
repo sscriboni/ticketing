@@ -1063,8 +1063,16 @@ def get_autopark(r: Request, msg: str = None, error: str = None):
             else:
                 attive_list.append(p_dict)
                 
-        # Fetch all locations (sedi)
-        sedi_list = conn.execute(text("SELECT sede_id, nome FROM sedi ORDER BY nome")).mappings().all()
+        # Fetch all locations (sedi) with count of available vehicles
+        sedi_list = conn.execute(text("""
+            SELECT s.sede_id, s.nome,
+                   (SELECT COUNT(*) FROM automezzi a 
+                    WHERE a.sede_attuale_id = s.sede_id 
+                      AND a.stato = 'Disponibile' 
+                      AND a.escluso_prenotazione = 0) AS auto_disponibili
+            FROM sedi s
+            ORDER BY s.nome
+        """)).mappings().all()
         
         # Instant booking properties
         instant_mode = r.query_params.get("instant") == "1"

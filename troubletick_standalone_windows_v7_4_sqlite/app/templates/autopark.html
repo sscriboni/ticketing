@@ -250,7 +250,7 @@
                             <select class="form-select rounded-3" id="sede_partenza_id" name="sede_partenza_id" required>
                                 <option value="" disabled selected>Seleziona sede di partenza...</option>
                                 {% for s in sedi %}
-                                    <option value="{{ s.sede_id }}">{{ s.nome }}</option>
+                                    <option value="{{ s.sede_id }}">{{ s.nome }} ({{ s.auto_disponibili }} auto disponibili)</option>
                                 {% endfor %}
                             </select>
                         </div>

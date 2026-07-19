@@ -279,7 +279,7 @@
                         <select class="form-select form-select-dark" id="sede_partenza_id" name="sede_partenza_id" required>
                             <option value="" disabled selected>Seleziona sede…</option>
                             {% for s in sedi %}
-                            <option value="{{ s.sede_id }}">{{ s.nome }}</option>
+                            <option value="{{ s.sede_id }}">{{ s.nome }} ({{ s.auto_disponibili }} auto disponibili)</option>
                             {% endfor %}
                         </select>
                     </div>

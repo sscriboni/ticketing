@@ -116,10 +116,16 @@ def home(r: Request, msg: str = None, error: str = None):
             else:
                 attive_list.append(d)
 
-        # All locations
-        sedi_list = conn.execute(
-            text("SELECT sede_id, nome FROM sedi ORDER BY nome")
-        ).mappings().all()
+        # All locations with count of available vehicles
+        sedi_list = conn.execute(text("""
+            SELECT s.sede_id, s.nome,
+                   (SELECT COUNT(*) FROM automezzi a 
+                    WHERE a.sede_attuale_id = s.sede_id 
+                      AND a.stato = 'Disponibile' 
+                      AND a.escluso_prenotazione = 0) AS auto_disponibili
+            FROM sedi s
+            ORDER BY s.nome
+        """)).mappings().all()
 
         instant_mode = r.query_params.get("instant") == "1"
         instant_date = now.strftime("%Y-%m-%d")
