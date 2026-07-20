@@ -392,8 +392,8 @@
                                             <li class="mb-1"><i class="bi bi-clock me-2"></i><strong>Orario previsto:</strong> {{ p.ora_partenza }}{% if p.ora_riconsegna_prevista %} - {{ p.ora_riconsegna_prevista }}{% endif %}</li>
                                             {% if p.ora_partenza_effettiva %}
                                                 <li class="mb-1 text-success"><i class="bi bi-play-fill me-2"></i><strong>Partenza registrata:</strong> {{ p.ora_partenza_effettiva }}</li>
+                                                <li class="mb-1"><i class="bi bi-speedometer2 me-2"></i><strong>KM di partenza:</strong> {{ p.km_iniziali }} km</li>
                                             {% endif %}
-                                            <li class="mb-1"><i class="bi bi-speedometer2 me-2"></i><strong>KM di partenza:</strong> {{ p.km_iniziali }} km</li>
                                             <li class="mb-1"><i class="bi bi-geo-alt me-2"></i><strong>Partenza da:</strong> {{ p.sede_partenza_nome }}</li>
                                             <li class="mb-1"><i class="bi bi-person-fill me-2"></i><strong>Guidatore:</strong> {{ p.driver_nome }} {{ p.driver_cognome }}</li>
                                             <li class="mb-1"><i class="bi bi-envelope me-2"></i><strong>Email:</strong> {{ p.driver_email }}</li>

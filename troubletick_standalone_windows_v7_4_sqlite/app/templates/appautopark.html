@@ -319,10 +319,24 @@
                                 <div class="row px-2">
                                     {% for tm in tipi_manutenzione %}
                                     <div class="form-check col-6 col-md-4 mb-2">
-                                        <input class="form-check-input" type="checkbox" name="tipi_manutenzione_ids" value="{{ tm.tipo_manutenzione_id }}" id="add_tm_{{ tm.tipo_manutenzione_id }}">
+                                        <input class="form-check-input add-tm-checkbox" type="checkbox" name="tipi_manutenzione_ids" value="{{ tm.tipo_manutenzione_id }}" id="add_tm_{{ tm.tipo_manutenzione_id }}" data-mesi="{{ tm.scadenza_mesi or '' }}" data-km="{{ tm.scadenza_km or '' }}">
                                         <label class="form-check-label small text-dark" for="add_tm_{{ tm.tipo_manutenzione_id }}">
                                             {{ tm.nome }} ({{ tm.categoria }})
                                         </label>
+                                        <div class="mt-2 d-none" id="add_tm_params_{{ tm.tipo_manutenzione_id }}">
+                                            {% if tm.scadenza_mesi %}
+                                            <div class="mb-1">
+                                                <label class="form-label mb-0" style="font-size: 0.75rem;">Data Inizio</label>
+                                                <input type="date" class="form-control form-control-sm add-tm-data-inizio" name="data_inizio_{{ tm.tipo_manutenzione_id }}" id="add_tm_data_{{ tm.tipo_manutenzione_id }}">
+                                            </div>
+                                            {% endif %}
+                                            {% if tm.scadenza_km %}
+                                            <div>
+                                                <label class="form-label mb-0" style="font-size: 0.75rem;">KM Partenza</label>
+                                                <input type="number" class="form-control form-control-sm add-tm-km-partenza" name="km_partenza_{{ tm.tipo_manutenzione_id }}" id="add_tm_km_{{ tm.tipo_manutenzione_id }}">
+                                            </div>
+                                            {% endif %}
+                                        </div>
                                     </div>
                                     {% else %}
                                     <div class="col-12 text-muted small">Nessun tipo di manutenzione registrato a sistema.</div>
@@ -483,10 +497,24 @@
                                 <div class="row px-2">
                                     {% for tm in tipi_manutenzione %}
                                     <div class="form-check col-6 col-md-4 mb-2">
-                                        <input class="form-check-input edit-tm-checkbox" type="checkbox" name="tipi_manutenzione_ids" value="{{ tm.tipo_manutenzione_id }}" id="edit_tm_{{ tm.tipo_manutenzione_id }}">
+                                        <input class="form-check-input edit-tm-checkbox" type="checkbox" name="tipi_manutenzione_ids" value="{{ tm.tipo_manutenzione_id }}" id="edit_tm_{{ tm.tipo_manutenzione_id }}" data-mesi="{{ tm.scadenza_mesi or '' }}" data-km="{{ tm.scadenza_km or '' }}">
                                         <label class="form-check-label small text-dark" for="edit_tm_{{ tm.tipo_manutenzione_id }}">
                                             {{ tm.nome }} ({{ tm.categoria }})
                                         </label>
+                                        <div class="mt-2 d-none" id="edit_tm_params_{{ tm.tipo_manutenzione_id }}">
+                                            {% if tm.scadenza_mesi %}
+                                            <div class="mb-1">
+                                                <label class="form-label mb-0" style="font-size: 0.75rem;">Data Inizio</label>
+                                                <input type="date" class="form-control form-control-sm" name="data_inizio_{{ tm.tipo_manutenzione_id }}" id="edit_tm_data_{{ tm.tipo_manutenzione_id }}">
+                                            </div>
+                                            {% endif %}
+                                            {% if tm.scadenza_km %}
+                                            <div>
+                                                <label class="form-label mb-0" style="font-size: 0.75rem;">KM Partenza</label>
+                                                <input type="number" class="form-control form-control-sm edit-tm-km-partenza" name="km_partenza_{{ tm.tipo_manutenzione_id }}" id="edit_tm_km_{{ tm.tipo_manutenzione_id }}">
+                                            </div>
+                                            {% endif %}
+                                        </div>
                                     </div>
                                     {% else %}
                                     <div class="col-12 text-muted small">Nessun tipo di manutenzione registrato a sistema.</div>
@@ -565,7 +593,22 @@
             if (v.tipi_manutenzione_ids) {
                 v.tipi_manutenzione_ids.forEach(tid => {
                     const cb = document.getElementById(`edit_tm_${tid}`);
-                    if (cb) cb.checked = true;
+                    if (cb) {
+                        cb.checked = true;
+                        const paramsDiv = document.getElementById(`edit_tm_params_${tid}`);
+                        if (paramsDiv) {
+                            paramsDiv.classList.remove('d-none');
+                            
+                            // Set values from database
+                            const dateInput = document.getElementById(`edit_tm_data_${tid}`);
+                            const kmInput = document.getElementById(`edit_tm_km_${tid}`);
+                            
+                            if (v.tipi_manutenzione_dati && v.tipi_manutenzione_dati[tid]) {
+                                if (dateInput) dateInput.value = v.tipi_manutenzione_dati[tid].data_inizio || '';
+                                if (kmInput) kmInput.value = v.tipi_manutenzione_dati[tid].km_partenza || '';
+                            }
+                        }
+                    }
                 });
             }
             
@@ -582,6 +625,65 @@
                 form.submit();
             }
         }
+        // Maintenance parameters dynamic toggle logic
+        document.addEventListener('DOMContentLoaded', () => {
+            const todayStr = new Date().toISOString().split('T')[0];
+            const addKmInput = document.getElementById('km_attuali');
+            const editKmMain = document.getElementById('editKmAttuali');
+
+            // Add modal
+            document.querySelectorAll('.add-tm-checkbox').forEach(cb => {
+                cb.addEventListener('change', function() {
+                    const paramsDiv = document.getElementById('add_tm_params_' + this.value);
+                    if (paramsDiv) {
+                        if (this.checked) {
+                            paramsDiv.classList.remove('d-none');
+                            const dateInput = document.getElementById('add_tm_data_' + this.value);
+                            if (dateInput && !dateInput.value) dateInput.value = todayStr;
+                            const kmInput = document.getElementById('add_tm_km_' + this.value);
+                            if (kmInput && !kmInput.value && addKmInput) kmInput.value = addKmInput.value || 0;
+                        } else {
+                            paramsDiv.classList.add('d-none');
+                        }
+                    }
+                });
+            });
+
+            if (addKmInput) {
+                addKmInput.addEventListener('input', function() {
+                    document.querySelectorAll('.add-tm-km-partenza').forEach(kmInp => {
+                        kmInp.value = this.value || 0;
+                    });
+                });
+            }
+
+            // Edit modal
+            document.querySelectorAll('.edit-tm-checkbox').forEach(cb => {
+                cb.addEventListener('change', function() {
+                    const paramsDiv = document.getElementById('edit_tm_params_' + this.value);
+                    if (paramsDiv) {
+                        if (this.checked) {
+                            paramsDiv.classList.remove('d-none');
+                            const dateInput = document.getElementById('edit_tm_data_' + this.value);
+                            if (dateInput && !dateInput.value) dateInput.value = todayStr;
+                            const kmInput = document.getElementById('edit_tm_km_' + this.value);
+                            if (kmInput && !kmInput.value && editKmMain) kmInput.value = editKmMain.value || 0;
+                        } else {
+                            paramsDiv.classList.add('d-none');
+                        }
+                    }
+                });
+            });
+            
+            if (editKmMain) {
+                editKmMain.addEventListener('input', function() {
+                    document.querySelectorAll('.edit-tm-km-partenza').forEach(kmInp => {
+                        // Only update empty ones or overwrite all? Let's keep it simple and overwrite.
+                        kmInp.value = this.value || 0;
+                    });
+                });
+            }
+        });
     </script>
 </body>
 

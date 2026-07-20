@@ -136,6 +136,8 @@ with engine.begin() as conn:
         CREATE TABLE IF NOT EXISTS automezzi_tipi_manutenzione (
             automezzo_id INTEGER NOT NULL,
             tipo_manutenzione_id INTEGER NOT NULL,
+            data_inizio_calcolo TEXT,
+            km_partenza_calcolo INTEGER,
             PRIMARY KEY(automezzo_id, tipo_manutenzione_id),
             FOREIGN KEY(automezzo_id) REFERENCES automezzi(automezzo_id) ON DELETE CASCADE,
             FOREIGN KEY(tipo_manutenzione_id) REFERENCES tipi_manutenzione(tipo_manutenzione_id) ON DELETE CASCADE
@@ -245,20 +247,27 @@ def list_automezzi(r: Request):
         tipi_manutenzione = [dict(t) for t in tipi_manutenzione_mappings]
 
         # Fetch associations
-        assoc = conn.execute(text("SELECT automezzo_id, tipo_manutenzione_id FROM automezzi_tipi_manutenzione")).mappings().all()
+        assoc = conn.execute(text("SELECT automezzo_id, tipo_manutenzione_id, data_inizio_calcolo, km_partenza_calcolo FROM automezzi_tipi_manutenzione")).mappings().all()
         veicolo_tipi = {}
+        veicolo_tipi_dati = {}
         for row in assoc:
             aid = row["automezzo_id"]
             tid = row["tipo_manutenzione_id"]
             if aid not in veicolo_tipi:
                 veicolo_tipi[aid] = []
+                veicolo_tipi_dati[aid] = {}
             veicolo_tipi[aid].append(tid)
+            veicolo_tipi_dati[aid][tid] = {
+                "data_inizio": row["data_inizio_calcolo"],
+                "km_partenza": row["km_partenza_calcolo"]
+            }
 
         # Convert automezzi to dicts and attach types
         veicoli_list = []
         for row in automezzi:
             v_dict = dict(row)
             v_dict["tipi_manutenzione_ids"] = veicolo_tipi.get(v_dict["automezzo_id"], [])
+            v_dict["tipi_manutenzione_dati"] = veicolo_tipi_dati.get(v_dict["automezzo_id"], {})
             veicoli_list.append(v_dict)
 
     return templates.TemplateResponse(r, "appautopark.html", {
@@ -274,7 +283,7 @@ def list_automezzi(r: Request):
     })
 
 @router.post("/veicolo/nuovo")
-def add_vehicle(
+async def add_vehicle(
     r: Request,
     targa: str = Form(...),
     marca_id: int = Form(...),
@@ -335,16 +344,23 @@ def add_vehicle(
         # Save associated maintenance types
         new_id = conn.execute(text("SELECT last_insert_rowid()")).scalar()
         if tipi_manutenzione_ids:
+            form_data = await r.form()
             for tid in tipi_manutenzione_ids:
+                d_inizio = form_data.get(f"data_inizio_{tid}")
+                km_part = form_data.get(f"km_partenza_{tid}")
+                
+                din = d_inizio if d_inizio else None
+                kmp = int(km_part) if km_part else None
+                
                 conn.execute(text("""
-                    INSERT INTO automezzi_tipi_manutenzione (automezzo_id, tipo_manutenzione_id)
-                    VALUES (:aid, :tid)
-                """), {"aid": new_id, "tid": int(tid)})
+                    INSERT INTO automezzi_tipi_manutenzione (automezzo_id, tipo_manutenzione_id, data_inizio_calcolo, km_partenza_calcolo)
+                    VALUES (:aid, :tid, :din, :kmp)
+                """), {"aid": new_id, "tid": int(tid), "din": din, "kmp": kmp})
                 
     return RedirectResponse(url="/admin/automezzi", status_code=303)
 
 @router.post("/veicolo/modifica/{id}")
-def edit_vehicle(
+async def edit_vehicle(
     id: int,
     r: Request,
     targa: str = Form(...),
@@ -414,11 +430,18 @@ def edit_vehicle(
         # Sync associated maintenance types
         conn.execute(text("DELETE FROM automezzi_tipi_manutenzione WHERE automezzo_id = :id"), {"id": id})
         if tipi_manutenzione_ids:
+            form_data = await r.form()
             for tid in tipi_manutenzione_ids:
+                d_inizio = form_data.get(f"data_inizio_{tid}")
+                km_part = form_data.get(f"km_partenza_{tid}")
+                
+                din = d_inizio if d_inizio else None
+                kmp = int(km_part) if km_part else None
+
                 conn.execute(text("""
-                    INSERT INTO automezzi_tipi_manutenzione (automezzo_id, tipo_manutenzione_id)
-                    VALUES (:aid, :tid)
-                """), {"aid": id, "tid": int(tid)})
+                    INSERT INTO automezzi_tipi_manutenzione (automezzo_id, tipo_manutenzione_id, data_inizio_calcolo, km_partenza_calcolo)
+                    VALUES (:aid, :tid, :din, :kmp)
+                """), {"aid": id, "tid": int(tid), "din": din, "kmp": kmp})
                 
     return RedirectResponse(url="/admin/automezzi", status_code=303)
 
