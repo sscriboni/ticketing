@@ -106,6 +106,60 @@
                 </div>
             </div>
 
+
+            <!-- Manutenzioni Programmate -->
+            <h4 class="mb-3 text-secondary"><i class="bi bi-calendar-event me-1 text-primary"></i> Manutenzioni Programmate</h4>
+            <div class="table-container mb-5">
+                <div class="table-responsive">
+                    <table class="table table-hover custom-table align-middle">
+                        <thead>
+                            <tr>
+                                <th>Veicolo</th>
+                                <th>Targa</th>
+                                <th>Tipo Manutenzione</th>
+                                <th>Scadenza Temporale</th>
+                                <th>Scadenza Chilometrica</th>
+                                <th>Stato</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for p in manutenzioni_programmate %}
+                            <tr>
+                                <td><strong>{{ p.marca }} {{ p.modello }}</strong></td>
+                                <td><span class="badge bg-secondary font-monospace">{{ p.targa }}</span></td>
+                                <td><span class="badge bg-info text-dark">{{ p.tipo_nome }}</span></td>
+                                
+                                <td>
+                                    {% if p.scadenza_mesi %}
+                                        Prevista: <strong>{{ p.scadenza_stimata_data }}</strong>
+                                        <br><small class="text-muted">Mancano {{ p.giorni_rimanenti }} giorni</small>
+                                    {% else %}
+                                        <span class="text-muted">-</span>
+                                    {% endif %}
+                                </td>
+                                
+                                <td>
+                                    {% if p.scadenza_km %}
+                                        Prevista a: <strong>{{ p.scadenza_stimata_km }} km</strong>
+                                        <br><small class="text-muted">Mancano {{ p.km_rimanenti }} km</small>
+                                    {% else %}
+                                        <span class="text-muted">-</span>
+                                    {% endif %}
+                                </td>
+                                
+                                <td>
+                                    <span class="badge bg-{{ p.alert_class }}">{{ p.stato_scadenza }}</span>
+                                </td>
+                            </tr>
+                            {% else %}
+                            <tr>
+                                <td colspan="6" class="text-center text-muted py-4">Nessuna manutenzione programmata trovata.</td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
             <!-- Manutenzioni Completate / Storico -->
             <h4 class="mb-3 text-secondary"><i class="bi bi-check2-all me-1 text-success"></i> Storico Manutenzioni Completate</h4>
             <div class="table-container">
@@ -202,12 +256,12 @@
                         </div>
                         
                         <div class="mb-3">
-                            <label class="form-label text-muted">Tipo Servizio / Manutenzione *</label>
+                            <label class="form-label text-muted">Tipo Manutenzione *</label>
                             <select class="form-select" name="tipo_servizio" required>
-                                <option value="Sostituzione Pneumatici">Sostituzione Pneumatici</option>
-                                <option value="Riparazione Meccanica">Riparazione Meccanica</option>
-                                <option value="Cambio Olio">Cambio Olio</option>
-                                <option value="Altro">Altro</option>
+                                <option value="" disabled selected>-- Seleziona --</option>
+                                {% for tm in tipi_manutenzione %}
+                                <option value="{{ tm.nome }}">{{ tm.nome }} ({{ tm.categoria }})</option>
+                                {% endfor %}
                             </select>
                         </div>
 
@@ -228,8 +282,8 @@
                                 <input type="number" class="form-control" name="km_registrati" value="0" min="0" required>
                             </div>
                             <div class="col-md-6">
-                                <label class="form-label text-muted">Officina / Luogo *</label>
-                                <input type="text" class="form-control" name="luogo" placeholder="Es. Officina Rossi" required>
+                                <label class="form-label text-muted">Officina / Luogo</label>
+                                <input type="text" class="form-control" name="luogo" placeholder="Es. Officina Rossi">
                             </div>
                         </div>
 

@@ -665,8 +665,83 @@ def list_manutenzioni(r: Request):
             ORDER BY b.nome, a.modello
         """)).all()
         
+        programmate_query = conn.execute(text("""
+            SELECT 
+                a.automezzo_id, a.targa, b.nome as marca, a.modello, a.km_attuali,
+                tm.nome as tipo_nome, tm.scadenza_mesi, tm.scadenza_km,
+                atm.data_inizio_calcolo, atm.km_partenza_calcolo
+            FROM automezzi a
+            JOIN marche_automezzi b ON a.marca_id = b.marca_id
+            JOIN automezzi_tipi_manutenzione atm ON a.automezzo_id = atm.automezzo_id
+            JOIN tipi_manutenzione tm ON atm.tipo_manutenzione_id = tm.tipo_manutenzione_id
+            ORDER BY b.nome, a.modello, tm.nome
+        """)).mappings().all()
+
+        def add_months(sourcedate, months):
+            month = sourcedate.month - 1 + months
+            year = sourcedate.year + month // 12
+            month = month % 12 + 1
+            day = min(sourcedate.day, [31, 29 if year%4==0 and (not year%100==0 or year%400==0) else 28, 31,30,31,30,31,31,30,31,30,31][month-1])
+            return datetime.date(year, month, day)
+
+        manutenzioni_programmate = []
+        oggi = datetime.date.today()
+
+        for row in programmate_query:
+            prog = dict(row)
+            
+            prog['scadenza_stimata_data'] = None
+            prog['giorni_rimanenti'] = None
+            if prog['scadenza_mesi'] and prog['data_inizio_calcolo']:
+                try:
+                    d_inizio = datetime.datetime.strptime(prog['data_inizio_calcolo'], "%Y-%m-%d").date()
+                    d_scadenza = add_months(d_inizio, prog['scadenza_mesi'])
+                    prog['scadenza_stimata_data'] = d_scadenza
+                    prog['giorni_rimanenti'] = (d_scadenza - oggi).days
+                except:
+                    pass
+            
+            prog['scadenza_stimata_km'] = None
+            prog['km_rimanenti'] = None
+            if prog['scadenza_km'] and prog['km_partenza_calcolo'] is not None:
+                prog['scadenza_stimata_km'] = prog['km_partenza_calcolo'] + prog['scadenza_km']
+                if prog['km_attuali'] is not None:
+                    prog['km_rimanenti'] = prog['scadenza_stimata_km'] - prog['km_attuali']
+            
+            prog['stato_scadenza'] = "Regolare"
+            prog['alert_class'] = "success"
+            
+            is_scaduta = False
+            is_warning = False
+            
+            if prog['giorni_rimanenti'] is not None:
+                if prog['giorni_rimanenti'] < 0:
+                    is_scaduta = True
+                elif prog['giorni_rimanenti'] <= 30:
+                    is_warning = True
+                    
+            if prog['km_rimanenti'] is not None:
+                if prog['km_rimanenti'] < 0:
+                    is_scaduta = True
+                elif prog['km_rimanenti'] <= 1000:
+                    is_warning = True
+                    
+            if is_scaduta:
+                prog['stato_scadenza'] = "Scaduta"
+                prog['alert_class'] = "danger"
+            elif is_warning:
+                prog['stato_scadenza'] = "In Scadenza"
+                prog['alert_class'] = "warning"
+                
+            manutenzioni_programmate.append(prog)
+            
+        # Fetch tipi_manutenzione for the add modal
+        tipi_manutenzione_mappings = conn.execute(text("SELECT * FROM tipi_manutenzione ORDER BY nome")).mappings().all()
+        tipi_manutenzione = [dict(t) for t in tipi_manutenzione_mappings]
+        
     return templates.TemplateResponse(r, "admin_automezzi_manutenzioni.html", {
-        "request": r, "cfg": CFG, "user": user, "manutenzioni": manutenzioni, "veicoli": veicoli
+        "request": r, "cfg": CFG, "user": user, "manutenzioni": manutenzioni, "veicoli": veicoli, 
+        "manutenzioni_programmate": manutenzioni_programmate, "tipi_manutenzione": tipi_manutenzione
     })
 
 @router.post("/admin/automezzi/manutenzioni/nuova")
@@ -677,7 +752,7 @@ def add_manutenzione(
     data_inizio: str = Form(...),
     ora_inizio: str = Form(...),
     km_registrati: int = Form(...),
-    luogo: str = Form(...),
+    luogo: str = Form(None),
     bloccante: int = Form(0),
     note: str = Form(None)
 ):
