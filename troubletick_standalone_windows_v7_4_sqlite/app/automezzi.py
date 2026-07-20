@@ -1506,22 +1506,29 @@ def elimina_prenotazione(id: int, r: Request, nuovi_km: int = Form(None)):
     role = user.get("ruolo")
     
     import urllib.parse
-    if role not in ("admin", "fleet_manager", "global_fleet_manager"):
-        return RedirectResponse(url=f"/autopark?error={urllib.parse.quote('Non sei autorizzato a eliminare prenotazioni.')}", status_code=303)
-        
     with engine.begin() as conn:
         if role in ("admin", "global_fleet_manager"):
-            v = conn.execute(text("SELECT automezzo_id, km_iniziali, km_finali FROM viaggi_automezzi WHERE viaggio_id = :id"), {"id": id}).mappings().first()
+            v = conn.execute(text("SELECT automezzo_id, km_iniziali, km_finali, user_id, ora_partenza_effettiva FROM viaggi_automezzi WHERE viaggio_id = :id"), {"id": id}).mappings().first()
         elif role == "fleet_manager":
             user_reparto_id = conn.execute(text("SELECT reparto_id FROM users WHERE user_id = :uid"), {"uid": uid}).scalar() or 0
             v = conn.execute(text("""
-                SELECT v.automezzo_id, v.km_iniziali, v.km_finali
+                SELECT v.automezzo_id, v.km_iniziali, v.km_finali, v.user_id, v.ora_partenza_effettiva
                 FROM viaggi_automezzi v
                 JOIN users u ON v.user_id = u.user_id
                 WHERE v.viaggio_id = :id AND u.reparto_id = :rep
             """), {"id": id, "rep": user_reparto_id}).mappings().first()
         else:
-            v = None
+            # Normal user / operator: can only delete their own booking if not started yet
+            v = conn.execute(
+                text("SELECT automezzo_id, km_iniziali, km_finali, user_id, ora_partenza_effettiva FROM viaggi_automezzi WHERE viaggio_id = :id AND user_id = :uid"),
+                {"id": id, "uid": uid},
+            ).mappings().first()
+            
+        if not v:
+            return RedirectResponse(url=f"/autopark?error={urllib.parse.quote('Prenotazione non trovata o non sei autorizzato a eliminarla.')}", status_code=303)
+            
+        if role not in ("admin", "fleet_manager", "global_fleet_manager") and v["ora_partenza_effettiva"]:
+            return RedirectResponse(url=f"/autopark?error={urllib.parse.quote('Non puoi eliminare un viaggio che è già iniziato o completato.')}", status_code=303)
             
         if v:
             k_init = v["km_iniziali"] or 0
@@ -1533,7 +1540,7 @@ def elimina_prenotazione(id: int, r: Request, nuovi_km: int = Form(None)):
             else:
                 msg_text = f"Prenotazione eliminata con successo! (KM iniziali veicolo: {k_init})."
                 
-            if nuovi_km is not None:
+            if nuovi_km is not None and role in ("admin", "fleet_manager", "global_fleet_manager"):
                 conn.execute(text("UPDATE automezzi SET km_attuali = :km WHERE automezzo_id = :aid"), {"km": nuovi_km, "aid": aid})
                 msg_text += f" I chilometri dell'auto sono stati impostati a {nuovi_km} km."
                 

@@ -480,7 +480,7 @@
                                             <i class="bi bi-play-fill me-1"></i> Parti..
                                         </button>
                                     </form>
-                                    {% if user.ruolo in ('admin', 'fleet_manager', 'global_fleet_manager') %}
+                                    {% if user.ruolo in ('admin', 'fleet_manager', 'global_fleet_manager') or p.user_id == user.id %}
                                     <form action="/elimina/{{ p.viaggio_id }}" method="POST" class="w-100" onsubmit="return confirm('Annullare questa prenotazione?');">
                                         <button type="submit" class="btn btn-sm btn-outline-danger-glow w-100 py-2">
                                             <i class="bi bi-trash-fill me-1"></i> Annulla
