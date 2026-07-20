@@ -286,7 +286,7 @@ def copertura_servizi(r: Request, mese: int = None, anno: int = None, reparto_id
                 holiday = festivita_map.get(d_str)
                 
                 day_servizi = []
-                day_has_uncovered_service = False
+                uncovered_count = 0
                 for s in servizi:
                     ops_status = []
                     present_count = 0
@@ -310,7 +310,7 @@ def copertura_servizi(r: Request, mese: int = None, anno: int = None, reparto_id
                         })
                         
                     if len(servizi_ops[s["servizio_id"]]) > 0 and present_count == 0:
-                        day_has_uncovered_service = True
+                        uncovered_count += 1
                         
                     day_servizi.append({
                         "servizio_id": s["servizio_id"],
@@ -325,7 +325,8 @@ def copertura_servizi(r: Request, mese: int = None, anno: int = None, reparto_id
                     "is_today": d == today,
                     "holiday": holiday,
                     "servizi": day_servizi,
-                    "uncovered": day_has_uncovered_service
+                    "uncovered": uncovered_count > 0,
+                    "uncovered_count": uncovered_count
                 })
             weeks.append(week_days)
             

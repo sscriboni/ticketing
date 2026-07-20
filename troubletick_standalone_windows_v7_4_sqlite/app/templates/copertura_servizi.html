@@ -179,7 +179,9 @@
                             <div class="day-header">
                                 <span class="day-number">{{ day.day_num }}</span>
                                 {% if day.uncovered and day.is_current_month %}
-                                <span class="badge bg-danger" style="font-size: 0.65rem;" title="Servizi scoperti! Nessun operatore presente."><i class="bi bi-exclamation-triangle-fill"></i> Scoperto</span>
+                                <span class="badge bg-danger" style="font-size: 0.65rem;" title="Servizi scoperti! Nessun operatore presente.">
+                                    <i class="bi bi-exclamation-triangle-fill"></i> Scoperto ({{ day.uncovered_count }})
+                                </span>
                                 {% endif %}
                                 {% if day.holiday %}
                                 <span class="holiday-badge" title="{{ day.holiday }}">🎉 {{ day.holiday }}</span>
