@@ -120,6 +120,27 @@ with engine.begin() as conn:
         conn.execute(text("ALTER TABLE viaggi_automezzi ADD COLUMN inizio_pausa TEXT"))
     except Exception:
         pass
+        
+    conn.execute(text(f"""
+        CREATE TABLE IF NOT EXISTS tipi_manutenzione (
+            tipo_manutenzione_id {DB_PK},
+            nome TEXT NOT NULL,
+            categoria TEXT NOT NULL,
+            scadenza_anni INTEGER,
+            scadenza_mesi INTEGER,
+            scadenza_km INTEGER
+        )
+    """))
+
+    conn.execute(text(f"""
+        CREATE TABLE IF NOT EXISTS automezzi_tipi_manutenzione (
+            automezzo_id INTEGER NOT NULL,
+            tipo_manutenzione_id INTEGER NOT NULL,
+            PRIMARY KEY(automezzo_id, tipo_manutenzione_id),
+            FOREIGN KEY(automezzo_id) REFERENCES automezzi(automezzo_id) ON DELETE CASCADE,
+            FOREIGN KEY(tipo_manutenzione_id) REFERENCES tipi_manutenzione(tipo_manutenzione_id) ON DELETE CASCADE
+        )
+    """))
     
     # Check if empty to seed initial data for marche
     count_marche = conn.execute(text("SELECT COUNT(*) FROM marche_automezzi")).scalar() or 0
@@ -219,14 +240,36 @@ def list_automezzi(r: Request):
         # Fetch marche
         marche = conn.execute(text("SELECT marca_id, nome FROM marche_automezzi ORDER BY nome")).mappings().all()
 
+        # Fetch tipi manutenzione
+        tipi_manutenzione_mappings = conn.execute(text("SELECT * FROM tipi_manutenzione ORDER BY nome")).mappings().all()
+        tipi_manutenzione = [dict(t) for t in tipi_manutenzione_mappings]
+
+        # Fetch associations
+        assoc = conn.execute(text("SELECT automezzo_id, tipo_manutenzione_id FROM automezzi_tipi_manutenzione")).mappings().all()
+        veicolo_tipi = {}
+        for row in assoc:
+            aid = row["automezzo_id"]
+            tid = row["tipo_manutenzione_id"]
+            if aid not in veicolo_tipi:
+                veicolo_tipi[aid] = []
+            veicolo_tipi[aid].append(tid)
+
+        # Convert automezzi to dicts and attach types
+        veicoli_list = []
+        for row in automezzi:
+            v_dict = dict(row)
+            v_dict["tipi_manutenzione_ids"] = veicolo_tipi.get(v_dict["automezzo_id"], [])
+            veicoli_list.append(v_dict)
+
     return templates.TemplateResponse(r, "appautopark.html", {
         "request": r,
         "cfg": CFG,
         "user": user,
-        "veicoli": automezzi,
+        "veicoli": veicoli_list,
         "sedi": sedi,
         "reparti": reparti,
         "marche": marche,
+        "tipi_manutenzione": tipi_manutenzione,
         "user_reparto_id": user_reparto_id
     })
 
@@ -248,7 +291,8 @@ def add_vehicle(
     sede_attuale_id: int = Form(None),
     reparto_assegnato_id: int = Form(None),
     fornitore: str = Form(None),
-    classe_euro: str = Form(None)
+    classe_euro: str = Form(None),
+    tipi_manutenzione_ids: list[int] = Form(None)
 ):
     if "user" not in r.session:
         return RedirectResponse(url="/login", status_code=303)
@@ -287,6 +331,16 @@ def add_vehicle(
             "fornitore": fornitore.strip() if fornitore else None,
             "classe_euro": classe_euro.strip() if classe_euro else None
         })
+        
+        # Save associated maintenance types
+        new_id = conn.execute(text("SELECT last_insert_rowid()")).scalar()
+        if tipi_manutenzione_ids:
+            for tid in tipi_manutenzione_ids:
+                conn.execute(text("""
+                    INSERT INTO automezzi_tipi_manutenzione (automezzo_id, tipo_manutenzione_id)
+                    VALUES (:aid, :tid)
+                """), {"aid": new_id, "tid": int(tid)})
+                
     return RedirectResponse(url="/admin/automezzi", status_code=303)
 
 @router.post("/veicolo/modifica/{id}")
@@ -308,7 +362,8 @@ def edit_vehicle(
     sede_attuale_id: int = Form(None),
     reparto_assegnato_id: int = Form(None),
     fornitore: str = Form(None),
-    classe_euro: str = Form(None)
+    classe_euro: str = Form(None),
+    tipi_manutenzione_ids: list[int] = Form(None)
 ):
     if "user" not in r.session:
         return RedirectResponse(url="/login", status_code=303)
@@ -355,6 +410,16 @@ def edit_vehicle(
             "fornitore": fornitore.strip() if fornitore else None,
             "classe_euro": classe_euro.strip() if classe_euro else None
         })
+        
+        # Sync associated maintenance types
+        conn.execute(text("DELETE FROM automezzi_tipi_manutenzione WHERE automezzo_id = :id"), {"id": id})
+        if tipi_manutenzione_ids:
+            for tid in tipi_manutenzione_ids:
+                conn.execute(text("""
+                    INSERT INTO automezzi_tipi_manutenzione (automezzo_id, tipo_manutenzione_id)
+                    VALUES (:aid, :tid)
+                """), {"aid": id, "tid": int(tid)})
+                
     return RedirectResponse(url="/admin/automezzi", status_code=303)
 
 @router.post("/veicolo/elimina/{id}")
@@ -366,6 +431,9 @@ def delete_vehicle(id: int, r: Request):
         return RedirectResponse(url="/", status_code=303)
         
     with engine.begin() as conn:
+        conn.execute(text("DELETE FROM automezzi_tipi_manutenzione WHERE automezzo_id = :id"), {"id": id})
+        conn.execute(text("DELETE FROM manutenzioni_automezzi WHERE automezzo_id = :id"), {"id": id})
+        conn.execute(text("DELETE FROM viaggi_automezzi WHERE automezzo_id = :id"), {"id": id})
         conn.execute(text("DELETE FROM automezzi WHERE automezzo_id = :id"), {"id": id})
     return RedirectResponse(url="/admin/automezzi", status_code=303)
 
@@ -543,6 +611,9 @@ def empty_automezzi(r: Request):
         return RedirectResponse(url="/", status_code=303)
         
     with engine.begin() as conn:
+        conn.execute(text("DELETE FROM automezzi_tipi_manutenzione"))
+        conn.execute(text("DELETE FROM manutenzioni_automezzi"))
+        conn.execute(text("DELETE FROM viaggi_automezzi"))
         conn.execute(text("DELETE FROM automezzi"))
         
     return RedirectResponse(url="/admin/automezzi/gestione?msg=clear_ok", status_code=303)
@@ -955,7 +1026,7 @@ def complete_viaggio(
     return RedirectResponse(url="/admin/automezzi/viaggi", status_code=303)
 
 @router.post("/admin/automezzi/viaggi/elimina/{id}")
-def delete_viaggio(id: int, r: Request):
+def delete_viaggio(id: int, r: Request, nuovi_km: int = Form(None)):
     if "user" not in r.session: 
         return RedirectResponse(url="/login", status_code=303)
     user = r.session.get("user")
@@ -976,10 +1047,15 @@ def delete_viaggio(id: int, r: Request):
             return RedirectResponse(url=f"/admin/automezzi/viaggi?error={urllib.parse.quote('Non sei autorizzato a eliminare viaggi per veicoli di altri reparti.')}", status_code=303)
         
     with engine.begin() as conn:
-        v = conn.execute(text("SELECT automezzo_id, ora_arrivo FROM viaggi_automezzi WHERE viaggio_id = :id"), {"id": id}).first()
+        v = conn.execute(text("SELECT automezzo_id, ora_arrivo FROM viaggi_automezzi WHERE viaggio_id = :id"), {"id": id}).mappings().first()
         if v:
-            if not v.ora_arrivo:
-                conn.execute(text("UPDATE automezzi SET stato = 'Disponibile' WHERE automezzo_id = :automezzo_id"), {"automezzo_id": v.automezzo_id})
+            aid = v["automezzo_id"]
+            if not v["ora_arrivo"]:
+                conn.execute(text("UPDATE automezzi SET stato = 'Disponibile' WHERE automezzo_id = :automezzo_id"), {"automezzo_id": aid})
+            
+            if nuovi_km is not None:
+                conn.execute(text("UPDATE automezzi SET km_attuali = :km WHERE automezzo_id = :aid"), {"km": nuovi_km, "aid": aid})
+                
             conn.execute(text("DELETE FROM viaggi_automezzi WHERE viaggio_id = :id"), {"id": id})
             
     return RedirectResponse(url="/admin/automezzi/viaggi", status_code=303)
@@ -1390,7 +1466,7 @@ def annulla_viaggio_fleet(id: int, r: Request):
 
 
 @router.post("/autopark/elimina/{id}")
-def elimina_prenotazione(id: int, r: Request):
+def elimina_prenotazione(id: int, r: Request, nuovi_km: int = Form(None)):
     if "user" not in r.session:
         return RedirectResponse(url="/login", status_code=303)
     user = r.session.get("user")
@@ -1418,11 +1494,16 @@ def elimina_prenotazione(id: int, r: Request):
         if v:
             k_init = v["km_iniziali"] or 0
             k_fin = v["km_finali"]
+            aid = v["automezzo_id"]
             if k_fin is not None:
                 diff = k_fin - k_init
                 msg_text = f"Viaggio eliminato con successo! Il tragitto comprendeva {diff} km (KM Partenza: {k_init}, KM Arrivo: {k_fin})."
             else:
                 msg_text = f"Prenotazione eliminata con successo! (KM iniziali veicolo: {k_init})."
+                
+            if nuovi_km is not None:
+                conn.execute(text("UPDATE automezzi SET km_attuali = :km WHERE automezzo_id = :aid"), {"km": nuovi_km, "aid": aid})
+                msg_text += f" I chilometri dell'auto sono stati impostati a {nuovi_km} km."
                 
             conn.execute(text("DELETE FROM viaggi_automezzi WHERE viaggio_id = :id"), {"id": id})
             return RedirectResponse(url=f"/autopark?msg={urllib.parse.quote(msg_text)}", status_code=303)
@@ -1644,3 +1725,100 @@ def toggle_pausa(id: int, r: Request):
             msg_type = "resumed"
         
     return RedirectResponse(url=f"/autopark?msg={msg_type}", status_code=303)
+
+
+@router.get("/admin/automezzi/tipi-manutenzione", response_class=HTMLResponse)
+def list_tipi_manutenzione(r: Request):
+    if "user" not in r.session:
+        return RedirectResponse(url="/login")
+    user = r.session.get("user")
+    if user.get("ruolo") not in ("admin", "global_fleet_manager"):
+        return RedirectResponse(url="/")
+        
+    with engine.connect() as conn:
+        tipi_mappings = conn.execute(text("SELECT * FROM tipi_manutenzione ORDER BY nome")).mappings().all()
+        tipi = [dict(t) for t in tipi_mappings]
+        
+    return templates.TemplateResponse(r, "admin_automezzi_tipi_manutenzione.html", {
+        "request": r,
+        "cfg": CFG,
+        "user": user,
+        "tipi": tipi
+    })
+
+@router.post("/admin/automezzi/tipi-manutenzione/aggiungi")
+def add_tipo_manutenzione(
+    r: Request,
+    nome: str = Form(...),
+    categoria: str = Form(...),
+    scadenza_anni: int = Form(None),
+    scadenza_mesi: int = Form(None),
+    scadenza_km: int = Form(None)
+):
+    if "user" not in r.session:
+        return RedirectResponse(url="/login", status_code=303)
+    user = r.session.get("user")
+    if user.get("ruolo") not in ("admin", "global_fleet_manager"):
+        return RedirectResponse(url="/", status_code=303)
+        
+    with engine.begin() as conn:
+        conn.execute(text("""
+            INSERT INTO tipi_manutenzione (nome, categoria, scadenza_anni, scadenza_mesi, scadenza_km)
+            VALUES (:nome, :categoria, :scadenza_anni, :scadenza_mesi, :scadenza_km)
+        """), {
+            "nome": nome.strip(),
+            "categoria": categoria,
+            "scadenza_anni": scadenza_anni if scadenza_anni else None,
+            "scadenza_mesi": scadenza_mesi if scadenza_mesi else None,
+            "scadenza_km": scadenza_km if scadenza_km else None
+        })
+    return RedirectResponse(url="/admin/automezzi/tipi-manutenzione", status_code=303)
+
+@router.post("/admin/automezzi/tipi-manutenzione/modifica/{id}")
+def edit_tipo_manutenzione(
+    id: int,
+    r: Request,
+    nome: str = Form(...),
+    categoria: str = Form(...),
+    scadenza_anni: int = Form(None),
+    scadenza_mesi: int = Form(None),
+    scadenza_km: int = Form(None)
+):
+    if "user" not in r.session:
+        return RedirectResponse(url="/login", status_code=303)
+    user = r.session.get("user")
+    if user.get("ruolo") not in ("admin", "global_fleet_manager"):
+        return RedirectResponse(url="/", status_code=303)
+        
+    with engine.begin() as conn:
+        conn.execute(text("""
+            UPDATE tipi_manutenzione SET
+                nome = :nome,
+                categoria = :categoria,
+                scadenza_anni = :scadenza_anni,
+                scadenza_mesi = :scadenza_mesi,
+                scadenza_km = :scadenza_km
+            WHERE tipo_manutenzione_id = :id
+        """), {
+            "id": id,
+            "nome": nome.strip(),
+            "categoria": categoria,
+            "scadenza_anni": scadenza_anni if scadenza_anni else None,
+            "scadenza_mesi": scadenza_mesi if scadenza_mesi else None,
+            "scadenza_km": scadenza_km if scadenza_km else None
+        })
+    return RedirectResponse(url="/admin/automezzi/tipi-manutenzione", status_code=303)
+
+@router.post("/admin/automezzi/tipi-manutenzione/elimina/{id}")
+def delete_tipo_manutenzione(id: int, r: Request):
+    if "user" not in r.session:
+        return RedirectResponse(url="/login", status_code=303)
+    user = r.session.get("user")
+    if user.get("ruolo") not in ("admin", "global_fleet_manager"):
+        return RedirectResponse(url="/", status_code=303)
+        
+    with engine.begin() as conn:
+        conn.execute(text("DELETE FROM automezzi_tipi_manutenzione WHERE tipo_manutenzione_id = :id"), {"id": id})
+        conn.execute(text("DELETE FROM tipi_manutenzione WHERE tipo_manutenzione_id = :id"), {"id": id})
+    return RedirectResponse(url="/admin/automezzi/tipi-manutenzione", status_code=303)
+

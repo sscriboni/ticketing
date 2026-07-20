@@ -313,6 +313,24 @@
                             </div>
                         </div>
                         
+                                                <div class="row g-3 mb-4">
+                            <div class="col-12">
+                                <label class="form-label fw-bold text-dark">Tipi Manutenzione Associati</label>
+                                <div class="row px-2">
+                                    {% for tm in tipi_manutenzione %}
+                                    <div class="form-check col-6 col-md-4 mb-2">
+                                        <input class="form-check-input" type="checkbox" name="tipi_manutenzione_ids" value="{{ tm.tipo_manutenzione_id }}" id="add_tm_{{ tm.tipo_manutenzione_id }}">
+                                        <label class="form-check-label small text-dark" for="add_tm_{{ tm.tipo_manutenzione_id }}">
+                                            {{ tm.nome }} ({{ tm.categoria }})
+                                        </label>
+                                    </div>
+                                    {% else %}
+                                    <div class="col-12 text-muted small">Nessun tipo di manutenzione registrato a sistema.</div>
+                                    {% endfor %}
+                                </div>
+                            </div>
+                        </div>
+                        
                         <button type="submit" class="btn btn-primary w-100 py-2.5 fw-bold">Registra Veicolo</button>
                     </div>
                 </form>
@@ -459,6 +477,24 @@
                             </div>
                         </div>
                         
+                                                <div class="row g-3 mb-4">
+                            <div class="col-12">
+                                <label class="form-label fw-bold text-dark">Tipi Manutenzione Associati</label>
+                                <div class="row px-2">
+                                    {% for tm in tipi_manutenzione %}
+                                    <div class="form-check col-6 col-md-4 mb-2">
+                                        <input class="form-check-input edit-tm-checkbox" type="checkbox" name="tipi_manutenzione_ids" value="{{ tm.tipo_manutenzione_id }}" id="edit_tm_{{ tm.tipo_manutenzione_id }}">
+                                        <label class="form-check-label small text-dark" for="edit_tm_{{ tm.tipo_manutenzione_id }}">
+                                            {{ tm.nome }} ({{ tm.categoria }})
+                                        </label>
+                                    </div>
+                                    {% else %}
+                                    <div class="col-12 text-muted small">Nessun tipo di manutenzione registrato a sistema.</div>
+                                    {% endfor %}
+                                </div>
+                            </div>
+                        </div>
+                        
                         <button type="submit" class="btn btn-primary w-100 py-2.5 fw-bold">Salva Modifiche</button>
                     </div>
                 </form>
@@ -523,6 +559,15 @@
             document.getElementById('editClasseEuro').value = v.classe_euro || '';
             
             toggleEditCanone();
+            
+            // Check associated maintenance types
+            document.querySelectorAll('.edit-tm-checkbox').forEach(cb => cb.checked = false);
+            if (v.tipi_manutenzione_ids) {
+                v.tipi_manutenzione_ids.forEach(tid => {
+                    const cb = document.getElementById(`edit_tm_${tid}`);
+                    if (cb) cb.checked = true;
+                });
+            }
             
             const form = document.getElementById('editVehicleForm');
             form.action = `/veicolo/modifica/${v.automezzo_id}`;

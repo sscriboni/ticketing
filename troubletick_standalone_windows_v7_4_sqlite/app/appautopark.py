@@ -505,7 +505,7 @@ def annulla_viaggio(id: int, r: Request):
 # ── ELIMINA ───────────────────────────────────────────────────────────────
 
 @app.post("/elimina/{id}")
-def elimina(id: int, r: Request):
+def elimina(id: int, r: Request, nuovi_km: int = Form(None)):
     user = r.session.get("user")
     if not user:
         return RedirectResponse(url="/login", status_code=303)
@@ -536,12 +536,17 @@ def elimina(id: int, r: Request):
         if v:
             k_init = v["km_iniziali"] or 0
             k_fin = v["km_finali"]
+            aid = v["automezzo_id"]
             if k_fin is not None:
                 diff = k_fin - k_init
                 msg_text = f"Viaggio eliminato con successo! Il tragitto comprendeva {diff} km (KM Partenza: {k_init}, KM Arrivo: {k_fin})."
             else:
                 msg_text = f"Prenotazione eliminata con successo! (KM iniziali veicolo: {k_init})."
                 
+            if nuovi_km is not None:
+                conn.execute(text("UPDATE automezzi SET km_attuali = :km WHERE automezzo_id = :aid"), {"km": nuovi_km, "aid": aid})
+                msg_text += f" I chilometri dell'auto sono stati impostati a {nuovi_km} km."
+
             conn.execute(text("DELETE FROM viaggi_automezzi WHERE viaggio_id = :id"), {"id": id})
             return RedirectResponse(url=f"/?msg={urllib.parse.quote(msg_text)}", status_code=303)
 

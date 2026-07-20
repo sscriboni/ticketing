@@ -541,7 +541,7 @@
                                         </td>
                                         {% if user.ruolo in ('admin', 'fleet_manager', 'global_fleet_manager') %}
                                         <td>
-                                            <form action="/autopark/elimina/{{ p.viaggio_id }}" method="POST" onsubmit="return confirm('Eliminare questo record dallo storico?');">
+                                            <form id="delete-form-desktop-{{ p.viaggio_id }}" action="/autopark/elimina/{{ p.viaggio_id }}" method="POST" onsubmit="return confirmDeleteTrip('delete-form-desktop-{{ p.viaggio_id }}', {{ p.km_iniziali or 0 }});">
                                                 <button type="submit" class="btn btn-sm btn-link text-danger p-0" title="Elimina record">
                                                     <i class="bi bi-trash fs-5"></i>
                                                 </button>
@@ -741,6 +741,32 @@
             });
         }
     });
+
+    function confirmDeleteTrip(formId, kmIniziali) {
+        if (!confirm("Sei sicuro di voler eliminare questo record dallo storico?")) {
+            return false;
+        }
+        let km = prompt("Inserisci i chilometri da impostare sull'auto dopo l'eliminazione del viaggio:", kmIniziali);
+        if (km === null) {
+            return false;
+        }
+        let parsedKm = parseInt(km, 10);
+        if (isNaN(parsedKm) || parsedKm < 0) {
+            alert("Inserisci un numero valido per i chilometri.");
+            return false;
+        }
+
+        const form = document.getElementById(formId);
+        let kmInput = form.querySelector('input[name="nuovi_km"]');
+        if (!kmInput) {
+            kmInput = document.createElement('input');
+            kmInput.type = 'hidden';
+            kmInput.name = 'nuovi_km';
+            form.appendChild(kmInput);
+        }
+        kmInput.value = parsedKm;
+        return true;
+    }
 </script>
 </body>
 </html>

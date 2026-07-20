@@ -78,7 +78,7 @@
                                         <button class="btn btn-sm btn-outline-success fw-bold" onclick="showCompleteTripModal({{ v.viaggio_id }}, '{{ v.targa }}', '{{ v.marca }} {{ v.modello }}', {{ v.km_iniziali }}, {{ v.sede_partenza_id }})">
                                             <i class="bi bi-check2-circle me-1"></i> Termina Viaggio
                                         </button>
-                                        <button class="btn btn-sm btn-outline-danger" onclick="confirmDeleteTrip({{ v.viaggio_id }}, '{{ v.targa }}')">
+                                        <button class="btn btn-sm btn-outline-danger" onclick="confirmDeleteTrip({{ v.viaggio_id }}, '{{ v.targa }}', {{ v.km_iniziali or 0 }}, false)">
                                             <i class="bi bi-trash"></i>
                                         </button>
                                     </div>
@@ -147,7 +147,7 @@
                                 </td>
                                 <td><span class="text-muted small">{{ v.note or '-' }}</span></td>
                                 <td class="text-end">
-                                    <button class="btn btn-sm btn-outline-danger" onclick="confirmDeleteTrip({{ v.viaggio_id }}, '{{ v.targa }}')">
+                                    <button class="btn btn-sm btn-outline-danger" onclick="confirmDeleteTrip({{ v.viaggio_id }}, '{{ v.targa }}', {{ v.km_iniziali or 0 }}, true)">
                                         <i class="bi bi-trash"></i>
                                     </button>
                                 </td>
@@ -441,10 +441,38 @@
             return true;
         }
 
-        function confirmDeleteTrip(id, targa) {
-            if (confirm(`Sei sicuro di voler eliminare questo record di viaggio per il veicolo targato ${targa}?`)) {
+        function confirmDeleteTrip(id, targa, kmIniziali, isCompleted) {
+            if (!isCompleted) {
+                if (confirm(`Sei sicuro di voler annullare/eliminare questa prenotazione in corso per il veicolo targato ${targa}?`)) {
+                    const form = document.getElementById('deleteTripForm');
+                    form.action = `/admin/automezzi/viaggi/elimina/${id}`;
+                    form.submit();
+                }
+                return;
+            }
+            if (confirm(`Sei sicuro di voler eliminare questo record di viaggio concluso per il veicolo targato ${targa}?`)) {
+                let km = prompt("Inserisci i chilometri da impostare sull'auto dopo l'eliminazione del viaggio:", kmIniziali);
+                if (km === null) {
+                    return;
+                }
+                let parsedKm = parseInt(km, 10);
+                if (isNaN(parsedKm) || parsedKm < 0) {
+                    alert("Inserisci un numero valido per i chilometri.");
+                    return;
+                }
+
                 const form = document.getElementById('deleteTripForm');
                 form.action = `/admin/automezzi/viaggi/elimina/${id}`;
+                
+                let kmInput = form.querySelector('input[name="nuovi_km"]');
+                if (!kmInput) {
+                    kmInput = document.createElement('input');
+                    kmInput.type = 'hidden';
+                    kmInput.name = 'nuovi_km';
+                    form.appendChild(kmInput);
+                }
+                kmInput.value = parsedKm;
+                
                 form.submit();
             }
         }

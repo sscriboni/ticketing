@@ -71,6 +71,7 @@ L'Amministratore (`admin`) e il `global_fleet_manager` hanno il controllo comple
 * **Nessun Limite di Reparto**: Hanno visibilità su tutti i veicoli e le prenotazioni a livello aziendale, indipendentemente dal reparto assegnato.
 * **Prenotazione per Qualsiasi Utente**: Possono effettuare prenotazioni per conto di qualsiasi dipendente attivo nel sistema inserendo la sua email, senza alcuna restrizione di reparto.
 * **Anagrafica Flotta**: Hanno i permessi esclusivi per creare, modificare ed eliminare le schede dei veicoli, impostando targa, modello, alimentazione, tipo di proprietà (proprietà o noleggio a lungo termine), canone mensile, chilometri iniziali e sede/reparto di assegnazione.
+* **Gestione Tipi Manutenzione**: Hanno l'esclusiva per creare, modificare e rimuovere i tipi di manutenzione e le relative regole di scadenza, associandoli poi ai diversi veicoli della flotta.
 
 ### B. Gestione Manutenzioni e Fermo Tecnico
 * Solo questi ruoli possono registrare le **Manutenzioni** (tagliandi, cambio gomme, riparazioni d'officina):

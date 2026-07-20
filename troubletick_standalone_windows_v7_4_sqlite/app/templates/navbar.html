@@ -94,6 +94,9 @@
               <li><a class="dropdown-item" href="/admin/automezzi">Elenco Automezzi</a></li>
               <li><a class="dropdown-item" href="/admin/automezzi/manutenzioni">Manutenzioni</a></li>
               <li><a class="dropdown-item" href="/admin/automezzi/viaggi">Registro Viaggi</a></li>
+                            {% if user.ruolo in ('admin', 'global_fleet_manager') %}
+              <li><a class="dropdown-item" href="/admin/automezzi/tipi-manutenzione">Tipi Manutenzione</a></li>
+              {% endif %}
             </ul>
           </li>
           {% endif %}
@@ -331,6 +334,9 @@
               <li><a class="dropdown-item" href="/admin/automezzi/manutenzioni">Manutenzioni</a></li>
               {% endif %}
               <li><a class="dropdown-item" href="/admin/automezzi/viaggi">Registro Viaggi</a></li>
+                            {% if user.ruolo in ('admin', 'global_fleet_manager') %}
+              <li><a class="dropdown-item" href="/admin/automezzi/tipi-manutenzione">Tipi Manutenzione</a></li>
+              {% endif %}
             </ul>
           </li>
           {% endif %}
