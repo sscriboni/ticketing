@@ -807,7 +807,7 @@ def list_viaggi(r: Request):
         if user.get("ruolo") == "fleet_manager":
             user_reparto_id = conn.execute(text("SELECT reparto_id FROM users WHERE user_id = :uid"), {"uid": user.get("id")}).scalar() or 0
             
-            viaggi_attivi = conn.execute(text("""
+            viaggi_in_corso = conn.execute(text("""
                 SELECT v.*, a.targa, b.nome as marca, a.modello,
                        s_part.nome as sede_partenza_nome,
                        u.nome as user_nome, u.cognome as user_cognome
@@ -816,7 +816,24 @@ def list_viaggi(r: Request):
                 JOIN marche_automezzi b ON a.marca_id = b.marca_id
                 JOIN sedi s_part ON v.sede_partenza_id = s_part.sede_id
                 JOIN users u ON v.user_id = u.user_id
-                WHERE a.reparto_assegnato_id = :rep AND (v.ora_arrivo IS NULL OR v.km_finali IS NULL)
+                WHERE a.reparto_assegnato_id = :rep 
+                  AND v.ora_partenza_effettiva IS NOT NULL 
+                  AND (v.ora_arrivo IS NULL OR v.km_finali IS NULL)
+                ORDER BY v.data_viaggio DESC, v.ora_partenza DESC
+            """), {"rep": user_reparto_id}).mappings().all()
+
+            prenotazioni = conn.execute(text("""
+                SELECT v.*, a.targa, b.nome as marca, a.modello,
+                       s_part.nome as sede_partenza_nome,
+                       u.nome as user_nome, u.cognome as user_cognome
+                FROM viaggi_automezzi v
+                JOIN automezzi a ON v.automezzo_id = a.automezzo_id
+                JOIN marche_automezzi b ON a.marca_id = b.marca_id
+                JOIN sedi s_part ON v.sede_partenza_id = s_part.sede_id
+                JOIN users u ON v.user_id = u.user_id
+                WHERE a.reparto_assegnato_id = :rep 
+                  AND v.ora_partenza_effettiva IS NULL 
+                  AND (v.ora_arrivo IS NULL OR v.km_finali IS NULL)
                 ORDER BY v.data_viaggio DESC, v.ora_partenza DESC
             """), {"rep": user_reparto_id}).mappings().all()
             
@@ -844,7 +861,7 @@ def list_viaggi(r: Request):
                 ORDER BY b.nome, a.modello
             """), {"rep": user_reparto_id}).mappings().all()
         else:
-            viaggi_attivi = conn.execute(text("""
+            viaggi_in_corso = conn.execute(text("""
                 SELECT v.*, a.targa, b.nome as marca, a.modello,
                        s_part.nome as sede_partenza_nome,
                        u.nome as user_nome, u.cognome as user_cognome
@@ -853,7 +870,22 @@ def list_viaggi(r: Request):
                 JOIN marche_automezzi b ON a.marca_id = b.marca_id
                 JOIN sedi s_part ON v.sede_partenza_id = s_part.sede_id
                 JOIN users u ON v.user_id = u.user_id
-                WHERE v.ora_arrivo IS NULL OR v.km_finali IS NULL
+                WHERE v.ora_partenza_effettiva IS NOT NULL 
+                  AND (v.ora_arrivo IS NULL OR v.km_finali IS NULL)
+                ORDER BY v.data_viaggio DESC, v.ora_partenza DESC
+            """)).mappings().all()
+
+            prenotazioni = conn.execute(text("""
+                SELECT v.*, a.targa, b.nome as marca, a.modello,
+                       s_part.nome as sede_partenza_nome,
+                       u.nome as user_nome, u.cognome as user_cognome
+                FROM viaggi_automezzi v
+                JOIN automezzi a ON v.automezzo_id = a.automezzo_id
+                JOIN marche_automezzi b ON a.marca_id = b.marca_id
+                JOIN sedi s_part ON v.sede_partenza_id = s_part.sede_id
+                JOIN users u ON v.user_id = u.user_id
+                WHERE v.ora_partenza_effettiva IS NULL 
+                  AND (v.ora_arrivo IS NULL OR v.km_finali IS NULL)
                 ORDER BY v.data_viaggio DESC, v.ora_partenza DESC
             """)).mappings().all()
             
@@ -891,7 +923,7 @@ def list_viaggi(r: Request):
         
     return templates.TemplateResponse(r, "admin_automezzi_viaggi.html", {
         "request": r, "cfg": CFG, "user": user, 
-        "viaggi_attivi": viaggi_attivi, "viaggi_completati": viaggi_completati,
+        "viaggi_in_corso": viaggi_in_corso, "prenotazioni": prenotazioni, "viaggi_completati": viaggi_completati,
         "veicoli": veicoli, "operatori": operatori, "sedi": sedi
     })
 
@@ -1546,12 +1578,12 @@ def registra_viaggio(r: Request):
     today_str = datetime.date.today().isoformat()
     
     with engine.begin() as conn:
-        # Find any active booking for the user today that has not started yet
+        # Find any active booking for the user today/past that has not started yet
         b = conn.execute(text("""
             SELECT viaggio_id FROM viaggi_automezzi
-            WHERE user_id = :uid AND data_viaggio = :today AND ora_partenza_effettiva IS NULL AND ora_arrivo IS NULL
-            ORDER BY ora_partenza ASC
-        """), {"uid": uid, "today": today_str}).first()
+            WHERE user_id = :uid AND data_viaggio <= :today AND ora_partenza_effettiva IS NULL AND ora_arrivo IS NULL
+            ORDER BY data_viaggio ASC, ora_partenza ASC
+        """), {"uid": uid, "today": today_str}).mappings().first()
         
         if b:
             now_str = datetime.datetime.now().strftime("%H:%M")
@@ -1559,7 +1591,7 @@ def registra_viaggio(r: Request):
                 UPDATE viaggi_automezzi
                 SET ora_partenza_effettiva = :now_time, in_pausa = 0
                 WHERE viaggio_id = :id
-            """), {"now_time": now_str, "id": b.viaggio_id})
+            """), {"now_time": now_str, "id": b["viaggio_id"]})
             return RedirectResponse(url="/autopark?msg=started", status_code=303)
         else:
             return RedirectResponse(url="/autopark?instant=1&info=no_booking", status_code=303)

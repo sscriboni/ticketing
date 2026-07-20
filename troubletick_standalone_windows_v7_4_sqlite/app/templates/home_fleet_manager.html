@@ -143,16 +143,26 @@
                      <strong>{{ viaggio.targa }}</strong>
                      <div class="small text-muted">{{ viaggio.marca }} {{ viaggio.modello }}</div>
                    </td>
-                   <td>{{ viaggio.user_nome }} {{ viaggio.user_cognome }}</td>
-                   <td class="small">{{ viaggio.data_viaggio }} {{ viaggio.ora_partenza }}</td>
-                   <td class="small">{{ viaggio.ora_arrivo or 'In corso...' }}</td>
-                   <td>
-                     {% if viaggio.km_finali %}
-                     <span class="badge bg-secondary">{{ viaggio.km_finali - viaggio.km_iniziali }} km</span>
-                     {% else %}
-                     <span class="badge bg-warning text-dark">Attivo</span>
-                     {% endif %}
-                   </td>
+                    <td>{{ viaggio.user_nome }} {{ viaggio.user_cognome }}</td>
+                    <td class="small">{{ viaggio.data_viaggio }} {{ viaggio.ora_partenza }}</td>
+                    <td class="small">
+                      {% if viaggio.ora_arrivo %}
+                        {{ viaggio.ora_arrivo }}
+                      {% elif viaggio.ora_partenza_effettiva %}
+                        In corso...
+                      {% else %}
+                        <span class="text-muted">Prenotato</span>
+                      {% endif %}
+                    </td>
+                    <td>
+                      {% if viaggio.km_finali %}
+                        <span class="badge bg-secondary">{{ viaggio.km_finali - viaggio.km_iniziali }} km</span>
+                      {% elif viaggio.ora_partenza_effettiva %}
+                        <span class="badge bg-success">In Corso</span>
+                      {% else %}
+                        <span class="badge bg-info">Prenotato</span>
+                      {% endif %}
+                    </td>
                  </tr>
                  {% endfor %}
               </tbody>

@@ -48,7 +48,7 @@
             <!-- Viaggi in Corso -->
             <h4 class="mb-3 text-secondary"><i class="bi bi-play-circle me-2 text-success"></i> Viaggi in Corso (Mezzi Attualmente in Uso)</h4>
             <div class="table-container mb-5">
-                {% if viaggi_attivi %}
+                {% if viaggi_in_corso %}
                 <div class="table-responsive">
                     <table class="table table-hover custom-table align-middle">
                         <thead>
@@ -57,20 +57,22 @@
                                 <th>Targa</th>
                                 <th>Operatore</th>
                                 <th>Partenza da</th>
-                                <th>Data / Ora Partenza</th>
+                                <th>Data / Ora Programmata</th>
+                                <th>Ora Partenza Effettiva</th>
                                 <th>Km Partenza</th>
                                 <th>Note</th>
                                 <th class="text-end">Azioni</th>
                             </tr>
                         </thead>
                         <tbody>
-                            {% for v in viaggi_attivi %}
+                            {% for v in viaggi_in_corso %}
                             <tr>
                                 <td><span class="fw-bold">{{ v.marca }} {{ v.modello }}</span></td>
                                 <td><span class="badge bg-secondary font-monospace">{{ v.targa }}</span></td>
                                 <td>{{ v.user_nome }} {{ v.user_cognome }}</td>
                                 <td><i class="bi bi-geo-alt-fill text-danger me-1"></i>{{ v.sede_partenza_nome }}</td>
                                 <td>{{ v.data_viaggio }} alle {{ v.ora_partenza }}</td>
+                                <td><span class="badge bg-success font-monospace">{{ v.ora_partenza_effettiva }}</span></td>
                                 <td>{{ v.km_iniziali }} km</td>
                                 <td><span class="text-muted small">{{ v.note or '-' }}</span></td>
                                 <td class="text-end">
@@ -91,7 +93,58 @@
                 {% else %}
                 <div class="text-center text-muted py-4">
                     <i class="bi bi-check-circle text-success fs-1 mb-2"></i>
-                    <p class="mb-0">Tutti i veicoli sono attualmente parcheggiati. Nessun viaggio in corso.</p>
+                    <p class="mb-0">Nessun veicolo è attualmente in viaggio.</p>
+                </div>
+                {% endif %}
+            </div>
+
+            <!-- Prenotazioni Attive -->
+            <h4 class="mb-3 text-secondary"><i class="bi bi-calendar-event me-2 text-primary"></i> Prenotazioni Attive (Non Ancora Partite)</h4>
+            <div class="table-container mb-5">
+                {% if prenotazioni %}
+                <div class="table-responsive">
+                    <table class="table table-hover custom-table align-middle">
+                        <thead>
+                            <tr>
+                                <th>Veicolo</th>
+                                <th>Targa</th>
+                                <th>Operatore</th>
+                                <th>Partenza da</th>
+                                <th>Data / Ora Prevista</th>
+                                <th>Note</th>
+                                <th class="text-end">Azioni</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for v in prenotazioni %}
+                            <tr>
+                                <td><span class="fw-bold">{{ v.marca }} {{ v.modello }}</span></td>
+                                <td><span class="badge bg-secondary font-monospace">{{ v.targa }}</span></td>
+                                <td>{{ v.user_nome }} {{ v.user_cognome }}</td>
+                                <td><i class="bi bi-geo-alt-fill text-danger me-1"></i>{{ v.sede_partenza_nome }}</td>
+                                <td>{{ v.data_viaggio }} alle {{ v.ora_partenza }}</td>
+                                <td><span class="text-muted small">{{ v.note or '-' }}</span></td>
+                                <td class="text-end">
+                                    <div class="d-inline-flex gap-2 align-items-center">
+                                        <form action="../../autopark/avvia/{{ v.viaggio_id }}" method="post" class="m-0">
+                                            <button class="btn btn-sm btn-outline-primary fw-bold" type="submit">
+                                                <i class="bi bi-play-fill me-1"></i> Avvia Viaggio
+                                            </button>
+                                        </form>
+                                        <button class="btn btn-sm btn-outline-danger" onclick="confirmDeleteTrip({{ v.viaggio_id }}, '{{ v.targa }}', {{ v.km_iniziali or 0 }}, false)">
+                                            <i class="bi bi-trash"></i>
+                                        </button>
+                                    </div>
+                                </td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+                {% else %}
+                <div class="text-center text-muted py-4">
+                    <i class="bi bi-info-circle text-info fs-1 mb-2"></i>
+                    <p class="mb-0">Nessuna prenotazione futura o non avviata in archivio.</p>
                 </div>
                 {% endif %}
             </div>

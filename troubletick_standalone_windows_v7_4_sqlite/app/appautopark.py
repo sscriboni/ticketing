@@ -270,9 +270,9 @@ def registra_viaggio(r: Request):
     with engine.begin() as conn:
         b = conn.execute(text("""
             SELECT viaggio_id FROM viaggi_automezzi
-            WHERE user_id = :uid AND data_viaggio = :today AND ora_partenza_effettiva IS NULL AND ora_arrivo IS NULL
-            ORDER BY ora_partenza ASC
-        """), {"uid": uid, "today": today_str}).first()
+            WHERE user_id = :uid AND data_viaggio <= :today AND ora_partenza_effettiva IS NULL AND ora_arrivo IS NULL
+            ORDER BY data_viaggio ASC, ora_partenza ASC
+        """), {"uid": uid, "today": today_str}).mappings().first()
         
         if b:
             now_str = datetime.datetime.now().strftime("%H:%M")
@@ -280,7 +280,7 @@ def registra_viaggio(r: Request):
                 UPDATE viaggi_automezzi
                 SET ora_partenza_effettiva = :now_time, in_pausa = 0
                 WHERE viaggio_id = :id
-            """), {"now_time": now_str, "id": b.viaggio_id})
+            """), {"now_time": now_str, "id": b["viaggio_id"]})
             return _redirect_ok("started")
         else:
             return RedirectResponse(url="/?instant=1&info=no_booking", status_code=303)
