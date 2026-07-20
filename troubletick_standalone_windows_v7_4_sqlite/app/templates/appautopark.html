@@ -116,7 +116,7 @@
                                     {% endif %}
                                     
                                     {% if user.ruolo in ('admin', 'global_fleet_manager') or (user.ruolo == 'fleet_manager' and v.reparto_assegnato_id == user_reparto_id) %}
-                                        <form action="/admin/automezzi/{{ v.automezzo_id }}/toggle-prenotazione" method="POST" class="d-block mt-1">
+                                        <form action="../admin/automezzi/{{ v.automezzo_id }}/toggle-prenotazione" method="POST" class="d-block mt-1">
                                             {% if v.escluso_prenotazione == 1 %}
                                                 <button type="submit" class="btn btn-xs btn-outline-success py-0 px-2 rounded font-monospace" style="font-size: 0.7rem; border-radius: 4px;">
                                                     Abilita
@@ -182,7 +182,7 @@
                     <h5 class="modal-title fw-bold" id="addVehicleModalLabel"><i class="bi bi-car-front-fill me-2"></i> Aggiungi Nuovo Veicolo</h5>
                     <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
                 </div>
-                <form action="/veicolo/nuovo" method="post">
+                <form action="../veicolo/nuovo" method="post">
                     <div class="modal-body">
                         <div class="row g-3 mb-3">
                             <div class="col-md-4">
@@ -570,7 +570,7 @@
             }
             
             const form = document.getElementById('editVehicleForm');
-            form.action = `/veicolo/modifica/${v.automezzo_id}`;
+            form.action = `../veicolo/modifica/${v.automezzo_id}`;
             
             editVehicleModalEl.show();
         }
@@ -578,7 +578,7 @@
         function confirmDelete(id, targa) {
             if (confirm(`Sei sicuro di voler eliminare il veicolo targato ${targa}?`)) {
                 const form = document.getElementById('deleteVehicleForm');
-                form.action = `/veicolo/elimina/${id}`;
+                form.action = `../veicolo/elimina/${id}`;
                 form.submit();
             }
         }

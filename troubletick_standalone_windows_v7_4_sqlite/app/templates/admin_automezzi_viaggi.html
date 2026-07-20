@@ -171,7 +171,7 @@
                     <h5 class="modal-title fw-bold" id="addTripModalLabel"><i class="bi bi-compass me-2"></i> Registra Nuovo Viaggio / Utilizzo</h5>
                     <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
                 </div>
-                <form action="/admin/automezzi/viaggi/nuovo" method="post" id="addTripForm" onsubmit="return validateNewTripForm()">
+                <form action="../automezzi/viaggi/nuovo" method="post" id="addTripForm" onsubmit="return validateNewTripForm()">
                     <div class="modal-body">
                         <!-- Automezzo e Conducente -->
                         <div class="row g-3 mb-3">
@@ -427,7 +427,7 @@
             document.getElementById('compKmError').style.display = 'none';
             
             const form = document.getElementById('completeTripForm');
-            form.action = `/admin/automezzi/viaggi/completa/${id}`;
+            form.action = `../automezzi/viaggi/completa/${id}`;
             
             completeTripModalEl.show();
         }
@@ -445,7 +445,7 @@
             if (!isCompleted) {
                 if (confirm(`Sei sicuro di voler annullare/eliminare questa prenotazione in corso per il veicolo targato ${targa}?`)) {
                     const form = document.getElementById('deleteTripForm');
-                    form.action = `/admin/automezzi/viaggi/elimina/${id}`;
+                    form.action = `../automezzi/viaggi/elimina/${id}`;
                     form.submit();
                 }
                 return;
@@ -462,7 +462,7 @@
                 }
 
                 const form = document.getElementById('deleteTripForm');
-                form.action = `/admin/automezzi/viaggi/elimina/${id}`;
+                form.action = `../automezzi/viaggi/elimina/${id}`;
                 
                 let kmInput = form.querySelector('input[name="nuovi_km"]');
                 if (!kmInput) {
