@@ -558,13 +558,15 @@ def import_automezzi_csv(r: Request, file: UploadFile = File(...)):
             data_immatricolazione = data.get("data_immatricolazione")
             if data_immatricolazione:
                 data_immatricolazione = data_immatricolazione.strip()
-                try:
-                    if '/' in data_immatricolazione:
-                        data_immatricolazione = datetime.datetime.strptime(data_immatricolazione, "%d/%m/%Y").strftime("%Y-%m-%d")
-                    elif '-' in data_immatricolazione and len(data_immatricolazione.split('-')[0]) <= 2:
-                        data_immatricolazione = datetime.datetime.strptime(data_immatricolazione, "%d-%m-%Y").strftime("%Y-%m-%d")
-                except ValueError:
-                    pass
+                parsed = None
+                for fmt in ("%d/%m/%Y", "%d-%m-%Y", "%d/%m/%y", "%d-%m-%y", "%Y-%m-%d", "%Y/%m/%d"):
+                    try:
+                        parsed = datetime.datetime.strptime(data_immatricolazione, fmt)
+                        break
+                    except ValueError:
+                        continue
+                if parsed:
+                    data_immatricolazione = parsed.strftime("%Y-%m-%d")
                     
             proprieta = data.get("proprieta", "Proprietà")
             fornitore = data.get("fornitore")
@@ -609,7 +611,8 @@ def import_automezzi_csv(r: Request, file: UploadFile = File(...)):
                         alimentazione = :alimentazione, data_immatricolazione = :data_immatricolazione,
                         proprieta = :proprieta, canone_noleggio = :canone_noleggio, km_attuali = :km_attuali,
                         stato = :stato, sede_assegnata_id = :sede_assegnata_id, sede_attuale_id = :sede_attuale_id,
-                        reparto_assegnato_id = :reparto_assegnato_id, fornitore = :fornitore, classe_euro = :classe_euro
+                        reparto_assegnato_id = :reparto_assegnato_id, fornitore = :fornitore, classe_euro = :classe_euro,
+                        escluso_prenotazione = 1
                     WHERE automezzo_id = :id
                 """), {
                     "id": existing, "targa": targa, "marca_id": marca_id, "modello": modello, "tipo": tipo, "colore": colore,
@@ -625,11 +628,11 @@ def import_automezzi_csv(r: Request, file: UploadFile = File(...)):
                     INSERT INTO automezzi (
                         targa, marca_id, modello, tipo, colore, alimentazione, data_immatricolazione,
                         proprieta, canone_noleggio, km_attuali, stato, sede_assegnata_id, sede_attuale_id,
-                        reparto_assegnato_id, fornitore, classe_euro
+                        reparto_assegnato_id, fornitore, classe_euro, escluso_prenotazione
                     ) VALUES (
                         :targa, :marca_id, :modello, :tipo, :colore, :alimentazione, :data_immatricolazione,
                         :proprieta, :canone_noleggio, :km_attuali, :stato, :sede_assegnata_id, :sede_attuale_id,
-                        :reparto_assegnato_id, :fornitore, :classe_euro
+                        :reparto_assegnato_id, :fornitore, :classe_euro, 1
                     )
                 """), {
                     "targa": targa, "marca_id": marca_id, "modello": modello, "tipo": tipo, "colore": colore,
