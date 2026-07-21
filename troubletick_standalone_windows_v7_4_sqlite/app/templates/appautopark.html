@@ -51,10 +51,34 @@
                 </button>
                 {% endif %}
             </div>
+            <div class="row mb-3 g-2">
+                <div class="col-md-4">
+                    <input type="text" id="searchTargaInput" class="form-control" placeholder="Cerca targa o modello...">
+                </div>
+                <div class="col-md-3">
+                    <select id="searchMarcaInput" class="form-select">
+                        <option value="">Tutte le marche</option>
+                        {% for m in marche %}
+                        <option value="{{ m.nome }}">{{ m.nome }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+                <div class="col-md-3">
+                    <select id="searchStatoInput" class="form-select">
+                        <option value="">Tutti gli stati</option>
+                        <option value="Disponibile">Disponibile</option>
+                        <option value="In Uso">In Uso</option>
+                        <option value="In Manutenzione">In Manutenzione</option>
+                    </select>
+                </div>
+                <div class="col-md-2">
+                    <button class="btn btn-outline-secondary w-100" onclick="resetFilters()"><i class="bi bi-x-circle me-1"></i> Azzera Filtri</button>
+                </div>
+            </div>
             
             <div class="table-container">
                 <div class="table-responsive">
-                    <table class="table table-hover custom-table align-middle">
+                    <table class="table table-hover custom-table align-middle" id="automezziTable">
                         <thead>
                             <tr>
                                 <th>Veicolo / Targa</th>
@@ -92,7 +116,13 @@
                                     </div>
                                     <small class="text-muted">{{ v.km_attuali }} km | {{ v.classe_euro or '-' }}</small>
                                 </td>
-                                <td>{{ v.data_immatricolazione or '-' }}</td>
+                                <td>
+                                    {% if v.data_immatricolazione and v.data_immatricolazione != '' %}
+                                        {{ v.data_immatricolazione.split('-')|reverse|join('/') }}
+                                    {% else %}
+                                        -
+                                    {% endif %}
+                                </td>
                                 <td>
                                     <div>{{ v.proprieta or '-' }}</div>
                                     {% if v.proprieta == 'Noleggio' %}
@@ -686,6 +716,39 @@
                 });
             }
         });
+
+        // Funzioni di filtraggio tabella
+        function filterTable() {
+            const targaVal = document.getElementById('searchTargaInput').value.toLowerCase();
+            const marcaVal = document.getElementById('searchMarcaInput').value.toLowerCase();
+            const statoVal = document.getElementById('searchStatoInput').value.toLowerCase();
+            
+            const rows = document.querySelectorAll('#automezziTable tbody tr');
+            rows.forEach(row => {
+                if(row.children.length < 5) return; // skip empty message row
+                
+                const targaModello = row.children[0].textContent.toLowerCase();
+                const stato = row.children[8].textContent.toLowerCase();
+                
+                let show = true;
+                if(targaVal && !targaModello.includes(targaVal)) show = false;
+                if(marcaVal && !targaModello.includes(marcaVal)) show = false;
+                if(statoVal && !stato.includes(statoVal)) show = false;
+                
+                row.style.display = show ? '' : 'none';
+            });
+        }
+        
+        document.getElementById('searchTargaInput').addEventListener('keyup', filterTable);
+        document.getElementById('searchMarcaInput').addEventListener('change', filterTable);
+        document.getElementById('searchStatoInput').addEventListener('change', filterTable);
+        
+        function resetFilters() {
+            document.getElementById('searchTargaInput').value = '';
+            document.getElementById('searchMarcaInput').value = '';
+            document.getElementById('searchStatoInput').value = '';
+            filterTable();
+        }
     </script>
 </body>
 
