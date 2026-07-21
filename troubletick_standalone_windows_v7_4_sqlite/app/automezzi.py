@@ -526,11 +526,9 @@ def import_automezzi_csv(r: Request, file: UploadFile = File(...)):
     try:
         contents = file.file.read().decode("utf-8-sig")
         stream = io.StringIO(contents)
-        try:
-            dialect = csv.Sniffer().sniff(contents[:2048])
-            reader = csv.reader(stream, dialect)
-        except Exception:
-            reader = csv.reader(stream, delimiter=';')
+        first_line = contents.split('\n')[0]
+        delimiter = ';' if ';' in first_line else ','
+        reader = csv.reader(stream, delimiter=delimiter)
     except Exception:
         return RedirectResponse(url="/admin/automezzi/gestione?msg=import_err", status_code=303)
         
@@ -539,6 +537,7 @@ def import_automezzi_csv(r: Request, file: UploadFile = File(...)):
         return RedirectResponse(url="/admin/automezzi/gestione?msg=import_err", status_code=303)
         
     headers = [h.strip().lower() for h in headers]
+    imported_count = 0
     
     with engine.begin() as conn:
         for row in reader:
@@ -626,12 +625,16 @@ def import_automezzi_csv(r: Request, file: UploadFile = File(...)):
                     "alimentazione": alimentazione, "data_immatricolazione": data_immatricolazione, "proprieta": proprieta,
                     "canone_noleggio": canone_noleggio, "km_attuali": km_attuali, "stato": stato,
                     "sede_assegnata_id": sede_assegnata_id, "sede_attuale_id": sede_attuale_id,
-                    "reparto_assegnato_id": reparto_assegnato_id,
                     "fornitore": fornitore.strip() if fornitore else None,
                     "classe_euro": classe_euro.strip() if classe_euro else None
                 })
+            
+            imported_count += 1
                 
-    return RedirectResponse(url="/admin/automezzi/gestione?msg=import_ok", status_code=303)
+    if imported_count == 0:
+        return RedirectResponse(url="/admin/automezzi/gestione?msg=import_err", status_code=303)
+        
+    return RedirectResponse(url=f"/admin/automezzi/gestione?msg=import_ok&count={imported_count}", status_code=303)
 
 @router.post("/admin/automezzi/svuota")
 def empty_automezzi(r: Request):
