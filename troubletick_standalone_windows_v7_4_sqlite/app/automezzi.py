@@ -625,6 +625,7 @@ def import_automezzi_csv(r: Request, file: UploadFile = File(...)):
                     "alimentazione": alimentazione, "data_immatricolazione": data_immatricolazione, "proprieta": proprieta,
                     "canone_noleggio": canone_noleggio, "km_attuali": km_attuali, "stato": stato,
                     "sede_assegnata_id": sede_assegnata_id, "sede_attuale_id": sede_attuale_id,
+                    "reparto_assegnato_id": reparto_assegnato_id,
                     "fornitore": fornitore.strip() if fornitore else None,
                     "classe_euro": classe_euro.strip() if classe_euro else None
                 })
