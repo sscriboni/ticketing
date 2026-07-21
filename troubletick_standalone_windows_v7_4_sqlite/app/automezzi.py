@@ -149,7 +149,9 @@ with engine.begin() as conn:
     if count_marche == 0:
         marche_default = ["Fiat", "Tesla", "Audi", "Jeep", "Ford", "Toyota", "Renault", "Volkswagen", "BMW", "Mercedes-Benz", "Peugeot", "Opel"]
         for m in marche_default:
-            conn.execute(text("INSERT IGNORE INTO marche_automezzi(nome) VALUES (:nome)"), {"nome": m})
+            exists = conn.execute(text("SELECT COUNT(*) FROM marche_automezzi WHERE nome = :nome"), {"nome": m}).scalar()
+            if not exists:
+                conn.execute(text("INSERT INTO marche_automezzi(nome) VALUES (:nome)"), {"nome": m})
             
     # Check if empty to seed initial data for automezzi
     count = conn.execute(text("SELECT COUNT(*) FROM automezzi")).scalar() or 0
@@ -863,7 +865,10 @@ def add_marca(r: Request, nome: str = Form(...)):
         return RedirectResponse(url="/", status_code=303)
         
     with engine.begin() as conn:
-        conn.execute(text("INSERT IGNORE INTO marche_automezzi (nome) VALUES (:nome)"), {"nome": nome.strip()})
+        nome_clean = nome.strip()
+        exists = conn.execute(text("SELECT COUNT(*) FROM marche_automezzi WHERE nome = :nome"), {"nome": nome_clean}).scalar()
+        if not exists:
+            conn.execute(text("INSERT INTO marche_automezzi (nome) VALUES (:nome)"), {"nome": nome_clean})
         
     return RedirectResponse(url="/admin/automezzi/marche", status_code=303)
 
