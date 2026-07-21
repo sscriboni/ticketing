@@ -45,6 +45,12 @@ with engine.begin() as conn:
         conn.execute(text("ALTER TABLE automezzi ADD COLUMN escluso_prenotazione INTEGER DEFAULT 0"))
     except Exception:
         pass
+        
+    try:
+        # Per retrocompatibilità database locali pre-aggiornamento
+        conn.execute(text("ALTER TABLE automezzi ADD COLUMN marca_id INTEGER DEFAULT 1"))
+    except Exception:
+        pass
     
     conn.execute(text(f"""
         CREATE TABLE IF NOT EXISTS manutenzioni_automezzi (
