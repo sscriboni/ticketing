@@ -272,10 +272,21 @@ def list_automezzi(r: Request):
 
         # Convert automezzi to dicts and attach types
         veicoli_list = []
+        oggi = datetime.date.today()
         for row in automezzi:
             v_dict = dict(row)
             v_dict["tipi_manutenzione_ids"] = veicolo_tipi.get(v_dict["automezzo_id"], [])
             v_dict["tipi_manutenzione_dati"] = veicolo_tipi_dati.get(v_dict["automezzo_id"], {})
+            
+            v_dict["anzianita_anni"] = None
+            if v_dict.get("data_immatricolazione"):
+                try:
+                    d_imm = datetime.datetime.strptime(v_dict["data_immatricolazione"], "%Y-%m-%d").date()
+                    anni = oggi.year - d_imm.year - ((oggi.month, oggi.day) < (d_imm.month, d_imm.day))
+                    v_dict["anzianita_anni"] = anni
+                except Exception:
+                    pass
+                    
             veicoli_list.append(v_dict)
 
     return templates.TemplateResponse(r, "appautopark.html", {

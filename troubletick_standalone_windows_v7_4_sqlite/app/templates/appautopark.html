@@ -52,10 +52,10 @@
                 {% endif %}
             </div>
             <div class="row mb-3 g-2">
-                <div class="col-md-4">
-                    <input type="text" id="searchTargaInput" class="form-control" placeholder="Cerca targa o modello...">
+                <div class="col-md-2">
+                    <input type="text" id="searchTargaInput" class="form-control" placeholder="Targa o modello...">
                 </div>
-                <div class="col-md-3">
+                <div class="col-md-2">
                     <select id="searchMarcaInput" class="form-select">
                         <option value="">Tutte le marche</option>
                         {% for m in marche %}
@@ -63,7 +63,23 @@
                         {% endfor %}
                     </select>
                 </div>
-                <div class="col-md-3">
+                <div class="col-md-2">
+                    <select id="searchSedeInput" class="form-select">
+                        <option value="">Tutte le sedi</option>
+                        {% for s in sedi %}
+                        <option value="{{ s.nome }}">{{ s.nome }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+                <div class="col-md-2">
+                    <select id="searchRepartoInput" class="form-select">
+                        <option value="">Tutti i reparti</option>
+                        {% for r in reparti %}
+                        <option value="{{ r.nome }}">{{ r.nome }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+                <div class="col-md-2">
                     <select id="searchStatoInput" class="form-select">
                         <option value="">Tutti gli stati</option>
                         <option value="Disponibile">Disponibile</option>
@@ -72,7 +88,7 @@
                     </select>
                 </div>
                 <div class="col-md-2">
-                    <button class="btn btn-outline-secondary w-100" onclick="resetFilters()"><i class="bi bi-x-circle me-1"></i> Azzera Filtri</button>
+                    <button class="btn btn-outline-secondary w-100" onclick="resetFilters()"><i class="bi bi-x-circle me-1"></i> Azzera</button>
                 </div>
             </div>
             
@@ -119,6 +135,9 @@
                                 <td>
                                     {% if v.data_immatricolazione and v.data_immatricolazione != '' %}
                                         {{ v.data_immatricolazione.split('-')|reverse|join('/') }}
+                                        {% if v.anzianita_anni is not none %}
+                                            <br><small class="text-muted">({{ v.anzianita_anni }} anni)</small>
+                                        {% endif %}
                                     {% else %}
                                         -
                                     {% endif %}
@@ -721,6 +740,8 @@
         function filterTable() {
             const targaVal = document.getElementById('searchTargaInput').value.toLowerCase();
             const marcaVal = document.getElementById('searchMarcaInput').value.toLowerCase();
+            const sedeVal = document.getElementById('searchSedeInput').value.toLowerCase();
+            const repartoVal = document.getElementById('searchRepartoInput').value.toLowerCase();
             const statoVal = document.getElementById('searchStatoInput').value.toLowerCase();
             
             const rows = document.querySelectorAll('#automezziTable tbody tr');
@@ -728,11 +749,15 @@
                 if(row.children.length < 5) return; // skip empty message row
                 
                 const targaModello = row.children[0].textContent.toLowerCase();
+                const sede = (row.children[5].textContent + " " + row.children[6].textContent).toLowerCase();
+                const reparto = row.children[7].textContent.toLowerCase();
                 const stato = row.children[8].textContent.toLowerCase();
                 
                 let show = true;
                 if(targaVal && !targaModello.includes(targaVal)) show = false;
                 if(marcaVal && !targaModello.includes(marcaVal)) show = false;
+                if(sedeVal && !sede.includes(sedeVal)) show = false;
+                if(repartoVal && !reparto.includes(repartoVal)) show = false;
                 if(statoVal && !stato.includes(statoVal)) show = false;
                 
                 row.style.display = show ? '' : 'none';
@@ -741,11 +766,15 @@
         
         document.getElementById('searchTargaInput').addEventListener('keyup', filterTable);
         document.getElementById('searchMarcaInput').addEventListener('change', filterTable);
+        document.getElementById('searchSedeInput').addEventListener('change', filterTable);
+        document.getElementById('searchRepartoInput').addEventListener('change', filterTable);
         document.getElementById('searchStatoInput').addEventListener('change', filterTable);
         
         function resetFilters() {
             document.getElementById('searchTargaInput').value = '';
             document.getElementById('searchMarcaInput').value = '';
+            document.getElementById('searchSedeInput').value = '';
+            document.getElementById('searchRepartoInput').value = '';
             document.getElementById('searchStatoInput').value = '';
             filterTable();
         }
