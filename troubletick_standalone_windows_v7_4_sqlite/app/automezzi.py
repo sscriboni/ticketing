@@ -554,7 +554,18 @@ def import_automezzi_csv(r: Request, file: UploadFile = File(...)):
             tipo = data.get("tipo", "auto")
             colore = data.get("colore")
             alimentazione = data.get("alimentazione")
+            
             data_immatricolazione = data.get("data_immatricolazione")
+            if data_immatricolazione:
+                data_immatricolazione = data_immatricolazione.strip()
+                try:
+                    if '/' in data_immatricolazione:
+                        data_immatricolazione = datetime.datetime.strptime(data_immatricolazione, "%d/%m/%Y").strftime("%Y-%m-%d")
+                    elif '-' in data_immatricolazione and len(data_immatricolazione.split('-')[0]) <= 2:
+                        data_immatricolazione = datetime.datetime.strptime(data_immatricolazione, "%d-%m-%Y").strftime("%Y-%m-%d")
+                except ValueError:
+                    pass
+                    
             proprieta = data.get("proprieta", "Proprietà")
             fornitore = data.get("fornitore")
             classe_euro = data.get("classe_euro")
