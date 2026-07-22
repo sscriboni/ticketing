@@ -1383,22 +1383,21 @@ def reassign_ticket(r: Request, ticket_id: int, background_tasks: BackgroundTask
                  {"tid": ticket_id, "a": f"Sistema ({autore})", "t": testo})
                  
         operatori_emails = []
-        # if servizio_id_val:
-        #     operatori_emails = c.execute(text("SELECT u.email FROM users u JOIN operatori_servizi os ON u.user_id = os.user_id WHERE os.servizio_id = :sid AND u.email IS NOT NULL AND u.email != '' AND u.attivo = 1"), {"sid": servizio_id_val}).scalars().all()
+        if servizio_id_val:
+            operatori_emails = c.execute(text("SELECT u.email FROM users u JOIN operatori_servizi os ON u.user_id = os.user_id WHERE os.servizio_id = :sid AND u.email IS NOT NULL AND u.email != '' AND u.attivo = 1"), {"sid": servizio_id_val}).scalars().all()
             
-    # Per ora non inviare mail agli operatori
-    # if operatori_emails:
-    #     subject_ops = f"[{CFG.get('company_name', 'Helpdesk')}] Ticket #{vecchio['codice_ticket']} riassegnato al tuo servizio"
-    #     body_ops = templates.get_template("email_ticket_operatore.html").render({
-    #         "cfg": CFG,
-    #         "titolo": "Ticket riassegnato al tuo servizio",
-    #         "codice_ticket": vecchio['codice_ticket'],
-    #         "nome_richiedente": f"{vecchio['nome']} {vecchio['cognome']}".strip(),
-    #         "serv_desc": nuovo_serv,
-    #         "descrizione": vecchio['descrizione']
-    #     })
-    #     for op_email in set(operatori_emails):
-    #         background_tasks.add_task(send_email_async, op_email, subject_ops, body_ops)
+    if operatori_emails:
+        subject_ops = f"[{CFG.get('company_name', 'Helpdesk')}] Ticket #{vecchio['codice_ticket']} riassegnato al tuo servizio"
+        body_ops = templates.get_template("email_ticket_operatore.html").render({
+            "cfg": CFG,
+            "titolo": "Ticket riassegnato al tuo servizio",
+            "codice_ticket": vecchio['codice_ticket'],
+            "nome_richiedente": f"{vecchio['nome']} {vecchio['cognome']}".strip(),
+            "serv_desc": nuovo_serv,
+            "descrizione": vecchio['descrizione']
+        })
+        for op_email in set(operatori_emails):
+            background_tasks.add_task(send_email_async, op_email, subject_ops, body_ops)
                  
     return RedirectResponse(url=f"/ticket/{ticket_id}", status_code=303)
 
