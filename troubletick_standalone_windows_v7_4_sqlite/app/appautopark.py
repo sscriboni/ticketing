@@ -33,6 +33,11 @@ def home(r: Request, msg: str = None, error: str = None):
     if not user:
         return RedirectResponse(url="/login")
 
+    if user.get("ruolo") == "admin" or "admin" in user.get("roles", []):
+        r.session.pop("user", None)
+        err_msg = urllib.parse.quote("Per motivi di sicurezza, gli utenti con ruolo Admin non possono accedere alla webapp.")
+        return RedirectResponse(url=f"/login?error={err_msg}")
+
     uid = user.get("id")
     role = user.get("ruolo")
 
@@ -595,25 +600,36 @@ def login_action(r: Request, username: str = Form(...), password: str = Form(...
         else:
             row = c.execute(text(query.format(field="u.username")), {"u": username}).mappings().first()
 
-    if row and ok(password, row["password_hash"]):
-        r.session["user"] = {
-            "id": row["user_id"],
-            "username": row["username"],
-            "email": row["email"],
-            "nome": row["nome"],
-            "cognome": row["cognome"],
-            "ruolo": row["ruolo"],
-            "reparto_id": row["reparto_id"],
-            "reparto_nome": row["reparto_nome"],
-            "sede_nome": row["sede_nome"],
-            "magazzino_id": row["magazzino_id"],
-        }
-        return RedirectResponse(url="/", status_code=303)
-    else:
-        return templates.TemplateResponse(r, "appautopark_login.html", {
-            "request": r, "cfg": CFG,
-            "error": "Credenziali non valide o utente non attivo.",
-        })
+        if row and ok(password, row["password_hash"]):
+            # Check user roles
+            roles_rows = c.execute(text("SELECT ruolo FROM user_roles WHERE user_id = :uid"), {"uid": row["user_id"]}).mappings().all()
+            roles = [rr["ruolo"] for rr in roles_rows] if roles_rows else [row["ruolo"]]
+
+            if row["ruolo"] == "admin" or "admin" in roles:
+                return templates.TemplateResponse(r, "appautopark_login.html", {
+                    "request": r, "cfg": CFG,
+                    "error": "Per motivi di sicurezza, gli utenti con ruolo Admin non possono accedere alla webapp.",
+                })
+
+            r.session["user"] = {
+                "id": row["user_id"],
+                "username": row["username"],
+                "email": row["email"],
+                "nome": row["nome"],
+                "cognome": row["cognome"],
+                "ruolo": row["ruolo"],
+                "reparto_id": row["reparto_id"],
+                "reparto_nome": row["reparto_nome"],
+                "sede_nome": row["sede_nome"],
+                "magazzino_id": row["magazzino_id"],
+                "roles": roles,
+            }
+            return RedirectResponse(url="/", status_code=303)
+        else:
+            return templates.TemplateResponse(r, "appautopark_login.html", {
+                "request": r, "cfg": CFG,
+                "error": "Credenziali non valide o utente non attivo.",
+            })
 
 
 @app.get("/logout")

@@ -1240,6 +1240,11 @@ def get_autopark(r: Request, msg: str = None, error: str = None):
     
     uid = user.get("id")
     role = user.get("ruolo")
+    user_roles = user.get("roles", [role])
+    if role == "admin" or "admin" in user_roles:
+        import urllib.parse
+        err_msg = urllib.parse.quote("Per motivi di sicurezza, gli utenti con ruolo Admin non possono accedere alla webapp di prenotazione.")
+        return RedirectResponse(url=f"/admin/autopark/gestione?error={err_msg}", status_code=303)
     
     with engine.connect() as conn:
         # Get user's own reparto_id
