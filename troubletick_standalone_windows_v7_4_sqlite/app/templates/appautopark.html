@@ -114,23 +114,20 @@
                                 <th class="sortable" onclick="sortTable(3)" style="cursor: pointer;" title="Clicca per ordinare per Immatricolazione">
                                     Immatricolazione <i class="bi bi-arrow-down-up ms-1 text-muted sort-icon" id="sort-icon-3"></i>
                                 </th>
-                                <th class="sortable" onclick="sortTable(4)" style="cursor: pointer;" title="Clicca per ordinare per Canone">
-                                    Proprietà / Canone <i class="bi bi-arrow-down-up ms-1 text-muted sort-icon" id="sort-icon-4"></i>
+                                <th class="sortable" onclick="sortTable(4)" style="cursor: pointer;" title="Clicca per ordinare per Sede Assegnata">
+                                    Sede Assegnata <i class="bi bi-arrow-down-up ms-1 text-muted sort-icon" id="sort-icon-4"></i>
                                 </th>
-                                <th class="sortable" onclick="sortTable(5)" style="cursor: pointer;" title="Clicca per ordinare per Sede Assegnata">
-                                    Sede Assegnata <i class="bi bi-arrow-down-up ms-1 text-muted sort-icon" id="sort-icon-5"></i>
+                                <th class="sortable" onclick="sortTable(5)" style="cursor: pointer;" title="Clicca per ordinare per Sede Attuale">
+                                    Sede Attuale <i class="bi bi-arrow-down-up ms-1 text-muted sort-icon" id="sort-icon-5"></i>
                                 </th>
-                                <th class="sortable" onclick="sortTable(6)" style="cursor: pointer;" title="Clicca per ordinare per Sede Attuale">
-                                    Sede Attuale <i class="bi bi-arrow-down-up ms-1 text-muted sort-icon" id="sort-icon-6"></i>
+                                <th class="sortable" onclick="sortTable(6)" style="cursor: pointer;" title="Clicca per ordinare per Reparto Assegnato">
+                                    Reparto Assegnato <i class="bi bi-arrow-down-up ms-1 text-muted sort-icon" id="sort-icon-6"></i>
                                 </th>
-                                <th class="sortable" onclick="sortTable(7)" style="cursor: pointer;" title="Clicca per ordinare per Reparto Assegnato">
-                                    Reparto Assegnato <i class="bi bi-arrow-down-up ms-1 text-muted sort-icon" id="sort-icon-7"></i>
+                                <th class="sortable" onclick="sortTable(7)" style="cursor: pointer;" title="Clicca per ordinare per Stato">
+                                    Stato <i class="bi bi-arrow-down-up ms-1 text-muted sort-icon" id="sort-icon-7"></i>
                                 </th>
-                                <th class="sortable" onclick="sortTable(8)" style="cursor: pointer;" title="Clicca per ordinare per Stato">
-                                    Stato <i class="bi bi-arrow-down-up ms-1 text-muted sort-icon" id="sort-icon-8"></i>
-                                </th>
-                                <th class="sortable" onclick="sortTable(9)" style="cursor: pointer;" title="Clicca per ordinare per Prenotazione">
-                                    Prenotazione <i class="bi bi-arrow-down-up ms-1 text-muted sort-icon" id="sort-icon-9"></i>
+                                <th class="sortable" onclick="sortTable(8)" style="cursor: pointer;" title="Clicca per ordinare per Prenotazione">
+                                    Prenotazione <i class="bi bi-arrow-down-up ms-1 text-muted sort-icon" id="sort-icon-8"></i>
                                 </th>
                                 <th class="text-end">Azioni</th>
                             </tr>
@@ -166,13 +163,6 @@
                                     {% else %}
                                         -
                                     {% endif %}
-                                </td>
-                                <td>
-                                    <div>{{ v.proprieta or '-' }}</div>
-                                    {% if v.proprieta == 'Noleggio' %}
-                                    <small class="text-muted">€{{ v.canone_noleggio }}/mese</small><br>
-                                    {% endif %}
-                                    <small class="text-muted" title="Fornitore"><i class="bi bi-shop me-1"></i>{{ v.fornitore or '-' }}</small>
                                 </td>
                                 <td><span class="text-muted">{{ v.sede_assegnata_nome or '-' }}</span></td>
                                 <td><span class="text-primary fw-medium"><i class="bi bi-geo-alt-fill text-danger me-1"></i>{{ v.sede_attuale_nome or '-' }}</span></td>
@@ -240,7 +230,7 @@
                             </tr>
                             {% else %}
                             <tr>
-                                <td colspan="10" class="text-center text-muted py-4">Nessun veicolo registrato.</td>
+                                <td colspan="9" class="text-center text-muted py-4">Nessun veicolo registrato.</td>
                             </tr>
                             {% endfor %}
                         </tbody>
@@ -821,9 +811,6 @@
                 } else if (colIndex === 3) { // Immatricolazione
                     valA = rowA.dataset.imm || '0000-00-00';
                     valB = rowB.dataset.imm || '0000-00-00';
-                } else if (colIndex === 4) { // Canone
-                    valA = parseFloat(rowA.dataset.canone || 0);
-                    valB = parseFloat(rowB.dataset.canone || 0);
                 } else {
                     valA = rowA.children[colIndex].textContent.trim().toLowerCase();
                     valB = rowB.children[colIndex].textContent.trim().toLowerCase();
@@ -851,9 +838,9 @@
                 if(row.children.length < 5) return; // skip empty message row
                 
                 const targaModello = row.children[0].textContent.toLowerCase();
-                const sede = (row.children[5].textContent + " " + row.children[6].textContent).toLowerCase();
-                const reparto = row.children[7].textContent.toLowerCase();
-                const stato = row.children[8].textContent.toLowerCase();
+                const sede = (row.children[4].textContent + " " + row.children[5].textContent).toLowerCase();
+                const reparto = row.children[6].textContent.toLowerCase();
+                const stato = row.children[7].textContent.toLowerCase();
                 
                 let show = true;
                 if(targaVal && !targaModello.includes(targaVal)) show = false;
