@@ -626,7 +626,7 @@ document.addEventListener("DOMContentLoaded", function() {
         sedeSelect.addEventListener("change", function() {
             const sid = parseInt(sedeSelect.value);
             const filtered = allVehicles
-                .filter(v => v.sede_attuale_id === sid)
+                .filter(v => v.sede_attuale_id === sid || v.sede_attuale_id === 0 || v.sede_attuale_id === null || !v.sede_attuale_id)
                 .sort((a, b) => {
                     const aa = (a.stato === "Disponibile" && a.escluso_prenotazione === 0) ? 1 : 0;
                     const bb = (b.stato === "Disponibile" && b.escluso_prenotazione === 0) ? 1 : 0;
@@ -656,11 +656,11 @@ document.addEventListener("DOMContentLoaded", function() {
                     o.setAttribute("data-sede", v.sede_attuale_nome);
                     const avail = (v.stato === "Disponibile" && v.escluso_prenotazione === 0);
                     if (avail) {
-                        o.textContent = `${v.marca_nome} ${v.modello} (${v.targa}) – Disponibile`;
+                        o.textContent = `${v.marca_nome} ${v.modello} (${v.targa}) – Disponibile (${v.km_attuali} km)`;
                     } else {
                         o.disabled = true;
                         const reason = v.escluso_prenotazione === 1 ? "Escluso" : v.stato;
-                        o.textContent = `${v.marca_nome} ${v.modello} (${v.targa}) – ${reason}`;
+                        o.textContent = `${v.marca_nome} ${v.modello} (${v.targa}) – ${reason} (${v.km_attuali} km)`;
                     }
                     vSelect.appendChild(o);
                 });

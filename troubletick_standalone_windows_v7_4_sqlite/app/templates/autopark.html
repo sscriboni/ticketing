@@ -630,8 +630,10 @@
             sedeSelect.addEventListener("change", function() {
                 const sedeId = parseInt(sedeSelect.value);
                 
-                // Filter vehicles currently at this location
-                const filtered = allVehicles.filter(v => v.sede_attuale_id === sedeId);
+                // Filter vehicles currently at this location or unassigned/fleet-wide
+                const filtered = allVehicles.filter(v => 
+                    v.sede_attuale_id === sedeId || v.sede_attuale_id === 0 || v.sede_attuale_id === null || !v.sede_attuale_id
+                );
                 
                 // Sort: available ones first (stato === 'Disponibile' && escluso_prenotazione === 0)
                 filtered.sort((a, b) => {
