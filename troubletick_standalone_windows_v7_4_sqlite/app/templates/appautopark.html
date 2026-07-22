@@ -44,7 +44,12 @@
         <!-- Gestione Flotta / Automezzi -->
         <div class="mb-5">
             <div class="d-flex justify-content-between align-items-center mb-4">
-                <h2 class="mb-0"><i class="bi bi-car-front text-primary me-2"></i> Gestione Anagrafica Automezzi</h2>
+                <div class="d-flex align-items-center gap-3">
+                    <h2 class="mb-0"><i class="bi bi-car-front text-primary me-2"></i> Gestione Anagrafica Automezzi</h2>
+                    <span class="badge bg-primary-subtle text-primary border border-primary-subtle fs-6" id="tableRowCount">
+                        Mostrati {{ veicoli|length }} di {{ veicoli|length }} veicoli
+                    </span>
+                </div>
                 {% if user.ruolo in ('admin', 'global_fleet_manager') %}
                 <button class="btn btn-primary px-4 py-2" onclick="showAddVehicleModal()">
                     <i class="bi bi-plus-circle me-1"></i> Aggiungi Veicolo
@@ -95,24 +100,44 @@
             <div class="table-container">
                 <div class="table-responsive">
                     <table class="table table-hover custom-table align-middle" id="automezziTable">
-                        <thead>
+                        <thead class="user-select-none">
                             <tr>
-                                <th>Veicolo / Targa</th>
-                                <th>Tipo / Colore</th>
-                                <th>Alimentazione / Km</th>
-                                <th>Immatricolazione</th>
-                                <th>Proprietà / Canone</th>
-                                <th>Sede Assegnata</th>
-                                <th>Sede Attuale</th>
-                                <th>Reparto Assegnato</th>
-                                <th>Stato</th>
-                                <th>Prenotazione</th>
+                                <th class="sortable" onclick="sortTable(0)" style="cursor: pointer;" title="Clicca per ordinare per Veicolo / Targa">
+                                    Veicolo / Targa <i class="bi bi-arrow-down-up ms-1 text-muted sort-icon" id="sort-icon-0"></i>
+                                </th>
+                                <th class="sortable" onclick="sortTable(1)" style="cursor: pointer;" title="Clicca per ordinare per Tipo / Colore">
+                                    Tipo / Colore <i class="bi bi-arrow-down-up ms-1 text-muted sort-icon" id="sort-icon-1"></i>
+                                </th>
+                                <th class="sortable" onclick="sortTable(2)" style="cursor: pointer;" title="Clicca per ordinare per Chilometri">
+                                    Alimentazione / Km <i class="bi bi-arrow-down-up ms-1 text-muted sort-icon" id="sort-icon-2"></i>
+                                </th>
+                                <th class="sortable" onclick="sortTable(3)" style="cursor: pointer;" title="Clicca per ordinare per Immatricolazione">
+                                    Immatricolazione <i class="bi bi-arrow-down-up ms-1 text-muted sort-icon" id="sort-icon-3"></i>
+                                </th>
+                                <th class="sortable" onclick="sortTable(4)" style="cursor: pointer;" title="Clicca per ordinare per Canone">
+                                    Proprietà / Canone <i class="bi bi-arrow-down-up ms-1 text-muted sort-icon" id="sort-icon-4"></i>
+                                </th>
+                                <th class="sortable" onclick="sortTable(5)" style="cursor: pointer;" title="Clicca per ordinare per Sede Assegnata">
+                                    Sede Assegnata <i class="bi bi-arrow-down-up ms-1 text-muted sort-icon" id="sort-icon-5"></i>
+                                </th>
+                                <th class="sortable" onclick="sortTable(6)" style="cursor: pointer;" title="Clicca per ordinare per Sede Attuale">
+                                    Sede Attuale <i class="bi bi-arrow-down-up ms-1 text-muted sort-icon" id="sort-icon-6"></i>
+                                </th>
+                                <th class="sortable" onclick="sortTable(7)" style="cursor: pointer;" title="Clicca per ordinare per Reparto Assegnato">
+                                    Reparto Assegnato <i class="bi bi-arrow-down-up ms-1 text-muted sort-icon" id="sort-icon-7"></i>
+                                </th>
+                                <th class="sortable" onclick="sortTable(8)" style="cursor: pointer;" title="Clicca per ordinare per Stato">
+                                    Stato <i class="bi bi-arrow-down-up ms-1 text-muted sort-icon" id="sort-icon-8"></i>
+                                </th>
+                                <th class="sortable" onclick="sortTable(9)" style="cursor: pointer;" title="Clicca per ordinare per Prenotazione">
+                                    Prenotazione <i class="bi bi-arrow-down-up ms-1 text-muted sort-icon" id="sort-icon-9"></i>
+                                </th>
                                 <th class="text-end">Azioni</th>
                             </tr>
                         </thead>
                         <tbody>
                             {% for v in veicoli %}
-                            <tr>
+                            <tr data-marca="{{ v.marca_nome }}" data-modello="{{ v.modello }}" data-targa="{{ v.targa }}" data-tipo="{{ v.tipo }}" data-km="{{ v.km_attuali or 0 }}" data-imm="{{ v.data_immatricolazione or '' }}" data-canone="{{ v.canone_noleggio or 0 }}" data-sede-ass="{{ v.sede_assegnata_nome or '' }}" data-sede-att="{{ v.sede_attuale_nome or '' }}" data-reparto="{{ v.reparto_assegnato_nome or '' }}" data-stato="{{ v.stato }}" data-escluso="{{ v.escluso_prenotazione }}">
                                 <td>
                                     <div class="fw-bold">{{ v.marca_nome }} {{ v.modello }}</div>
                                     <span class="badge bg-secondary font-monospace">{{ v.targa }}</span>
@@ -734,7 +759,84 @@
                     });
                 });
             }
+            updateRowCount();
         });
+
+        // Conteggio righe visibili vs totali
+        function updateRowCount() {
+            const rows = document.querySelectorAll('#automezziTable tbody tr');
+            let visible = 0;
+            let total = 0;
+            rows.forEach(row => {
+                if (row.children.length < 5) return; // skip empty message row
+                total++;
+                if (row.style.display !== 'none') {
+                    visible++;
+                }
+            });
+            const countEl = document.getElementById('tableRowCount');
+            if (countEl) {
+                countEl.textContent = `Mostrati ${visible} di ${total} veicoli`;
+            }
+        }
+
+        // Funzione di ordinamento colonne tabella
+        let currentSortColumn = -1;
+        let currentSortOrder = 'asc';
+
+        function sortTable(colIndex) {
+            const tbody = document.querySelector('#automezziTable tbody');
+            if (!tbody) return;
+            const rows = Array.from(tbody.querySelectorAll('tr'));
+            const dataRows = rows.filter(r => r.children.length >= 5);
+            if (dataRows.length === 0) return;
+
+            if (currentSortColumn === colIndex) {
+                currentSortOrder = currentSortOrder === 'asc' ? 'desc' : 'asc';
+            } else {
+                currentSortColumn = colIndex;
+                currentSortOrder = 'asc';
+            }
+
+            document.querySelectorAll('.sort-icon').forEach(icon => {
+                icon.className = 'bi bi-arrow-down-up ms-1 text-muted sort-icon';
+            });
+
+            const activeIcon = document.getElementById(`sort-icon-${colIndex}`);
+            if (activeIcon) {
+                activeIcon.className = currentSortOrder === 'asc' 
+                    ? 'bi bi-sort-down ms-1 text-primary fw-bold sort-icon' 
+                    : 'bi bi-sort-up-alt ms-1 text-primary fw-bold sort-icon';
+            }
+
+            dataRows.sort((rowA, rowB) => {
+                let valA, valB;
+
+                if (colIndex === 0) { // Veicolo / Targa
+                    valA = ((rowA.dataset.marca || '') + " " + (rowA.dataset.modello || '') + " " + (rowA.dataset.targa || '')).toLowerCase();
+                    valB = ((rowB.dataset.marca || '') + " " + (rowB.dataset.modello || '') + " " + (rowB.dataset.targa || '')).toLowerCase();
+                } else if (colIndex === 2) { // Km
+                    valA = parseFloat(rowA.dataset.km || 0);
+                    valB = parseFloat(rowB.dataset.km || 0);
+                } else if (colIndex === 3) { // Immatricolazione
+                    valA = rowA.dataset.imm || '0000-00-00';
+                    valB = rowB.dataset.imm || '0000-00-00';
+                } else if (colIndex === 4) { // Canone
+                    valA = parseFloat(rowA.dataset.canone || 0);
+                    valB = parseFloat(rowB.dataset.canone || 0);
+                } else {
+                    valA = rowA.children[colIndex].textContent.trim().toLowerCase();
+                    valB = rowB.children[colIndex].textContent.trim().toLowerCase();
+                }
+
+                if (valA < valB) return currentSortOrder === 'asc' ? -1 : 1;
+                if (valA > valB) return currentSortOrder === 'asc' ? 1 : -1;
+                return 0;
+            });
+
+            dataRows.forEach(row => tbody.appendChild(row));
+            updateRowCount();
+        }
 
         // Funzioni di filtraggio tabella
         function filterTable() {
@@ -762,6 +864,7 @@
                 
                 row.style.display = show ? '' : 'none';
             });
+            updateRowCount();
         }
         
         document.getElementById('searchTargaInput').addEventListener('keyup', filterTable);
