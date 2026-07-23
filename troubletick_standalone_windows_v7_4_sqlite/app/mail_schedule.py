@@ -1271,6 +1271,7 @@ def main():
                     sys.exit(0)
                     
                 cc_email = None if args.mail else args.cc
+                today_str = datetime.now().strftime("%Y-%m-%d")
                 
                 for rep in reparti_rows:
                     rep_id = rep["reparto_id"]
@@ -1281,14 +1282,27 @@ def main():
                         dest_emails = [args.mail or args.to]
                     else:
                         resp_rows = conn.execute(text("""
-                            SELECT DISTINCT u.email FROM users u
+                            SELECT DISTINCT u.user_id, u.email, u.nome, u.cognome FROM users u
                             JOIN user_roles ur ON u.user_id = ur.user_id
                             WHERE ur.ruolo = 'responsabile' AND u.reparto_id = :rep_id AND u.attivo = 1
                         """), {"rep_id": rep_id}).mappings().all()
-                        dest_emails = [r["email"] for r in resp_rows if r["email"]]
+                        
+                        dest_emails = []
+                        for r in resp_rows:
+                            if not r["email"]:
+                                continue
+                            is_absent = conn.execute(text("""
+                                SELECT 1 FROM assenze
+                                WHERE user_id = :uid AND data_inizio <= :today AND data_fine >= :today
+                                LIMIT 1
+                            """), {"uid": r["user_id"], "today": today_str}).scalar()
+                            if is_absent:
+                                print(f"[*] Responsabile {r.get('nome', '')} {r.get('cognome', '')} (ID: {r['user_id']}) in assenza in data {today_str}. Invio report RESP_STATUS saltato per questo destinatario.")
+                            else:
+                                dest_emails.append(r["email"])
                         
                     if not dest_emails:
-                        print(f"[*] Nessun responsabile attivo configurato per il reparto '{rep_nome}' (ID: {rep_id}). Invio report saltato.")
+                        print(f"[*] Nessun responsabile attivo (o disponibile in turno) configurato per il reparto '{rep_nome}' (ID: {rep_id}). Invio report saltato.")
                         continue
                         
                     print(f"[*] Generazione report RESP_STATUS per reparto '{rep_nome}' (Destinatari: {', '.join(dest_emails)})")
@@ -1326,6 +1340,7 @@ def main():
                     sys.exit(0)
                     
                 cc_email = None if args.mail else args.cc
+                today_str = datetime.now().strftime("%Y-%m-%d")
                 
                 for op in operators_rows:
                     op_id = op["user_id"]
@@ -1335,6 +1350,16 @@ def main():
                     rep_id = op["reparto_id"]
                     rep_nome = op["reparto_nome"]
                     
+                    # Verifica se l'operatore è in assenza oggi
+                    is_absent = conn.execute(text("""
+                        SELECT 1 FROM assenze
+                        WHERE user_id = :uid AND data_inizio <= :today AND data_fine >= :today
+                        LIMIT 1
+                    """), {"uid": op_id, "today": today_str}).scalar()
+                    if is_absent:
+                        print(f"[*] Operatore {op_nome} {op_cognome} (ID: {op_id}) in assenza in data {today_str}. Invio notifica OPE_STATUS saltato.")
+                        continue
+
                     # Se l'utente ha specificato --mail o --to sulla riga di comando, inviamo solo lì
                     dest_email = args.mail or args.to or op_email
                     if not dest_email:

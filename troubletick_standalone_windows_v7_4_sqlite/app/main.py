@@ -430,7 +430,7 @@ async def check_and_send_morning_recaps():
                 s_desc = s["descrizione"]
                 
                 operators = conn.execute(text("""
-                    SELECT u.email, u.nome, u.cognome
+                    SELECT u.user_id, u.email, u.nome, u.cognome
                     FROM users u
                     JOIN operatori_servizi os ON u.user_id = os.user_id
                     WHERE os.servizio_id = :sid AND u.attivo = 1 AND u.email IS NOT NULL AND u.email != ''
@@ -460,6 +460,17 @@ async def check_and_send_morning_recaps():
                 subject = f"[{CFG.get('company_name', 'Helpdesk')}] Resoconto Mattutino Ticket - {s_desc}"
                 
                 for op in operators:
+                    op_uid = op.get("user_id")
+                    if op_uid:
+                        is_absent = conn.execute(text("""
+                            SELECT 1 FROM assenze
+                            WHERE user_id = :uid AND data_inizio <= :today AND data_fine >= :today
+                            LIMIT 1
+                        """), {"uid": op_uid, "today": today_str}).scalar()
+                        if is_absent:
+                            print(f"[*] Resoconto mattutino saltato per operatore {op.get('nome')} {op.get('cognome')} (ID: {op_uid}) in quanto in assenza in data {today_str}")
+                            continue
+
                     dest = op["email"]
                     await asyncio.to_thread(send_email_async, dest, subject, body, f"Resoconto Mattutino {s_desc}")
     except Exception as e:
