@@ -161,12 +161,14 @@
   {% if user.ruolo != 'normale' %}<td>{{ t.priorita }}</td>{% endif %}
   <td>{{ t.stato }}</td>
   <td>
-    {{ t.ultimo_operatore or '—' }}
     {% if t.ultimo_operatore %}
       {% set clean_op = t.ultimo_operatore.replace('Sistema (', '').replace(')', '') %}
+      {{ clean_op }}
       {% if clean_op in absent_names %}
         <span class="badge bg-warning text-dark ms-1" style="font-size: 0.7em;" title="Assente oggi">Assente</span>
       {% endif %}
+    {% else %}
+      —
     {% endif %}
   </td>
   <td>{{ t.creato_il }}<br><small>{{ t.ip or 'IP non disponibile' }}</small></td>

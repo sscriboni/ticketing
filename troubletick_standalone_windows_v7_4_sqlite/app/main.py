@@ -1313,7 +1313,7 @@ def update_ticket_status(r: Request, ticket_id: int, background_tasks: Backgroun
         stato_formatted = stato.replace("_", " ").title()
         testo = f"Stato modificato in: **{stato_formatted}**."
         c.execute(text("""INSERT INTO ticket_notes (ticket_id, autore, testo) VALUES (:tid, :a, :t)"""),
-                 {"tid": ticket_id, "a": f"Sistema ({autore})", "t": testo})
+                 {"tid": ticket_id, "a": autore, "t": testo})
                  
         if stato == "chiusa":
             # Inserisce la nota pubblica di chiusura dell'operatore
@@ -1380,7 +1380,7 @@ def reassign_ticket(r: Request, ticket_id: int, background_tasks: BackgroundTask
         autore = f"{user.get('nome','')} {user.get('cognome','')}".strip() or user.get('username')
         testo = f"Ticket trasferito da **{vecchio['rep_nome'] or 'Nessuno'} ({vecchio['serv_desc'] or 'Nessuno'})** a **{nuovo_rep or 'Nessuno'} ({nuovo_serv})**."
         c.execute(text("""INSERT INTO ticket_notes (ticket_id, autore, testo) VALUES (:tid, :a, :t)"""),
-                 {"tid": ticket_id, "a": f"Sistema ({autore})", "t": testo})
+                 {"tid": ticket_id, "a": autore, "t": testo})
                  
         operatori_emails = []
         if servizio_id_val:
@@ -1424,7 +1424,7 @@ def change_ticket_priorita(r: Request, ticket_id: int, priorita: str = Form(...)
         autore = f"{user.get('nome','')} {user.get('cognome','')}".strip() or user.get('username')
         testo = f"Priorità del ticket modificata da **{vecchio['priorita'] or 'non specificata'}** a **{priorita}**."
         c.execute(text("""INSERT INTO ticket_notes (ticket_id, autore, testo, is_internal) VALUES (:tid, :a, :t, 1)"""),
-                 {"tid": ticket_id, "a": f"Sistema ({autore})", "t": testo})
+                 {"tid": ticket_id, "a": autore, "t": testo})
                  
     return RedirectResponse(url=f"/ticket/{ticket_id}", status_code=303)
 

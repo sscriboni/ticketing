@@ -706,7 +706,7 @@ async def magazzino_movimento_action(
                 mat_nome = c.execute(text("SELECT nome FROM materiali WHERE materiale_id = :mid"), {"mid": materiale_id}).scalar()
                 testo = f"Richiesta materiale evasa dal magazzino: {quantita}x {mat_nome}."
                 c.execute(text("""INSERT INTO ticket_notes (ticket_id, autore, testo, is_internal) VALUES (:tid, :a, :t, 0)"""),
-                         {"tid": richiesta_ticket["ticket_id"], "a": f"Sistema ({autore})", "t": testo})
+                         {"tid": richiesta_ticket["ticket_id"], "a": autore, "t": testo})
             
         recalculate_richieste_stati(c)
         if operazione == "scarico":
@@ -1328,7 +1328,7 @@ def nuova_richiesta_materiale_action(r: Request, categoria_id: int = Form(...), 
             mat_nome = c.execute(text("SELECT nome FROM materiali WHERE materiale_id = :mid"), {"mid": materiale_id}).scalar()
             testo = f"Creata nuova richiesta di materiale: {quantita}x {mat_nome}."
             c.execute(text("""INSERT INTO ticket_notes (ticket_id, autore, testo, is_internal) VALUES (:tid, :a, :t, 0)"""),
-                     {"tid": ticket_id_val, "a": f"Sistema ({autore})", "t": testo})
+                     {"tid": ticket_id_val, "a": autore, "t": testo})
 
     if ticket_id_val:
         return RedirectResponse(url=f"/ticket/{ticket_id_val}", status_code=303)
@@ -1364,7 +1364,7 @@ def annulla_richiesta_action(r: Request, richiesta_id: int):
             mat_nome = c.execute(text("SELECT nome FROM materiali WHERE materiale_id = :mid"), {"mid": richiesta["materiale_id"]}).scalar()
             testo = f"Richiesta materiale annullata: {richiesta['quantita']}x {mat_nome}."
             c.execute(text("""INSERT INTO ticket_notes (ticket_id, autore, testo, is_internal) VALUES (:tid, :a, :t, 0)"""),
-                     {"tid": richiesta["ticket_id"], "a": f"Sistema ({autore})", "t": testo})
+                     {"tid": richiesta["ticket_id"], "a": autore, "t": testo})
             return RedirectResponse(url=f"/ticket/{richiesta['ticket_id']}", status_code=303)
 
     return RedirectResponse(url="/richieste-materiale", status_code=303)
@@ -1811,7 +1811,7 @@ async def post_scarico_multiplo(
                         c.execute(text("""
                             INSERT INTO ticket_notes (ticket_id, autore, testo, is_internal)
                             VALUES (:tid, :a, :t, 0)
-                        """), {"tid": richiesta_info["ticket_id"], "a": f"Sistema ({autore})", "t": testo})
+                        """), {"tid": richiesta_info["ticket_id"], "a": autore, "t": testo})
                     any_request_evasa = True
 
             if mag_dest_id_val:
@@ -1908,7 +1908,7 @@ async def post_scarico_multiplo(
                 c.execute(text("""
                     INSERT INTO ticket_notes (ticket_id, autore, testo, is_internal)
                     VALUES (:tid, :a, :t, 0)
-                """), {"tid": ticket_id, "a": f"Sistema ({autore})", "t": testo})
+                """), {"tid": ticket_id, "a": autore, "t": testo})
                 
                 any_request_evasa = True
             

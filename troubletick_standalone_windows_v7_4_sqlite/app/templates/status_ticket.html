@@ -63,7 +63,7 @@
                                 {% for n in note %}
                                     <li class="list-group-item bg-transparent px-0">
                                         <div class="d-flex w-100 justify-content-between">
-                                            <strong class="text-primary">{{ n.autore }}</strong>
+                                            <strong class="text-primary">{{ n.autore.replace('Sistema (', '').replace(')', '') if n.autore else '' }}</strong>
                                             <small class="text-muted">{{ n.creato_il }}</small>
                                         </div>
                                         <p class="mb-1 text-break">{{ n.testo }}</p>
