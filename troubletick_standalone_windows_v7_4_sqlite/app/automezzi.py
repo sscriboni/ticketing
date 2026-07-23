@@ -500,10 +500,13 @@ def export_automezzi_csv(r: Request):
         rows = conn.execute(text("""
             SELECT a.targa, m.nome as marca, a.modello, a.tipo, a.colore, a.alimentazione, a.data_immatricolazione, 
                    a.proprieta, a.canone_noleggio, a.km_attuali, a.stato, 
-                   a.sede_assegnata_id, a.sede_attuale_id, a.reparto_assegnato_id,
+                   s_ass.nome as sede_assegnata, s_att.nome as sede_attuale, r_ass.nome as reparto_assegnato,
                    a.fornitore, a.classe_euro
             FROM automezzi a
             JOIN marche_automezzi m ON a.marca_id = m.marca_id
+            LEFT JOIN sedi s_ass ON a.sede_assegnata_id = s_ass.sede_id
+            LEFT JOIN sedi s_att ON a.sede_attuale_id = s_att.sede_id
+            LEFT JOIN reparti r_ass ON a.reparto_assegnato_id = r_ass.reparto_id
             ORDER BY a.automezzo_id ASC
         """)).all()
         
@@ -511,11 +514,11 @@ def export_automezzi_csv(r: Request):
     writer = csv.writer(output, delimiter=';')
     writer.writerow([
         "targa", "marca", "modello", "tipo", "colore", "alimentazione", "data_immatricolazione",
-        "proprieta", "canone_noleggio", "km_attuali", "stato", "sede_assegnata_id", "sede_attuale_id", "reparto_assegnato_id",
+        "proprieta", "canone_noleggio", "km_attuali", "stato", "sede_assegnata", "sede_attuale", "reparto_assegnato",
         "fornitore", "classe_euro"
     ])
     for row in rows:
-        writer.writerow(list(row))
+        writer.writerow([val if val is not None else "" for val in row])
         
     csv_data = output.getvalue()
     output.close()
@@ -525,6 +528,44 @@ def export_automezzi_csv(r: Request):
         media_type="text/csv",
         headers={"Content-Disposition": "attachment; filename=automezzi.csv"}
     )
+
+def resolve_sede_id(conn, raw_val):
+    if not raw_val:
+        return None
+    val = str(raw_val).strip()
+    if not val or val.lower() in ("none", "null", "0", ""):
+        return None
+        
+    s_id = conn.execute(text("SELECT sede_id FROM sedi WHERE LOWER(nome) = LOWER(:nome)"), {"nome": val}).scalar()
+    if s_id:
+        return s_id
+        
+    if val.isdigit():
+        s_id = conn.execute(text("SELECT sede_id FROM sedi WHERE sede_id = :id"), {"id": int(val)}).scalar()
+        if s_id:
+            return s_id
+            
+    conn.execute(text("INSERT INTO sedi (nome) VALUES (:nome)"), {"nome": val})
+    return conn.execute(text("SELECT sede_id FROM sedi WHERE LOWER(nome) = LOWER(:nome)"), {"nome": val}).scalar()
+
+def resolve_reparto_id(conn, raw_val):
+    if not raw_val:
+        return None
+    val = str(raw_val).strip()
+    if not val or val.lower() in ("none", "null", "0", ""):
+        return None
+        
+    r_id = conn.execute(text("SELECT reparto_id FROM reparti WHERE LOWER(nome) = LOWER(:nome)"), {"nome": val}).scalar()
+    if r_id:
+        return r_id
+        
+    if val.isdigit():
+        r_id = conn.execute(text("SELECT reparto_id FROM reparti WHERE reparto_id = :id"), {"id": int(val)}).scalar()
+        if r_id:
+            return r_id
+            
+    conn.execute(text("INSERT INTO reparti (nome) VALUES (:nome)"), {"nome": val})
+    return conn.execute(text("SELECT reparto_id FROM reparti WHERE LOWER(nome) = LOWER(:nome)"), {"nome": val}).scalar()
 
 @router.post("/admin/automezzi/importa")
 def import_automezzi_csv(r: Request, file: UploadFile = File(...)):
@@ -601,18 +642,13 @@ def import_automezzi_csv(r: Request, file: UploadFile = File(...)):
                 
             stato = data.get("stato", "Disponibile")
             
-            def get_int_or_none(k):
-                val = data.get(k)
-                if val:
-                    try:
-                        return int(val)
-                    except ValueError:
-                        pass
-                return None
-                
-            sede_assegnata_id = get_int_or_none("sede_assegnata_id")
-            sede_attuale_id = get_int_or_none("sede_attuale_id") or sede_assegnata_id
-            reparto_assegnato_id = get_int_or_none("reparto_assegnato_id")
+            raw_sede_assegnata = data.get("sede_assegnata") or data.get("sede_assegnata_nome") or data.get("sede_assegnata_id")
+            raw_sede_attuale = data.get("sede_attuale") or data.get("sede_attuale_nome") or data.get("sede_attuale_id")
+            raw_reparto_assegnato = data.get("reparto_assegnato") or data.get("reparto_assegnato_nome") or data.get("reparto_assegnato_id")
+
+            sede_assegnata_id = resolve_sede_id(conn, raw_sede_assegnata)
+            sede_attuale_id = resolve_sede_id(conn, raw_sede_attuale) or sede_assegnata_id
+            reparto_assegnato_id = resolve_reparto_id(conn, raw_reparto_assegnato)
             
             existing = conn.execute(text("SELECT automezzo_id FROM automezzi WHERE targa = :targa"), {"targa": targa}).scalar()
             if existing:
