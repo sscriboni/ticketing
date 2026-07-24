@@ -191,16 +191,48 @@ def user_magazzini_list(r: Request, magazzino_id: List[str] = Query(None), sede_
         elif user.get("ruolo") == "admin":
             count_in_arrivo = c.execute(text("SELECT COUNT(*) FROM trasferimenti WHERE stato = 'in_consegna'")).scalar() or 0
 
+        totali_generali = {r["materiale_id"]: r["tot"] for r in c.execute(text("SELECT materiale_id, COALESCE(SUM(quantita), 0) AS tot FROM giacenze GROUP BY materiale_id")).mappings().all()}
+
     msg = r.query_params.get("msg")
     trsf_id = r.query_params.get("trsf_id")
     print_pdf = r.query_params.get("print")
+
+    materiali_summary_map = {}
+    for row in rows:
+        mat_id = row["materiale_id"]
+        if mat_id not in materiali_summary_map:
+            materiali_summary_map[mat_id] = {
+                "materiale_id": mat_id,
+                "materiale_nome": row["materiale_nome"],
+                "categoria_nome": row["categoria_nome"] or "—",
+                "soglia_attenzione": row.get("soglia_attenzione", 0),
+                "totale_giacenza": 0,
+                "totale_generale_db": totali_generali.get(mat_id, 0),
+                "magazzini_con_giacenza": 0,
+                "trsf_in_totale": 0,
+                "trsf_out_totale": 0,
+            }
+        q = row["quantita"]
+        materiali_summary_map[mat_id]["totale_giacenza"] += q
+        if q > 0:
+            materiali_summary_map[mat_id]["magazzini_con_giacenza"] += 1
+        materiali_summary_map[mat_id]["trsf_in_totale"] += row.get("trsf_in", 0)
+        materiali_summary_map[mat_id]["trsf_out_totale"] += row.get("trsf_out", 0)
+
+    riepilogo_materiali = list(materiali_summary_map.values())
+    riepilogo_materiali.sort(key=lambda x: (x["categoria_nome"] or "", x["materiale_nome"]))
+    totale_quantita_generale = sum(m["totale_giacenza"] for m in riepilogo_materiali)
+    totale_quantita_generale_db = sum(m["totale_generale_db"] for m in riepilogo_materiali)
 
     return templates.TemplateResponse(r, "magazzini.html", {
         "request": r, "cfg": CFG, "user": user, 
         "righe": rows, "magazzini": magazzini_list, "sedi": sedi_list,
         "filtri": {"magazzino_id": magazzino_id or [], "sede_id": sede_id, "q": q, "solo_positive": solo_positive},
         "user_mag_ids": user_mag_ids, "count_in_arrivo": count_in_arrivo,
-        "msg": msg, "trsf_id": trsf_id, "print_pdf": print_pdf
+        "msg": msg, "trsf_id": trsf_id, "print_pdf": print_pdf,
+        "riepilogo_materiali": riepilogo_materiali,
+        "totale_quantita_generale": totale_quantita_generale,
+        "totale_quantita_generale_db": totale_quantita_generale_db
     })
 
 @router.get("/magazzino/{magazzino_id}/giacenza/{materiale_id}", response_class=HTMLResponse)

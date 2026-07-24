@@ -126,6 +126,101 @@
             </table>
         </div>
     </div>
+
+    <!-- Riepilogo Quantità Complessive Materiali -->
+    <div class="bg-white p-4 rounded shadow-sm mt-4">
+        <div class="d-flex justify-content-between align-items-center mb-3">
+            <h4 class="mb-0 fw-bold text-dark">
+                <i class="bi bi-box-seam-fill text-primary me-2"></i>Riepilogo Quantità Complessive Materiali
+            </h4>
+            <span class="badge bg-primary fs-6 shadow-sm px-3 py-2">
+                Totale Giacenze: {{ totale_quantita_generale }} pezzi
+            </span>
+        </div>
+        <p class="text-muted small mb-3">
+            Totale delle giacenze complessive disponibili per ciascun materiale{% if filtri.magazzino_id or filtri.sede_id or filtri.q %} (in base ai filtri di ricerca applicati){% endif %}.
+        </p>
+
+        <div class="table-responsive">
+            <table class="table table-striped table-hover align-middle mb-0">
+                <thead class="table-light">
+                    <tr>
+                        <th>Materiale</th>
+                        <th>Categoria</th>
+                        <th class="text-center">Magazzini con Giacenza</th>
+                        <th class="text-center">Totale Giacenza</th>
+                        {% if filtri.magazzino_id %}
+                        <th class="text-center">Totale Aziendale (Tutti i Magazzini)</th>
+                        {% endif %}
+                        <th class="text-center">Stato</th>
+                    </tr>
+                </thead>
+                <tbody>
+                {% for m in riepilogo_materiali %}
+                    <tr>
+                        <td><strong>{{ m.materiale_nome }}</strong></td>
+                        <td>{{ m.categoria_nome or '—' }}</td>
+                        <td class="text-center">
+                            {% if m.magazzini_con_giacenza > 0 %}
+                            <span class="badge bg-light text-dark border">
+                                <i class="bi bi-buildings me-1"></i>{{ m.magazzini_con_giacenza }} magazzin{% if m.magazzini_con_giacenza == 1 %}o{% else %}i{% endif %}
+                            </span>
+                            {% else %}
+                            <span class="text-muted small">0 magazzini</span>
+                            {% endif %}
+                        </td>
+                        <td class="text-center">
+                            <span class="badge {% if m.soglia_attenzione > 0 and m.totale_giacenza < m.soglia_attenzione %}bg-danger{% elif m.totale_giacenza > 0 %}bg-success{% else %}bg-secondary{% endif %} fs-6 shadow-sm px-3 py-2">
+                                {{ m.totale_giacenza }}
+                            </span>
+                        </td>
+                        {% if filtri.magazzino_id %}
+                        <td class="text-center">
+                            <span class="badge bg-info text-dark fs-6 shadow-sm px-3 py-2">
+                                {{ m.totale_generale_db }}
+                            </span>
+                        </td>
+                        {% endif %}
+                        <td class="text-center">
+                            {% if m.soglia_attenzione > 0 and m.totale_giacenza < m.soglia_attenzione %}
+                            <span class="badge bg-danger-subtle text-danger border border-danger-subtle fw-semibold px-2 py-1" title="Soglia di attenzione: {{ m.soglia_attenzione }}">
+                                <i class="bi bi-exclamation-triangle-fill me-1"></i>Sotto soglia ({{ m.soglia_attenzione }})
+                            </span>
+                            {% elif m.totale_giacenza > 0 %}
+                            <span class="badge bg-success-subtle text-success border border-success-subtle fw-semibold px-2 py-1">
+                                <i class="bi bi-check-circle-fill me-1"></i>Disponibile
+                            </span>
+                            {% else %}
+                            <span class="badge bg-secondary-subtle text-secondary border border-secondary-subtle fw-semibold px-2 py-1">
+                                Esaurito
+                            </span>
+                            {% endif %}
+                        </td>
+                    </tr>
+                {% else %}
+                    <tr>
+                        <td colspan="{% if filtri.magazzino_id %}6{% else %}5{% endif %}" class="text-muted text-center py-3">
+                            Nessun materiale trovato per il riepilogo.
+                        </td>
+                    </tr>
+                {% endfor %}
+                </tbody>
+                {% if riepilogo_materiali %}
+                <tfoot class="table-light fw-bold">
+                    <tr>
+                        <td colspan="3" class="text-end">TOTALE COMPLESSIVO PEZZI:</td>
+                        <td class="text-center text-primary fs-6">{{ totale_quantita_generale }}</td>
+                        {% if filtri.magazzino_id %}
+                        <td class="text-center text-info fs-6">{{ totale_quantita_generale_db }}</td>
+                        {% endif %}
+                        <td></td>
+                    </tr>
+                </tfoot>
+                {% endif %}
+            </table>
+        </div>
+    </div>
+
     <div class="alert alert-info mt-4 small shadow-sm">
         <h6 class="alert-heading fw-bold"><i class="bi bi-info-circle-fill me-1"></i> Guida all'Inventario Magazzini</h6>
         <p class="mb-2">Questa pagina ti permette di consultare la giacenza attuale del materiale aziendale. Se il magazzino è assegnato a te (o sei Amministratore), puoi eseguire le seguenti operazioni:</p>
