@@ -191,7 +191,12 @@ def user_magazzini_list(r: Request, magazzino_id: List[str] = Query(None), sede_
         elif user.get("ruolo") == "admin":
             count_in_arrivo = c.execute(text("SELECT COUNT(*) FROM trasferimenti WHERE stato = 'in_consegna'")).scalar() or 0
 
-        totali_generali = {r["materiale_id"]: r["tot"] for r in c.execute(text("SELECT materiale_id, COALESCE(SUM(quantita), 0) AS tot FROM giacenze GROUP BY materiale_id")).mappings().all()}
+        totali_generali = {}
+        try:
+            tot_rows = c.execute(text("SELECT materiale_id, COALESCE(SUM(quantita), 0) FROM giacenze GROUP BY materiale_id")).all()
+            totali_generali = {int(r[0]): int(r[1] or 0) for r in tot_rows if r[0] is not None}
+        except Exception:
+            totali_generali = {}
 
     msg = r.query_params.get("msg")
     trsf_id = r.query_params.get("trsf_id")
@@ -199,30 +204,33 @@ def user_magazzini_list(r: Request, magazzino_id: List[str] = Query(None), sede_
 
     materiali_summary_map = {}
     for row in rows:
-        mat_id = row["materiale_id"]
+        raw_mat_id = row.get("materiale_id")
+        if raw_mat_id is None:
+            continue
+        mat_id = int(raw_mat_id)
         if mat_id not in materiali_summary_map:
             materiali_summary_map[mat_id] = {
                 "materiale_id": mat_id,
-                "materiale_nome": row["materiale_nome"],
-                "categoria_nome": row["categoria_nome"] or "—",
-                "soglia_attenzione": row.get("soglia_attenzione", 0),
+                "materiale_nome": str(row.get("materiale_nome") or ""),
+                "categoria_nome": str(row.get("categoria_nome")) if row.get("categoria_nome") else "—",
+                "soglia_attenzione": int(row.get("soglia_attenzione") or 0),
                 "totale_giacenza": 0,
-                "totale_generale_db": totali_generali.get(mat_id, 0),
+                "totale_generale_db": int(totali_generali.get(mat_id, 0)),
                 "magazzini_con_giacenza": 0,
                 "trsf_in_totale": 0,
                 "trsf_out_totale": 0,
             }
-        q = row["quantita"]
+        q = int(row.get("quantita") or 0)
         materiali_summary_map[mat_id]["totale_giacenza"] += q
         if q > 0:
             materiali_summary_map[mat_id]["magazzini_con_giacenza"] += 1
-        materiali_summary_map[mat_id]["trsf_in_totale"] += row.get("trsf_in", 0)
-        materiali_summary_map[mat_id]["trsf_out_totale"] += row.get("trsf_out", 0)
+        materiali_summary_map[mat_id]["trsf_in_totale"] += int(row.get("trsf_in") or 0)
+        materiali_summary_map[mat_id]["trsf_out_totale"] += int(row.get("trsf_out") or 0)
 
     riepilogo_materiali = list(materiali_summary_map.values())
     riepilogo_materiali.sort(key=lambda x: (x["categoria_nome"] or "", x["materiale_nome"]))
-    totale_quantita_generale = sum(m["totale_giacenza"] for m in riepilogo_materiali)
-    totale_quantita_generale_db = sum(m["totale_generale_db"] for m in riepilogo_materiali)
+    totale_quantita_generale = int(sum(m["totale_giacenza"] for m in riepilogo_materiali))
+    totale_quantita_generale_db = int(sum(m["totale_generale_db"] for m in riepilogo_materiali))
 
     return templates.TemplateResponse(r, "magazzini.html", {
         "request": r, "cfg": CFG, "user": user, 
