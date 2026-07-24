@@ -34,7 +34,7 @@ def login_action(r: Request, username: str=Form(...), password: str=Form(...)):
     password = password.strip()
     with engine.connect() as c:
         query = """
-            SELECT u.user_id, u.username, u.password_hash, u.nome, u.cognome, u.email, u.ruolo, u.magazzino_id,
+            SELECT u.user_id, u.username, u.password_hash, u.nome, u.cognome, u.email, u.ruolo, u.magazzino_id, u.sede_id,
                    r.nome AS reparto_nome, s.nome AS sede_nome
             FROM users u
             LEFT JOIN reparti r ON u.reparto_id = r.reparto_id
@@ -65,6 +65,7 @@ def login_action(r: Request, username: str=Form(...), password: str=Form(...)):
                 "cognome": row["cognome"],
                 "reparto_nome": row["reparto_nome"],
                 "sede_nome": row["sede_nome"],
+                "sede_id": row["sede_id"],
                 "magazzino_id": row["magazzino_id"],
                 "roles": roles
             }
@@ -80,6 +81,7 @@ def login_action(r: Request, username: str=Form(...), password: str=Form(...)):
             "ruolo": roles[0],
             "reparto_nome": row["reparto_nome"],
             "sede_nome": row["sede_nome"],
+            "sede_id": row["sede_id"],
             "magazzino_id": row["magazzino_id"],
             "roles": roles
         }
@@ -137,6 +139,7 @@ def select_role_action(r: Request, ruolo: str = Form(...)):
             "ruolo": ruolo,
             "reparto_nome": pending["reparto_nome"],
             "sede_nome": pending["sede_nome"],
+            "sede_id": pending.get("sede_id"),
             "magazzino_id": pending["magazzino_id"],
             "roles": roles
         }

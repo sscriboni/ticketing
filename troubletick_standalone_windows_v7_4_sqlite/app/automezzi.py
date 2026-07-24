@@ -1283,8 +1283,11 @@ def get_autopark(r: Request, msg: str = None, error: str = None):
         return RedirectResponse(url=f"/admin/autopark/gestione?error={err_msg}", status_code=303)
     
     with engine.connect() as conn:
-        # Get user's own reparto_id
-        user_reparto_id = conn.execute(text("SELECT reparto_id FROM users WHERE user_id = :uid"), {"uid": uid}).scalar()
+        # Get user's own reparto_id and sede_id
+        user_row = conn.execute(text("SELECT reparto_id, sede_id FROM users WHERE user_id = :uid"), {"uid": uid}).mappings().first()
+        user_reparto_id = user_row["reparto_id"] if user_row else None
+        user_sede_id = user_row["sede_id"] if user_row else None
+        user_ctx = {**user, "sede_id": user_sede_id} if user_sede_id else user
         
         # Fetch all vehicles
         veicoli_all = conn.execute(text("""
@@ -1364,7 +1367,7 @@ def get_autopark(r: Request, msg: str = None, error: str = None):
                 
         # Fetch all locations (sedi) with count of available vehicles
         sedi_list = conn.execute(text("""
-            SELECT s.sede_id, s.nome,
+            SELECT s.sede_id, s.nome, c.nome AS comune_nome,
                    (SELECT COUNT(*) FROM automezzi a 
                     WHERE (a.sede_attuale_id = s.sede_id 
                            OR a.sede_assegnata_id = s.sede_id
@@ -1372,7 +1375,8 @@ def get_autopark(r: Request, msg: str = None, error: str = None):
                       AND a.stato = 'Disponibile' 
                       AND a.escluso_prenotazione = 0) AS auto_disponibili
             FROM sedi s
-            ORDER BY s.nome
+            LEFT JOIN comuni c ON s.comune_id = c.comune_id
+            ORDER BY COALESCE(c.nome, s.nome) ASC, s.nome ASC
         """)).mappings().all()
         
         # Instant booking properties
@@ -1385,7 +1389,7 @@ def get_autopark(r: Request, msg: str = None, error: str = None):
     return templates.TemplateResponse(r, "autopark.html", {
         "request": r, 
         "cfg": CFG, 
-        "user": user, 
+        "user": user_ctx, 
         "veicoli": veicoli_dicts, 
         "prenotazioni_attive": attive_list, 
         "prenotazioni_passate": passate_list, 

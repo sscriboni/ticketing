@@ -248,9 +248,9 @@
                         <div class="mb-3">
                             <label for="sede_partenza_id" class="form-label fw-semibold">Sede di Partenza</label>
                             <select class="form-select rounded-3" id="sede_partenza_id" name="sede_partenza_id" required>
-                                <option value="" disabled selected>Seleziona sede di partenza...</option>
+                                <option value="" disabled {% if not user.sede_id %}selected{% endif %}>Seleziona sede di partenza...</option>
                                 {% for s in sedi %}
-                                    <option value="{{ s.sede_id }}">{{ s.nome }} ({{ s.auto_disponibili }} auto disponibili)</option>
+                                    <option value="{{ s.sede_id }}" {% if user.sede_id and user.sede_id == s.sede_id %}selected{% endif %}>{% if s.comune_nome %}[{{ s.comune_nome }}] {% endif %}{{ s.nome }} ({{ s.auto_disponibili }} auto disponibili)</option>
                                 {% endfor %}
                             </select>
                         </div>
@@ -682,10 +682,14 @@
                             opt.textContent = `${v.marca_nome} ${v.modello} (${v.targa}) - Non Disponibile (${reason}) - ${v.km_attuali} km`;
                             opt.classList.add("text-muted", "bg-light");
                         }
-                        vehicleSelect.appendChild(opt);
+                    vehicleSelect.appendChild(opt);
                     });
                 }
             });
+            
+            if (sedeSelect.value) {
+                sedeSelect.dispatchEvent(new Event("change"));
+            }
             
             // Listen to vehicle select changes to update details box
             vehicleSelect.addEventListener("change", function() {
