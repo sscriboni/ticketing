@@ -47,9 +47,16 @@
 
                     <div class="row mb-3">
                         <div class="col-md-6">
+                            <label class="form-label fw-bold">Telefono/Cell</label>
+                            <input type="text" name="telefono" class="form-control" value="{{ operatore.telefono or '' }}" placeholder="es: 3331234567">
+                        </div>
+                        <div class="col-md-6">
                             <label class="form-label fw-bold">Username (non modificabile)</label>
                             <input type="text" class="form-control" value="{{ operatore.username }}" disabled>
                         </div>
+                    </div>
+
+                    <div class="row mb-3">
                         <div class="col-md-6">
                             <label class="form-label fw-bold">Ultimo Accesso</label>
                             <input type="text" class="form-control" value="{{ operatore.ultimo_accesso or 'Mai effettuato' }}" disabled>
