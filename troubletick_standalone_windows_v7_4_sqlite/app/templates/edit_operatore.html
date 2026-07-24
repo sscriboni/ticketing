@@ -85,9 +85,9 @@
                     </div>
                     <div class="row mb-3">
                         <div class="col-md-6">
-                            <label class="form-label fw-bold">Sede</label>
-                            <select name="sede_id" class="form-select">
-                                <option value="">Nessuna sede</option>
+                            <label class="form-label fw-bold">Sede assegnata <span class="text-danger">*</span></label>
+                            <select name="sede_id" class="form-select" required>
+                                <option value="" disabled>Seleziona sede assegnata</option>
                                 {% for sede in sedi %}
                                 <option value="{{ sede.sede_id }}" {% if sede.sede_id == operatore.sede_id %}selected{% endif %}>
                                     {{ sede.nome }}

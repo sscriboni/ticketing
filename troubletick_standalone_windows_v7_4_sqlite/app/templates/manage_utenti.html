@@ -48,7 +48,7 @@
                                 </td>
                                 <td>
                                     {{ ut.reparto_nome or '—' }}<br>
-                                    <small class="text-muted">Sede: {{ ut.sede_nome or '—' }}</small>
+                                    <small class="text-muted">Sede assegnata: {{ ut.sede_nome or '—' }}</small>
                                 </td>
                                 <td>
                                     {% if ut.ultimo_accesso %}
@@ -149,9 +149,9 @@
                     </div>
 
                     <div class="mb-3">
-                        <label class="form-label fw-bold">Sede <span class="text-danger">*</span></label>
+                        <label class="form-label fw-bold">Sede assegnata <span class="text-danger">*</span></label>
                         <select name="sede_id" class="form-select" required>
-                            <option value="" disabled selected>Seleziona sede</option>
+                            <option value="" disabled selected>Seleziona sede assegnata</option>
                             {% for sede in sedi %}
                             <option value="{{ sede.sede_id }}">{{ sede.nome }}</option>
                             {% endfor %}

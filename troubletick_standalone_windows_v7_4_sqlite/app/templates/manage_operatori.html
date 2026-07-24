@@ -58,7 +58,7 @@
                                 </td>
                                 <td>
                                     {{ op.reparto_nome or '—' }}<br>
-                                    <small class="text-muted">Sede: {{ op.sede_nome or '—' }}</small><br>
+                                    <small class="text-muted">Sede assegnata: {{ op.sede_nome or '—' }}</small><br>
                                     <small class="text-muted">Mag.: {{ op.magazzino_nome or '—' }}</small>
                                 </td>
                                 <td>
@@ -195,9 +195,9 @@
                     </div>
 
                     <div class="mb-3">
-                        <label class="form-label fw-bold">Sede</label>
-                        <select name="sede_id" class="form-select">
-                            <option value="" selected>Nessuna sede</option>
+                        <label class="form-label fw-bold">Sede assegnata <span class="text-danger">*</span></label>
+                        <select name="sede_id" class="form-select" required>
+                            <option value="" disabled selected>Seleziona sede assegnata</option>
                             {% for sede in sedi %}
                             <option value="{{ sede.sede_id }}">{{ sede.nome }}</option>
                             {% endfor %}

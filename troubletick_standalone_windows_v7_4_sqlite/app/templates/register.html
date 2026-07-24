@@ -64,7 +64,7 @@
                 <select name="reparto_id" class="form-select" required><option value="" disabled selected>Scegli...</option>{% for r in reparti %}<option value="{{ r.reparto_id }}">{{ r.nome }}</option>{% endfor %}</select>
             </div>
             <div class="col-md-6">
-                <label class="form-label fw-bold">Sede *</label>
+                <label class="form-label fw-bold">Sede assegnata *</label>
                 <select name="sede_id" class="form-select" required><option value="" disabled selected>Scegli...</option>{% for s in sedi %}<option value="{{ s.sede_id }}">{{ s.nome }}</option>{% endfor %}</select>
             </div>
         </div>

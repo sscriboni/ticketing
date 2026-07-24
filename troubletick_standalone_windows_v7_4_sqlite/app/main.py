@@ -60,6 +60,7 @@ try:
             telefono TEXT,
             ruolo TEXT NOT NULL,
             reparto_id INTEGER,
+            sede_id INTEGER,
             attivo INTEGER DEFAULT 1,
             is_test INTEGER DEFAULT 0,
             activation_token TEXT
@@ -2436,15 +2437,16 @@ async def import_operatori(r: Request, file: UploadFile = File(...)):
                 if row.get("username") and row.get("password"):
                     try:
                         c.execute(text("""INSERT INTO users 
-                            (username, password_hash, nome, cognome, email, telefono, ruolo, reparto_id, attivo) 
-                            VALUES (:username, :password_hash, :nome, :cognome, :email, :telefono, 'assistenza', :reparto_id, 1)"""),
+                            (username, password_hash, nome, cognome, email, telefono, ruolo, reparto_id, sede_id, attivo) 
+                            VALUES (:username, :password_hash, :nome, :cognome, :email, :telefono, 'assistenza', :reparto_id, :sede_id, 1)"""),
                             {"username": row.get("username").strip(),
                              "password_hash": h(row.get("password")),
                              "nome": row.get("nome", "").strip(),
                              "cognome": row.get("cognome", "").strip(),
                              "email": row.get("email", "").strip(),
                              "telefono": row.get("telefono", "").strip() if "telefono" in row else "",
-                             "reparto_id": int(row.get("reparto_id")) if row.get("reparto_id") else None})
+                             "reparto_id": int(row.get("reparto_id")) if row.get("reparto_id") else None,
+                             "sede_id": int(row.get("sede_id")) if row.get("sede_id") and str(row.get("sede_id")).isdigit() else None})
                         
                         user_id = c.execute(text("SELECT user_id FROM users WHERE username = :u"), {"u": row.get("username").strip()}).scalar()
                         if user_id:
