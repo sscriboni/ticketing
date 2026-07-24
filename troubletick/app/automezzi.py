@@ -197,6 +197,123 @@ with engine.begin() as conn:
             "s1": s1, "s2": s2, "s3": s3, "rep1": rep1, "rep2": rep2, "rep3": rep3
         })
 
+@router.get("/admin/automezzi/dislocazioni", response_class=HTMLResponse)
+def page_dislocazioni(r: Request):
+    if "user" not in r.session: 
+        return RedirectResponse(url="/login")
+    user = r.session.get("user")
+    if user.get("ruolo") not in ("admin", "fleet_manager", "global_fleet_manager"):
+        return RedirectResponse(url="/")
+
+    user_reparto_id = None
+    with engine.connect() as conn:
+        if user.get("ruolo") == "fleet_manager":
+            user_reparto_id = conn.execute(text("SELECT reparto_id FROM users WHERE user_id = :uid"), {"uid": user.get("id")}).scalar()
+
+        if user.get("ruolo") == "fleet_manager" and user_reparto_id is not None:
+            automezzi = conn.execute(text("""
+                SELECT a.*, 
+                       m.nome as marca_nome,
+                       s_ass.nome as sede_assegnata_nome, 
+                       s_att.nome as sede_attuale_nome, 
+                       r.nome as reparto_assegnato_nome
+                FROM automezzi a
+                JOIN marche_automezzi m ON a.marca_id = m.marca_id
+                LEFT JOIN sedi s_ass ON a.sede_assegnata_id = s_ass.sede_id
+                LEFT JOIN sedi s_att ON a.sede_attuale_id = s_att.sede_id
+                LEFT JOIN reparti r ON a.reparto_assegnato_id = r.reparto_id
+                WHERE a.reparto_assegnato_id = :rep
+                ORDER BY s_ass.nome, r.nome, a.targa
+            """), {"rep": user_reparto_id}).mappings().all()
+        else:
+            automezzi = conn.execute(text("""
+                SELECT a.*, 
+                       m.nome as marca_nome,
+                       s_ass.nome as sede_assegnata_nome, 
+                       s_att.nome as sede_attuale_nome, 
+                       r.nome as reparto_assegnato_nome
+                FROM automezzi a
+                JOIN marche_automezzi m ON a.marca_id = m.marca_id
+                LEFT JOIN sedi s_ass ON a.sede_assegnata_id = s_ass.sede_id
+                LEFT JOIN sedi s_att ON a.sede_attuale_id = s_att.sede_id
+                LEFT JOIN reparti r ON a.reparto_assegnato_id = r.reparto_id
+                ORDER BY s_ass.nome, r.nome, a.targa
+            """)).mappings().all()
+
+    sedi_map = {}
+    servizi_map = {}
+
+    totale_veicoli = len(automezzi)
+    totale_disponibili = 0
+    totale_in_uso = 0
+    totale_in_manutenzione = 0
+
+    for a in automezzi:
+        stato = (a.get("stato") or "").strip().lower()
+        if stato == "disponibile":
+            totale_disponibili += 1
+        elif stato == "in uso":
+            totale_in_uso += 1
+        elif stato == "in manutenzione":
+            totale_in_manutenzione += 1
+
+        sede_nome = a.get("sede_assegnata_nome") or "Sede Non Assegnata"
+        if sede_nome not in sedi_map:
+            sedi_map[sede_nome] = {
+                "nome": sede_nome,
+                "veicoli": [],
+                "totale_auto": 0,
+                "disponibili": 0,
+                "in_uso": 0,
+                "in_manutenzione": 0
+            }
+        sedi_map[sede_nome]["veicoli"].append(a)
+        sedi_map[sede_nome]["totale_auto"] += 1
+        if stato == "disponibile":
+            sedi_map[sede_nome]["disponibili"] += 1
+        elif stato == "in uso":
+            sedi_map[sede_nome]["in_uso"] += 1
+        elif stato == "in manutenzione":
+            sedi_map[sede_nome]["in_manutenzione"] += 1
+
+        servizio_nome = a.get("reparto_assegnato_nome") or "Servizio Non Assegnato"
+        if servizio_nome not in servizi_map:
+            servizi_map[servizio_nome] = {
+                "nome": servizio_nome,
+                "veicoli": [],
+                "totale_auto": 0,
+                "disponibili": 0,
+                "in_uso": 0,
+                "in_manutenzione": 0
+            }
+        servizi_map[servizio_nome]["veicoli"].append(a)
+        servizi_map[servizio_nome]["totale_auto"] += 1
+        if stato == "disponibile":
+            servizi_map[servizio_nome]["disponibili"] += 1
+        elif stato == "in uso":
+            servizi_map[servizio_nome]["in_uso"] += 1
+        elif stato == "in manutenzione":
+            servizi_map[servizio_nome]["in_manutenzione"] += 1
+
+    elenco_sedi = sorted(list(sedi_map.values()), key=lambda x: x["nome"])
+    elenco_servizi = sorted(list(servizi_map.values()), key=lambda x: x["nome"])
+
+    stats = {
+        "totale_veicoli": totale_veicoli,
+        "totale_sedi": len(elenco_sedi),
+        "totale_servizi": len(elenco_servizi),
+        "totale_disponibili": totale_disponibili,
+        "totale_in_uso": totale_in_uso,
+        "totale_in_manutenzione": totale_in_manutenzione
+    }
+
+    return templates.TemplateResponse(r, "admin_automezzi_dislocazioni.html", {
+        "request": r, "cfg": CFG, "user": user,
+        "elenco_sedi": elenco_sedi,
+        "elenco_servizi": elenco_servizi,
+        "stats": stats
+    })
+
 @router.get("/admin/automezzi", response_class=HTMLResponse)
 def list_automezzi(r: Request):
     if "user" not in r.session: 

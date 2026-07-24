@@ -1,0 +1,354 @@
+<!doctype html>
+<html lang="it">
+<head>
+    <meta charset="utf-8">
+    <title>Dislocazioni Automezzi — {{ cfg.get('app_title', 'TroubleTick') }}</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css">
+    <style>
+        .stat-card {
+            border: none;
+            border-radius: 12px;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.05);
+            transition: transform 0.2s;
+        }
+        .stat-card:hover {
+            transform: translateY(-3px);
+        }
+        .group-header {
+            background-color: #f8f9fa;
+            border-bottom: 2px solid #e9ecef;
+            padding: 1rem 1.25rem;
+            border-top-left-radius: 10px;
+            border-top-right-radius: 10px;
+        }
+        .vehicle-card {
+            border-radius: 10px;
+            box-shadow: 0 2px 5px rgba(0,0,0,0.04);
+            border: 1px solid #e2e8f0;
+            margin-bottom: 1.5rem;
+        }
+        .custom-table th {
+            font-size: 0.8rem;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            color: #6c757d;
+        }
+    </style>
+</head>
+<body class="bg-light">
+{% include 'navbar.html' %}
+
+<div class="container py-4">
+    <!-- Header -->
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <div>
+            <h2 class="mb-1 fw-bold text-dark">
+                <i class="bi bi-geo-fill text-primary me-2"></i>Dislocazioni Automezzi
+            </h2>
+            <p class="text-muted mb-0 small">
+                Prospetto generale del parco auto raggruppato per Sede Assegnata e per Servizio/Reparto Assegnato.
+            </p>
+        </div>
+        <div class="d-flex gap-2">
+            <a href="/admin/automezzi" class="btn btn-outline-primary btn-sm fw-bold">
+                <i class="bi bi-car-front me-1"></i> Elenco Automezzi
+            </a>
+            <a href="/autopark" class="btn btn-outline-secondary btn-sm">
+                <i class="bi bi-calendar3 me-1"></i> Prenotazioni
+            </a>
+        </div>
+    </div>
+
+    <!-- KPI Summary Cards -->
+    <div class="row g-3 mb-4">
+        <div class="col-6 col-md-3">
+            <div class="card stat-card p-3 bg-white">
+                <div class="d-flex align-items-center justify-content-between">
+                    <div>
+                        <span class="text-muted small fw-bold text-uppercase d-block">Totale Veicoli</span>
+                        <h3 class="fw-bold mb-0 text-primary">{{ stats.totale_veicoli }}</h3>
+                    </div>
+                    <div class="p-3 bg-primary bg-opacity-10 text-primary rounded-3 fs-3">
+                        <i class="bi bi-car-front-fill"></i>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <div class="col-6 col-md-3">
+            <div class="card stat-card p-3 bg-white">
+                <div class="d-flex align-items-center justify-content-between">
+                    <div>
+                        <span class="text-muted small fw-bold text-uppercase d-block">Sedi Assegnate</span>
+                        <h3 class="fw-bold mb-0 text-success">{{ stats.totale_sedi }}</h3>
+                    </div>
+                    <div class="p-3 bg-success bg-opacity-10 text-success rounded-3 fs-3">
+                        <i class="bi bi-buildings-fill"></i>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <div class="col-6 col-md-3">
+            <div class="card stat-card p-3 bg-white">
+                <div class="d-flex align-items-center justify-content-between">
+                    <div>
+                        <span class="text-muted small fw-bold text-uppercase d-block">Servizi / Reparti</span>
+                        <h3 class="fw-bold mb-0 text-info">{{ stats.totale_servizi }}</h3>
+                    </div>
+                    <div class="p-3 bg-info bg-opacity-10 text-info rounded-3 fs-3">
+                        <i class="bi bi-diagram-3-fill"></i>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <div class="col-6 col-md-3">
+            <div class="card stat-card p-3 bg-white">
+                <div class="d-flex align-items-center justify-content-between">
+                    <div>
+                        <span class="text-muted small fw-bold text-uppercase d-block">Stato Flotta</span>
+                        <div class="small fw-semibold text-dark mt-1">
+                            <span class="text-success"><i class="bi bi-circle-fill me-1" style="font-size:0.5rem;"></i>{{ stats.totale_disponibili }} Disp.</span> |
+                            <span class="text-warning"><i class="bi bi-circle-fill me-1" style="font-size:0.5rem;"></i>{{ stats.totale_in_uso }} In uso</span>
+                        </div>
+                    </div>
+                    <div class="p-3 bg-warning bg-opacity-10 text-warning rounded-3 fs-3">
+                        <i class="bi bi-pie-chart-fill"></i>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Navigation Tabs -->
+    <ul class="nav nav-pills mb-4 bg-white p-2 rounded shadow-sm gap-2" id="dislocazioniTabs" role="tablist">
+        <li class="nav-item" role="presentation">
+            <button class="nav-link active fw-bold" id="sedi-tab" data-bs-toggle="tab" data-bs-target="#sedi-pane" type="button" role="tab" aria-controls="sedi-pane" aria-selected="true">
+                <i class="bi bi-buildings me-2"></i>Raggruppamento per Sede Assegnata
+                <span class="badge bg-primary rounded-pill ms-2">{{ elenco_sedi|length }}</span>
+            </button>
+        </li>
+        <li class="nav-item" role="presentation">
+            <button class="nav-link fw-bold" id="servizi-tab" data-bs-toggle="tab" data-bs-target="#servizi-pane" type="button" role="tab" aria-controls="servizi-pane" aria-selected="false">
+                <i class="bi bi-diagram-3 me-2"></i>Raggruppamento per Servizio Assegnato
+                <span class="badge bg-success rounded-pill ms-2">{{ elenco_servizi|length }}</span>
+            </button>
+        </li>
+    </ul>
+
+    <!-- Filter input -->
+    <div class="mb-4">
+        <div class="input-group">
+            <span class="input-group-text bg-white border-end-0"><i class="bi bi-search text-muted"></i></span>
+            <input type="text" id="dislocazioniSearch" class="form-control border-start-0" placeholder="Filtra per targa, modello, sede o servizio...">
+        </div>
+    </div>
+
+    <!-- Tab Content -->
+    <div class="tab-content" id="dislocazioniTabContent">
+        
+        <!-- TAB 1: RAGGRUPPAMENTO PER SEDE ASSEGNATA -->
+        <div class="tab-pane fade show active" id="sedi-pane" role="tabpanel" aria-labelledby="sedi-tab" tabindex="0">
+            {% for sede in elenco_sedi %}
+            <div class="vehicle-card bg-white group-item-card mb-4">
+                <div class="group-header d-flex justify-content-between align-items-center">
+                    <div class="d-flex align-items-center gap-2">
+                        <i class="bi bi-building text-primary fs-5"></i>
+                        <h5 class="mb-0 fw-bold text-dark">{{ sede.nome }}</h5>
+                    </div>
+                    <div class="d-flex align-items-center gap-2">
+                        <span class="badge bg-light text-dark border me-1">
+                            Disponibili: <strong>{{ sede.disponibili }}</strong>
+                        </span>
+                        <span class="badge bg-light text-dark border me-1">
+                            In Uso: <strong>{{ sede.in_uso }}</strong>
+                        </span>
+                        <span class="badge bg-primary fs-6 px-3 py-2 shadow-sm">
+                            Totale Auto: {{ sede.totale_auto }}
+                        </span>
+                    </div>
+                </div>
+                <div class="p-3">
+                    <div class="table-responsive">
+                        <table class="table table-hover align-middle custom-table mb-0">
+                            <thead class="table-light">
+                                <tr>
+                                    <th>Targa</th>
+                                    <th>Marca / Modello</th>
+                                    <th>Tipo</th>
+                                    <th>Servizio / Reparto Assegnato</th>
+                                    <th>Sede Attuale</th>
+                                    <th>Stato</th>
+                                    <th>KM Attuali</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                            {% for v in sede.veicoli %}
+                                <tr class="searchable-row">
+                                    <td>
+                                        <span class="badge bg-dark font-monospace fs-6 px-2 py-1 shadow-sm">{{ v.targa }}</span>
+                                    </td>
+                                    <td>
+                                        <strong>{{ v.marca_nome }} {{ v.modello }}</strong>
+                                        {% if v.colore %}<span class="text-muted small">({{ v.colore }})</span>{% endif %}
+                                    </td>
+                                    <td>
+                                        {% if v.tipo == 'furgone' %}
+                                        <span class="badge bg-secondary"><i class="bi bi-truck me-1"></i>Furgone</span>
+                                        {% else %}
+                                        <span class="badge bg-info text-dark"><i class="bi bi-car-front me-1"></i>Auto</span>
+                                        {% endif %}
+                                    </td>
+                                    <td>
+                                        <span class="fw-semibold text-dark">{{ v.reparto_assegnato_nome or '—' }}</span>
+                                    </td>
+                                    <td>
+                                        <span class="text-secondary"><i class="bi bi-geo-alt me-1"></i>{{ v.sede_attuale_nome or sede.nome }}</span>
+                                    </td>
+                                    <td>
+                                        {% if v.stato == 'Disponibile' %}
+                                        <span class="badge bg-success-subtle text-success border border-success-subtle px-2 py-1"><i class="bi bi-check-circle-fill me-1"></i>Disponibile</span>
+                                        {% elif v.stato == 'In Uso' %}
+                                        <span class="badge bg-warning-subtle text-warning-emphasis border border-warning-subtle px-2 py-1"><i class="bi bi-key-fill me-1"></i>In Uso</span>
+                                        {% else %}
+                                        <span class="badge bg-danger-subtle text-danger border border-danger-subtle px-2 py-1"><i class="bi bi-wrench me-1"></i>{{ v.stato }}</span>
+                                        {% endif %}
+                                    </td>
+                                    <td>
+                                        <span class="font-monospace fw-semibold">{{ "{:,}".format(v.km_attuali or 0).replace(",", ".") }} km</span>
+                                    </td>
+                                </tr>
+                            {% endfor %}
+                            </tbody>
+                            <tfoot class="table-light fw-bold">
+                                <tr>
+                                    <td colspan="4" class="text-end text-uppercase small text-muted">TOTALE AUTO ASSEGNATE A {{ sede.nome }}:</td>
+                                    <td colspan="3" class="text-primary fs-6">{{ sede.totale_auto }} auto</td>
+                                </tr>
+                            </tfoot>
+                        </table>
+                    </div>
+                </div>
+            </div>
+            {% else %}
+            <div class="bg-white p-5 rounded shadow-sm text-center">
+                <i class="bi bi-inbox text-muted display-4"></i>
+                <p class="text-muted mt-3">Nessun automezzo trovato per il raggruppamento per sede.</p>
+            </div>
+            {% endfor %}
+        </div>
+
+        <!-- TAB 2: RAGGRUPPAMENTO PER SERVIZIO ASSEGNATO -->
+        <div class="tab-pane fade" id="servizi-pane" role="tabpanel" aria-labelledby="servizi-tab" tabindex="0">
+            {% for servizio in elenco_servizi %}
+            <div class="vehicle-card bg-white group-item-card mb-4">
+                <div class="group-header d-flex justify-content-between align-items-center bg-light">
+                    <div class="d-flex align-items-center gap-2">
+                        <i class="bi bi-diagram-3 text-success fs-5"></i>
+                        <h5 class="mb-0 fw-bold text-dark">{{ servizio.nome }}</h5>
+                    </div>
+                    <div class="d-flex align-items-center gap-2">
+                        <span class="badge bg-light text-dark border me-1">
+                            Disponibili: <strong>{{ servizio.disponibili }}</strong>
+                        </span>
+                        <span class="badge bg-light text-dark border me-1">
+                            In Uso: <strong>{{ servizio.in_uso }}</strong>
+                        </span>
+                        <span class="badge bg-success fs-6 px-3 py-2 shadow-sm">
+                            Totale Auto: {{ servizio.totale_auto }}
+                        </span>
+                    </div>
+                </div>
+                <div class="p-3">
+                    <div class="table-responsive">
+                        <table class="table table-hover align-middle custom-table mb-0">
+                            <thead class="table-light">
+                                <tr>
+                                    <th>Targa</th>
+                                    <th>Marca / Modello</th>
+                                    <th>Tipo</th>
+                                    <th>Sede Assegnata</th>
+                                    <th>Sede Attuale</th>
+                                    <th>Stato</th>
+                                    <th>KM Attuali</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                            {% for v in servizio.veicoli %}
+                                <tr class="searchable-row">
+                                    <td>
+                                        <span class="badge bg-dark font-monospace fs-6 px-2 py-1 shadow-sm">{{ v.targa }}</span>
+                                    </td>
+                                    <td>
+                                        <strong>{{ v.marca_nome }} {{ v.modello }}</strong>
+                                        {% if v.colore %}<span class="text-muted small">({{ v.colore }})</span>{% endif %}
+                                    </td>
+                                    <td>
+                                        {% if v.tipo == 'furgone' %}
+                                        <span class="badge bg-secondary"><i class="bi bi-truck me-1"></i>Furgone</span>
+                                        {% else %}
+                                        <span class="badge bg-info text-dark"><i class="bi bi-car-front me-1"></i>Auto</span>
+                                        {% endif %}
+                                    </td>
+                                    <td>
+                                        <span class="fw-semibold text-dark"><i class="bi bi-building me-1"></i>{{ v.sede_assegnata_nome or '—' }}</span>
+                                    </td>
+                                    <td>
+                                        <span class="text-secondary"><i class="bi bi-geo-alt me-1"></i>{{ v.sede_attuale_nome or v.sede_assegnata_nome or '—' }}</span>
+                                    </td>
+                                    <td>
+                                        {% if v.stato == 'Disponibile' %}
+                                        <span class="badge bg-success-subtle text-success border border-success-subtle px-2 py-1"><i class="bi bi-check-circle-fill me-1"></i>Disponibile</span>
+                                        {% elif v.stato == 'In Uso' %}
+                                        <span class="badge bg-warning-subtle text-warning-emphasis border border-warning-subtle px-2 py-1"><i class="bi bi-key-fill me-1"></i>In Uso</span>
+                                        {% else %}
+                                        <span class="badge bg-danger-subtle text-danger border border-danger-subtle px-2 py-1"><i class="bi bi-wrench me-1"></i>{{ v.stato }}</span>
+                                        {% endif %}
+                                    </td>
+                                    <td>
+                                        <span class="font-monospace fw-semibold">{{ "{:,}".format(v.km_attuali or 0).replace(",", ".") }} km</span>
+                                    </td>
+                                </tr>
+                            {% endfor %}
+                            </tbody>
+                            <tfoot class="table-light fw-bold">
+                                <tr>
+                                    <td colspan="4" class="text-end text-uppercase small text-muted">TOTALE AUTO ASSEGNATE A {{ servizio.nome }}:</td>
+                                    <td colspan="3" class="text-success fs-6">{{ servizio.totale_auto }} auto</td>
+                                </tr>
+                            </tfoot>
+                        </table>
+                    </div>
+                </div>
+            </div>
+            {% else %}
+            <div class="bg-white p-5 rounded shadow-sm text-center">
+                <i class="bi bi-inbox text-muted display-4"></i>
+                <p class="text-muted mt-3">Nessun automezzo trovato per il raggruppamento per servizio.</p>
+            </div>
+            {% endfor %}
+        </div>
+
+    </div>
+</div>
+
+<script>
+    document.addEventListener('DOMContentLoaded', function() {
+        var searchInput = document.getElementById('dislocazioniSearch');
+        if (searchInput) {
+            searchInput.addEventListener('input', function() {
+                var term = this.value.toLowerCase().trim();
+                var rows = document.querySelectorAll('.searchable-row');
+                rows.forEach(function(row) {
+                    var text = row.innerText.toLowerCase();
+                    if (text.indexOf(term) !== -1) {
+                        row.style.display = '';
+                    } else {
+                        row.style.display = 'none';
+                    }
+                });
+            });
+        }
+    });
+</script>
+</body>
+</html>
