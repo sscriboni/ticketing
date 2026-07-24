@@ -248,7 +248,7 @@
                     <h5 class="modal-title fw-bold" id="addVehicleModalLabel"><i class="bi bi-car-front-fill me-2"></i> Aggiungi Nuovo Veicolo</h5>
                     <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
                 </div>
-                <form action="../veicolo/nuovo" method="post">
+                <form action="../veicolo/nuovo" method="post" onsubmit="unlockKmBeforeSubmit(this)">
                     <div class="modal-body">
                         <div class="row g-3 mb-3">
                             <div class="col-md-4">
@@ -314,8 +314,14 @@
                         
                         <div class="row g-3 mb-3">
                             <div class="col-md-6">
-                                <label class="form-label text-muted">Chilometri Attuali</label>
-                                <input type="number" class="form-control" name="km_attuali" value="0">
+                                <div class="d-flex justify-content-between align-items-center mb-1">
+                                    <label class="form-label text-muted mb-0">Contachilometri</label>
+                                    <div class="form-check m-0">
+                                        <input class="form-check-input" type="checkbox" id="addLockKm" checked onchange="toggleKmLock('add')">
+                                        <label class="form-check-label text-muted small ms-1" for="addLockKm" style="font-size: 0.78rem;">Inibisci modifica</label>
+                                    </div>
+                                </div>
+                                <input type="number" class="form-control" name="km_attuali" id="addKmAttuali" value="0" disabled>
                             </div>
                             <div class="col-md-6">
                                 <label class="form-label text-muted">Stato *</label>
@@ -426,7 +432,7 @@
                     <h5 class="modal-title fw-bold" id="editVehicleModalLabel"><i class="bi bi-pencil-square me-2"></i> Modifica Veicolo</h5>
                     <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
                 </div>
-                <form id="editVehicleForm" method="post">
+                <form id="editVehicleForm" method="post" onsubmit="unlockKmBeforeSubmit(this)">
                     <div class="modal-body">
                         <div class="row g-3 mb-3">
                             <div class="col-md-4">
@@ -492,8 +498,14 @@
                         
                         <div class="row g-3 mb-3">
                             <div class="col-md-6">
-                                <label class="form-label text-muted">Chilometri Attuali</label>
-                                <input type="number" class="form-control" name="km_attuali" id="editKmAttuali">
+                                <div class="d-flex justify-content-between align-items-center mb-1">
+                                    <label class="form-label text-muted mb-0">Contachilometri</label>
+                                    <div class="form-check m-0">
+                                        <input class="form-check-input" type="checkbox" id="editLockKm" checked onchange="toggleKmLock('edit')">
+                                        <label class="form-check-label text-muted small ms-1" for="editLockKm" style="font-size: 0.78rem;">Inibisci modifica</label>
+                                    </div>
+                                </div>
+                                <input type="number" class="form-control" name="km_attuali" id="editKmAttuali" disabled>
                             </div>
                             <div class="col-md-6">
                                 <label class="form-label text-muted">Stato *</label>
@@ -610,7 +622,34 @@
         });
 
         // Automezzi CRUD helper functions
+        function toggleKmLock(mode) {
+            const isAdd = mode === 'add';
+            const lockCb = document.getElementById(isAdd ? 'addLockKm' : 'editLockKm');
+            const kmInput = document.getElementById(isAdd ? 'addKmAttuali' : 'editKmAttuali');
+            
+            if (!lockCb || !kmInput) return;
+            
+            if (lockCb.checked) {
+                kmInput.disabled = true;
+            } else {
+                alert("la modifica del contachilometri non deve essere utilizzato per aggiornare periodicamente i km perchè si perdono i dati storici, utilizzare invece la registrazione viaggio per gli aggiornamenti peridodici");
+                kmInput.disabled = false;
+                kmInput.focus();
+            }
+        }
+
+        function unlockKmBeforeSubmit(form) {
+            const kmInput = form.querySelector('input[name="km_attuali"]');
+            if (kmInput) {
+                kmInput.disabled = false;
+            }
+        }
+
         function showAddVehicleModal() {
+            const addLockCb = document.getElementById('addLockKm');
+            const addKmInput = document.getElementById('addKmAttuali');
+            if (addLockCb) addLockCb.checked = true;
+            if (addKmInput) addKmInput.disabled = true;
             addVehicleModalEl.show();
         }
 
@@ -652,6 +691,11 @@
             document.getElementById('editFornitore').value = v.fornitore || '';
             document.getElementById('editClasseEuro').value = v.classe_euro || '';
             
+            const editLockCb = document.getElementById('editLockKm');
+            const editKmInput = document.getElementById('editKmAttuali');
+            if (editLockCb) editLockCb.checked = true;
+            if (editKmInput) editKmInput.disabled = true;
+
             toggleEditCanone();
             
             // Check associated maintenance types
@@ -694,7 +738,7 @@
         // Maintenance parameters dynamic toggle logic
         document.addEventListener('DOMContentLoaded', () => {
             const todayStr = new Date().toISOString().split('T')[0];
-            const addKmInput = document.getElementById('km_attuali');
+            const addKmInput = document.getElementById('addKmAttuali');
             const editKmMain = document.getElementById('editKmAttuali');
 
             // Add modal

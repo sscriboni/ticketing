@@ -9,10 +9,10 @@ Il sistema gestisce l'intero ciclo di vita di un viaggio: dalla prenotazione (st
 ## 🛠️ Architettura e Avvio dell'Applicazione
 
 L'applicazione Autopark è configurata per funzionare in parallelo con l'applicazione web principale (Helpdesk/Troubleticket):
-* **File di Erogazione**: La webapp dell'Autopark è erogata in modo indipendente dal file [appautopark.py](file:///g:/Il%20mio%20Drive/Progetti/ticketing/troubletick_standalone_windows_v7_4_sqlite/app/appautopark.py).
+* **File di Erogazione**: La webapp dell'Autopark è erogata in modo indipendente dal file [appautopark.py](file:///g:/Il%20mio%20Drive/Progetti/ticketing/troubletick/app/appautopark.py).
 * **Porta e Avvio**: Viene eseguita in parallelo all'applicazione principale ed erogata su una porta di rete diversa (solitamente la porta **`5002`**, avviata tramite Uvicorn con `uvicorn appautopark:app --host 0.0.0.0 --port 5002`). L'applicazione principale di troubleticket gira invece sulla propria porta dedicata (porta `5000` o `5001`).
 * **Database Condiviso**: Entrambe le applicazioni si collegano allo stesso database SQLite locale (`troubletick.db`), garantendo la sincronia in tempo reale delle tabelle utenti, reparti, sedi e dei viaggi della flotta.
-* **Script di Avvio**: Su Windows, l'avvio in parallelo è facilitato dal file batch dedicato [startautopark.bat](file:///g:/Il%20mio%20Drive/Progetti/ticketing/troubletick_standalone_windows_v7_4_sqlite/startautopark.bat).
+* **Script di Avvio**: Su Windows, l'avvio in parallelo è facilitato dal file batch dedicato [startautopark.bat](file:///g:/Il%20mio%20Drive/Progetti/ticketing/troubletick/startautopark.bat).
 
 ---
 
