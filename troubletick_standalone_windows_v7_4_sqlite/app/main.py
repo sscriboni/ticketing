@@ -2463,23 +2463,34 @@ def user_profile_form(r: Request, msg: str = None, error: str = None):
     if "user" not in r.session: return RedirectResponse(url="/login")
     user = r.session.get("user")
     with engine.connect() as c:
-        operatore = c.execute(text("SELECT email, telefono, username, nome, cognome FROM users WHERE user_id = :uid"), {"uid": user.get("id")}).mappings().first()
-    return templates.TemplateResponse(r, "profilo.html", {"request": r, "cfg": CFG, "user": user, "operatore": operatore, "msg": msg, "error": error})
+        operatore = c.execute(text("SELECT email, telefono, username, nome, cognome, sede_id FROM users WHERE user_id = :uid"), {"uid": user.get("id")}).mappings().first()
+        sedi = c.execute(text("SELECT s.sede_id, s.nome, c.nome AS comune_nome FROM sedi s LEFT JOIN comuni c ON s.comune_id = c.comune_id ORDER BY COALESCE(c.nome, s.nome) ASC, s.nome ASC")).mappings().all()
+    return templates.TemplateResponse(r, "profilo.html", {"request": r, "cfg": CFG, "user": user, "operatore": operatore, "sedi": sedi, "msg": msg, "error": error})
 
 @app.post("/profilo")
-def user_profile_action(r: Request, telefono: str = Form(""), password: str = Form(""), conferma_password: str = Form("")):
+def user_profile_action(r: Request, telefono: str = Form(""), password: str = Form(""), conferma_password: str = Form(""), sede_id: str = Form(None)):
     if "user" not in r.session: return RedirectResponse(url="/login")
     user = r.session.get("user")
     
     if password and password != conferma_password:
         return RedirectResponse(url="/profilo?error=passwords_mismatch", status_code=303)
         
+    sede_id_val = int(sede_id) if sede_id and str(sede_id).isdigit() else None
+
     with engine.begin() as c:
         if password:
             hashed = bcrypt.hashpw(password.encode('utf-8'), bcrypt.gensalt()).decode('utf-8')
-            c.execute(text("UPDATE users SET telefono=:tel, password_hash=:p WHERE user_id=:uid"), {"tel": telefono, "p": hashed, "uid": user.get("id")})
+            c.execute(text("UPDATE users SET telefono=:tel, sede_id=:sede, password_hash=:p WHERE user_id=:uid"), {"tel": telefono, "sede": sede_id_val, "p": hashed, "uid": user.get("id")})
         else:
-            c.execute(text("UPDATE users SET telefono=:tel WHERE user_id=:uid"), {"tel": telefono, "uid": user.get("id")})
+            c.execute(text("UPDATE users SET telefono=:tel, sede_id=:sede WHERE user_id=:uid"), {"tel": telefono, "sede": sede_id_val, "uid": user.get("id")})
+            
+        if "user" in r.session:
+            r.session["user"]["sede_id"] = sede_id_val
+            if sede_id_val:
+                s_nome = c.execute(text("SELECT nome FROM sedi WHERE sede_id = :sid"), {"sid": sede_id_val}).scalar()
+                r.session["user"]["sede_nome"] = s_nome
+            else:
+                r.session["user"]["sede_nome"] = None
                 
     return RedirectResponse(url="/profilo?msg=aggiornato", status_code=303)
 

@@ -30,11 +30,23 @@
             </div>
 
             <form method="post" action="/profilo">
-                <h5 class="border-bottom pb-2 mb-3">Informazioni di Contatto</h5>
-                <div class="mb-4">
+                <h5 class="border-bottom pb-2 mb-3">Informazioni Personali</h5>
+                <div class="mb-3">
                     <label class="form-label fw-bold">Numero di Telefono</label>
                     <input type="text" name="telefono" class="form-control" value="{{ operatore.telefono or '' }}" placeholder="Es. 3331234567">
                     <small class="text-muted">Il tuo numero sarà visibile agli altri colleghi nella rubrica Operatori.</small>
+                </div>
+                <div class="mb-4">
+                    <label class="form-label fw-bold">Sede assegnata</label>
+                    <select name="sede_id" class="form-select">
+                        <option value="" {% if not operatore.sede_id %}selected{% endif %}>Nessuna sede selezionata</option>
+                        {% for s in sedi %}
+                        <option value="{{ s.sede_id }}" {% if operatore.sede_id == s.sede_id %}selected{% endif %}>
+                            {% if s.comune_nome %}[{{ s.comune_nome }}] {% endif %}{{ s.nome }}
+                        </option>
+                        {% endfor %}
+                    </select>
+                    <small class="text-muted">La tua sede assegnata verrà utilizzata come sede di partenza predefinita nei servizi aziendali (es. prenotazioni automezzi).</small>
                 </div>
 
                 <h5 class="border-bottom pb-2 mb-3">Modifica Password</h5>
