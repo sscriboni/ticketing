@@ -159,8 +159,8 @@ def user_magazzini_list(r: Request, magazzino_id: List[str] = Query(None), sede_
         where_sql = ("WHERE " + " AND ".join(where_clauses)) if where_clauses else ""
 
         stmt = text(f"""
-            SELECT m.magazzino_id, m.nome AS magazzino_nome, s.nome AS sede_nome,
-                   mat.materiale_id, mat.nome AS materiale_nome, c.nome AS categoria_nome,
+            SELECT m.magazzino_id AS magazzino_id, m.nome AS magazzino_nome, s.nome AS sede_nome,
+                   mat.materiale_id AS materiale_id, mat.nome AS materiale_nome, c.nome AS categoria_nome,
                    COALESCE(g.quantita, 0) AS quantita, COALESCE(mat.soglia_attenzione, 0) AS soglia_attenzione,
                    COALESCE((SELECT SUM(quantita) FROM trasferimenti WHERE stato = 'in_consegna' AND magazzino_dest_id = m.magazzino_id AND materiale_id = mat.materiale_id), 0) AS trsf_in,
                    COALESCE((SELECT SUM(quantita) FROM trasferimenti WHERE stato = 'in_consegna' AND magazzino_partenza_id = m.magazzino_id AND materiale_id = mat.materiale_id), 0) AS trsf_out
@@ -204,16 +204,27 @@ def user_magazzini_list(r: Request, magazzino_id: List[str] = Query(None), sede_
 
     materiali_summary_map = {}
     for row in rows:
-        raw_mat_id = row.get("materiale_id")
+        raw_mat_id = row.get("materiale_id") if "materiale_id" in row else row.get("mat.materiale_id")
+        if raw_mat_id is None:
+            try:
+                raw_mat_id = row["materiale_id"]
+            except Exception:
+                try:
+                    raw_mat_id = row["mat.materiale_id"]
+                except Exception:
+                    continue
         if raw_mat_id is None:
             continue
         mat_id = int(raw_mat_id)
         if mat_id not in materiali_summary_map:
+            mat_nome = row.get("materiale_nome") or row.get("mat.nome") or ""
+            cat_nome = row.get("categoria_nome") or row.get("c.nome") or "—"
+            soglia = row.get("soglia_attenzione") or row.get("mat.soglia_attenzione") or 0
             materiali_summary_map[mat_id] = {
                 "materiale_id": mat_id,
-                "materiale_nome": str(row.get("materiale_nome") or ""),
-                "categoria_nome": str(row.get("categoria_nome")) if row.get("categoria_nome") else "—",
-                "soglia_attenzione": int(row.get("soglia_attenzione") or 0),
+                "materiale_nome": str(mat_nome),
+                "categoria_nome": str(cat_nome) if cat_nome else "—",
+                "soglia_attenzione": int(soglia),
                 "totale_giacenza": 0,
                 "totale_generale_db": int(totali_generali.get(mat_id, 0)),
                 "magazzini_con_giacenza": 0,
