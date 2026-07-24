@@ -1,7 +1,7 @@
-import os
+import os, io, csv
 from datetime import datetime
 from typing import List
-from fastapi import APIRouter, Request, Form, UploadFile, File, Query, BackgroundTasks
+from fastapi import APIRouter, Request, Form, UploadFile, File, Query, BackgroundTasks, Response
 from fastapi.responses import HTMLResponse, RedirectResponse
 from sqlalchemy import text
 
@@ -253,6 +253,168 @@ def user_magazzini_list(r: Request, magazzino_id: List[str] = Query(None), sede_
         "totale_quantita_generale": totale_quantita_generale,
         "totale_quantita_generale_db": totale_quantita_generale_db
     })
+
+@router.get("/magazzini/esporta")
+def user_magazzini_export(r: Request, magazzino_id: List[str] = Query(None), sede_id: str = None, q: str = None, solo_positive: str = None):
+    if "user" not in r.session: 
+        return RedirectResponse(url="/login")
+    user = r.session.get("user")
+    
+    if user.get("ruolo") == "normale":
+        return RedirectResponse(url="/tickets")
+        
+    with engine.connect() as c:
+        user_mag_ids = c.execute(text("SELECT magazzino_id FROM operatori_magazzini WHERE user_id = :uid"), {"uid": user.get("id")}).scalars().all()
+
+        is_initial_load = not any(k in r.query_params for k in ["magazzino_id", "sede_id", "q", "solo_positive"])
+        if is_initial_load:
+            if not user_mag_ids:
+                solo_positive = "1"
+                magazzino_id = []
+            else:
+                solo_positive = "0"
+                magazzino_id = [str(uid) for uid in user_mag_ids]
+
+        where_clauses = []
+        params = {}
+        
+        if magazzino_id:
+            mag_ids = [int(m) for m in magazzino_id if str(m).isdigit()]
+            if mag_ids:
+                where_clauses.append("m.magazzino_id IN :mag_ids")
+                params["mag_ids"] = mag_ids
+        if sede_id and sede_id.isdigit():
+            where_clauses.append("m.sede_id = :sede_id")
+            params["sede_id"] = int(sede_id)
+        if q:
+            where_clauses.append("mat.nome LIKE :q")
+            params["q"] = f"%{q}%"
+        if solo_positive == "1":
+            where_clauses.append("COALESCE(g.quantita, 0) > 0")
+
+        where_sql = ("WHERE " + " AND ".join(where_clauses)) if where_clauses else ""
+
+        stmt = text(f"""
+            SELECT m.magazzino_id AS magazzino_id, m.nome AS magazzino_nome, s.nome AS sede_nome,
+                   mat.materiale_id AS materiale_id, mat.nome AS materiale_nome, c.nome AS categoria_nome,
+                   COALESCE(g.quantita, 0) AS quantita, COALESCE(mat.soglia_attenzione, 0) AS soglia_attenzione,
+                   COALESCE((SELECT SUM(quantita) FROM trasferimenti WHERE stato = 'in_consegna' AND magazzino_dest_id = m.magazzino_id AND materiale_id = mat.materiale_id), 0) AS trsf_in,
+                   COALESCE((SELECT SUM(quantita) FROM trasferimenti WHERE stato = 'in_consegna' AND magazzino_partenza_id = m.magazzino_id AND materiale_id = mat.materiale_id), 0) AS trsf_out
+            FROM magazzini m
+            JOIN materiali mat ON (m.categoria_id IS NULL OR m.categoria_id = mat.categoria_id)
+            LEFT JOIN giacenze g ON m.magazzino_id = g.magazzino_id AND mat.materiale_id = g.materiale_id
+            LEFT JOIN categorie c ON mat.categoria_id = c.categoria_id
+            LEFT JOIN sedi s ON m.sede_id = s.sede_id
+            {where_sql}
+            ORDER BY m.nome, c.nome, mat.nome
+        """)
+        
+        if "mag_ids" in params:
+            from sqlalchemy import bindparam
+            stmt = stmt.bindparams(bindparam("mag_ids", expanding=True))
+
+        rows = c.execute(stmt, params).mappings().all()
+
+        totali_generali = {}
+        try:
+            tot_rows = c.execute(text("SELECT materiale_id, COALESCE(SUM(quantita), 0) FROM giacenze GROUP BY materiale_id")).all()
+            totali_generali = {int(r[0]): int(r[1] or 0) for r in tot_rows if r[0] is not None}
+        except Exception:
+            totali_generali = {}
+
+    materiali_summary_map = {}
+    for row in rows:
+        raw_mat_id = row.get("materiale_id") if "materiale_id" in row else row.get("mat.materiale_id")
+        if raw_mat_id is None:
+            try:
+                raw_mat_id = row["materiale_id"]
+            except Exception:
+                try:
+                    raw_mat_id = row["mat.materiale_id"]
+                except Exception:
+                    continue
+        if raw_mat_id is None:
+            continue
+        mat_id = int(raw_mat_id)
+        if mat_id not in materiali_summary_map:
+            mat_nome = row.get("materiale_nome") or row.get("mat.nome") or ""
+            cat_nome = row.get("categoria_nome") or row.get("c.nome") or "—"
+            soglia = row.get("soglia_attenzione") or row.get("mat.soglia_attenzione") or 0
+            materiali_summary_map[mat_id] = {
+                "materiale_id": mat_id,
+                "materiale_nome": str(mat_nome),
+                "categoria_nome": str(cat_nome) if cat_nome else "—",
+                "soglia_attenzione": int(soglia),
+                "totale_giacenza": 0,
+                "totale_generale_db": int(totali_generali.get(mat_id, 0)),
+                "magazzini_con_giacenza": 0,
+            }
+        q = int(row.get("quantita") or 0)
+        materiali_summary_map[mat_id]["totale_giacenza"] += q
+        if q > 0:
+            materiali_summary_map[mat_id]["magazzini_con_giacenza"] += 1
+
+    riepilogo_materiali = list(materiali_summary_map.values())
+    riepilogo_materiali.sort(key=lambda x: (x["categoria_nome"] or "", x["materiale_nome"]))
+
+    output = io.StringIO()
+    output.write('\ufeff')
+    writer = csv.writer(output, delimiter=';')
+    
+    writer.writerow(["INVENTARIO MATERIALI PER MAGAZZINO"])
+    writer.writerow([
+        "Magazzino", "Sede", "Materiale", "Categoria", 
+        "Giacenza", "Trasferimenti In Arrivo", "Trasferimenti In Partenza", "Soglia Attenzione"
+    ])
+    
+    for row in rows:
+        mag_nome = row.get("magazzino_nome") or ""
+        sede_nome = row.get("sede_nome") or "—"
+        mat_nome = row.get("materiale_nome") or ""
+        cat_nome = row.get("categoria_nome") or "—"
+        qta = int(row.get("quantita") or 0)
+        trsf_in = int(row.get("trsf_in") or 0)
+        trsf_out = int(row.get("trsf_out") or 0)
+        soglia = int(row.get("soglia_attenzione") or 0)
+
+        writer.writerow([
+            mag_nome, sede_nome, mat_nome, cat_nome,
+            qta, trsf_in, trsf_out, soglia
+        ])
+
+    writer.writerow([])
+    writer.writerow([])
+
+    writer.writerow(["RIEPILOGO QUANTITA COMPLESSIVE MATERIALI"])
+    writer.writerow([
+        "Materiale", "Categoria", "Magazzini con Giacenza", "Totale Giacenza Complessiva", "Stato"
+    ])
+
+    for m in riepilogo_materiali:
+        stato = "Esaurito"
+        if m["soglia_attenzione"] > 0 and m["totale_giacenza"] < m["soglia_attenzione"]:
+            stato = f"Sotto soglia ({m['soglia_attenzione']})"
+        elif m["totale_giacenza"] > 0:
+            stato = "Disponibile"
+
+        writer.writerow([
+            m["materiale_nome"],
+            m["categoria_nome"],
+            m["magazzini_con_giacenza"],
+            m["totale_giacenza"],
+            stato
+        ])
+
+    csv_data = output.getvalue()
+    output.close()
+
+    filename = f"inventario_magazzini_{datetime.now().strftime('%Y%m%d_%H%M%S')}.csv"
+
+    return Response(
+        content=csv_data.encode("utf-8-sig"),
+        media_type="application/vnd.ms-excel; charset=utf-8",
+        headers={"Content-Disposition": f"attachment; filename={filename}"}
+    )
 
 @router.get("/magazzino/{magazzino_id}/giacenza/{materiale_id}", response_class=HTMLResponse)
 def dettaglio_giacenza(r: Request, magazzino_id: int, materiale_id: int, error: str = None):
