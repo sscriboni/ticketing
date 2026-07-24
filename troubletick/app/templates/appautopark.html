@@ -50,7 +50,7 @@
                         Mostrati {{ veicoli|length }} di {{ veicoli|length }} veicoli
                     </span>
                 </div>
-                {% if user.ruolo in ('admin', 'global_fleet_manager') %}
+                {% if user.ruolo in ('admin', 'fleet_manager', 'global_fleet_manager') %}
                 <button class="btn btn-primary px-4 py-2" onclick="showAddVehicleModal()">
                     <i class="bi bi-plus-circle me-1"></i> Aggiungi Veicolo
                 </button>
@@ -195,7 +195,7 @@
                                 </td>
                                 <td class="text-end">
                                     <div class="d-inline-flex gap-2">
-                                        {% if user.ruolo in ('admin', 'global_fleet_manager') %}
+                                        {% if user.ruolo in ('admin', 'global_fleet_manager') or (user.ruolo == 'fleet_manager' and v.reparto_assegnato_id == user_reparto_id) %}
                                             <button class="btn btn-sm btn-outline-primary" onclick='openEditModal({{ {
                                                 "automezzo_id": v.automezzo_id,
                                                 "targa": v.targa,
@@ -352,7 +352,7 @@
                                     <option value="">-- Seleziona Reparto --</option>
                                     {% for rep in reparti %}
                                     {% if user.ruolo in ('admin', 'global_fleet_manager') or rep.reparto_id == user_reparto_id %}
-                                    <option value="{{ rep.reparto_id }}">{{ rep.nome }}</option>
+                                    <option value="{{ rep.reparto_id }}" {% if user.ruolo == 'fleet_manager' and rep.reparto_id == user_reparto_id %}selected{% endif %}>{{ rep.nome }}</option>
                                     {% endif %}
                                     {% endfor %}
                                 </select>

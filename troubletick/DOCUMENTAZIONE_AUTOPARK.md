@@ -54,10 +54,10 @@ Quando la prenotazione diventa attiva, l'utilizzatore gestisce lo stato tramite 
 Il ruolo `fleet_manager` gestisce e coordina il parco veicoli assegnato al proprio specifico reparto di appartenenza.
 
 ### A. Limitazione di Visibilità e Reparto
-* Un Fleet Manager ha visibilità limitata: nell'anagrafica automezzi e nel registro prenotazioni può visualizzare e gestire esclusivamente i veicoli e i viaggi associati a utenti del proprio reparto.
-* Non ha i permessi per inserire nuovi automezzi nel database aziendale né per registrarne le manutenzioni straordinarie.
+* Un Fleet Manager ha visibilità ed operatività circoscritta al proprio reparto: nell'anagrafica automezzi e nel registro prenotazioni può visualizzare e gestire esclusivamente i veicoli e i viaggi associati al proprio reparto.
 
 ### B. Operatività del Fleet Manager
+* **Gestione Schede Automezzi (Reparto)**: Può inserire nuovi veicoli (che verranno automaticamente assegnati al suo reparto), nonché modificare ed eliminare le schede degli automezzi assegnati al proprio reparto.
 * **Prenotazione per Terzi (Reparto)**: Può inserire prenotazioni a nome di altri colleghi appartenenti al suo stesso reparto. In fase di prenotazione, compilerà il campo *Email Conducente* con l'indirizzo del dipendente interessato. Il sistema convalida che il conducente appartenga allo stesso reparto del Fleet Manager.
 * **Esclusione Veicoli di Reparto**: Può escludere temporaneamente i veicoli assegnati al suo reparto dalle prenotazioni degli utenti comuni (es. per fermi tecnici o assegnazioni speciali), oppure riabilitarli quando tornano idonei.
 * **Annullamento Prenotazioni**: Ha la facoltà di cancellare o eliminare le prenotazioni programmate o i viaggi passati esclusivamente per gli utenti del proprio reparto.
