@@ -305,7 +305,7 @@
                         <!-- 4. Seleziona Veicolo -->
                         <div class="mb-3">
                             <label for="automezzo_id" class="form-label fw-semibold">Seleziona Veicolo</label>
-                            <select class="form-select rounded-3" id="automezzo_id" name="automezzo_id" required disabled>
+                            <select class="form-select rounded-3" id="automezzo_id" name="automezzo_id" required>
                                 <option value="" disabled selected>Seleziona prima la sede di partenza...</option>
                             </select>
                             <div class="form-text mt-2 text-primary d-none" id="vehicleInfoBox">
@@ -645,85 +645,86 @@
         const vehicleKmText = document.getElementById("vehicleKmText");
         const vehicleSedeText = document.getElementById("vehicleSedeText");
 
-        if (sedeSelect && vehicleSelect) {
-            sedeSelect.addEventListener("change", function() {
-                const sedeId = parseInt(sedeSelect.value);
-                
-                // Filter vehicles currently at this location or unassigned/fleet-wide
-                const filtered = allVehicles.filter(v => 
+        function updateVehicleOptions() {
+            if (!sedeSelect || !vehicleSelect) return;
+            const sedeId = parseInt(sedeSelect.value) || 0;
+            
+            // Filter vehicles matching the selected sede, or unassigned/0
+            let filtered = allVehicles;
+            if (sedeId > 0) {
+                const specific = allVehicles.filter(v => 
                     v.sede_attuale_id === sedeId || v.sede_attuale_id === 0 || v.sede_attuale_id === null || !v.sede_attuale_id
                 );
-                
-                // Sort: available ones first (stato === 'Disponibile' && escluso_prenotazione === 0)
-                filtered.sort((a, b) => {
-                    const a_avail = (a.stato === 'Disponibile' && a.escluso_prenotazione === 0) ? 1 : 0;
-                    const b_avail = (b.stato === 'Disponibile' && b.escluso_prenotazione === 0) ? 1 : 0;
-                    return b_avail - a_avail; // descending order of availability status (1 before 0)
-                });
-                
-                // Clear dropdown
-                vehicleSelect.innerHTML = "";
-                vehicleInfoBox.classList.add("d-none");
-                
-                if (filtered.length === 0) {
-                    vehicleSelect.disabled = true;
-                    const opt = document.createElement("option");
-                    opt.value = "";
-                    opt.textContent = "Nessun autoveicolo assegnato a questa sede.";
-                    opt.disabled = true;
-                    opt.selected = true;
-                    vehicleSelect.appendChild(opt);
-                } else {
-                    vehicleSelect.disabled = false;
-                    
-                    const placeholder = document.createElement("option");
-                    placeholder.value = "";
-                    placeholder.textContent = "Scegli un veicolo...";
-                    placeholder.disabled = true;
-                    placeholder.selected = true;
-                    vehicleSelect.appendChild(placeholder);
-                    
-                    filtered.forEach(v => {
-                        const opt = document.createElement("option");
-                        opt.value = v.automezzo_id;
-                        opt.setAttribute("data-km", v.km_attuali);
-                        opt.setAttribute("data-sede", v.sede_attuale_nome);
-                        
-                        const is_available = (v.stato === 'Disponibile' && v.escluso_prenotazione === 0);
-                        if (is_available) {
-                            opt.textContent = `${v.marca_nome} ${v.modello} (${v.targa}) - Disponibile - ${v.km_attuali} km`;
-                        } else {
-                            opt.disabled = true;
-                            let reason = v.stato;
-                            if (v.escluso_prenotazione === 1) {
-                                reason = "Escluso";
-                            }
-                            opt.textContent = `${v.marca_nome} ${v.modello} (${v.targa}) - Non Disponibile (${reason}) - ${v.km_attuali} km`;
-                            opt.classList.add("text-muted", "bg-light");
-                        }
-                    vehicleSelect.appendChild(opt);
-                    });
+                if (specific.length > 0) {
+                    filtered = specific;
                 }
-            });
-            
-            if (sedeSelect.value) {
-                sedeSelect.dispatchEvent(new Event("change"));
             }
             
-            // Listen to vehicle select changes to update details box
+            // Sort: available ones first
+            filtered = [...filtered].sort((a, b) => {
+                const a_avail = (a.stato === 'Disponibile' && a.escluso_prenotazione === 0) ? 1 : 0;
+                const b_avail = (b.stato === 'Disponibile' && b.escluso_prenotazione === 0) ? 1 : 0;
+                return b_avail - a_avail;
+            });
+            
+            const currentSelectedValue = vehicleSelect.value;
+            vehicleSelect.innerHTML = "";
+            vehicleSelect.disabled = false;
+            
+            const placeholder = document.createElement("option");
+            placeholder.value = "";
+            placeholder.textContent = "Scegli un veicolo...";
+            placeholder.disabled = true;
+            if (!currentSelectedValue) placeholder.selected = true;
+            vehicleSelect.appendChild(placeholder);
+            
+            filtered.forEach(v => {
+                const opt = document.createElement("option");
+                opt.value = v.automezzo_id;
+                opt.setAttribute("data-km", v.km_attuali);
+                opt.setAttribute("data-sede", v.sede_attuale_nome || "Tutte le Sedi");
+                opt.setAttribute("data-sede-id", v.sede_attuale_id || 0);
+                
+                const is_available = (v.stato === 'Disponibile' && v.escluso_prenotazione === 0);
+                if (is_available) {
+                    opt.textContent = `${v.marca_nome} ${v.modello} (${v.targa}) - Disponibile - ${v.km_attuali} km`;
+                } else {
+                    opt.disabled = true;
+                    let reason = v.stato;
+                    if (v.escluso_prenotazione === 1) reason = "Escluso";
+                    opt.textContent = `${v.marca_nome} ${v.modello} (${v.targa}) - Non Disponibile (${reason}) - ${v.km_attuali} km`;
+                    opt.classList.add("text-muted", "bg-light");
+                }
+                if (currentSelectedValue && String(v.automezzo_id) === String(currentSelectedValue)) {
+                    opt.selected = true;
+                }
+                vehicleSelect.appendChild(opt);
+            });
+        }
+
+        if (sedeSelect && vehicleSelect) {
+            sedeSelect.addEventListener("change", updateVehicleOptions);
+            
             vehicleSelect.addEventListener("change", function() {
                 const selectedOption = vehicleSelect.options[vehicleSelect.selectedIndex];
                 if (selectedOption && selectedOption.value) {
                     const km = selectedOption.getAttribute("data-km");
                     const sedeNome = selectedOption.getAttribute("data-sede");
+                    const vehicleSedeId = selectedOption.getAttribute("data-sede-id");
                     
-                    vehicleKmText.textContent = km;
-                    vehicleSedeText.textContent = sedeNome || "Non specificata";
-                    vehicleInfoBox.classList.remove("d-none");
+                    if (vehicleKmText) vehicleKmText.textContent = km;
+                    if (vehicleSedeText) vehicleSedeText.textContent = sedeNome || "Non specificata";
+                    if (vehicleInfoBox) vehicleInfoBox.classList.remove("d-none");
+                    
+                    if (!sedeSelect.value && vehicleSedeId && parseInt(vehicleSedeId) > 0) {
+                        sedeSelect.value = vehicleSedeId;
+                    }
                 } else {
-                    vehicleInfoBox.classList.add("d-none");
+                    if (vehicleInfoBox) vehicleInfoBox.classList.add("d-none");
                 }
             });
+            
+            updateVehicleOptions();
         }
 
         // Validate return hour > departure hour
