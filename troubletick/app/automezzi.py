@@ -91,10 +91,49 @@ with engine.begin() as conn:
         )
     """))
     
+    conn.execute(text(f"""
+        CREATE TABLE IF NOT EXISTS registro_km_automezzi (
+            registro_km_id {DB_PK},
+            automezzo_id INTEGER NOT NULL,
+            data_registrazione TEXT NOT NULL,
+            km INTEGER NOT NULL,
+            sorgente TEXT NOT NULL,
+            user_id INTEGER,
+            note TEXT,
+            created_at TEXT DEFAULT CURRENT_TIMESTAMP,
+            FOREIGN KEY(automezzo_id) REFERENCES automezzi(automezzo_id) ON DELETE CASCADE
+        )
+    """))
+
     try:
         conn.execute(text("ALTER TABLE viaggi_automezzi ADD COLUMN ora_riconsegna_prevista TEXT"))
     except Exception:
         pass
+
+
+def registra_storico_km(conn, automezzo_id: int, km: int, sorgente: str, data_reg: str = None, user_id: int = None, note: str = None):
+    if not data_reg:
+        import datetime
+        data_reg = datetime.date.today().isoformat()
+    try:
+        conn.execute(text("""
+            INSERT INTO registro_km_automezzi (automezzo_id, data_registrazione, km, sorgente, user_id, note)
+            VALUES (:aid, :dreg, :km, :sorg, :uid, :note)
+        """), {
+            "aid": automezzo_id,
+            "dreg": data_reg,
+            "km": km,
+            "sorg": sorgente,
+            "uid": user_id,
+            "note": note
+        })
+        conn.execute(text("""
+            UPDATE automezzi
+            SET km_attuali = CASE WHEN :km > km_attuali THEN :km ELSE km_attuali END
+            WHERE automezzo_id = :aid
+        """), {"aid": automezzo_id, "km": km})
+    except Exception as e:
+        print(f"Error in registra_storico_km: {e}")
     
     # Reset vehicles stuck in 'In Uso' from old booking logic (bookings no longer change vehicle stato)
     try:
@@ -484,6 +523,8 @@ async def add_vehicle(
         
         # Save associated maintenance types
         new_id = conn.execute(text("SELECT last_insert_rowid()")).scalar()
+        registra_storico_km(conn, new_id, km_attuali, "Manuale", user_id=user.get("id"), note="Inserimento Veicolo Iniziale")
+
         if tipi_manutenzione_ids:
             form_data = await r.form()
             for tid in tipi_manutenzione_ids:
@@ -576,6 +617,8 @@ async def edit_vehicle(
             "classe_euro": classe_euro.strip() if classe_euro else None
         })
         
+        registra_storico_km(conn, id, km_attuali, "Manuale", user_id=user.get("id"), note="Aggiornamento manuale in anagrafica")
+
         # Sync associated maintenance types
         conn.execute(text("DELETE FROM automezzi_tipi_manutenzione WHERE automezzo_id = :id"), {"id": id})
         if tipi_manutenzione_ids:
@@ -593,6 +636,63 @@ async def edit_vehicle(
                 """), {"aid": id, "tid": int(tid), "din": din, "kmp": kmp})
                 
     return RedirectResponse(url="/admin/automezzi", status_code=303)
+
+@router.get("/admin/automezzi/registro-km/{automezzo_id}")
+def get_registro_km_automezzo(automezzo_id: int, r: Request):
+    if "user" not in r.session:
+        return JSONResponse({"error": "Non autorizzato"}, status_code=401)
+    user = r.session.get("user")
+    if user.get("ruolo") not in ("admin", "fleet_manager", "global_fleet_manager"):
+        return JSONResponse({"error": "Non autorizzato"}, status_code=403)
+
+    with engine.connect() as conn:
+        records = conn.execute(text("""
+            SELECT r.registro_km_id, r.automezzo_id, r.data_registrazione, r.km, r.sorgente, r.note, r.created_at,
+                   u.nome || ' ' || u.cognome AS operatore_nome, u.username AS operatore_username
+            FROM registro_km_automezzi r
+            LEFT JOIN users u ON r.user_id = u.user_id
+            WHERE r.automezzo_id = :aid
+            ORDER BY r.data_registrazione DESC, r.registro_km_id DESC
+        """), {"aid": automezzo_id}).mappings().all()
+
+        v = conn.execute(text("""
+            SELECT a.automezzo_id, a.targa, a.modello, a.km_attuali, m.nome as marca_nome
+            FROM automezzi a
+            JOIN marche_automezzi m ON a.marca_id = m.marca_id
+            WHERE a.automezzo_id = :aid
+        """), {"aid": automezzo_id}).mappings().first()
+
+    return JSONResponse({
+        "veicolo": dict(v) if v else {},
+        "registro": [dict(rec) for rec in records]
+    })
+
+
+@router.post("/admin/automezzi/registro-km/{automezzo_id}")
+def add_registro_km_automezzo(
+    automezzo_id: int,
+    r: Request,
+    km: int = Form(...),
+    data_registrazione: str = Form(None),
+    sorgente: str = Form("Manuale"),
+    note: str = Form(None)
+):
+    if "user" not in r.session:
+        return RedirectResponse(url="/login", status_code=303)
+    user = r.session.get("user")
+    if user.get("ruolo") not in ("admin", "fleet_manager", "global_fleet_manager"):
+        return RedirectResponse(url="/", status_code=303)
+
+    uid = user.get("id")
+    if not data_registrazione:
+        data_registrazione = datetime.date.today().isoformat()
+
+    with engine.begin() as conn:
+        registra_storico_km(conn, automezzo_id, km, sorgente, data_reg=data_registrazione, user_id=uid, note=note)
+
+    referer = r.headers.get("referer") or "/admin/automezzi"
+    return RedirectResponse(url=referer, status_code=303)
+
 
 @router.post("/veicolo/elimina/{id}")
 def delete_vehicle(id: int, r: Request):
@@ -1869,6 +1969,8 @@ def completa_prenotazione(
             "sede_arrivo_id": sede_arrivo_id
         })
         
+        registra_storico_km(conn, v.automezzo_id, km_finali, "Viaggio", data_reg=v.data_viaggio, user_id=uid, note=f"Chiusura Viaggio #{id}")
+        
     import urllib.parse
     if warning_msg:
         return RedirectResponse(url=f"/autopark?msg={urllib.parse.quote(warning_msg)}", status_code=303)
@@ -2124,6 +2226,8 @@ def registra_viaggio_posteriori_autopark(
             "s_arr": s_arr,
             "aid": v["automezzo_id"]
         })
+
+        registra_storico_km(conn, v["automezzo_id"], km_finali, "Viaggio", data_reg=v["data_viaggio"], user_id=uid, note=f"Registrazione Viaggio #{id}")
 
     return RedirectResponse(url="/autopark?msg=completed", status_code=303)
 

@@ -196,6 +196,9 @@
                                 <td class="text-end">
                                     <div class="d-inline-flex gap-2">
                                         {% if user.ruolo in ('admin', 'global_fleet_manager') or (user.ruolo == 'fleet_manager' and v.reparto_assegnato_id == user_reparto_id) %}
+                                            <button class="btn btn-sm btn-outline-info text-dark font-monospace" onclick="openRegistroKmModal({{ v.automezzo_id }}, '{{ v.marca_nome }} {{ v.modello }} ({{ v.targa }})')" title="Registro Chilometraggi & Storico KM">
+                                                <i class="bi bi-speedometer2 me-1"></i> Registro KM
+                                            </button>
                                             <button class="btn btn-sm btn-outline-primary" onclick='openEditModal({{ {
                                                 "automezzo_id": v.automezzo_id,
                                                 "targa": v.targa,
@@ -911,6 +914,132 @@
             document.getElementById('searchRepartoInput').value = '';
             document.getElementById('searchStatoInput').value = '';
             filterTable();
+        }
+    </script>
+
+    <!-- Modal Registro Chilometraggi & Storico KM -->
+    <div class="modal fade" id="modalRegistroKm" tabindex="-1" aria-hidden="true">
+        <div class="modal-dialog modal-lg modal-dialog-centered">
+            <div class="modal-content">
+                <div class="modal-header bg-dark text-white">
+                    <h5 class="modal-title fw-bold">
+                        <i class="bi bi-speedometer2 text-info me-2"></i>
+                        Registro Chilometraggi & Storico — <span id="regKmModalTitle"></span>
+                    </h5>
+                    <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Chiudi"></button>
+                </div>
+                <div class="modal-body p-4">
+                    <!-- Form per Nuovo Rilevamento KM -->
+                    <div class="card border-info mb-4">
+                        <div class="card-header bg-info bg-opacity-10 fw-bold text-dark">
+                            <i class="bi bi-plus-circle-fill text-info me-1"></i> Registra Nuova Rilevazione Chilometrica
+                        </div>
+                        <div class="card-body">
+                            <form id="formAddRegistroKm" action="" method="POST">
+                                <div class="row g-3">
+                                    <div class="col-md-4">
+                                        <label class="form-label small fw-bold">Data Rilevazione</label>
+                                        <input type="date" name="data_registrazione" id="regKmData" class="form-control" required>
+                                    </div>
+                                    <div class="col-md-4">
+                                        <label class="form-label small fw-bold">Chilometraggio (KM)</label>
+                                        <input type="number" name="km" id="regKmInput" class="form-control" min="0" placeholder="Es. 45000" required>
+                                    </div>
+                                    <div class="col-md-4">
+                                        <label class="form-label small fw-bold">Sorgente Dato</label>
+                                        <select name="sorgente" class="form-select" required>
+                                            <option value="Manuale" selected>Manuale (Modifica Cruscotto)</option>
+                                            <option value="Carta Carburante">Carta Carburante</option>
+                                            <option value="Manutenzione">Manutenzione / Officina</option>
+                                            <option value="Altro">Altro</option>
+                                        </select>
+                                    </div>
+                                    <div class="col-md-12">
+                                        <label class="form-label small fw-bold">Note / Riferimento (opzionale)</label>
+                                        <input type="text" name="note" class="form-control" placeholder="Es. Rifornimento Q8 n. 45892 o verifica cruscotto">
+                                    </div>
+                                </div>
+                                <button type="submit" class="btn btn-info text-white fw-bold mt-3">
+                                    <i class="bi bi-save me-1"></i> Salva Rilevazione KM
+                                </button>
+                            </form>
+                        </div>
+                    </div>
+
+                    <!-- Tabella Storico Rilevazioni -->
+                    <h6 class="fw-bold text-dark mb-3">
+                        <i class="bi bi-clock-history me-1"></i> Storico Rilevazioni Registrate
+                    </h6>
+                    <div class="table-responsive" style="max-height: 300px; overflow-y: auto;">
+                        <table class="table table-sm table-hover table-striped border align-middle mb-0">
+                            <thead class="table-light sticky-top">
+                                <tr>
+                                    <th>Data</th>
+                                    <th>Chilometri</th>
+                                    <th>Sorgente</th>
+                                    <th>Inserito da</th>
+                                    <th>Note</th>
+                                </tr>
+                            </thead>
+                            <tbody id="regKmTableBody">
+                                <!-- Popolato via JS API -->
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Chiudi</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        function openRegistroKmModal(id, title) {
+            document.getElementById("regKmModalTitle").textContent = title;
+            document.getElementById("formAddRegistroKm").action = "../admin/automezzi/registro-km/" + id;
+            
+            const today = new Date().toISOString().split("T")[0];
+            document.getElementById("regKmData").value = today;
+            document.getElementById("regKmInput").value = "";
+
+            const tbody = document.getElementById("regKmTableBody");
+            tbody.innerHTML = '<tr><td colspan="5" class="text-center text-muted py-3"><div class="spinner-border spinner-border-sm me-2"></div>Caricamento storico...</td></tr>';
+
+            fetch("../admin/automezzi/registro-km/" + id)
+                .then(res => res.json())
+                .then(data => {
+                    tbody.innerHTML = "";
+                    if (!data.registro || data.registro.length === 0) {
+                        tbody.innerHTML = '<tr><td colspan="5" class="text-center text-muted py-3">Nessuna rilevazione chilometrica in archivio.</td></tr>';
+                        return;
+                    }
+                    data.registro.forEach(rec => {
+                        const tr = document.createElement("tr");
+                        let badgeClass = "bg-secondary";
+                        if (rec.sorgente === "Viaggio") badgeClass = "bg-primary";
+                        else if (rec.sorgente === "Manuale") badgeClass = "bg-info text-dark";
+                        else if (rec.sorgente === "Carta Carburante") badgeClass = "bg-success";
+                        else if (rec.sorgente === "Manutenzione") badgeClass = "bg-warning text-dark";
+
+                        const operatore = rec.operatore_nome || rec.operatore_username || 'Sistema';
+
+                        tr.innerHTML = `
+                            <td class="fw-bold">${rec.data_registrazione}</td>
+                            <td class="fw-semibold text-primary">${rec.km.toLocaleString()} km</td>
+                            <td><span class="badge ${badgeClass}">${rec.sorgente}</span></td>
+                            <td><small class="text-muted">${operatore}</small></td>
+                            <td><small>${rec.note || '-'}</small></td>
+                        `;
+                        tbody.appendChild(tr);
+                    });
+                })
+                .catch(err => {
+                    tbody.innerHTML = '<tr><td colspan="5" class="text-center text-danger py-3">Errore durante il caricamento dello storico.</td></tr>';
+                });
+
+            const modal = new bootstrap.Modal(document.getElementById("modalRegistroKm"));
+            modal.show();
         }
     </script>
 </body>

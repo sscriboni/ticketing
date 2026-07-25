@@ -6,6 +6,7 @@ from starlette.middleware.sessions import SessionMiddleware
 from sqlalchemy import text
 from core import CFG, templates, BASE_DIR, engine
 from utils import ok
+from automezzi import registra_storico_km
 
 # ---------------------------------------------------------------------------
 # Webapp Autopark – Login + Prenotazione Automezzi
@@ -433,6 +434,8 @@ def registra_viaggio_posteriori(
             WHERE automezzo_id = :aid
         """), {"aid": v["automezzo_id"], "kf": km_finali, "sa": final_sede_arrivo})
 
+        registra_storico_km(conn, v["automezzo_id"], km_finali, "Viaggio", data_reg=v["data_viaggio"], user_id=uid, note=f"Registrazione Viaggio #{id}")
+
     return _redirect_ok("completed")
 
 
@@ -726,6 +729,8 @@ def completa_viaggio_app(
                 sede_attuale_id = :sa
             WHERE automezzo_id = :aid
         """), {"aid": b["automezzo_id"], "kf": km_finali, "sa": sede_arrivo_id})
+
+        registra_storico_km(conn, b["automezzo_id"], km_finali, "Viaggio", data_reg=b["data_viaggio"], user_id=uid, note=f"Chiusura Viaggio #{id}")
 
     return _redirect_ok("completed")
 
