@@ -122,13 +122,6 @@
 <div class="container mb-5">
     <div class="d-flex justify-content-between align-items-center mb-4 mt-2">
         <h3 class="fw-bold mb-0" style="color: #1e293b;">Pannello Prenotazioni</h3>
-        <div>
-            <form action="/autopark/registra-viaggio" method="POST" class="d-inline">
-                <button type="submit" class="btn btn-success rounded-3 px-4 shadow-sm fw-bold">
-                    <i class="bi bi-play-circle-fill me-2"></i> Parti..
-                </button>
-            </form>
-        </div>
     </div>
 
     <!-- Messages and Alerts -->
@@ -231,7 +224,7 @@
     <div class="row g-4">
         <!-- BOOKING FORM COLUMN -->
         <div class="col-lg-4">
-            <div class="glass-card p-4 h-100">
+            <div class="glass-card p-4">
                 {% if instant %}
                     <h4 class="section-title text-success"><i class="bi bi-play-circle-fill"></i> Prenotazione istantanea</h4>
                 {% else %}
@@ -306,11 +299,26 @@
                         <div class="mb-3">
                             <label for="automezzo_id" class="form-label fw-semibold">Seleziona Veicolo</label>
                             <select class="form-select rounded-3" id="automezzo_id" name="automezzo_id" required>
-                                <option value="" disabled selected>Seleziona prima la sede di partenza...</option>
+                                <option value="" disabled selected>Seleziona prima i dati della partenza...</option>
                             </select>
+                            <div class="form-text mt-1 text-success fw-bold d-none" id="vehicleStatusBadge">
+                                <i class="bi bi-check-circle-fill me-1"></i><span id="vehicleCountText">--</span>
+                            </div>
                             <div class="form-text mt-2 text-primary d-none" id="vehicleInfoBox">
                                 <i class="bi bi-speedometer2"></i> Odometro attuale: <strong id="vehicleKmText">--</strong> km<br>
                                 <i class="bi bi-geo-alt-fill"></i> Posizione attuale: <strong id="vehicleSedeText">--</strong>
+                            </div>
+                            <div class="alert alert-danger border-danger border-2 rounded-3 mt-3 d-none" id="noVehicleAlertBox" role="alert">
+                                <div class="d-flex align-items-start">
+                                    <i class="bi bi-exclamation-triangle-fill fs-4 me-2 flex-shrink-0 text-danger"></i>
+                                    <div>
+                                        <strong class="d-block mb-1">Nessun veicolo aziendale disponibile!</strong>
+                                        <p class="small mb-2 text-dark" style="font-size: 0.85rem;">Non vi sono veicoli liberi per la sede ed i criteri selezionati. Puoi stampare l'attestato ufficiale di indisponibilità.</p>
+                                        <a href="#" id="btnPrintIndisponibilita" target="_blank" class="btn btn-sm btn-danger fw-bold rounded-3 shadow-sm w-100 mt-1">
+                                            <i class="bi bi-printer-fill me-1"></i> Stampa Dichiarazione di Indisponibilità
+                                        </a>
+                                    </div>
+                                </div>
                             </div>
                         </div>
 
@@ -355,13 +363,19 @@
                     <i class="bi bi-qr-code-scan me-2 text-primary"></i>Webapp Mobile
                 </h5>
                 <div class="d-flex justify-content-center my-2">
-                    <div id="qrcode-box" class="p-2 bg-white rounded border shadow-sm d-flex justify-content-center align-items-center" style="display: inline-block; min-width: 166px; min-height: 166px;"></div>
+                    <div id="qrcode-box" class="p-2 bg-white rounded border shadow-sm d-flex justify-content-center align-items-center" style="display: inline-block; min-width: 166px; min-height: 166px;">
+                        {% if qr_code_b64 %}
+                            <img src="{{ qr_code_b64 }}" alt="QR Code Webapp" style="width:150px; height:150px;">
+                        {% else %}
+                            <img src="https://api.qrserver.com/v1/create-qr-code/?size=150x150&data={{ (webapp_url or cfg.get('webapp_url', 'http://localhost:5002/')) | urlencode }}" alt="QR Code Webapp" style="width:150px; height:150px;">
+                        {% endif %}
+                    </div>
                 </div>
                 <div class="text-muted small fw-semibold mt-2">
                     <i class="bi bi-phone me-1 text-primary"></i>inquadra il QR per registrare i viaggi con il telefono
                 </div>
                 <div class="mt-2">
-                    <a href="{{ cfg.get('webapp_url', '') or 'http://localhost:5002/' }}" target="_blank" class="small text-decoration-none text-primary fw-bold">
+                    <a href="{{ webapp_url or cfg.get('webapp_url', '') or 'http://localhost:5002/' }}" target="_blank" class="small text-decoration-none text-primary fw-bold">
                         <i class="bi bi-box-arrow-up-right me-1"></i>Apri Webapp nel browser
                     </a>
                 </div>
@@ -422,74 +436,68 @@
                                         </ul>
                                         
                                         <!-- Actions -->
-                                        {% if p.is_in_corso %}
-                                            <div class="d-flex gap-2">
-                                                <form action="/autopark/pausa/{{ p.viaggio_id }}" method="POST" class="d-inline flex-fill">
-                                                    <button type="submit" class="btn btn-sm btn-outline-warning w-100 rounded-3 fw-bold">
-                                                        {% if p.in_pausa %}
-                                                            <i class="bi bi-play-fill me-1"></i> Riprendi
-                                                        {% else %}
-                                                            <i class="bi bi-pause-fill me-1"></i> Pausa
-                                                        {% endif %}
-                                                    </button>
-                                                </form>
-                                                
-                                                <button type="button" class="btn btn-sm btn-success w-100 rounded-3 fw-bold flex-fill" data-bs-toggle="collapse" data-bs-target="#cf-{{ p.viaggio_id }}">
-                                                    <i class="bi bi-flag-fill me-1"></i> Termina
-                                                </button>
-                                                
-                                                <form action="/autopark/annulla-viaggio/{{ p.viaggio_id }}" method="POST" class="d-inline flex-fill" onsubmit="return confirm('Annullare l\'avvio di questo viaggio ripristinando lo stato di prenotazione?');">
-                                                    <button type="submit" class="btn btn-sm btn-outline-danger w-100 rounded-3 fw-bold">
-                                                        <i class="bi bi-x-circle-fill me-1"></i> Annulla
-                                                    </button>
-                                                </form>
-                                            </div>
+                                        <div class="d-flex gap-2 mt-3">
+                                            <button type="button" class="btn btn-sm btn-success w-100 rounded-3 fw-bold flex-fill text-white" data-bs-toggle="collapse" data-bs-target="#rf-{{ p.viaggio_id }}" {% if p.user_id != user.id and user.ruolo not in ('admin', 'fleet_manager', 'global_fleet_manager') %}disabled title="Solo l'utente assegnato o gli amministratori possono registrare il viaggio"{% endif %}>
+                                                <i class="bi bi-journal-check me-1"></i> Registra viaggio
+                                            </button>
                                             
-                                            <div class="collapse mt-3" id="cf-{{ p.viaggio_id }}">
-                                                <div class="p-3 border rounded bg-light">
-                                                    <h6 class="fw-bold mb-2 text-success">Dettagli Rientro</h6>
-                                                    <form action="/autopark/completa/{{ p.viaggio_id }}" method="POST" class="completa-viaggio-form" data-partenza="{{ p.ora_partenza_effettiva }}">
-                                                        <div class="mb-2">
-                                                            <label class="form-label small mb-1 fw-bold">KM Finali (KM Partenza: {{ p.km_iniziali }} km)</label>
-                                                            <input type="number" name="km_finali" class="form-control form-control-sm" placeholder="Odometro finale" required>
+                                            {% if user.ruolo in ('admin', 'fleet_manager', 'global_fleet_manager') or p.user_id == user.id %}
+                                            {% set is_past_date = (p.data_viaggio < today_str) %}
+                                            <form action="/autopark/elimina/{{ p.viaggio_id }}" method="POST" class="d-inline flex-fill" onsubmit="return confirm('Sei sicuro di voler eliminare questa prenotazione?');">
+                                                <button type="submit" class="btn btn-sm btn-outline-danger w-100 rounded-3 fw-bold" {% if is_past_date %}disabled title="Non è più possibile eliminare una prenotazione dopo il giorno previsto per il viaggio"{% endif %}>
+                                                    <i class="bi bi-trash-fill me-1"></i> Elimina
+                                                </button>
+                                            </form>
+                                            {% endif %}
+                                        </div>
+
+                                        <!-- Form Registra Viaggio Inline Collapse -->
+                                        <div class="collapse mt-3" id="rf-{{ p.viaggio_id }}">
+                                            <div class="p-3 border rounded-3 bg-light shadow-sm text-dark">
+                                                <h6 class="fw-bold mb-3 text-primary">
+                                                    <i class="bi bi-journal-check me-1"></i> Registra Dettagli Viaggio
+                                                </h6>
+                                                <form action="/autopark/registra-viaggio/{{ p.viaggio_id }}" method="POST">
+                                                    <div class="row g-2">
+                                                        <div class="col-md-6 mb-2">
+                                                            <label class="form-label small fw-bold text-muted mb-1">Data Viaggio (fisso)</label>
+                                                            <input type="text" class="form-control form-control-sm bg-white" value="{{ p.data_viaggio }}" readonly disabled>
                                                         </div>
-                                                        <div class="mb-2">
-                                                            <label class="form-label small mb-1 fw-bold">Sede Rientro</label>
+                                                        <div class="col-md-6 mb-2">
+                                                            <label class="form-label small fw-bold mb-1">Ora Partenza</label>
+                                                            <input type="time" name="ora_partenza" class="form-control form-control-sm" value="{{ p.ora_partenza }}" required>
+                                                        </div>
+                                                        <div class="col-md-6 mb-2">
+                                                            <label class="form-label small fw-bold mb-1">KM Partenza</label>
+                                                            <input type="number" name="km_iniziali" class="form-control form-control-sm" value="{{ p.km_iniziali }}" min="0" required>
+                                                        </div>
+                                                        <div class="col-md-6 mb-2">
+                                                            <label class="form-label small fw-bold mb-1">KM Arrivo</label>
+                                                            <input type="number" name="km_finali" class="form-control form-control-sm" min="0" placeholder="Km finali" required>
+                                                        </div>
+                                                        <div class="col-md-6 mb-2">
+                                                            <label class="form-label small fw-bold mb-1">Orario Ritorno</label>
+                                                            <input type="time" name="ora_arrivo" class="form-control form-control-sm" value="{{ p.ora_riconsegna_prevista or '' }}" required>
+                                                        </div>
+                                                        <div class="col-md-6 mb-2">
+                                                            <label class="form-label small fw-bold mb-1">Sede Rientro</label>
                                                             <select name="sede_arrivo_id" class="form-select form-select-sm" required>
                                                                 {% for s in sedi %}
                                                                     <option value="{{ s.sede_id }}" {% if s.sede_id == p.sede_partenza_id %}selected{% endif %}>{{ s.nome }}</option>
                                                                 {% endfor %}
                                                             </select>
                                                         </div>
-                                                        <div class="mb-2">
-                                                            <label class="form-label small mb-1 fw-bold">Note Rientro</label>
-                                                            <input type="text" name="note_finali" class="form-control form-control-sm" placeholder="Facoltative">
+                                                        <div class="col-12 mb-2">
+                                                            <label class="form-label small fw-bold mb-1">Nota Viaggio</label>
+                                                            <textarea name="note" class="form-control form-control-sm" rows="2" placeholder="Note facoltative">{{ p.note or '' }}</textarea>
                                                         </div>
-                                                        <div class="mb-2">
-                                                             <label class="form-label small mb-1 fw-bold">Ora Rientro</label>
-                                                             <input type="time" name="ora_arrivo" class="form-control form-control-sm" required>
-                                                         </div>
-                                                        <button type="submit" class="btn btn-sm btn-success w-100 mt-2 fw-bold">Conferma Rientro</button>
-                                                    </form>
-                                                </div>
-                                            </div>
-                                        {% else %}
-                                            <div class="d-flex gap-2">
-                                                <form action="/autopark/avvia/{{ p.viaggio_id }}" method="POST" class="d-inline flex-fill" onsubmit="return confirm('Avviare questo viaggio registrando la partenza adesso?');">
-                                                    <button type="submit" class="btn btn-sm btn-success w-100 rounded-3 fw-bold" {% if p.user_id != user.id %}disabled title="Solo l'utente assegnato può avviare il viaggio"{% endif %}>
-                                                        <i class="bi bi-play-fill me-1"></i> Parti..
+                                                    </div>
+                                                    <button type="submit" class="btn btn-sm btn-success w-100 mt-2 fw-bold">
+                                                        <i class="bi bi-check-lg me-1"></i> Salva e Registra Viaggio
                                                     </button>
                                                 </form>
-                                                
-                                                {% if user.ruolo in ('admin', 'fleet_manager', 'global_fleet_manager') or p.user_id == user.id %}
-                                                <form action="/autopark/elimina/{{ p.viaggio_id }}" method="POST" class="d-inline flex-fill" onsubmit="return confirm('Sei sicuro di voler annullare questa prenotazione?');">
-                                                    <button type="submit" class="btn btn-sm btn-outline-danger w-100 rounded-3 fw-bold">
-                                                        <i class="bi bi-trash-fill me-1"></i> Annulla
-                                                    </button>
-                                                </form>
-                                                {% endif %}
                                             </div>
-                                        {% endif %}
+                                        </div>
                                     </div>
                                 </div>
                             </div>
@@ -582,24 +590,24 @@
         <div class="col-12">
             <div class="glass-card p-4" style="background: #ffffff; border-color: rgba(30, 60, 114, 0.15);">
                 <h5 class="fw-bold mb-3 text-primary" style="color: #1e3c72 !important;">
-                    <i class="bi bi-info-circle-fill me-2 text-primary"></i> Guida all'Utilizzo del Carpooling
+                    <i class="bi bi-info-circle-fill me-2 text-primary"></i> Guida all'Utilizzo del Carpooling Aziendale
                 </h5>
                 <div class="row g-3 small text-muted">
                     <div class="col-md-3">
-                        <h6 class="fw-bold text-dark"><i class="bi bi-calendar-check me-1 text-success"></i> 1. Prenotazione Standard</h6>
-                        <p class="mb-0">Seleziona la <strong>Sede di Partenza</strong>, scegli <strong>Data</strong> e <strong>Ora previsto</strong>, seleziona uno dei veicoli <strong>Disponibili</strong> e conferma. All'ora del viaggio, clicca su <strong>Parti..</strong> per iniziare il viaggio.</p>
+                        <h6 class="fw-bold text-dark"><i class="bi bi-calendar-check me-1 text-success"></i> 1. Prenotazione Auto</h6>
+                        <p class="mb-0">Imposta i 4 dati richiesti: <strong>Sede di Partenza</strong>, <strong>Data Viaggio</strong>, <strong>Ora Partenza</strong> e <strong>Ora Riconsegna</strong>. La tendina mostrerà unicamente le auto assegnate alla sede e la loro disponibilità.</p>
                     </div>
                     <div class="col-md-3">
-                        <h6 class="fw-bold text-dark"><i class="bi bi-lightning-fill me-1 text-warning"></i> 2. Utilizzo Immediato</h6>
-                        <p class="mb-0">Se devi partire subito, clicca su <strong>Parti..</strong> (in alto a destra) o segui il link sotto il modulo per compilare una <strong>Prenotazione Istantanea</strong> ed avviare immediatamente il viaggio.</p>
+                        <h6 class="fw-bold text-dark"><i class="bi bi-journal-check me-1 text-primary"></i> 2. Registrazione Viaggio</h6>
+                        <p class="mb-0">Nelle prenotazioni attive clicca su <strong>Registra viaggio</strong> per espandere il modulo inline. Compila orari, KM iniziali/finali e sede di rientro. Il sistema verificherà che non vi siano viaggi successivi già completati.</p>
                     </div>
                     <div class="col-md-3">
-                        <h6 class="fw-bold text-dark"><i class="bi bi-pause-fill me-1 text-info"></i> 3. Il pulsante Pausa</h6>
-                        <p class="mb-0">Se durante il viaggio il veicolo deve rimanere parcheggiato o fermo per <strong>più di un'ora</strong>, premi il pulsante <strong>Pausa</strong> per registrarlo. Premi poi <strong>Riprendi</strong> prima di ripartire.</p>
+                        <h6 class="fw-bold text-dark"><i class="bi bi-trash-fill me-1 text-danger"></i> 3. Gestione ed Eliminazione</h6>
+                        <p class="mb-0">È possibile eliminare una prenotazione tramite il pulsante <strong>Elimina</strong> fino al giorno del viaggio stesso. Dopo quella data, il pulsante viene disabilitato per garantire la tracciabilità flotta.</p>
                     </div>
                     <div class="col-md-3">
-                        <h6 class="fw-bold text-dark"><i class="bi bi-flag-fill me-1 text-danger"></i> 4. Riconsegna e Chiusura</h6>
-                        <p class="mb-0">Al rientro, clicca su <strong>Termina</strong>. Inserisci i <strong>KM finali</strong> indicati sul cruscotto e la <strong>Sede di rientro</strong> effettiva per rendere l'auto nuovamente disponibile per i colleghi.</p>
+                        <h6 class="fw-bold text-dark"><i class="bi bi-printer-fill me-1 text-warning"></i> 4. Indisponibilità & QR Mobile</h6>
+                        <p class="mb-0">Se non vi sono auto libere, clicca su <strong>Stampa Dichiarazione di Indisponibilità</strong> per generare l'attestato ufficiale A4. Inquadra il <strong>QR Code</strong> per accedere alla Webapp Mobile da smartphone.</p>
                     </div>
                 </div>
             </div>
@@ -670,15 +678,32 @@
             const selectedOraP = oraPartenza ? oraPartenza.value : "";
             const selectedOraR = oraRiconsegna ? oraRiconsegna.value : "";
             
+            const noVehicleAlertBox = document.getElementById("noVehicleAlertBox");
+            const btnPrintIndisponibilita = document.getElementById("btnPrintIndisponibilita");
+
+            if (!allFieldsSelected) {
+                vehicleSelect.innerHTML = "";
+                vehicleSelect.disabled = false;
+                const placeholder = document.createElement("option");
+                placeholder.value = "";
+                placeholder.disabled = true;
+                placeholder.selected = true;
+                placeholder.textContent = "Seleziona prima i dati della partenza...";
+                vehicleSelect.appendChild(placeholder);
+                vehicleSelect.value = "";
+
+                if (vehicleInfoBox) vehicleInfoBox.classList.add("d-none");
+                if (statusBadge) statusBadge.classList.add("d-none");
+                if (noVehicleAlertBox) noVehicleAlertBox.classList.add("d-none");
+                return;
+            }
+
             let filtered = allVehicles;
             if (sedeId > 0) {
-                const specific = allVehicles.filter(v => {
+                filtered = allVehicles.filter(v => {
                     const vSede = parseInt(v.sede_attuale_id || 0);
-                    return vSede === sedeId || vSede === 0;
+                    return vSede === sedeId;
                 });
-                if (specific.length > 0) {
-                    filtered = specific;
-                }
             }
             
             filtered = [...filtered].sort((a, b) => {
@@ -694,10 +719,13 @@
             const placeholder = document.createElement("option");
             placeholder.value = "";
             placeholder.disabled = true;
-            if (!currentSelectedValue) placeholder.selected = true;
             placeholder.textContent = "Scegli un veicolo...";
             vehicleSelect.appendChild(placeholder);
             
+            let firstAvailableOpt = null;
+            let currentSelectedStillValid = false;
+            let availableCount = 0;
+
             filtered.forEach(v => {
                 const opt = document.createElement("option");
                 opt.value = v.automezzo_id;
@@ -720,14 +748,59 @@
                     opt.classList.add("text-muted", "bg-light");
                 } else {
                     opt.disabled = false;
+                    availableCount++;
                     opt.textContent = `${v.marca_nome} ${v.modello} (${v.targa}) - Disponibile (${v.km_attuali} km)`;
+                    if (!firstAvailableOpt) {
+                        firstAvailableOpt = opt;
+                    }
                 }
 
-                if (currentSelectedValue && String(v.automezzo_id) === String(currentSelectedValue)) {
+                if (currentSelectedValue && String(v.automezzo_id) === String(currentSelectedValue) && !opt.disabled) {
                     opt.selected = true;
+                    currentSelectedStillValid = true;
                 }
                 vehicleSelect.appendChild(opt);
             });
+
+            if (!currentSelectedStillValid && firstAvailableOpt) {
+                firstAvailableOpt.selected = true;
+                vehicleSelect.value = firstAvailableOpt.value;
+            } else if (!currentSelectedStillValid && !firstAvailableOpt) {
+                placeholder.selected = true;
+                placeholder.textContent = "Nessun veicolo disponibile per questa sede nei criteri selezionati";
+                vehicleSelect.value = "";
+            }
+
+            const selectedOpt = vehicleSelect.options[vehicleSelect.selectedIndex];
+            if (selectedOpt && selectedOpt.value) {
+                if (vehicleKmText) vehicleKmText.textContent = selectedOpt.getAttribute("data-km");
+                if (vehicleSedeText) vehicleSedeText.textContent = selectedOpt.getAttribute("data-sede") || "Non specificata";
+                if (vehicleInfoBox) vehicleInfoBox.classList.remove("d-none");
+            } else {
+                if (vehicleInfoBox) vehicleInfoBox.classList.add("d-none");
+            }
+
+            if (statusBadge && countText) {
+                statusBadge.classList.remove("d-none");
+                const formattedDate = selectedDate.split("-").reverse().join("/");
+                if (availableCount > 0) {
+                    statusBadge.className = "form-text mt-1 text-success fw-bold";
+                    countText.textContent = `${availableCount} veicoli disponibili per questa sede per il ${formattedDate} (${selectedOraP} - ${selectedOraR})`;
+                    if (noVehicleAlertBox) noVehicleAlertBox.classList.add("d-none");
+                } else {
+                    statusBadge.className = "form-text mt-1 text-danger fw-bold";
+                    countText.textContent = `Nessun veicolo disponibile per questa sede per il ${formattedDate} (${selectedOraP} - ${selectedOraR})`;
+                    
+                    if (noVehicleAlertBox && btnPrintIndisponibilita) {
+                        const noteEl = document.getElementById("note");
+                        const emailEl = document.getElementById("email_conducente");
+                        const noteVal = encodeURIComponent(noteEl ? noteEl.value : "");
+                        const emailVal = encodeURIComponent(emailEl ? emailEl.value : "");
+                        btnPrintIndisponibilita.href = `/autopark/stampa-indisponibilita?sede_id=${sedeId}&data_viaggio=${encodeURIComponent(selectedDate)}&ora_partenza=${encodeURIComponent(selectedOraP)}&ora_riconsegna_prevista=${encodeURIComponent(selectedOraR)}&note=${noteVal}&email_conducente=${emailVal}`;
+                        noVehicleAlertBox.classList.remove("d-none");
+                    }
+                }
+            }
         }
 
         if (vehicleSelect) {
@@ -794,16 +867,17 @@
                     }
                 }
             });
-        /* ── Webapp QR Code generation ── */
-        const webappUrl = {{ (cfg.get('webapp_url', '') or 'http://localhost:5002/') | tojson }};
+        }
+        /* ── Webapp QR Code fallback ── */
+        const webappUrl = {{ (webapp_url or cfg.get('webapp_url', '') or 'http://localhost:5002/') | tojson }};
         const qrContainer = document.getElementById("qrcode-box");
-        if (qrContainer) {
+        if (qrContainer && !qrContainer.querySelector("img")) {
             if (typeof QRCode !== 'undefined') {
                 new QRCode(qrContainer, {
                     text: webappUrl,
                     width: 150,
                     height: 150,
-                    colorDark : "#1e293b",
+                    colorDark : "#1e3c72",
                     colorLight : "#ffffff",
                     correctLevel : QRCode.CorrectLevel.M
                 });

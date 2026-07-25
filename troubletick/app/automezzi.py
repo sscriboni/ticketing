@@ -1,7 +1,7 @@
 import csv
 import io
 import datetime
-from fastapi import APIRouter, Request, Form, UploadFile, File
+from fastapi import APIRouter, Request, Form, UploadFile, File, Query
 from fastapi.responses import HTMLResponse, RedirectResponse, Response
 from sqlalchemy import text
 from core import CFG, templates, engine, DB_PK
@@ -1412,11 +1412,6 @@ def get_autopark(r: Request, msg: str = None, error: str = None):
     
     uid = user.get("id")
     role = user.get("ruolo")
-    user_roles = user.get("roles", [role])
-    if role == "admin" or "admin" in user_roles:
-        import urllib.parse
-        err_msg = urllib.parse.quote("Per motivi di sicurezza, gli utenti con ruolo Admin non possono accedere alla webapp di prenotazione.")
-        return RedirectResponse(url=f"/admin/autopark/gestione?error={err_msg}", status_code=303)
     
     with engine.connect() as conn:
         # Get user's own reparto_id and sede_id
@@ -1501,13 +1496,11 @@ def get_autopark(r: Request, msg: str = None, error: str = None):
             else:
                 attive_list.append(p_dict)
                 
-        # Fetch all locations (sedi) with count of available vehicles
+        # Fetch all locations (sedi) with count of available vehicles assigned to the location
         sedi_list = conn.execute(text("""
             SELECT s.sede_id, s.nome, c.nome AS comune_nome,
                    (SELECT COUNT(*) FROM automezzi a 
-                    WHERE (a.sede_attuale_id = s.sede_id 
-                           OR a.sede_assegnata_id = s.sede_id
-                           OR COALESCE(NULLIF(a.sede_attuale_id, 0), NULLIF(a.sede_assegnata_id, 0), 0) = 0)
+                    WHERE COALESCE(NULLIF(a.sede_attuale_id, 0), NULLIF(a.sede_assegnata_id, 0), 0) = s.sede_id
                       AND a.stato = 'Disponibile' 
                       AND a.escluso_prenotazione = 0) AS auto_disponibili
             FROM sedi s
@@ -1521,6 +1514,20 @@ def get_autopark(r: Request, msg: str = None, error: str = None):
         instant_hour = now.strftime("%H:00")
         instant_actual_time = now.strftime("%H:%M")
         info = r.query_params.get("info")
+
+    webapp_url = CFG.get("webapp_url", "") or "http://localhost:5002/"
+    qr_code_b64 = ""
+    try:
+        import qrcode, io, base64
+        qr = qrcode.QRCode(version=1, box_size=6, border=2)
+        qr.add_data(webapp_url)
+        qr.make(fit=True)
+        img = qr.make_image(fill_color="#1e3c72", back_color="white")
+        buf = io.BytesIO()
+        img.save(buf, format="PNG")
+        qr_code_b64 = "data:image/png;base64," + base64.b64encode(buf.getvalue()).decode('utf-8')
+    except Exception:
+        pass
         
     return templates.TemplateResponse(r, "autopark.html", {
         "request": r, 
@@ -1536,7 +1543,76 @@ def get_autopark(r: Request, msg: str = None, error: str = None):
         "instant": instant_mode,
         "instant_date": instant_date,
         "instant_hour": instant_hour,
-        "instant_actual_time": instant_actual_time
+        "instant_actual_time": instant_actual_time,
+        "today_str": now.strftime("%Y-%m-%d"),
+        "webapp_url": webapp_url,
+        "qr_code_b64": qr_code_b64
+    })
+
+
+@router.get("/autopark/stampa-indisponibilita", response_class=HTMLResponse)
+def stampa_indisponibilita_autopark(
+    r: Request,
+    sede_id: int = Query(...),
+    data_viaggio: str = Query(...),
+    ora_partenza: str = Query(...),
+    ora_riconsegna_prevista: str = Query(...),
+    note: str = Query(None),
+    email_conducente: str = Query(None)
+):
+    if "user" not in r.session:
+        return RedirectResponse(url="/login", status_code=303)
+    user_session = r.session.get("user")
+    
+    driver_email = email_conducente or user_session.get("email")
+    driver_nome = user_session.get("nome", "")
+    driver_cognome = user_session.get("cognome", "")
+    driver_ruolo = user_session.get("ruolo", "Utente")
+    driver_sede_nome = ""
+
+    sede_nome = "Sede Non Trovata"
+
+    with engine.begin() as conn:
+        s_row = conn.execute(text("SELECT nome FROM sedi WHERE sede_id = :sid"), {"sid": sede_id}).mappings().first()
+        if s_row:
+            sede_nome = s_row["nome"]
+            
+        if driver_email:
+            u_row = conn.execute(text("""
+                SELECT u.nome, u.cognome, u.ruolo, s.nome AS sede_nome
+                FROM utenti u
+                LEFT JOIN sedi s ON u.sede_id = s.sede_id
+                WHERE u.email = :email
+            """), {"email": driver_email}).mappings().first()
+            if u_row:
+                driver_nome = u_row["nome"]
+                driver_cognome = u_row["cognome"]
+                driver_ruolo = u_row["ruolo"]
+                driver_sede_nome = u_row["sede_nome"]
+
+    formatted_date = data_viaggio
+    try:
+        parts = data_viaggio.split("-")
+        if len(parts) == 3:
+            formatted_date = f"{parts[2]}/{parts[1]}/{parts[0]}"
+    except Exception:
+        pass
+
+    now_str = datetime.datetime.now().strftime("%d/%m/%Y %H:%M")
+
+    return templates.TemplateResponse(r, "stampa_indisponibilita.html", {
+        "request": r,
+        "driver_nome": driver_nome,
+        "driver_cognome": driver_cognome,
+        "driver_email": driver_email,
+        "driver_ruolo": driver_ruolo,
+        "driver_sede_nome": driver_sede_nome,
+        "sede_nome": sede_nome,
+        "data_viaggio_formatted": formatted_date,
+        "ora_partenza": ora_partenza,
+        "ora_riconsegna_prevista": ora_riconsegna_prevista,
+        "note": note,
+        "ora_generazione": now_str
     })
 
 @router.post("/autopark/prenota")
@@ -1832,11 +1908,11 @@ def elimina_prenotazione(id: int, r: Request, nuovi_km: int = Form(None)):
     import urllib.parse
     with engine.begin() as conn:
         if role in ("admin", "global_fleet_manager"):
-            v = conn.execute(text("SELECT automezzo_id, km_iniziali, km_finali, user_id, ora_partenza_effettiva FROM viaggi_automezzi WHERE viaggio_id = :id"), {"id": id}).mappings().first()
+            v = conn.execute(text("SELECT automezzo_id, km_iniziali, km_finali, user_id, ora_partenza_effettiva, data_viaggio FROM viaggi_automezzi WHERE viaggio_id = :id"), {"id": id}).mappings().first()
         elif role == "fleet_manager":
             user_reparto_id = conn.execute(text("SELECT reparto_id FROM users WHERE user_id = :uid"), {"uid": uid}).scalar() or 0
             v = conn.execute(text("""
-                SELECT v.automezzo_id, v.km_iniziali, v.km_finali, v.user_id, v.ora_partenza_effettiva
+                SELECT v.automezzo_id, v.km_iniziali, v.km_finali, v.user_id, v.ora_partenza_effettiva, v.data_viaggio
                 FROM viaggi_automezzi v
                 JOIN users u ON v.user_id = u.user_id
                 WHERE v.viaggio_id = :id AND u.reparto_id = :rep
@@ -1844,12 +1920,16 @@ def elimina_prenotazione(id: int, r: Request, nuovi_km: int = Form(None)):
         else:
             # Normal user / operator: can only delete their own booking if not started yet
             v = conn.execute(
-                text("SELECT automezzo_id, km_iniziali, km_finali, user_id, ora_partenza_effettiva FROM viaggi_automezzi WHERE viaggio_id = :id AND user_id = :uid"),
+                text("SELECT automezzo_id, km_iniziali, km_finali, user_id, ora_partenza_effettiva, data_viaggio FROM viaggi_automezzi WHERE viaggio_id = :id AND user_id = :uid"),
                 {"id": id, "uid": uid},
             ).mappings().first()
             
         if not v:
             return RedirectResponse(url=f"/autopark?error={urllib.parse.quote('Prenotazione non trovata o non sei autorizzato a eliminarla.')}", status_code=303)
+
+        today_str = datetime.date.today().isoformat()
+        if v["data_viaggio"] < today_str:
+            return RedirectResponse(url=f"/autopark?error={urllib.parse.quote('Non è più possibile eliminare prenotazioni per date antecedenti ad oggi.')}", status_code=303)
             
         if role not in ("admin", "fleet_manager", "global_fleet_manager") and v["ora_partenza_effettiva"]:
             return RedirectResponse(url=f"/autopark?error={urllib.parse.quote('Non puoi eliminare un viaggio che è già iniziato o completato.')}", status_code=303)
@@ -1926,6 +2006,117 @@ def registra_viaggio(r: Request):
             return RedirectResponse(url="/autopark?msg=started", status_code=303)
         else:
             return RedirectResponse(url="/autopark?instant=1&info=no_booking", status_code=303)
+
+
+@router.post("/autopark/registra-viaggio/{id}")
+def registra_viaggio_posteriori_autopark(
+    id: int,
+    r: Request,
+    ora_partenza: str = Form(...),
+    km_iniziali: int = Form(...),
+    km_finali: int = Form(...),
+    ora_arrivo: str = Form(...),
+    note: str = Form(None),
+    sede_arrivo_id: int = Form(None)
+):
+    if "user" not in r.session:
+        return RedirectResponse(url="/login", status_code=303)
+    user = r.session.get("user")
+    uid = user.get("id")
+    role = user.get("ruolo")
+
+    with engine.begin() as conn:
+        v = conn.execute(text("""
+            SELECT automezzo_id, data_viaggio, km_iniziali, user_id, sede_partenza_id
+            FROM viaggi_automezzi
+            WHERE viaggio_id = :id AND ora_arrivo IS NULL
+        """), {"id": id}).mappings().first()
+
+        if not v:
+            import urllib.parse
+            return RedirectResponse(url=f"/autopark?error={urllib.parse.quote('Prenotazione non trovata o già completata.')}", status_code=303)
+
+        if v["user_id"] != uid and role not in ("admin", "fleet_manager", "global_fleet_manager"):
+            import urllib.parse
+            return RedirectResponse(url=f"/autopark?error={urllib.parse.quote('Non sei autorizzato a registrare questo viaggio.')}", status_code=303)
+
+        if ora_arrivo <= ora_partenza:
+            import urllib.parse
+            err_txt = f"L'orario di ritorno ({ora_arrivo}) deve essere successivo all'orario di partenza ({ora_partenza})."
+            return RedirectResponse(url=f"/autopark?error={urllib.parse.quote(err_txt)}", status_code=303)
+
+        if km_finali < km_iniziali:
+            import urllib.parse
+            err_txt = f"I km di arrivo ({km_finali}) non possono essere inferiori ai km di partenza ({km_iniziali})."
+            return RedirectResponse(url=f"/autopark?error={urllib.parse.quote(err_txt)}", status_code=303)
+
+        # Check if there is already a completed trip for this vehicle in a later date/time
+        later_trip = conn.execute(text("""
+            SELECT viaggio_id, data_viaggio, ora_partenza, ora_arrivo
+            FROM viaggi_automezzi
+            WHERE automezzo_id = :aid
+              AND viaggio_id != :id
+              AND ora_arrivo IS NOT NULL
+              AND (
+                  data_viaggio > :data_v
+                  OR (data_viaggio = :data_v AND ora_partenza > :ora_p)
+              )
+            ORDER BY data_viaggio ASC, ora_partenza ASC
+            LIMIT 1
+        """), {
+            "aid": v["automezzo_id"],
+            "id": id,
+            "data_v": v["data_viaggio"],
+            "ora_p": ora_partenza
+        }).mappings().first()
+
+        if later_trip:
+            import urllib.parse
+            formatted_later_date = later_trip['data_viaggio']
+            try:
+                parts = later_trip['data_viaggio'].split("-")
+                if len(parts) == 3:
+                    formatted_later_date = f"{parts[2]}/{parts[1]}/{parts[0]}"
+            except Exception:
+                pass
+            err_msg = f"Impossibile registrare il viaggio: è già presente un viaggio completato in data/ora successiva ({formatted_later_date} alle {later_trip['ora_partenza']}) per questo veicolo."
+            return RedirectResponse(url=f"/autopark?error={urllib.parse.quote(err_msg)}", status_code=303)
+
+        s_arr = sede_arrivo_id or v["sede_partenza_id"]
+
+        conn.execute(text("""
+            UPDATE viaggi_automezzi
+            SET ora_partenza_effettiva = :ora_p,
+                ora_partenza = :ora_p,
+                km_iniziali = :km_i,
+                km_finali = :km_f,
+                ora_arrivo = :ora_a,
+                ora_riconsegna_prevista = :ora_a,
+                sede_arrivo_id = :s_arr,
+                note = COALESCE(:note, note)
+            WHERE viaggio_id = :id
+        """), {
+            "id": id,
+            "ora_p": ora_partenza,
+            "km_i": km_iniziali,
+            "km_f": km_finali,
+            "ora_a": ora_arrivo,
+            "s_arr": s_arr,
+            "note": note
+        })
+
+        conn.execute(text("""
+            UPDATE automezzi
+            SET km_attuali = :km_f,
+                sede_attuale_id = :s_arr
+            WHERE automezzo_id = :aid
+        """), {
+            "km_f": km_finali,
+            "s_arr": s_arr,
+            "aid": v["automezzo_id"]
+        })
+
+    return RedirectResponse(url="/autopark?msg=completed", status_code=303)
 
 
 @router.post("/autopark/registra-viaggio-istantaneo")

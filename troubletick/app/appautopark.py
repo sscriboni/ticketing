@@ -1,5 +1,5 @@
 import os, datetime, urllib.parse
-from fastapi import FastAPI, Request, Form
+from fastapi import FastAPI, Request, Form, Query
 from fastapi.responses import HTMLResponse, RedirectResponse
 from fastapi.staticfiles import StaticFiles
 from starlette.middleware.sessions import SessionMiddleware
@@ -117,13 +117,11 @@ def home(r: Request, msg: str = None, error: str = None):
             else:
                 attive_list.append(d)
 
-        # All locations with count of available vehicles
+        # All locations with count of available vehicles assigned to the location
         sedi_list = conn.execute(text("""
             SELECT s.sede_id, s.nome, c.nome AS comune_nome,
                    (SELECT COUNT(*) FROM automezzi a 
-                    WHERE (a.sede_attuale_id = s.sede_id 
-                           OR a.sede_assegnata_id = s.sede_id
-                           OR COALESCE(NULLIF(a.sede_attuale_id, 0), NULLIF(a.sede_assegnata_id, 0), 0) = 0)
+                    WHERE COALESCE(NULLIF(a.sede_attuale_id, 0), NULLIF(a.sede_assegnata_id, 0), 0) = s.sede_id
                       AND a.stato = 'Disponibile' 
                       AND a.escluso_prenotazione = 0) AS auto_disponibili
             FROM sedi s
@@ -151,7 +149,74 @@ def home(r: Request, msg: str = None, error: str = None):
         "instant": instant_mode,
         "instant_date": instant_date,
         "instant_hour": instant_hour,
-        "instant_actual_time": instant_actual_time
+        "instant_actual_time": instant_actual_time,
+        "today_str": now.strftime("%Y-%m-%d")
+    })
+
+
+@app.get("/stampa-indisponibilita", response_class=HTMLResponse)
+def stampa_indisponibilita_app(
+    r: Request,
+    sede_id: int = Query(...),
+    data_viaggio: str = Query(...),
+    ora_partenza: str = Query(...),
+    ora_riconsegna_prevista: str = Query(...),
+    note: str = Query(None),
+    email_conducente: str = Query(None)
+):
+    user_session = r.session.get("user")
+    if not user_session:
+        return RedirectResponse(url="/login", status_code=303)
+    
+    driver_email = email_conducente or user_session.get("email")
+    driver_nome = user_session.get("nome", "")
+    driver_cognome = user_session.get("cognome", "")
+    driver_ruolo = user_session.get("ruolo", "Utente")
+    driver_sede_nome = ""
+
+    sede_nome = "Sede Non Trovata"
+
+    with engine.begin() as conn:
+        s_row = conn.execute(text("SELECT nome FROM sedi WHERE sede_id = :sid"), {"sid": sede_id}).mappings().first()
+        if s_row:
+            sede_nome = s_row["nome"]
+            
+        if driver_email:
+            u_row = conn.execute(text("""
+                SELECT u.nome, u.cognome, u.ruolo, s.nome AS sede_nome
+                FROM utenti u
+                LEFT JOIN sedi s ON u.sede_id = s.sede_id
+                WHERE u.email = :email
+            """), {"email": driver_email}).mappings().first()
+            if u_row:
+                driver_nome = u_row["nome"]
+                driver_cognome = u_row["cognome"]
+                driver_ruolo = u_row["ruolo"]
+                driver_sede_nome = u_row["sede_nome"]
+
+    formatted_date = data_viaggio
+    try:
+        parts = data_viaggio.split("-")
+        if len(parts) == 3:
+            formatted_date = f"{parts[2]}/{parts[1]}/{parts[0]}"
+    except Exception:
+        pass
+
+    now_str = datetime.datetime.now().strftime("%d/%m/%Y %H:%M")
+
+    return templates.TemplateResponse(r, "stampa_indisponibilita.html", {
+        "request": r,
+        "driver_nome": driver_nome,
+        "driver_cognome": driver_cognome,
+        "driver_email": driver_email,
+        "driver_ruolo": driver_ruolo,
+        "driver_sede_nome": driver_sede_nome,
+        "sede_nome": sede_nome,
+        "data_viaggio_formatted": formatted_date,
+        "ora_partenza": ora_partenza,
+        "ora_riconsegna_prevista": ora_riconsegna_prevista,
+        "note": note,
+        "ora_generazione": now_str
     })
 
 # ── PRENOTA ───────────────────────────────────────────────────────────────
@@ -300,6 +365,37 @@ def registra_viaggio_posteriori(
         if km_finali < km_iniziali:
             return _redirect_err(f"I km di arrivo ({km_finali}) non possono essere inferiori ai km di partenza ({km_iniziali}).")
 
+        # Check if there is already a completed trip for this vehicle in a later date/time
+        later_trip = conn.execute(text("""
+            SELECT viaggio_id, data_viaggio, ora_partenza, ora_arrivo
+            FROM viaggi_automezzi
+            WHERE automezzo_id = :aid
+              AND viaggio_id != :id
+              AND ora_arrivo IS NOT NULL
+              AND (
+                  data_viaggio > :data_v
+                  OR (data_viaggio = :data_v AND ora_partenza > :ora_p)
+              )
+            ORDER BY data_viaggio ASC, ora_partenza ASC
+            LIMIT 1
+        """), {
+            "aid": v["automezzo_id"],
+            "id": id,
+            "data_v": v["data_viaggio"],
+            "ora_p": ora_partenza
+        }).mappings().first()
+
+        if later_trip:
+            formatted_later_date = later_trip['data_viaggio']
+            try:
+                parts = later_trip['data_viaggio'].split("-")
+                if len(parts) == 3:
+                    formatted_later_date = f"{parts[2]}/{parts[1]}/{parts[0]}"
+            except Exception:
+                pass
+            err_msg = f"Impossibile registrare il viaggio: è già presente un viaggio completato in data/ora successiva ({formatted_later_date} alle {later_trip['ora_partenza']}) per questo veicolo."
+            return _redirect_err(err_msg)
+
         final_sede_arrivo = sede_arrivo_id or v["sede_partenza_id"]
 
         conn.execute(text("""
@@ -348,13 +444,13 @@ def elimina(id: int, r: Request, nuovi_km: int = Form(None)):
     with engine.begin() as conn:
         if role in ("admin", "global_fleet_manager"):
             v = conn.execute(
-                text("SELECT automezzo_id, km_iniziali, km_finali, user_id, ora_partenza_effettiva FROM viaggi_automezzi WHERE viaggio_id = :id"),
+                text("SELECT automezzo_id, km_iniziali, km_finali, user_id, ora_partenza_effettiva, data_viaggio FROM viaggi_automezzi WHERE viaggio_id = :id"),
                 {"id": id},
             ).mappings().first()
         elif role == "fleet_manager":
             user_reparto_id = conn.execute(text("SELECT reparto_id FROM users WHERE user_id = :uid"), {"uid": uid}).scalar() or 0
             v = conn.execute(text("""
-                SELECT v.automezzo_id, v.km_iniziali, v.km_finali, v.user_id, v.ora_partenza_effettiva
+                SELECT v.automezzo_id, v.km_iniziali, v.km_finali, v.user_id, v.ora_partenza_effettiva, v.data_viaggio
                 FROM viaggi_automezzi v
                 JOIN users u ON v.user_id = u.user_id
                 WHERE v.viaggio_id = :id AND u.reparto_id = :rep
@@ -362,12 +458,16 @@ def elimina(id: int, r: Request, nuovi_km: int = Form(None)):
         else:
             # Normal user / operator: can only delete their own booking if not started yet
             v = conn.execute(
-                text("SELECT automezzo_id, km_iniziali, km_finali, user_id, ora_partenza_effettiva FROM viaggi_automezzi WHERE viaggio_id = :id AND user_id = :uid"),
+                text("SELECT automezzo_id, km_iniziali, km_finali, user_id, ora_partenza_effettiva, data_viaggio FROM viaggi_automezzi WHERE viaggio_id = :id AND user_id = :uid"),
                 {"id": id, "uid": uid},
             ).mappings().first()
 
         if not v:
             return RedirectResponse(url=f"/?error={urllib.parse.quote('Prenotazione non trovata o non sei autorizzato a eliminarla.')}", status_code=303)
+
+        today_str = datetime.date.today().isoformat()
+        if v["data_viaggio"] < today_str:
+            return RedirectResponse(url=f"/?error={urllib.parse.quote('Non è più possibile eliminare prenotazioni per date antecedenti ad oggi.')}", status_code=303)
 
         if role not in ("admin", "fleet_manager", "global_fleet_manager") and v["ora_partenza_effettiva"]:
             return RedirectResponse(url=f"/?error={urllib.parse.quote('Non puoi eliminare un viaggio che è già iniziato o completato.')}", status_code=303)
