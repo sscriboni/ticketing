@@ -19,6 +19,7 @@
   "db_user": "",
   "db_password": "",
   "app_url": "http://localhost:5001/",
+  "webapp_url": "http://localhost:5002/",
   "modulo_avvisi": true,
   "modulo_presenze": true,
   "modulo_autopark": true

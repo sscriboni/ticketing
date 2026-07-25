@@ -1544,6 +1544,7 @@ def save_impostazioni(r: Request,
                       company_name: str = Form(...), 
                       helpdesk_email: str = Form(...),
                       app_url: str = Form(""),
+                      webapp_url: str = Form(""),
                       smtp_server: str = Form(""),
                       smtp_port: str = Form(""),
                       smtp_user: str = Form(""),
@@ -1565,6 +1566,7 @@ def save_impostazioni(r: Request,
     CFG["company_name"] = company_name
     CFG["helpdesk_email"] = helpdesk_email
     CFG["app_url"] = app_url.strip()
+    CFG["webapp_url"] = webapp_url.strip()
     
     CFG["smtp_server"] = smtp_server
     CFG["smtp_port"] = int(smtp_port) if smtp_port.isdigit() else (587 if smtp_server else "")
