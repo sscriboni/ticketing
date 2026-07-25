@@ -31,10 +31,17 @@
                     <label class="form-label fw-bold">Email di Supporto</label>
                     <input type="email" name="helpdesk_email" class="form-control" value="{{ cfg.helpdesk_email }}" required>
                 </div>
-                <div class="mb-4">
-                    <label class="form-label fw-bold">URL Assoluto Applicazione</label>
-                    <input type="url" name="app_url" class="form-control" value="{{ cfg.app_url or '' }}" placeholder="es. https://esempio.com/ticketing">
-                    <div class="form-text text-muted">Indirizzo web completo utilizzato per i link nelle email (es. per l'attivazione degli operatori).</div>
+                <div class="row mb-4">
+                    <div class="col-md-6">
+                        <label class="form-label fw-bold">URL Assoluto Applicazione</label>
+                        <input type="url" name="app_url" class="form-control" value="{{ cfg.app_url or '' }}" placeholder="es. http://localhost:5001/">
+                        <div class="form-text text-muted">Indirizzo web dell'applicazione principale (Troubletick).</div>
+                    </div>
+                    <div class="col-md-6">
+                        <label class="form-label fw-bold">URL Assoluto Webapp (Autopark)</label>
+                        <input type="url" name="webapp_url" class="form-control" value="{{ cfg.webapp_url or '' }}" placeholder="es. http://localhost:5002/">
+                        <div class="form-text text-muted">Indirizzo web della webapp autonoma Autopark.</div>
+                    </div>
                 </div>
 
                 <hr class="my-4">
