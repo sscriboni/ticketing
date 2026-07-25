@@ -13,7 +13,7 @@ Il sistema prevede un controllo degli accessi basato su **6 livelli di ruolo**, 
   - **Magazzino**: Inventario Magazzini, Richieste Materiale, Trasferimenti tra Magazzini, Log Magazzini.
   - **Avvisi**: Gestione Avvisi.
   - **Presenze**: Calendario Assenze, Calendario Presenze, Verifica copertura Servizi, Report Copertura Reparto, Calendario di Reparto, Servizi assegnati.
-  - **Autopark**: Prenotazioni, Elenco Automezzi, Manutenzioni, Registro Viaggi.
+  - **Carpooling**: Prenotazioni, Elenco Automezzi, Manutenzioni, Registro Viaggi.
   - **Configurazione**: Anagrafica Sedi, Reparti, Servizi, Categorie Materiali, Anagrafica Materiali, Gestione Autopark, Gestione Marche Automezzi, Import / Export JSON, Impostazioni Globali.
 * **Homepage/Dashboard Dedicata:**
   - Mostra i contatori complessivi di sistema: *Ticket Aperti*, *Richieste Materiale*, *Materiali Sotto Soglia*, *Operatori da Approvare*, *Utenti da Approvare*, e *Veicoli*.
@@ -27,7 +27,7 @@ Il sistema prevede un controllo degli accessi basato su **6 livelli di ruolo**, 
   - **Magazzino**: Inventario Reparto, Richieste Materiale, Trasferimenti tra Magazzini, Log Magazzini.
   - **Avvisi**: Bacheca.
   - **Presenze**: Calendario Assenze, Calendario Presenze, Verifica copertura Servizi, Report Copertura Reparto, Calendario di Reparto, Servizi assegnati.
-  - **Autopark**: Prenotazioni.
+  - **Carpooling**: Prenotazioni.
   - **Report**: Copertura Personale, Stato Magazzini.
 * **Homepage/Dashboard Dedicata:**
   - Cruscotto riassuntivo specifico per il reparto assegnato, contenente i contatori dei ticket aperti del reparto, delle richieste di materiale del magazzino di reparto, e degli operatori locali in attesa di approvazione.
@@ -40,7 +40,7 @@ Il sistema prevede un controllo degli accessi basato su **6 livelli di ruolo**, 
   - **Magazzino**: Inventario Magazzini, Richieste Materiale, Trasferimenti tra Magazzini, Log Magazzini.
   - **Avvisi**: Bacheca.
   - **Presenze**: Calendario Assenze, Calendario Presenze, Verifica copertura Servizi, Calendario di Reparto, Servizi assegnati.
-  - **Autopark**: Prenotazioni.
+  - **Carpooling**: Prenotazioni.
 * **Homepage/Dashboard Dedicata:**
   - Cruscotto focalizzato sul carico di lavoro dell'operatore, con i contatori dei propri ticket in carico, nuovi ticket del servizio e richieste merce.
   - Mostra la tabella dei **5 ticket più urgenti** da gestire in coda.
@@ -50,7 +50,7 @@ Il sistema prevede un controllo degli accessi basato su **6 livelli di ruolo**, 
 * **Visibilità:** Limitata alla gestione del parco auto del proprio reparto (in anagrafica automezzi vede solo i veicoli assegnati al proprio reparto).
 * **Barra di Navigazione (Navbar):**
   - **Ticket**: Elenco Ticket, Nuovo Ticket.
-  - **Autopark**: Prenotazioni, Elenco Automezzi, Registro Viaggi.
+  - **Carpooling**: Prenotazioni, Elenco Automezzi, Registro Viaggi.
 * **Homepage/Dashboard Dedicata:**
   - Cruscotto riassuntivo specifico per la gestione della flotta del proprio reparto, contenente i contatori dei veicoli (*Disponibili*, *In Uso*, *In Manutenzione*) del reparto e il registro degli ultimi viaggi effettuati.
 * **Permessi/Funzionalità:** Visualizzazione dello stato delle prenotazioni e cancellazione delle prenotazioni per veicoli appartenenti al proprio reparto.
@@ -61,7 +61,7 @@ Il sistema prevede un controllo degli accessi basato su **6 livelli di ruolo**, 
 * **Visibilità:** Globale su tutti gli automezzi.
 * **Barra di Navigazione (Navbar):**
   - **Ticket**: Elenco Ticket, Nuovo Ticket.
-  - **Autopark**: Prenotazioni, Elenco Automezzi, Manutenzioni, Registro Viaggi.
+  - **Carpooling**: Prenotazioni, Elenco Automezzi, Manutenzioni, Registro Viaggi.
 * **Homepage/Dashboard Dedicata:**
   - Cruscotto riassuntivo globale per la flotta aziendale, con i contatori complessivi di tutti i veicoli (*Disponibili*, *In Uso*, *In Manutenzione*) e l'elenco degli ultimi viaggi a livello globale.
 * **Permessi/Funzionalità:** Gestione completa delle anagrafiche dei veicoli (inserimento nuovi mezzi, modifiche) ed esecuzione delle manutenzioni/tagliandi.
@@ -71,7 +71,7 @@ Il sistema prevede un controllo degli accessi basato su **6 livelli di ruolo**, 
 * **Visibilità:** Nessuna sui ticket altrui o pannelli gestionali.
 * **Barra di Navigazione (Navbar):**
   - **I Miei Ticket**: Le Mie Segnalazioni, Invia Nuova Richiesta.
-  - **Autopark**: Prenotazioni.
+  - **Carpooling**: Prenotazioni.
 * **Homepage/Dashboard Dedicata:**
   - Landing page pulita contenente due pulsanti per la creazione rapida di ticket (*Invia Nuova Richiesta*) o per l'elenco delle proprie segnalazioni (*Le Mie Richieste*), oltre allo storico dei ticket aperti dall'utente e la bacheca avvisi attiva.
 * **Permessi/Funzionalità:** Apertura ticket, pianificazione delle proprie ferie/assenze in calendario e prenotazione/cancellazione autonoma di auto disponibili nel modulo Autopark.
@@ -127,8 +127,8 @@ Il modulo Magazzino permette di gestire in modo centralizzato e tracciabile tutt
 * **Reparti & Servizi:** Struttura ad albero. Ogni Reparto (es. *IT*) contiene N Servizi (es. *Assistenza PC*, *Credenziali*).
 * **Calendario Assenze e Festività:** Modulo integrato per registrare ferie, malattie e permessi. Il sistema incrocia le date per mostrare a video un badge "Assente" qualora l'ultimo operatore che ha gestito il ticket fosse irreperibile quel giorno. Gli amministratori possono inoltre configurare festività globali a calendario.
 
-### 5. Gestione Parco Automezzi (Autopark)
-Il modulo Autopark consente una gestione centralizzata e autosufficiente dei veicoli aziendali, sia per il monitoraggio della flotta che per la prenotazione da parte degli impiegati.
+### 5. Gestione Parco Automezzi (Carpooling)
+Il modulo Carpooling consente una gestione centralizzata e autosufficiente dei veicoli aziendali, sia per il monitoraggio della flotta che per la prenotazione da parte degli impiegati.
 * **Prenotazione Autonoma (Self-Service)**: Qualsiasi utente autenticato può accedere al cruscotto prenotazioni per richiedere un'auto disponibile, visualizzando in tempo reale il chilometraggio del veicolo e la sua sede attuale.
 * **Registrazione Chilometri e Rientri**: All'avvio del viaggio, il sistema logga il chilometraggio di partenza (`km_iniziali`) prelevato automaticamente dalla scheda auto. Al rientro, l'utente chiude il viaggio inserendo i km finali (che aggiornano il chilometraggio cumulativo dell'auto), l'ora di rientro e la sede di consegna.
 * **Cancellazione delle Prenotazioni**: Gli utenti possono annullare autonomamente le prenotazioni programmate, liberando istantaneamente il veicolo per altre richieste.

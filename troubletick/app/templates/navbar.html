@@ -87,7 +87,7 @@
           {% if cfg.get('modulo_autopark', True) %}
           <li class="nav-item dropdown">
             <a class="nav-link dropdown-toggle {% if request.url.path == '/autopark' or request.url.path == '/admin/automezzi' or request.url.path == '/admin/automezzi/dislocazioni' or request.url.path == '/admin/automezzi/manutenzioni' or request.url.path == '/admin/automezzi/viaggi' %}active fw-bold{% endif %}" href="#" id="autoparkDropdown" role="button" data-bs-toggle="dropdown" aria-expanded="false">
-              <i class="bi bi-p-circle"></i> Autopark
+              <i class="bi bi-car-front-fill me-1"></i> Carpooling
             </a>
             <ul class="dropdown-menu shadow" aria-labelledby="autoparkDropdown">
               <li><a class="dropdown-item" href="/autopark">Prenotazioni</a></li>
@@ -157,7 +157,7 @@
               <li><a class="dropdown-item" href="/admin/categorie">Categorie Materiali</a></li>
               <li><a class="dropdown-item" href="/admin/materiali">Anagrafica Materiali</a></li>
               {% if cfg.get('modulo_autopark', True) %}
-              <li><a class="dropdown-item" href="/admin/automezzi/gestione">Gestione Autopark</a></li>
+              <li><a class="dropdown-item" href="/admin/automezzi/gestione">Gestione Carpooling</a></li>
               <li><a class="dropdown-item" href="/admin/automezzi/marche">Gestione Marche Automezzi</a></li>
               {% endif %}
               <li><hr class="dropdown-divider"></li>
@@ -225,7 +225,7 @@
           {% if cfg.get('modulo_autopark', True) %}
           <li class="nav-item dropdown">
             <a class="nav-link dropdown-toggle {% if request.url.path == '/autopark' %}active fw-bold{% endif %}" href="#" id="autoparkDropdownRep" role="button" data-bs-toggle="dropdown" aria-expanded="false">
-              <i class="bi bi-p-circle"></i> Autopark
+              <i class="bi bi-car-front-fill me-1"></i> Carpooling
             </a>
             <ul class="dropdown-menu shadow" aria-labelledby="autoparkDropdownRep">
               <li><a class="dropdown-item" href="/autopark">Prenotazioni</a></li>
@@ -305,7 +305,7 @@
           {% if cfg.get('modulo_autopark', True) %}
           <li class="nav-item dropdown">
             <a class="nav-link dropdown-toggle {% if request.url.path == '/autopark' %}active fw-bold{% endif %}" href="#" id="autoparkDropdownAss" role="button" data-bs-toggle="dropdown" aria-expanded="false">
-              <i class="bi bi-p-circle"></i> Autopark
+              <i class="bi bi-car-front-fill me-1"></i> Carpooling
             </a>
             <ul class="dropdown-menu shadow" aria-labelledby="autoparkDropdownAss">
               <li><a class="dropdown-item" href="/autopark">Prenotazioni</a></li>
@@ -328,7 +328,7 @@
           {% if cfg.get('modulo_autopark', True) %}
           <li class="nav-item dropdown">
             <a class="nav-link dropdown-toggle {% if request.url.path == '/autopark' or request.url.path == '/admin/automezzi' or request.url.path == '/admin/automezzi/dislocazioni' or request.url.path == '/admin/automezzi/manutenzioni' or request.url.path == '/admin/automezzi/viaggi' %}active fw-bold{% endif %}" href="#" id="autoparkDropdownFM" role="button" data-bs-toggle="dropdown" aria-expanded="false">
-              <i class="bi bi-p-circle"></i> Autopark
+              <i class="bi bi-car-front-fill me-1"></i> Carpooling
             </a>
             <ul class="dropdown-menu shadow" aria-labelledby="autoparkDropdownFM">
               <li><a class="dropdown-item" href="/autopark">Prenotazioni</a></li>
@@ -362,7 +362,7 @@
           {# {% if cfg.get('modulo_autopark', True) %}
           <li class="nav-item dropdown">
             <a class="nav-link dropdown-toggle {% if request.url.path == '/autopark' %}active fw-bold{% endif %}" href="#" id="autoparkDropdownNorm" role="button" data-bs-toggle="dropdown" aria-expanded="false">
-              <i class="bi bi-p-circle"></i> Autopark
+              <i class="bi bi-car-front-fill me-1"></i> Carpooling
             </a>
             <ul class="dropdown-menu shadow" aria-labelledby="autoparkDropdownNorm">
               <li><a class="dropdown-item" href="/autopark">Prenotazioni</a></li>

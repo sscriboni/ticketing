@@ -1,6 +1,6 @@
-# Guida alla Gestione del Parco Auto (Autopark)
+# Guida alla Gestione del Parco Auto (Carpooling)
 
-Questa guida descrive il funzionamento, i ruoli e le procedure operative del modulo **Autopark**, il sistema per la prenotazione e il monitoraggio dei veicoli aziendali (auto e furgoni).
+Questa guida descrive il funzionamento, i ruoli e le procedure operative del modulo **Carpooling**, il sistema per la prenotazione e il monitoraggio dei veicoli aziendali (auto e furgoni).
 
 Il sistema gestisce l'intero ciclo di vita di un viaggio: dalla prenotazione (standard o istantanea) alla registrazione della partenza, della pausa, fino alla riconsegna fisica del mezzo con aggiornamento dello stato dell'auto e dei chilometri percorsi.
 
@@ -8,7 +8,7 @@ Il sistema gestisce l'intero ciclo di vita di un viaggio: dalla prenotazione (st
 
 ## 🛠️ Architettura e Avvio dell'Applicazione
 
-L'applicazione Autopark è configurata per funzionare in parallelo con l'applicazione web principale (Helpdesk/Troubleticket):
+L'applicazione Carpooling è configurata per funzionare in parallelo con l'applicazione web principale (Helpdesk/Troubleticket):
 * **File di Erogazione**: La webapp dell'Autopark è erogata in modo indipendente dal file [appautopark.py](file:///g:/Il%20mio%20Drive/Progetti/ticketing/troubletick/app/appautopark.py).
 * **Porta e Avvio**: Viene eseguita in parallelo all'applicazione principale ed erogata su una porta di rete diversa (solitamente la porta **`5002`**, avviata tramite Uvicorn con `uvicorn appautopark:app --host 0.0.0.0 --port 5002`). L'applicazione principale di troubleticket gira invece sulla propria porta dedicata (porta `5000` o `5001`).
 * **Database Condiviso**: Entrambe le applicazioni si collegano allo stesso database SQLite locale (`troubletick.db`), garantendo la sincronia in tempo reale delle tabelle utenti, reparti, sedi e dei viaggi della flotta.

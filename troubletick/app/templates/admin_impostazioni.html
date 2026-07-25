@@ -38,9 +38,9 @@
                         <div class="form-text text-muted">Indirizzo web dell'applicazione principale (Troubletick).</div>
                     </div>
                     <div class="col-md-6">
-                        <label class="form-label fw-bold">URL Assoluto Webapp (Autopark)</label>
+                        <label class="form-label fw-bold">URL Assoluto Webapp (Carpooling)</label>
                         <input type="url" name="webapp_url" class="form-control" value="{{ cfg.webapp_url or '' }}" placeholder="es. http://localhost:5002/">
-                        <div class="form-text text-muted">Indirizzo web della webapp autonoma Autopark.</div>
+                        <div class="form-text text-muted">Indirizzo web della webapp autonoma Carpooling.</div>
                     </div>
                 </div>
 
@@ -141,7 +141,7 @@
                 </div>
                 <div class="mb-4 form-check">
                     <input type="checkbox" name="modulo_autopark" value="1" class="form-check-input" id="checkModuloAutopark" {% if cfg.get('modulo_autopark', True) %}checked{% endif %}>
-                    <label class="form-check-label fw-bold" for="checkModuloAutopark">🚗 Modulo Autopark (gestione parco auto)</label>
+                    <label class="form-check-label fw-bold" for="checkModuloAutopark">🚗 Modulo Carpooling (gestione parco auto)</label>
                 </div>
 
                 <div class="d-flex gap-2">
