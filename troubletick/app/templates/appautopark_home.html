@@ -612,23 +612,45 @@ document.addEventListener("DOMContentLoaded", function() {
         dateInput.value = today;
     }
 
-    /* ── vehicle filtering by sede ── */
+    /* ── vehicle filtering by sede & date/times ── */
     const allVehicles = {{ veicoli | tojson }};
+    const activeBookings = {{ prenotazioni_attive | tojson }};
     const sedeSelect  = document.getElementById("sede_partenza_id");
     const vSelect     = document.getElementById("automezzo_id");
     const infoBox     = document.getElementById("vehicleInfoBox");
     const kmText      = document.getElementById("vehicleKmText");
     const sedeText    = document.getElementById("vehicleSedeText");
+    const oraPartenza = document.getElementById("ora_partenza");
+    const oraRiconsegna = document.getElementById("ora_riconsegna_prevista");
+
+    function hasBookingOverlap(automezzoId, dateStr, startStr, endStr) {
+        if (!dateStr || !startStr || !endStr) return null;
+        for (let i = 0; i < activeBookings.length; i++) {
+            const b = activeBookings[i];
+            if (parseInt(b.automezzo_id) === parseInt(automezzoId) && b.data_viaggio === dateStr && !b.ora_arrivo) {
+                const bStart = b.ora_partenza;
+                const bEnd = b.ora_riconsegna_prevista || b.ora_partenza;
+                if (bStart < endStr && bEnd > startStr) {
+                    return b;
+                }
+            }
+        }
+        return null;
+    }
 
     function updateVehicleOptions() {
-        if (!sedeSelect || !vSelect) return;
-        const sid = parseInt(sedeSelect.value) || 0;
-        
+        if (!vSelect) return;
+        const sid = sedeSelect ? (parseInt(sedeSelect.value) || 0) : 0;
+        const selectedDate = dateInput ? dateInput.value : "";
+        const selectedOraP = oraPartenza ? oraPartenza.value : "";
+        const selectedOraR = oraRiconsegna ? oraRiconsegna.value : "";
+
         let filtered = allVehicles;
         if (sid > 0) {
-            const specific = allVehicles.filter(v => 
-                v.sede_attuale_id === sid || v.sede_attuale_id === 0 || v.sede_attuale_id === null || !v.sede_attuale_id
-            );
+            const specific = allVehicles.filter(v => {
+                const vSede = parseInt(v.sede_attuale_id || 0);
+                return vSede === sid || vSede === 0;
+            });
             if (specific.length > 0) {
                 filtered = specific;
             }
@@ -657,14 +679,22 @@ document.addEventListener("DOMContentLoaded", function() {
             o.setAttribute("data-km", v.km_attuali);
             o.setAttribute("data-sede", v.sede_attuale_nome || "Tutte le Sedi");
             o.setAttribute("data-sede-id", v.sede_attuale_id || 0);
+            
             const avail = (v.stato === "Disponibile" && v.escluso_prenotazione === 0);
-            if (avail) {
-                o.textContent = `${v.marca_nome} ${v.modello} (${v.targa}) – Disponibile (${v.km_attuali} km)`;
-            } else {
+            const overlap = hasBookingOverlap(v.automezzo_id, selectedDate, selectedOraP, selectedOraR);
+
+            if (!avail) {
                 o.disabled = true;
                 const reason = v.escluso_prenotazione === 1 ? "Escluso" : v.stato;
                 o.textContent = `${v.marca_nome} ${v.modello} (${v.targa}) – ${reason} (${v.km_attuali} km)`;
+            } else if (overlap) {
+                o.disabled = true;
+                o.textContent = `${v.marca_nome} ${v.modello} (${v.targa}) – Già prenotata (${overlap.ora_partenza} - ${overlap.ora_riconsegna_prevista})`;
+            } else {
+                o.disabled = false;
+                o.textContent = `${v.marca_nome} ${v.modello} (${v.targa}) – Disponibile (${v.km_attuali} km)`;
             }
+
             if (currentSelectedValue && String(v.automezzo_id) === String(currentSelectedValue)) {
                 o.selected = true;
             }
@@ -672,8 +702,14 @@ document.addEventListener("DOMContentLoaded", function() {
         });
     }
 
-    if (sedeSelect && vSelect) {
-        sedeSelect.addEventListener("change", updateVehicleOptions);
+    if (vSelect) {
+        if (sedeSelect) sedeSelect.addEventListener("change", updateVehicleOptions);
+        if (dateInput) {
+            dateInput.addEventListener("change", updateVehicleOptions);
+            dateInput.addEventListener("input", updateVehicleOptions);
+        }
+        if (oraPartenza) oraPartenza.addEventListener("change", updateVehicleOptions);
+        if (oraRiconsegna) oraRiconsegna.addEventListener("change", updateVehicleOptions);
 
         vSelect.addEventListener("change", function() {
             const sel = vSelect.options[vSelect.selectedIndex];
@@ -683,7 +719,7 @@ document.addEventListener("DOMContentLoaded", function() {
                 if (infoBox) infoBox.classList.remove("d-none");
                 
                 const vehicleSedeId = sel.getAttribute("data-sede-id");
-                if (!sedeSelect.value && vehicleSedeId && parseInt(vehicleSedeId) > 0) {
+                if (sedeSelect && !sedeSelect.value && vehicleSedeId && parseInt(vehicleSedeId) > 0) {
                     sedeSelect.value = vehicleSedeId;
                 }
             } else {
