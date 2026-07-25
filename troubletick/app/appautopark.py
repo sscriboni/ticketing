@@ -362,6 +362,13 @@ def registra_viaggio_posteriori(
         if ora_arrivo <= ora_partenza:
             return _redirect_err(f"L'orario di ritorno ({ora_arrivo}) deve essere successivo all'orario di partenza ({ora_partenza}).")
 
+        now = datetime.datetime.now()
+        now_time_str = now.strftime("%H:%M")
+        today_str = now.strftime("%Y-%m-%d")
+
+        if v["data_viaggio"] == today_str and ora_arrivo > now_time_str:
+            return _redirect_err(f"L'orario di rientro ({ora_arrivo}) non può essere nel futuro rispetto all'orario attuale ({now_time_str}).")
+
         if km_finali < km_iniziali:
             return _redirect_err(f"I km di arrivo ({km_finali}) non possono essere inferiori ai km di partenza ({km_iniziali}).")
 
@@ -490,6 +497,237 @@ def elimina(id: int, r: Request, nuovi_km: int = Form(None)):
             return RedirectResponse(url=f"/?msg={urllib.parse.quote(msg_text)}", status_code=303)
 
     return RedirectResponse(url="/?msg=deleted", status_code=303)
+
+
+# ── AZIONI VIAGGIO REALTIME ───────────────────────────────────────────────
+
+@app.post("/avvia/{id}")
+def avvia_viaggio_app(
+    id: int,
+    r: Request,
+    km_iniziali: int = Form(...),
+    ora_partenza_effettiva: str = Form(...),
+    note: str = Form(None)
+):
+    user = r.session.get("user")
+    if not user:
+        return RedirectResponse(url="/login", status_code=303)
+    uid = user.get("id")
+    role = user.get("ruolo")
+    now = datetime.datetime.now()
+    now_time_str = now.strftime("%H:%M")
+    today_str = now.strftime("%Y-%m-%d")
+
+    with engine.begin() as conn:
+        b = conn.execute(text("""
+            SELECT v.viaggio_id, v.automezzo_id, v.data_viaggio, v.user_id, v.km_iniziali, a.km_attuali
+            FROM viaggi_automezzi v
+            JOIN automezzi a ON v.automezzo_id = a.automezzo_id
+            WHERE v.viaggio_id = :id AND v.ora_arrivo IS NULL
+        """), {"id": id}).mappings().first()
+
+        if not b:
+            return _redirect_err("Prenotazione non trovata o già completata.")
+
+        if b["user_id"] != uid and role not in ("admin", "fleet_manager", "global_fleet_manager"):
+            return _redirect_err("Non sei autorizzato ad avviare questo viaggio.")
+
+        current_auto_km = b["km_attuali"] or 0
+        if km_iniziali < current_auto_km:
+            return _redirect_err(f"I km iniziali ({km_iniziali}) non possono essere inferiori al contachilometri attuale del veicolo ({current_auto_km} km).")
+
+        if b["data_viaggio"] == today_str and ora_partenza_effettiva > now_time_str:
+            return _redirect_err(f"L'orario di partenza ({ora_partenza_effettiva}) non può essere nel futuro rispetto all'ora attuale ({now_time_str}). È possibile solo anticipare l'orario.")
+
+        conn.execute(text("""
+            UPDATE viaggi_automezzi
+            SET ora_partenza_effettiva = :ope,
+                ora_partenza = :ope,
+                km_iniziali = :kmi,
+                note = COALESCE(:note, note),
+                in_pausa = 0
+            WHERE viaggio_id = :id
+        """), {
+            "id": id,
+            "ope": ora_partenza_effettiva,
+            "kmi": km_iniziali,
+            "note": note
+        })
+
+        conn.execute(text("""
+            UPDATE automezzi
+            SET km_attuali = CASE WHEN :kmi > km_attuali THEN :kmi ELSE km_attuali END
+            WHERE automezzo_id = :aid
+        """), {"aid": b["automezzo_id"], "kmi": km_iniziali})
+
+    return _redirect_ok("started")
+
+
+@app.post("/pausa/{id}")
+def pausa_viaggio_app(id: int, r: Request):
+    user = r.session.get("user")
+    if not user:
+        return RedirectResponse(url="/login", status_code=303)
+    uid = user.get("id")
+    role = user.get("ruolo")
+    now_str = datetime.datetime.now().strftime("%H:%M")
+
+    with engine.begin() as conn:
+        b = conn.execute(text("""
+            SELECT viaggio_id, user_id, in_pausa, inizio_pausa, minuti_fermo
+            FROM viaggi_automezzi
+            WHERE viaggio_id = :id AND ora_arrivo IS NULL
+        """), {"id": id}).mappings().first()
+
+        if not b:
+            return _redirect_err("Viaggio non trovato.")
+
+        if b["user_id"] != uid and role not in ("admin", "fleet_manager", "global_fleet_manager"):
+            return _redirect_err("Non sei autorizzato a modificare questo viaggio.")
+
+        if b["in_pausa"] == 1:
+            p_min = 0
+            if b["inizio_pausa"]:
+                try:
+                    t_start = datetime.datetime.strptime(b["inizio_pausa"], "%H:%M")
+                    t_now = datetime.datetime.strptime(now_str, "%H:%M")
+                    if t_now >= t_start:
+                        p_min = int((t_now - t_start).total_seconds() / 60)
+                except Exception:
+                    pass
+            total_fermo = (b["minuti_fermo"] or 0) + p_min
+            conn.execute(text("""
+                UPDATE viaggi_automezzi
+                SET in_pausa = 0, inizio_pausa = NULL, minuti_fermo = :m
+                WHERE viaggio_id = :id
+            """), {"m": total_fermo, "id": id})
+        else:
+            conn.execute(text("""
+                UPDATE viaggi_automezzi
+                SET in_pausa = 1, inizio_pausa = :now_t
+                WHERE viaggio_id = :id
+            """), {"now_t": now_str, "id": id})
+
+    return RedirectResponse(url="/", status_code=303)
+
+
+@app.post("/annulla-viaggio/{id}")
+def annulla_viaggio_app(id: int, r: Request):
+    user = r.session.get("user")
+    if not user:
+        return RedirectResponse(url="/login", status_code=303)
+    uid = user.get("id")
+    role = user.get("ruolo")
+
+    with engine.begin() as conn:
+        b = conn.execute(text("SELECT user_id, ora_partenza_effettiva FROM viaggi_automezzi WHERE viaggio_id = :id"), {"id": id}).first()
+        if not b:
+            return _redirect_err("Prenotazione non trovata.")
+        if b.user_id != uid and role not in ("admin", "global_fleet_manager"):
+            return _redirect_err("Non sei autorizzato ad annullare questo viaggio.")
+            
+        conn.execute(text("UPDATE viaggi_automezzi SET ora_partenza_effettiva = NULL, in_pausa = 0 WHERE viaggio_id = :id"), {"id": id})
+        
+    return RedirectResponse(url="/?msg=cancelled", status_code=303)
+
+
+@app.post("/completa/{id}")
+def completa_viaggio_app(
+    id: int,
+    r: Request,
+    km_finali: int = Form(...),
+    ora_arrivo: str = Form(...),
+    sede_arrivo_id: int = Form(...),
+    note: str = Form(None)
+):
+    user = r.session.get("user")
+    if not user:
+        return RedirectResponse(url="/login", status_code=303)
+    uid = user.get("id")
+    role = user.get("ruolo")
+
+    with engine.begin() as conn:
+        b = conn.execute(text("""
+            SELECT automezzo_id, data_viaggio, km_iniziali, user_id, ora_partenza, ora_partenza_effettiva
+            FROM viaggi_automezzi
+            WHERE viaggio_id = :id AND ora_arrivo IS NULL
+        """), {"id": id}).mappings().first()
+
+        if not b:
+            return _redirect_err("Prenotazione non trovata o già completata.")
+
+        if b["user_id"] != uid and role not in ("admin", "fleet_manager", "global_fleet_manager"):
+            return _redirect_err("Non sei autorizzato a completare questo viaggio.")
+
+        k_init = b["km_iniziali"] or 0
+        if km_finali <= k_init:
+            return _redirect_err(f"I km finali ({km_finali}) devono essere strettamente maggiori dei km iniziali ({k_init} km).")
+
+        p_time = b["ora_partenza_effettiva"] or b["ora_partenza"]
+        if ora_arrivo <= p_time:
+            return _redirect_err(f"L'orario di rientro ({ora_arrivo}) deve essere successivo all'orario di partenza ({p_time}).")
+
+        now = datetime.datetime.now()
+        now_time_str = now.strftime("%H:%M")
+        today_str = now.strftime("%Y-%m-%d")
+
+        if b["data_viaggio"] == today_str and ora_arrivo > now_time_str:
+            return _redirect_err(f"L'orario di rientro ({ora_arrivo}) non può essere nel futuro rispetto all'orario attuale ({now_time_str}).")
+
+        later_trip = conn.execute(text("""
+            SELECT viaggio_id, data_viaggio, ora_partenza, ora_arrivo
+            FROM viaggi_automezzi
+            WHERE automezzo_id = :aid
+              AND viaggio_id != :id
+              AND ora_arrivo IS NOT NULL
+              AND (
+                  data_viaggio > :data_v
+                  OR (data_viaggio = :data_v AND ora_partenza > :ora_p)
+              )
+            ORDER BY data_viaggio ASC, ora_partenza ASC
+            LIMIT 1
+        """), {
+            "aid": b["automezzo_id"],
+            "id": id,
+            "data_v": b["data_viaggio"],
+            "ora_p": p_time
+        }).mappings().first()
+
+        if later_trip:
+            formatted_later_date = later_trip['data_viaggio']
+            try:
+                parts = later_trip['data_viaggio'].split("-")
+                if len(parts) == 3:
+                    formatted_later_date = f"{parts[2]}/{parts[1]}/{parts[0]}"
+            except Exception:
+                pass
+            err_msg = f"Impossibile registrare il viaggio: è già presente un viaggio completato in data/ora successiva ({formatted_later_date} alle {later_trip['ora_partenza']}) per questo veicolo."
+            return _redirect_err(err_msg)
+
+        conn.execute(text("""
+            UPDATE viaggi_automezzi
+            SET ora_arrivo = :oa,
+                km_finali = :kf,
+                sede_arrivo_id = :sa,
+                note = COALESCE(:note, note),
+                in_pausa = 0
+            WHERE viaggio_id = :id
+        """), {
+            "id": id,
+            "oa": ora_arrivo,
+            "kf": km_finali,
+            "sa": sede_arrivo_id,
+            "note": note
+        })
+
+        conn.execute(text("""
+            UPDATE automezzi
+            SET km_attuali = :kf,
+                sede_attuale_id = :sa
+            WHERE automezzo_id = :aid
+        """), {"aid": b["automezzo_id"], "kf": km_finali, "sa": sede_arrivo_id})
+
+    return _redirect_ok("completed")
 
 # ── LOGIN / LOGOUT ────────────────────────────────────────────────────────
 

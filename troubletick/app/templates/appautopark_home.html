@@ -3,7 +3,7 @@
 <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
-    <title>Carpooling — {{ cfg.app_title }}</title>
+    <title>Carpooling {{ cfg.company_name or cfg.app_title or '' }}</title>
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css">
     <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -179,7 +179,7 @@
 <!-- ═══ TOP BAR ═══ -->
 <nav class="topbar">
     <div class="container d-flex justify-content-between align-items-center">
-        <a class="brand" href="/"><i class="bi bi-car-front-fill"></i>Carpooling</a>
+        <a class="brand" href="/"><i class="bi bi-car-front-fill"></i>Carpooling {{ cfg.company_name or '' }}</a>
         <div class="d-flex align-items-center gap-3">
             <span class="user-pill">
                 <i class="bi bi-person-circle"></i>
@@ -247,7 +247,7 @@
 <!-- ═══ MAIN CONTENT ═══ -->
 <div class="container py-4">
     <div class="d-flex justify-content-between align-items-center mb-4">
-        <h3 class="fw-bold mb-0 text-white" style="font-family: var(--font-outfit);">Carpooling App</h3>
+        <h3 class="fw-bold mb-0 text-white" style="font-family: var(--font-outfit);">Carpooling {{ cfg.company_name or '' }}</h3>
     </div>
 
     <div class="row g-4">
@@ -447,13 +447,13 @@
                                     </form>
                                 </div>
                                 
-                                <div class="collapse mt-3" id="cf-{{ p.viaggio_id }}">
-                                    <div class="p-3 rounded border border-secondary" style="background: rgba(15, 23, 42, 0.6);">
-                                        <h6 class="fw-bold mb-2 text-success">Dettagli Rientro</h6>
+                                 <div class="collapse mt-3" id="cf-{{ p.viaggio_id }}">
+                                    <div class="p-3 rounded border border-secondary" style="background: rgba(15, 23, 42, 0.8);">
+                                        <h6 class="fw-bold mb-2 text-success"><i class="bi bi-flag-fill me-1"></i> Dettagli Rientro e Chiusura</h6>
                                         <form action="/completa/{{ p.viaggio_id }}" method="POST" class="completa-viaggio-form" data-partenza="{{ p.ora_partenza_effettiva }}">
                                             <div class="mb-2">
                                                 <label class="form-label small mb-1 text-white">KM Finali (KM Partenza: {{ p.km_iniziali }} km)</label>
-                                                <input type="number" name="km_finali" class="form-control form-control-sm form-control-dark" placeholder="Odometro finale" required>
+                                                <input type="number" name="km_finali" class="form-control form-control-sm form-control-dark" min="{{ (p.km_iniziali or 0) + 1 }}" placeholder="Odometro finale (maggiori di {{ p.km_iniziali or 0 }})" required>
                                             </div>
                                             <div class="mb-2">
                                                 <label class="form-label small mb-1 text-white">Sede Rientro</label>
@@ -464,12 +464,12 @@
                                                 </select>
                                             </div>
                                             <div class="mb-2">
-                                                <label class="form-label small mb-1 text-white">Note Rientro</label>
-                                                <input type="text" name="note_finali" class="form-control form-control-sm form-control-dark" placeholder="Facoltative">
-                                            </div>
-                                            <div class="mb-2">
                                                 <label class="form-label small mb-1 text-white">Ora Rientro</label>
                                                 <input type="time" name="ora_arrivo" class="form-control form-control-sm form-control-dark" required>
+                                            </div>
+                                            <div class="mb-2">
+                                                <label class="form-label small mb-1 text-white">Note Viaggio</label>
+                                                <textarea name="note" class="form-control form-control-sm form-control-dark" rows="2" placeholder="Note facoltative o aggiornate sul viaggio">{{ p.note or '' }}</textarea>
                                             </div>
                                             <button type="submit" class="btn btn-sm btn-success w-100 mt-2 fw-bold">Conferma Rientro</button>
                                         </form>
@@ -477,11 +477,9 @@
                                 </div>
                             {% else %}
                                 <div class="d-flex gap-2 mt-3">
-                                    <form action="/avvia/{{ p.viaggio_id }}" method="POST" class="w-100" onsubmit="return confirm('Avviare questo viaggio registrando la partenza adesso?');">
-                                        <button type="submit" class="btn btn-sm btn-success w-100 py-2 fw-bold text-white" {% if p.user_id != user.id %}disabled title="Solo l'utente assegnato può avviare il viaggio"{% endif %}>
-                                            <i class="bi bi-play-fill me-1"></i> Parti..
-                                        </button>
-                                    </form>
+                                    <button type="button" class="btn btn-sm btn-success w-100 py-2 fw-bold text-white flex-fill" data-bs-toggle="collapse" data-bs-target="#start-panel-{{ p.viaggio_id }}" {% if p.user_id != user.id and user.ruolo not in ('admin', 'fleet_manager', 'global_fleet_manager') %}disabled title="Solo l'utente assegnato può avviare il viaggio"{% endif %}>
+                                        <i class="bi bi-play-fill me-1"></i> Parti..
+                                    </button>
                                     
                                     {% if user.ruolo in ('admin', 'fleet_manager', 'global_fleet_manager') or p.user_id == user.id %}
                                     {% set is_past_date = (p.data_viaggio < today_str) %}
@@ -491,6 +489,42 @@
                                         </button>
                                     </form>
                                     {% endif %}
+                                </div>
+
+                                <!-- Form Avvio Viaggio Inline Collapse -->
+                                <div class="collapse mt-3" id="start-panel-{{ p.viaggio_id }}">
+                                    <div class="p-3 rounded border border-secondary text-white" style="background: rgba(15, 23, 42, 0.8);">
+                                        <h6 class="fw-bold mb-3 text-success">
+                                            <i class="bi bi-play-circle-fill me-1"></i> Avvio Viaggio (Partenza)
+                                        </h6>
+                                        <form action="/avvia/{{ p.viaggio_id }}" method="POST">
+                                            <div class="mb-2">
+                                                <label class="form-label small text-muted mb-1">Data Viaggio (fisso)</label>
+                                                <input type="text" class="form-control form-control-sm form-control-dark" value="{{ p.data_viaggio }}" readonly disabled>
+                                            </div>
+                                            <div class="mb-2">
+                                                <label class="form-label small text-muted mb-1">Sede Partenza (fissa)</label>
+                                                <input type="text" class="form-control form-control-sm form-control-dark" value="{{ p.sede_partenza_nome }}" readonly disabled>
+                                            </div>
+                                            <div class="mb-2">
+                                                <label class="form-label small mb-1 text-white">KM Iniziali (≥ {{ p.km_attuali }} km)</label>
+                                                <input type="number" name="km_iniziali" class="form-control form-control-sm form-control-dark" value="{{ p.km_iniziali or p.km_attuali }}" min="{{ p.km_attuali }}" placeholder="KM a cruscotto" required>
+                                                <div class="form-text text-muted" style="font-size: .75rem;">Devono essere maggiori o uguali a {{ p.km_attuali }} km.</div>
+                                            </div>
+                                            <div class="mb-2">
+                                                <label class="form-label small mb-1 text-white">Ora Partenza Effettiva</label>
+                                                <input type="time" name="ora_partenza_effettiva" class="form-control form-control-sm form-control-dark" value="{{ p.ora_partenza }}" required>
+                                                <div class="form-text text-muted" style="font-size: .75rem;">Puoi anticipare l'orario, ma non inserire un orario futuro.</div>
+                                            </div>
+                                            <div class="mb-2">
+                                                <label class="form-label small mb-1 text-white">Note Viaggio</label>
+                                                <textarea name="note" class="form-control form-control-sm form-control-dark" rows="2" placeholder="Note facoltative sul viaggio">{{ p.note or '' }}</textarea>
+                                            </div>
+                                            <button type="submit" class="btn btn-sm btn-success w-100 mt-2 fw-bold">
+                                                <i class="bi bi-play-fill me-1"></i> Conferma Avvio Viaggio
+                                            </button>
+                                        </form>
+                                    </div>
                                 </div>
                             {% endif %}
                         </div>
@@ -601,8 +635,8 @@
                                     <span class="small" style="color:#818cf8;">{{ p.targa }}</span>
                                 </td>
                                 <td>
-                                    <span>{{ p.data_viaggio }}</span><br>
-                                    <span class="small text-muted">{{ p.ora_partenza }} - {{ p.ora_riconsegna_prevista or '-' }}</span>
+                                    <span class="fw-bold text-white">{{ p.data_viaggio }}</span><br>
+                                    <span class="small fw-semibold" style="color: #38bdf8;"><i class="bi bi-clock me-1"></i>{{ p.ora_partenza }}{% if p.ora_arrivo %} - {{ p.ora_arrivo }}{% elif p.ora_riconsegna_prevista %} - {{ p.ora_riconsegna_prevista }}{% endif %}</span>
                                     {% if p.minuti_fermo and p.minuti_fermo > 0 %}
                                         <br><span class="badge bg-warning text-dark small" style="font-size: 0.72rem; padding: 2px 6px;"><i class="bi bi-clock-history"></i> Fermo: {{ p.minuti_fermo }} min</span>
                                     {% endif %}
@@ -722,6 +756,8 @@ document.addEventListener("DOMContentLoaded", function() {
 
         const noVehicleAlertBox = document.getElementById("noVehicleAlertBox");
         const btnPrintIndisponibilita = document.getElementById("btnPrintIndisponibilita");
+
+        const allFieldsSelected = (sid > 0 && selectedDate && selectedOraP && selectedOraR);
 
         if (!allFieldsSelected) {
             vSelect.innerHTML = "";

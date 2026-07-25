@@ -2045,6 +2045,15 @@ def registra_viaggio_posteriori_autopark(
             err_txt = f"L'orario di ritorno ({ora_arrivo}) deve essere successivo all'orario di partenza ({ora_partenza})."
             return RedirectResponse(url=f"/autopark?error={urllib.parse.quote(err_txt)}", status_code=303)
 
+        now = datetime.datetime.now()
+        now_time_str = now.strftime("%H:%M")
+        today_str = now.strftime("%Y-%m-%d")
+
+        if v["data_viaggio"] == today_str and ora_arrivo > now_time_str:
+            import urllib.parse
+            err_txt = f"L'orario di rientro ({ora_arrivo}) non può essere nel futuro rispetto all'orario attuale ({now_time_str})."
+            return RedirectResponse(url=f"/autopark?error={urllib.parse.quote(err_txt)}", status_code=303)
+
         if km_finali < km_iniziali:
             import urllib.parse
             err_txt = f"I km di arrivo ({km_finali}) non possono essere inferiori ai km di partenza ({km_iniziali})."
