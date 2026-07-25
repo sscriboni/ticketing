@@ -247,12 +247,7 @@
 <!-- ═══ MAIN CONTENT ═══ -->
 <div class="container py-4">
     <div class="d-flex justify-content-between align-items-center mb-4">
-        <h3 class="fw-bold mb-0 text-white" style="font-family: var(--font-outfit);">Autopark Webapp</h3>
-        <form action="/registra-viaggio" method="POST" class="d-inline">
-            <button type="submit" class="btn btn-glow" style="background: linear-gradient(135deg, #10b981 0%, #059669 100%); box-shadow: 0 4px 15px rgba(16,185,129,.3);">
-                <i class="bi bi-play-circle-fill me-1"></i> Parti..
-            </button>
-        </form>
+        <h3 class="fw-bold mb-0 text-white" style="font-family: var(--font-outfit);">Autopark App</h3>
     </div>
 
     <div class="row g-4">
@@ -394,30 +389,19 @@
                 <div class="row row-cols-1 row-cols-md-2 g-3">
                     {% for p in prenotazioni_attive %}
                     <div class="col">
-                        <div class="booking-card {% if p.is_in_corso %}{% if p.in_pausa %}border-warning{% else %}border-success shadow{% endif %}{% endif %}" style="{% if p.is_in_corso %}{% if p.in_pausa %}border: 1px solid #f59e0b;{% else %}border: 1px solid #10b981;{% endif %}{% endif %}">
+                        <div class="booking-card">
                             <div class="d-flex justify-content-between align-items-start mb-2">
                                 <div>
                                     <div class="vehicle-name">{{ p.marca_nome }} {{ p.modello }}</div>
                                     <div class="targa"><i class="bi bi-tag-fill me-1"></i>{{ p.targa }}</div>
                                 </div>
-                                {% if p.is_in_corso %}
-                                    {% if p.in_pausa %}
-                                        <span class="badge bg-warning text-dark px-3 py-1 rounded-pill"><i class="bi bi-pause-fill me-1"></i>In Pausa</span>
-                                    {% else %}
-                                        <span class="badge bg-success text-white px-3 py-1 rounded-pill animate-pulse"><i class="bi bi-play-fill me-1"></i>In Corso</span>
-                                    {% endif %}
-                                {% else %}
-                                    <span class="badge badge-active rounded-pill px-3 py-1">
-                                        <i class="bi bi-bookmark-fill me-1"></i>Prenotata
-                                    </span>
-                                {% endif %}
+                                <span class="badge badge-active rounded-pill px-3 py-1">
+                                    <i class="bi bi-bookmark-fill me-1"></i>Prenotata
+                                </span>
                             </div>
 
                             <div class="detail-row"><i class="bi bi-calendar-event"></i> {{ p.data_viaggio }}</div>
                             <div class="detail-row"><i class="bi bi-clock"></i> Previsto: {{ p.ora_partenza }}{% if p.ora_riconsegna_prevista %} – {{ p.ora_riconsegna_prevista }}{% endif %}</div>
-                            {% if p.ora_partenza_effettiva %}
-                                <div class="detail-row text-success"><i class="bi bi-play-fill"></i> Partenza: {{ p.ora_partenza_effettiva }}</div>
-                            {% endif %}
                             <div class="detail-row"><i class="bi bi-geo-alt"></i> {{ p.sede_partenza_nome }}</div>
                             <div class="detail-row"><i class="bi bi-person-fill"></i> Guidatore: {{ p.driver_nome }} {{ p.driver_cognome }}</div>
                             <div class="detail-row"><i class="bi bi-envelope"></i> {{ p.driver_email }}</div>
@@ -425,70 +409,84 @@
                             <div class="detail-row"><i class="bi bi-pencil-square"></i> {{ p.note }}</div>
                             {% endif %}
 
-                            {% if p.is_in_corso %}
-                                <div class="d-flex gap-2 mt-3">
-                                    <form action="/pausa/{{ p.viaggio_id }}" method="POST" class="w-100">
-                                        <button type="submit" class="btn btn-sm btn-outline-warning w-100 py-2 fw-bold">
-                                            {% if p.in_pausa %}
-                                                <i class="bi bi-play-fill me-1"></i> Riprendi
-                                            {% else %}
-                                                <i class="bi bi-pause-fill me-1"></i> Pausa
-                                            {% endif %}
-                                        </button>
-                                    </form>
-                                    <button type="button" class="btn btn-sm btn-success w-100 py-2 fw-bold" data-bs-toggle="collapse" data-bs-target="#cf-{{ p.viaggio_id }}">
-                                        <i class="bi bi-flag-fill me-1"></i> Termina
+                            <div class="d-flex gap-2 mt-3">
+                                <button type="button" class="btn btn-sm btn-success w-100 py-2 fw-bold text-white" data-bs-toggle="modal" data-bs-target="#modalRegistra-{{ p.viaggio_id }}">
+                                    <i class="bi bi-journal-check me-1"></i> Registra viaggio
+                                </button>
+                                {% if user.ruolo in ('admin', 'fleet_manager', 'global_fleet_manager') or p.user_id == user.id %}
+                                <form action="/elimina/{{ p.viaggio_id }}" method="POST" class="w-100" onsubmit="return confirm('Sei sicuro di voler eliminare questa prenotazione?');">
+                                    <button type="submit" class="btn btn-sm btn-outline-danger-glow w-100 py-2 fw-bold">
+                                        <i class="bi bi-trash-fill me-1"></i> Elimina
                                     </button>
-                                    <form action="/annulla-viaggio/{{ p.viaggio_id }}" method="POST" class="w-100" onsubmit="return confirm('Annullare l\'avvio di questo viaggio ripristinando lo stato di prenotazione?');">
-                                        <button type="submit" class="btn btn-sm btn-outline-danger-glow w-100 py-2 fw-bold">
-                                            <i class="bi bi-x-circle-fill me-1"></i> Annulla
-                                        </button>
-                                    </form>
+                                </form>
+                                {% endif %}
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Modal Registra Viaggio a Posteriori -->
+                    <div class="modal fade" id="modalRegistra-{{ p.viaggio_id }}" tabindex="-1" aria-labelledby="modalLabel-{{ p.viaggio_id }}" aria-hidden="true">
+                        <div class="modal-dialog modal-dialog-centered">
+                            <div class="modal-content" style="background: #1e293b; border: 1px solid rgba(255,255,255,0.12); color: #f1f5f9; border-radius: 16px;">
+                                <div class="modal-header border-bottom border-secondary">
+                                    <h5 class="modal-title fw-bold" id="modalLabel-{{ p.viaggio_id }}" style="font-family: var(--font-outfit);">
+                                        <i class="bi bi-journal-check text-success me-2"></i>Registra Viaggio — {{ p.targa }}
+                                    </h5>
+                                    <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Chiudi"></button>
                                 </div>
-                                <div class="collapse mt-3" id="cf-{{ p.viaggio_id }}">
-                                    <div class="p-3 border border-secondary rounded bg-dark bg-opacity-50">
-                                        <h6 class="fw-bold mb-2 text-success">Dettagli Rientro</h6>
-                                        <form action="/completa/{{ p.viaggio_id }}" method="POST" class="completa-viaggio-form" data-partenza="{{ p.ora_partenza_effettiva }}">
-                                            <div class="mb-2">
-                                                <label class="form-label small mb-1 fw-bold text-white">KM Finali (KM Partenza: {{ p.km_iniziali }} km)</label>
-                                                <input type="number" name="km_finali" class="form-control form-control-sm form-control-dark" placeholder="Odometro finale" required>
+                                <form action="/registra-viaggio/{{ p.viaggio_id }}" method="POST">
+                                    <div class="modal-body">
+                                        <!-- Data Viaggio (Non Modificabile) -->
+                                        <div class="mb-3">
+                                            <label class="form-label small fw-bold text-muted">Data Viaggio (non modificabile)</label>
+                                            <input type="text" class="form-control form-control-dark" value="{{ p.data_viaggio }}" readonly disabled>
+                                        </div>
+                                        <!-- Ora Partenza -->
+                                        <div class="mb-3">
+                                            <label class="form-label small fw-bold text-white">Ora Partenza</label>
+                                            <input type="time" name="ora_partenza" class="form-control form-control-dark" value="{{ p.ora_partenza }}" required>
+                                        </div>
+                                        <!-- KM Partenza -->
+                                        <div class="mb-3">
+                                            <label class="form-label small fw-bold text-white">KM Partenza</label>
+                                            <input type="number" name="km_iniziali" class="form-control form-control-dark" value="{{ p.km_iniziali }}" min="0" required>
+                                            <div class="form-text text-muted" style="font-size: .78rem; color: #94a3b8 !important;">
+                                                <i class="bi bi-info-circle me-1"></i> I km di partenza possono essere maggiori dell'ultimo chilometraggio registrato.
                                             </div>
-                                            <div class="mb-2">
-                                                <label class="form-label small mb-1 fw-bold text-white">Sede Rientro</label>
-                                                <select name="sede_arrivo_id" class="form-select form-select-sm form-select-dark" required>
-                                                    {% for s in sedi %}
-                                                        <option value="{{ s.sede_id }}" {% if s.sede_id == p.sede_partenza_id %}selected{% endif %}>{{ s.nome }}</option>
-                                                    {% endfor %}
-                                                </select>
-                                            </div>
-                                            <div class="mb-2">
-                                                <label class="form-label small mb-1 fw-bold text-white">Note Rientro</label>
-                                                <input type="text" name="note_finali" class="form-control form-control-sm form-control-dark" placeholder="Facoltative">
-                                            </div>
-                                            <div class="mb-2">
-                                                <label class="form-label small mb-1 fw-bold text-white">Ora Rientro</label>
-                                                <input type="time" name="ora_arrivo" class="form-control form-control-sm form-control-dark" required>
-                                            </div>
-                                            <button type="submit" class="btn btn-sm btn-success w-100 mt-2 fw-bold">Conferma Rientro</button>
-                                        </form>
+                                        </div>
+                                        <!-- KM Arrivo -->
+                                        <div class="mb-3">
+                                            <label class="form-label small fw-bold text-white">KM Arrivo</label>
+                                            <input type="number" name="km_finali" class="form-control form-control-dark" min="0" placeholder="Chilometraggio a fine viaggio" required>
+                                        </div>
+                                        <!-- Orario di Ritorno -->
+                                        <div class="mb-3">
+                                            <label class="form-label small fw-bold text-white">Orario di Ritorno</label>
+                                            <input type="time" name="ora_arrivo" class="form-control form-control-dark" value="{{ p.ora_riconsegna_prevista or '' }}" required>
+                                        </div>
+                                        <!-- Sede Rientro -->
+                                        <div class="mb-3">
+                                            <label class="form-label small fw-bold text-white">Sede Rientro</label>
+                                            <select name="sede_arrivo_id" class="form-select form-select-dark" required>
+                                                {% for s in sedi %}
+                                                    <option value="{{ s.sede_id }}" {% if s.sede_id == p.sede_partenza_id %}selected{% endif %}>{{ s.nome }}</option>
+                                                {% endfor %}
+                                            </select>
+                                        </div>
+                                        <!-- Note -->
+                                        <div class="mb-3">
+                                            <label class="form-label small fw-bold text-white">Nota Viaggio</label>
+                                            <textarea name="note" class="form-control form-control-dark" rows="2" placeholder="Note facoltative sul viaggio">{{ p.note or '' }}</textarea>
+                                        </div>
                                     </div>
-                                </div>
-                            {% else %}
-                                <div class="d-flex gap-2 mt-3">
-                                    <form action="/avvia/{{ p.viaggio_id }}" method="POST" class="w-100" onsubmit="return confirm('Avviare questo viaggio registrando la partenza adesso?');">
-                                        <button type="submit" class="btn btn-sm btn-success w-100 py-2 fw-bold text-white">
-                                            <i class="bi bi-play-fill me-1"></i> Parti..
+                                    <div class="modal-footer border-top border-secondary">
+                                        <button type="button" class="btn btn-sm btn-outline-secondary text-white" data-bs-dismiss="modal">Annulla</button>
+                                        <button type="submit" class="btn btn-sm btn-success fw-bold px-4">
+                                            <i class="bi bi-check-lg me-1"></i> Salva e Registra Viaggio
                                         </button>
-                                    </form>
-                                    {% if user.ruolo in ('admin', 'fleet_manager', 'global_fleet_manager') or p.user_id == user.id %}
-                                    <form action="/elimina/{{ p.viaggio_id }}" method="POST" class="w-100" onsubmit="return confirm('Annullare questa prenotazione?');">
-                                        <button type="submit" class="btn btn-sm btn-outline-danger-glow w-100 py-2">
-                                            <i class="bi bi-trash-fill me-1"></i> Annulla
-                                        </button>
-                                    </form>
-                                    {% endif %}
-                                </div>
-                            {% endif %}
+                                    </div>
+                                </form>
+                            </div>
                         </div>
                     </div>
                     {% endfor %}
