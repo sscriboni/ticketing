@@ -2,7 +2,7 @@ import csv
 import io
 import datetime
 from fastapi import APIRouter, Request, Form, UploadFile, File, Query
-from fastapi.responses import HTMLResponse, RedirectResponse, Response
+from fastapi.responses import HTMLResponse, RedirectResponse, Response, JSONResponse
 from sqlalchemy import text
 from core import CFG, templates, engine, DB_PK
 
@@ -688,6 +688,14 @@ def add_registro_km_automezzo(
         data_registrazione = datetime.date.today().isoformat()
 
     with engine.begin() as conn:
+        current_km = conn.execute(text("SELECT km_attuali FROM automezzi WHERE automezzo_id = :aid"), {"aid": automezzo_id}).scalar() or 0
+        if km <= current_km:
+            import urllib.parse
+            err_msg = f"Il chilometraggio inserito ({km} km) deve essere strettamente maggiore del chilometraggio attuale ({current_km} km)."
+            referer = r.headers.get("referer") or "/admin/automezzi"
+            separator = "&" if "?" in referer else "?"
+            return RedirectResponse(url=f"{referer}{separator}error={urllib.parse.quote(err_msg)}", status_code=303)
+
         registra_storico_km(conn, automezzo_id, km, sorgente, data_reg=data_registrazione, user_id=uid, note=note)
 
     referer = r.headers.get("referer") or "/admin/automezzi"

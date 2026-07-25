@@ -196,7 +196,7 @@
                                 <td class="text-end">
                                     <div class="d-inline-flex gap-2">
                                         {% if user.ruolo in ('admin', 'global_fleet_manager') or (user.ruolo == 'fleet_manager' and v.reparto_assegnato_id == user_reparto_id) %}
-                                            <button class="btn btn-sm btn-outline-info text-dark font-monospace" onclick="openRegistroKmModal({{ v.automezzo_id }}, '{{ v.marca_nome }} {{ v.modello }} ({{ v.targa }})')" title="Registro Chilometraggi & Storico KM">
+                                            <button class="btn btn-sm btn-outline-info text-dark font-monospace" data-id="{{ v.automezzo_id }}" data-title="{{ v.marca_nome }} {{ v.modello }} ({{ v.targa }})" data-km="{{ v.km_attuali or 0 }}" onclick="openRegistroKmModalFromBtn(this)" title="Registro Chilometraggi & Storico KM">
                                                 <i class="bi bi-speedometer2 me-1"></i> Registro KM
                                             </button>
                                             <button class="btn btn-sm btn-outline-primary" onclick='openEditModal({{ {
@@ -943,7 +943,8 @@
                                     </div>
                                     <div class="col-md-4">
                                         <label class="form-label small fw-bold">Chilometraggio (KM)</label>
-                                        <input type="number" name="km" id="regKmInput" class="form-control" min="0" placeholder="Es. 45000" required>
+                                        <input type="number" name="km" id="regKmInput" class="form-control" placeholder="Es. 45000" required>
+                                        <div class="form-text mt-1 text-primary fw-bold small" id="regKmHelpText"></div>
                                     </div>
                                     <div class="col-md-4">
                                         <label class="form-label small fw-bold">Sorgente Dato</label>
@@ -995,18 +996,34 @@
     </div>
 
     <script>
-        function openRegistroKmModal(id, title) {
+        function openRegistroKmModalFromBtn(btn) {
+            const id = btn.getAttribute("data-id");
+            const title = btn.getAttribute("data-title");
+            const km = parseInt(btn.getAttribute("data-km")) || 0;
+            openRegistroKmModal(id, title, km);
+        }
+
+        function openRegistroKmModal(id, title, currentKm) {
             document.getElementById("regKmModalTitle").textContent = title;
-            document.getElementById("formAddRegistroKm").action = "../admin/automezzi/registro-km/" + id;
+            document.getElementById("formAddRegistroKm").action = "/admin/automezzi/registro-km/" + id;
             
             const today = new Date().toISOString().split("T")[0];
             document.getElementById("regKmData").value = today;
-            document.getElementById("regKmInput").value = "";
+
+            const kmInput = document.getElementById("regKmInput");
+            const minKm = (currentKm > 0) ? (currentKm + 1) : 1;
+            kmInput.value = minKm;
+            kmInput.min = minKm;
+
+            const helpEl = document.getElementById("regKmHelpText");
+            if (helpEl) {
+                helpEl.textContent = "Chilometraggio attuale: " + currentKm.toLocaleString() + " km (il nuovo valore deve essere > " + currentKm + " km).";
+            }
 
             const tbody = document.getElementById("regKmTableBody");
             tbody.innerHTML = '<tr><td colspan="5" class="text-center text-muted py-3"><div class="spinner-border spinner-border-sm me-2"></div>Caricamento storico...</td></tr>';
 
-            fetch("../admin/automezzi/registro-km/" + id)
+            fetch("/admin/automezzi/registro-km/" + id)
                 .then(res => res.json())
                 .then(data => {
                     tbody.innerHTML = "";
