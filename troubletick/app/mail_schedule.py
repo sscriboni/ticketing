@@ -1210,10 +1210,216 @@ def build_html_ope_status(data):
     """
     return html
 
+def generate_qr_code_base64(url_str: str) -> str:
+    """Genera una stringa Base64 data-URI contenente l'immagine PNG del QR Code per l'URL passato."""
+    import qrcode
+    import io
+    import base64
+    qr = qrcode.QRCode(
+        version=1,
+        error_correction=qrcode.constants.ERROR_CORRECT_L,
+        box_size=6,
+        border=2,
+    )
+    qr.add_data(url_str)
+    qr.make(fit=True)
+    img = qr.make_image(fill_color="black", back_color="white")
+    buffer = io.BytesIO()
+    img.save(buffer, format="PNG")
+    b64_str = base64.b64encode(buffer.getvalue()).decode("utf-8")
+    return f"data:image/png;base64,{b64_str}"
+
+def query_carpooling_today(conn):
+    """Raccoglie le prenotazioni automezzi di oggi"""
+    today_str = datetime.today().strftime("%Y-%m-%d")
+    rows = conn.execute(text("""
+        SELECT 
+            v.viaggio_id, v.automezzo_id, v.data_viaggio, v.ora_partenza, v.ora_riconsegna_prevista,
+            v.ora_partenza_effettiva, v.ora_arrivo, v.km_iniziali, v.km_finali, v.user_id, v.note,
+            v.email_conducente,
+            a.targa, a.modello, a.reparto_assegnato_id,
+            m.nome AS marca_nome,
+            s_part.nome AS sede_partenza_nome,
+            s_arr.nome AS sede_arrivo_nome,
+            u.nome AS driver_nome, u.cognome AS driver_cognome, u.email AS driver_email, u.reparto_id AS driver_reparto_id
+        FROM viaggi_automezzi v
+        JOIN automezzi a ON v.automezzo_id = a.automezzo_id
+        JOIN marche_automezzi m ON a.marca_id = m.marca_id
+        JOIN sedi s_part ON v.sede_partenza_id = s_part.sede_id
+        LEFT JOIN sedi s_arr ON v.sede_arrivo_id = s_arr.sede_id
+        JOIN users u ON v.user_id = u.user_id
+        WHERE v.data_viaggio = :today
+        ORDER BY v.ora_partenza ASC
+    """), {"today": today_str}).mappings().all()
+    return [dict(r) for r in rows]
+
+def build_html_carpooling_fleet(manager_name, bookings, date_formatted):
+    """Costruisce l'email HTML per Fleet e Global Manager con l'elenco delle prenotazioni del giorno"""
+    company_name = CFG.get('company_name', 'Troubletick Helpdesk')
+    now_str = datetime.now().strftime("%d/%m/%Y %H:%M:%S")
+
+    booking_rows_html = ""
+    if bookings:
+        for b in bookings:
+            driver_info = f"<strong>{b.get('driver_nome', '')} {b.get('driver_cognome', '')}</strong><br><span style='font-size: 11px; color: #64748b;'>{b.get('driver_email', '')}</span>"
+            vehicle_info = f"<strong>{b.get('marca_nome', '')} {b.get('modello', '')}</strong><br><span style='font-size: 11px; font-weight: bold; color: #475569;'>[{b.get('targa', '')}]</span>"
+            times_info = f"{b.get('ora_partenza', '')} – {b.get('ora_riconsegna_prevista') or '-'}"
+            if b.get("ora_arrivo"):
+                times_info += f" <br><span style='font-size: 11px; color: #166534;'>(Rientrato alle {b.get('ora_arrivo')})</span>"
+            note_str = b.get("note") or "-"
+
+            booking_rows_html += f"""
+            <tr>
+                <td style="padding: 10px; border-bottom: 1px solid #e2e8f0;">{vehicle_info}</td>
+                <td style="padding: 10px; border-bottom: 1px solid #e2e8f0; font-weight: bold; color: #2563eb;">{times_info}</td>
+                <td style="padding: 10px; border-bottom: 1px solid #e2e8f0;">{b.get('sede_partenza_nome', '-')}</td>
+                <td style="padding: 10px; border-bottom: 1px solid #e2e8f0;">{driver_info}</td>
+                <td style="padding: 10px; border-bottom: 1px solid #e2e8f0; color: #475569; font-size: 12px;">{note_str}</td>
+            </tr>
+            """
+    else:
+        booking_rows_html = "<tr><td colspan='5' style='padding: 15px; text-align: center; color: #64748b;'>Nessuna prenotazione automezzi programmata per oggi.</td></tr>"
+
+    html = f"""
+    <!DOCTYPE html>
+    <html>
+    <head>
+        <meta charset="utf-8">
+    </head>
+    <body style="margin: 0; padding: 20px; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; background-color: #f8fafc; color: #1e293b; -webkit-font-smoothing: antialiased;">
+        <div style="max-width: 750px; margin: 0 auto; background: #ffffff; border-radius: 16px; overflow: hidden; box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.05); border: 1px solid #e2e8f0;">
+            <!-- Header -->
+            <div style="background: linear-gradient(135deg, #0f172a 0%, #1e293b 100%); padding: 30px; text-align: center; color: #ffffff;">
+                <h1 style="margin: 0; font-size: 22px; font-weight: 800; letter-spacing: -0.025em;">
+                    🚘 Carpooling — Prenotazioni del Giorno
+                </h1>
+                <p style="margin: 5px 0 0 0; font-size: 14px; color: #94a3b8;">
+                    Gentile <strong>{manager_name}</strong>, ecco il prospetto delle prenotazioni automezzi di oggi: <strong>{date_formatted}</strong>
+                </p>
+            </div>
+            
+            <div style="padding: 25px;">
+                <h2 style="font-size: 16px; font-weight: 700; color: #0f172a; margin-top: 0; margin-bottom: 12px; border-bottom: 2px solid #2563eb; padding-bottom: 6px;">
+                    📋 Elenco Prenotazioni Attive Oggi ({len(bookings)} { 'prenotazioni' if len(bookings) != 1 else 'prenotazione' })
+                </h2>
+                
+                <table style="width: 100%; border-collapse: collapse; margin-bottom: 25px; font-size: 13px;">
+                    <thead>
+                        <tr style="background-color: #f1f5f9;">
+                            <th style="padding: 10px; text-align: left; border-bottom: 2px solid #cbd5e1; font-weight: bold; color: #475569;">Veicolo</th>
+                            <th style="padding: 10px; text-align: left; border-bottom: 2px solid #cbd5e1; font-weight: bold; color: #475569;">Orario Previsto</th>
+                            <th style="padding: 10px; text-align: left; border-bottom: 2px solid #cbd5e1; font-weight: bold; color: #475569;">Sede Partenza</th>
+                            <th style="padding: 10px; text-align: left; border-bottom: 2px solid #cbd5e1; font-weight: bold; color: #475569;">Conducente</th>
+                            <th style="padding: 10px; text-align: left; border-bottom: 2px solid #cbd5e1; font-weight: bold; color: #475569;">Note</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {booking_rows_html}
+                    </tbody>
+                </table>
+            </div>
+
+            <!-- Footer -->
+            <div style="background-color: #f1f5f9; padding: 20px; text-align: center; font-size: 12px; color: #64748b; border-top: 1px solid #e2e8f0;">
+                {company_name} — Notifica automatica Carpooling inviata il {now_str}.
+            </div>
+        </div>
+    </body>
+    </html>
+    """
+    return html
+
+def build_html_carpooling_user(user_name, user_bookings, date_formatted, webapp_url, qr_b64):
+    """Costruisce l'email HTML per l'utente/operatore con le sue prenotazioni e QR Code per la WebApp"""
+    company_name = CFG.get('company_name', 'Troubletick Helpdesk')
+    now_str = datetime.now().strftime("%d/%m/%Y %H:%M:%S")
+
+    booking_cards_html = ""
+    for b in user_bookings:
+        vehicle_title = f"{b.get('marca_nome', '')} {b.get('modello', '')}"
+        targa = b.get("targa", "")
+        ora_p = b.get("ora_partenza", "")
+        ora_r = b.get("ora_riconsegna_prevista") or "-"
+        sede = b.get("sede_partenza_nome", "")
+        note = b.get("note") or "Nessuna nota"
+
+        booking_cards_html += f"""
+        <div style="background-color: #f8fafc; border: 1px solid #e2e8f0; border-left: 4px solid #10b981; border-radius: 10px; padding: 15px; margin-bottom: 15px;">
+            <div style="font-size: 16px; font-weight: bold; color: #0f172a; margin-bottom: 5px;">
+                🚗 {vehicle_title} <span style="font-size: 12px; background: #e2e8f0; padding: 2px 8px; border-radius: 6px; color: #334155; font-family: monospace;">{targa}</span>
+            </div>
+            <div style="font-size: 13px; color: #334155; margin-bottom: 4px;">
+                ⏰ <strong>Orario Previsto:</strong> <span style="color: #059669; font-weight: bold;">{ora_p} – {ora_r}</span>
+            </div>
+            <div style="font-size: 13px; color: #334155; margin-bottom: 4px;">
+                📍 <strong>Sede Partenza:</strong> {sede}
+            </div>
+            <div style="font-size: 12px; color: #64748b;">
+                📝 <strong>Note:</strong> {note}
+            </div>
+        </div>
+        """
+
+    html = f"""
+    <!DOCTYPE html>
+    <html>
+    <head>
+        <meta charset="utf-8">
+    </head>
+    <body style="margin: 0; padding: 20px; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; background-color: #f8fafc; color: #1e293b; -webkit-font-smoothing: antialiased;">
+        <div style="max-width: 650px; margin: 0 auto; background: #ffffff; border-radius: 16px; overflow: hidden; box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.05); border: 1px solid #e2e8f0;">
+            <!-- Header -->
+            <div style="background: linear-gradient(135deg, #10b981 0%, #059669 100%); padding: 30px; text-align: center; color: #ffffff;">
+                <h1 style="margin: 0; font-size: 22px; font-weight: 800; letter-spacing: -0.025em;">
+                    🚗 La tua Prenotazione Carpooling di Oggi
+                </h1>
+                <p style="margin: 5px 0 0 0; font-size: 14px; color: #d1fae5;">
+                    Ciao <strong>{user_name}</strong>, hai in programma un viaggio aziendale per la giornata di oggi ({date_formatted}).
+                </p>
+            </div>
+            
+            <div style="padding: 25px;">
+                <!-- Dettaglio prenotazioni -->
+                <h2 style="font-size: 15px; font-weight: 700; color: #0f172a; margin-top: 0; margin-bottom: 12px; border-bottom: 2px solid #10b981; padding-bottom: 6px;">
+                    📌 Dettagli del Veicolo Prenotato
+                </h2>
+                {booking_cards_html}
+
+                <!-- Sezione QR Code per accesso WebApp -->
+                <div style="background: linear-gradient(135deg, #0f172a 0%, #1e293b 100%); color: #ffffff; padding: 20px; border-radius: 12px; text-align: center; margin-top: 25px;">
+                    <h3 style="margin: 0 0 10px 0; font-size: 16px; color: #38bdf8; font-weight: bold;">
+                        📱 Accedi alla WebApp Carpooling con il QR Code
+                    </h3>
+                    <p style="margin: 0 0 15px 0; font-size: 12px; color: #94a3b8;">
+                        Scansiona il QR Code sottostante con la fotocamera del tuo smartphone oppure clicca sul pulsante per avviare il viaggio, mettere in pausa o registrare i chilometri al rientro:
+                    </p>
+
+                    <div style="background: #ffffff; display: inline-block; padding: 10px; border-radius: 12px; margin-bottom: 15px;">
+                        <img src="{qr_b64}" width="160" height="160" alt="QR Code WebApp Carpooling" style="display: block;">
+                    </div>
+
+                    <div>
+                        <a href="{webapp_url}" target="_blank" style="display: inline-block; background-color: #10b981; color: #ffffff; text-decoration: none; font-weight: bold; padding: 12px 24px; border-radius: 8px; font-size: 14px; box-shadow: 0 4px 6px rgba(0,0,0,0.2);">
+                            🚀 Apri WebApp Carpooling
+                        </a>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Footer -->
+            <div style="background-color: #f1f5f9; padding: 20px; text-align: center; font-size: 12px; color: #64748b; border-top: 1px solid #e2e8f0;">
+                {company_name} — Generato ed inviato automaticamente il {now_str}.
+            </div>
+        </div>
+    </body>
+    </html>
+    """
+    return html
+
 def main():
     parser = argparse.ArgumentParser(description="Script di notifica programmata per l'Helpdesk Troubletick")
-    parser.add_argument("type", nargs="?", choices=["ADMIN_STATUS", "RESP_STATUS", "OPE_STATUS"], help="Tipologia di email da inviare")
-    parser.add_argument("--type", dest="type_flag", choices=["ADMIN_STATUS", "RESP_STATUS", "OPE_STATUS"], help="Tipologia di email da inviare (opzione)")
+    parser.add_argument("type", nargs="?", choices=["ADMIN_STATUS", "RESP_STATUS", "OPE_STATUS", "CARPOOLING"], help="Tipologia di email da inviare")
+    parser.add_argument("--type", dest="type_flag", choices=["ADMIN_STATUS", "RESP_STATUS", "OPE_STATUS", "CARPOOLING"], help="Tipologia di email da inviare (opzione)")
     parser.add_argument("--to", help="Indirizzo email di destinazione personalizzato (sovrascrive la configurazione)")
     parser.add_argument("--cc", help="Indirizzo email in CC personalizzato")
     parser.add_argument("--mail", help="Indirizzo email a cui inviare SOLO ed ESCLUSIVAMENTE la mail, disattivando altri destinatari e CC")
@@ -1224,7 +1430,7 @@ def main():
     email_type = args.type or args.type_flag
     
     if not email_type:
-        print("[ERRORE] Devi specificare una tipologia di mail da inviare: ADMIN_STATUS, RESP_STATUS o OPE_STATUS.")
+        print("[ERRORE] Devi specificare una tipologia di mail da inviare: ADMIN_STATUS, RESP_STATUS, OPE_STATUS o CARPOOLING.")
         parser.print_help()
         sys.exit(1)
         
@@ -1381,6 +1587,92 @@ def main():
                         cc_email=cc_email
                     )
                     print(f"[+] Inviato con successo a {op_nome} {op_cognome}!")
+
+            elif email_type == "CARPOOLING":
+                print("[*] Esecuzione notifica CARPOOLING...")
+                today_str = datetime.now().strftime("%Y-%m-%d")
+                today_formatted = format_date_italian(datetime.today())
+                webapp_url = CFG.get("webapp_url", "http://localhost:5002/")
+                
+                # Recupera tutte le prenotazioni di oggi
+                all_today_bookings = query_carpooling_today(conn)
+                print(f"[*] Trovate {len(all_today_bookings)} prenotazioni automezzi per oggi ({today_str}).")
+                
+                cc_email = None if args.mail else args.cc
+
+                # 1. INVIO NOTIFICHE AI FLEET MANAGER & GLOBAL FLEET MANAGER
+                fleet_managers = conn.execute(text("""
+                    SELECT DISTINCT u.user_id, u.username, u.nome, u.cognome, u.email, u.reparto_id, ur.ruolo
+                    FROM users u
+                    JOIN user_roles ur ON u.user_id = ur.user_id
+                    WHERE ur.ruolo IN ('fleet_manager', 'global_fleet_manager', 'admin') AND u.attivo = 1
+                """)).mappings().all()
+
+                for mgr in fleet_managers:
+                    mgr_role = mgr["ruolo"]
+                    mgr_rep_id = mgr["reparto_id"]
+                    mgr_name = f"{mgr.get('nome', '')} {mgr.get('cognome', '')}".strip() or mgr["username"]
+                    mgr_email = args.mail or args.to or mgr["email"]
+
+                    if not mgr_email:
+                        print(f"[*] Manager {mgr_name} non ha un'email configurata. Saltato.")
+                        continue
+
+                    # Filtra le prenotazioni per i Fleet Manager di reparto
+                    if mgr_role == "fleet_manager" and mgr_rep_id:
+                        mgr_bookings = [b for b in all_today_bookings if b.get("reparto_assegnato_id") == mgr_rep_id or b.get("driver_reparto_id") == mgr_rep_id]
+                    else:
+                        mgr_bookings = all_today_bookings
+
+                    print(f"[*] Generazione notifica Carpooling Fleet Manager per '{mgr_name}' ({mgr_email}) — {len(mgr_bookings)} prenotazioni")
+                    subject = f"[{CFG.get('app_title', 'Troubletick')}] 🚘 Prenotazioni Carpooling del Giorno ({today_formatted})"
+                    body = build_html_carpooling_fleet(mgr_name, mgr_bookings, today_formatted)
+                    reason = f"Notifica Carpooling programmata per Fleet Manager {mgr_name}"
+
+                    send_email_async(
+                        dest_email=mgr_email,
+                        subject=subject,
+                        body=body,
+                        reason=reason,
+                        cc_email=cc_email
+                    )
+                    print(f"[+] Notifica Fleet Manager inviata a {mgr_name}!")
+
+                # 2. INVIO NOTIFICHE AGLI UTENTI ED OPERATORI CON PRENOTAZIONI OGGI
+                if all_today_bookings:
+                    user_bookings_map = {}
+                    for b in all_today_bookings:
+                        uid = b["user_id"]
+                        if uid not in user_bookings_map:
+                            user_bookings_map[uid] = []
+                        user_bookings_map[uid].append(b)
+
+                    # Genera il QR Code per l'accesso alla WebApp Mobile
+                    qr_b64 = generate_qr_code_base64(webapp_url)
+
+                    for uid, u_bookings in user_bookings_map.items():
+                        driver_name = f"{u_bookings[0].get('driver_nome', '')} {u_bookings[0].get('driver_cognome', '')}".strip() or "Utente"
+                        driver_email = args.mail or args.to or u_bookings[0].get("driver_email")
+
+                        if not driver_email:
+                            print(f"[WARN] Email non configurata per conducente ID {uid}. Notifica saltata.")
+                            continue
+
+                        print(f"[*] Generazione notifica Carpooling per conducente '{driver_name}' ({driver_email}) con QR Code WebApp")
+                        subject = f"[{CFG.get('app_title', 'Troubletick')}] 🚗 La tua Prenotazione Carpooling di Oggi ({today_formatted})"
+                        body = build_html_carpooling_user(driver_name, u_bookings, today_formatted, webapp_url, qr_b64)
+                        reason = f"Notifica Carpooling programmata per utente {driver_name}"
+
+                        send_email_async(
+                            dest_email=driver_email,
+                            subject=subject,
+                            body=body,
+                            reason=reason,
+                            cc_email=cc_email
+                        )
+                        print(f"[+] Notifica Carpooling inviata con QR Code a {driver_name}!")
+                else:
+                    print("[*] Nessuna prenotazione utente per oggi, invio notifiche utente saltato.")
             
     except Exception as e:
         print(f"[ERRORE CRITICO] Esecuzione fallita: {e}")
