@@ -3,24 +3,57 @@
 <body class="bg-light">
 {% include 'navbar.html' %}
 <div class="container py-4">
-<div class="mb-3">
-  <h2>Operatori</h2>
+<div class="d-flex justify-content-between align-items-center mb-3">
+  <h2><i class="bi bi-people-fill text-primary me-2"></i>Operatori</h2>
+  <span class="badge bg-primary rounded-pill fs-6" id="opCount">{{ operatori|length }}</span>
 </div>
-<div class="table-responsive"><table class="table table-striped align-middle">
+
+<!-- Filtro Ricerca Operatori -->
+<div class="card border-0 bg-white shadow-sm mb-4">
+  <div class="card-body p-3">
+    <div class="input-group">
+      <span class="input-group-text bg-light border-end-0"><i class="bi bi-search text-muted"></i></span>
+      <input type="text" id="searchOpInput" class="form-control border-start-0" placeholder="Filtra operatori per nome, username, email, ruolo, sede o servizio...">
+      <button class="btn btn-outline-secondary" type="button" onclick="document.getElementById('searchOpInput').value=''; filterOpList();">Reset</button>
+    </div>
+  </div>
+</div>
+
+<div class="table-responsive bg-white rounded shadow-sm p-3">
+<table class="table table-striped align-middle mb-0" id="opTable">
 <thead><tr><th>Nome</th><th>Email</th><th>Ruolo</th><th>Sede / Magazzino</th><th>Servizi</th></tr></thead>
 <tbody>
 {% for op in operatori %}
-<tr>
-  <td>{{ op.nome }} {{ op.cognome }}{% if op.is_test %} <span class="badge bg-secondary" style="font-size: 0.6em;">TEST</span>{% endif %}<br><small>{{ op.username }}</small></td>
+<tr class="operator-row" data-search="{{ op.nome }} {{ op.cognome }} {{ op.username }} {{ op.email }} {{ op.ruolo }} {{ op.sede_nome or '' }} {{ op.magazzino_nome or '' }} {{ op.servizi or '' }}">
+  <td><strong>{{ op.nome }} {{ op.cognome }}</strong>{% if op.is_test %} <span class="badge bg-secondary" style="font-size: 0.6em;">TEST</span>{% endif %}<br><small class="text-muted">@{{ op.username }}</small></td>
   <td>{{ op.email }}</td>
-  <td>{{ op.ruolo }}</td>
+  <td><span class="badge bg-secondary">{{ op.ruolo|capitalize }}</span></td>
   <td>{{ op.sede_nome or 'Nessuna sede' }}<br><small class="text-muted">{{ op.magazzino_nome or 'Nessun magazzino' }}</small></td>
-  <td>{{ op.servizi or '—' }}</td>
+  <td><small>{{ op.servizi or '—' }}</small></td>
 </tr>
 {% endfor %}
 </tbody>
-</table></div>
-<div class="alert alert-info mt-4 small shadow-sm">
-  <i class="bi bi-info-circle-fill me-1"></i> <strong>Guida rapida:</strong> La rubrica aziendale del team di assistenza. Puoi cercare velocemente un collega per email o telefono e verificare a quali sedi, reparti o servizi è assegnato.
+</table>
 </div>
-</div></body></html>
+
+<div class="alert alert-info mt-4 small shadow-sm">
+  <i class="bi bi-info-circle-fill me-1"></i> <strong>Guida rapida:</strong> La rubrica aziendale del team di assistenza. Puoi cercare velocemente un collega per nome, email o ruolo e verificare a quali sedi, reparti o servizi è assegnato.
+</div>
+</div>
+
+<script>
+function filterOpList() {
+  const val = document.getElementById('searchOpInput').value.toLowerCase().trim();
+  const rows = document.querySelectorAll('.operator-row');
+  let count = 0;
+  rows.forEach(r => {
+    const text = (r.dataset.search || '').toLowerCase();
+    const show = !val || text.includes(val);
+    r.style.display = show ? '' : 'none';
+    if (show) count++;
+  });
+  document.getElementById('opCount').textContent = count;
+}
+document.getElementById('searchOpInput')?.addEventListener('keyup', filterOpList);
+</script>
+</body></html>

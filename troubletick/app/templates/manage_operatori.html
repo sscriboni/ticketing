@@ -21,7 +21,64 @@
         <!-- LISTA OPERATORI -->
         <div class="col-12 col-lg-9">
             <div class="bg-white p-4 rounded shadow-sm">
-                <h4 class="mb-3">Operatori Attuali</h4>
+                <div class="d-flex justify-content-between align-items-center mb-3">
+                    <h4 class="mb-0"><i class="bi bi-people-fill text-primary me-2"></i>Operatori Attuali</h4>
+                    <span class="badge bg-primary rounded-pill fs-6" id="operatorBadgeCount">{{ operatori|length }}</span>
+                </div>
+
+                <!-- FILTRI CAMPI OPERATORI -->
+                <div class="card border-0 bg-light mb-4 shadow-sm">
+                    <div class="card-body p-3">
+                        <div class="row g-2">
+                            <div class="col-md-3">
+                                <label class="form-label small fw-bold text-muted mb-1"><i class="bi bi-search me-1"></i> Ricerca Testuale</label>
+                                <input type="text" id="filterText" class="form-control form-control-sm" placeholder="Cerca Nome, Email, Tel...">
+                            </div>
+                            <div class="col-md-3">
+                                <label class="form-label small fw-bold text-muted mb-1"><i class="bi bi-person-badge me-1"></i> Ruolo</label>
+                                <select id="filterRuolo" class="form-select form-select-sm">
+                                    <option value="">Tutti i Ruoli</option>
+                                    {% for r in ruoli %}
+                                        <option value="{{ r.nome }}">{{ r.nome }}</option>
+                                    {% endfor %}
+                                </select>
+                            </div>
+                            <div class="col-md-3">
+                                <label class="form-label small fw-bold text-muted mb-1"><i class="bi bi-diagram-3 me-1"></i> Reparto</label>
+                                <select id="filterReparto" class="form-select form-select-sm">
+                                    <option value="">Tutti i Reparti</option>
+                                    {% for rep in reparti %}
+                                        <option value="{{ rep.nome }}">{{ rep.nome }}</option>
+                                    {% endfor %}
+                                </select>
+                            </div>
+                            <div class="col-md-2">
+                                <label class="form-label small fw-bold text-muted mb-1"><i class="bi bi-building me-1"></i> Sede</label>
+                                <select id="filterSede" class="form-select form-select-sm">
+                                    <option value="">Tutte le Sedi</option>
+                                    {% for s in sedi %}
+                                        <option value="{{ s.nome }}">{{ s.nome }}</option>
+                                    {% endfor %}
+                                </select>
+                            </div>
+                            <div class="col-md-1 d-flex align-items-end">
+                                <button type="button" class="btn btn-sm btn-outline-secondary w-100" onclick="resetOperatorFilters()" title="Reset Filtri">
+                                    <i class="bi bi-arrow-counterclockwise"></i>
+                                </button>
+                            </div>
+                        </div>
+                        <div class="row g-2 mt-1">
+                            <div class="col-md-3">
+                                <select id="filterStato" class="form-select form-select-sm">
+                                    <option value="">Tutti gli Stati (Attivi / Inattivi)</option>
+                                    <option value="attivo">Solo Attivi</option>
+                                    <option value="inattivo">Da Approvare / Inattivi</option>
+                                </select>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
                 {% if operatori %}
                 <div class="table-responsive">
                     <table class="table table-hover table-sm">
@@ -38,7 +95,14 @@
                         </thead>
                         <tbody>
                         {% for op in operatori %}
-                            <tr class="align-middle">
+                            <tr class="align-middle operator-row" 
+                                data-nome="{{ op.nome }} {{ op.cognome }} {{ op.username }}" 
+                                data-email="{{ op.email }} {{ op.telefono or '' }}" 
+                                data-ruoli="{{ op.ruoli_assegnati or '' }}" 
+                                data-reparto="{{ op.reparto_nome or '' }}" 
+                                data-sede="{{ op.sede_nome or '' }}" 
+                                data-magazzino="{{ op.magazzino_nome or '' }}" 
+                                data-stato="{{ 'attivo' if op.attivo else 'inattivo' }}">
                                 <td>
                                     <strong>{{ op.nome }} {{ op.cognome }}</strong>{% if op.is_test %} <span class="badge bg-secondary" style="font-size: 0.6em;">TEST</span>{% endif %}<br>
                                     <small class="text-muted">@{{ op.username }}</small>
@@ -300,6 +364,57 @@ document.addEventListener('DOMContentLoaded', function() {
             }
         });
     }
+});
+
+function filterOperators() {
+    const textVal = (document.getElementById('filterText')?.value || '').toLowerCase().trim();
+    const ruoloVal = (document.getElementById('filterRuolo')?.value || '').toLowerCase().trim();
+    const repartoVal = (document.getElementById('filterReparto')?.value || '').toLowerCase().trim();
+    const sedeVal = (document.getElementById('filterSede')?.value || '').toLowerCase().trim();
+    const statoVal = (document.getElementById('filterStato')?.value || '').toLowerCase().trim();
+
+    const rows = document.querySelectorAll('.operator-row');
+    let visibleCount = 0;
+
+    rows.forEach(row => {
+        const textData = ((row.dataset.nome || '') + " " + (row.dataset.email || '')).toLowerCase();
+        const ruoliData = (row.dataset.ruoli || '').toLowerCase();
+        const repartoData = (row.dataset.reparto || '').toLowerCase();
+        const sedeData = (row.dataset.sede || '').toLowerCase();
+        const statoData = (row.dataset.stato || '').toLowerCase();
+
+        let show = true;
+        if (textVal && !textData.includes(textVal)) show = false;
+        if (ruoloVal && !ruoliData.includes(ruoloVal)) show = false;
+        if (repartoVal && !repartoData.includes(repartoVal)) show = false;
+        if (sedeVal && !sedeData.includes(sedeVal)) show = false;
+        if (statoVal && statoData !== statoVal) show = false;
+
+        row.style.display = show ? '' : 'none';
+        if (show) visibleCount++;
+    });
+
+    const badgeEl = document.getElementById('operatorBadgeCount');
+    if (badgeEl) badgeEl.textContent = visibleCount;
+}
+
+function resetOperatorFilters() {
+    if (document.getElementById('filterText')) document.getElementById('filterText').value = '';
+    if (document.getElementById('filterRuolo')) document.getElementById('filterRuolo').value = '';
+    if (document.getElementById('filterReparto')) document.getElementById('filterReparto').value = '';
+    if (document.getElementById('filterSede')) document.getElementById('filterSede').value = '';
+    if (document.getElementById('filterStato')) document.getElementById('filterStato').value = '';
+    filterOperators();
+}
+
+document.addEventListener('DOMContentLoaded', function() {
+    ['filterText', 'filterRuolo', 'filterReparto', 'filterSede', 'filterStato'].forEach(id => {
+        const el = document.getElementById(id);
+        if (el) {
+            el.addEventListener('keyup', filterOperators);
+            el.addEventListener('change', filterOperators);
+        }
+    });
 });
 </script>
 </body>
