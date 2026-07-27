@@ -102,29 +102,32 @@
                     <table class="table table-hover custom-table align-middle" id="automezziTable">
                         <thead class="user-select-none">
                             <tr>
-                                <th class="sortable" onclick="sortTable(0)" style="cursor: pointer;" title="Clicca per ordinare per Veicolo / Targa">
-                                    Veicolo / Targa <i class="bi bi-arrow-down-up ms-1 text-muted sort-icon" id="sort-icon-0"></i>
+                                <th class="sortable" onclick="sortTable(0)" style="cursor: pointer;" title="Clicca per ordinare per Veicolo">
+                                    Veicolo <i class="bi bi-arrow-down-up ms-1 text-muted sort-icon" id="sort-icon-0"></i>
                                 </th>
-                                <th class="sortable" onclick="sortTable(1)" style="cursor: pointer;" title="Clicca per ordinare per Tipo / Colore">
-                                    Tipo / Colore <i class="bi bi-arrow-down-up ms-1 text-muted sort-icon" id="sort-icon-1"></i>
+                                <th class="sortable" onclick="sortTable(1)" style="cursor: pointer;" title="Clicca per ordinare per Targa">
+                                    Targa <i class="bi bi-arrow-down-up ms-1 text-muted sort-icon" id="sort-icon-1"></i>
                                 </th>
-                                <th class="sortable" onclick="sortTable(2)" style="cursor: pointer;" title="Clicca per ordinare per Chilometri">
-                                    Alimentazione / Km <i class="bi bi-arrow-down-up ms-1 text-muted sort-icon" id="sort-icon-2"></i>
+                                <th class="sortable" onclick="sortTable(2)" style="cursor: pointer;" title="Clicca per ordinare per Tipo / Colore">
+                                    Tipo / Colore <i class="bi bi-arrow-down-up ms-1 text-muted sort-icon" id="sort-icon-2"></i>
                                 </th>
-                                <th class="sortable" onclick="sortTable(3)" style="cursor: pointer;" title="Clicca per ordinare per Immatricolazione">
-                                    Immatricolazione <i class="bi bi-arrow-down-up ms-1 text-muted sort-icon" id="sort-icon-3"></i>
+                                <th class="sortable" onclick="sortTable(3)" style="cursor: pointer;" title="Clicca per ordinare per Chilometri">
+                                    Alimentazione / Km <i class="bi bi-arrow-down-up ms-1 text-muted sort-icon" id="sort-icon-3"></i>
                                 </th>
-                                <th class="sortable" onclick="sortTable(4)" style="cursor: pointer;" title="Clicca per ordinare per Sede Assegnata">
-                                    Sede Assegnata <i class="bi bi-arrow-down-up ms-1 text-muted sort-icon" id="sort-icon-4"></i>
+                                <th class="sortable" onclick="sortTable(4)" style="cursor: pointer;" title="Clicca per ordinare per Immatricolazione">
+                                    Immatricolazione <i class="bi bi-arrow-down-up ms-1 text-muted sort-icon" id="sort-icon-4"></i>
                                 </th>
-                                <th class="sortable" onclick="sortTable(5)" style="cursor: pointer;" title="Clicca per ordinare per Reparto Assegnato">
-                                    Reparto Assegnato <i class="bi bi-arrow-down-up ms-1 text-muted sort-icon" id="sort-icon-5"></i>
+                                <th class="sortable" onclick="sortTable(5)" style="cursor: pointer;" title="Clicca per ordinare per Sede Assegnata">
+                                    Sede Assegnata <i class="bi bi-arrow-down-up ms-1 text-muted sort-icon" id="sort-icon-5"></i>
                                 </th>
-                                <th class="sortable" onclick="sortTable(6)" style="cursor: pointer;" title="Clicca per ordinare per Stato">
-                                    Stato <i class="bi bi-arrow-down-up ms-1 text-muted sort-icon" id="sort-icon-6"></i>
+                                <th class="sortable" onclick="sortTable(6)" style="cursor: pointer;" title="Clicca per ordinare per Reparto Assegnato">
+                                    Reparto Assegnato <i class="bi bi-arrow-down-up ms-1 text-muted sort-icon" id="sort-icon-6"></i>
                                 </th>
-                                <th class="sortable" onclick="sortTable(7)" style="cursor: pointer;" title="Clicca per ordinare per Prenotazione">
-                                    Prenotazione <i class="bi bi-arrow-down-up ms-1 text-muted sort-icon" id="sort-icon-7"></i>
+                                <th class="sortable" onclick="sortTable(7)" style="cursor: pointer;" title="Clicca per ordinare per Stato">
+                                    Stato <i class="bi bi-arrow-down-up ms-1 text-muted sort-icon" id="sort-icon-7"></i>
+                                </th>
+                                <th class="sortable" onclick="sortTable(8)" style="cursor: pointer;" title="Clicca per ordinare per Prenotazione">
+                                    Prenotazione <i class="bi bi-arrow-down-up ms-1 text-muted sort-icon" id="sort-icon-8"></i>
                                 </th>
                                 <th class="text-end">Azioni</th>
                             </tr>
@@ -134,6 +137,8 @@
                             <tr data-marca="{{ v.marca_nome }}" data-modello="{{ v.modello }}" data-targa="{{ v.targa }}" data-tipo="{{ v.tipo }}" data-km="{{ v.km_attuali or 0 }}" data-imm="{{ v.data_immatricolazione or '' }}" data-canone="{{ v.canone_noleggio or 0 }}" data-sede-ass="{{ v.sede_assegnata_nome or '' }}" data-sede-att="{{ v.sede_attuale_nome or '' }}" data-reparto="{{ v.reparto_assegnato_nome or '' }}" data-stato="{{ v.stato }}" data-escluso="{{ v.escluso_prenotazione }}">
                                 <td>
                                     <div class="fw-bold">{{ v.marca_nome }} {{ v.modello }}</div>
+                                </td>
+                                <td>
                                     <span class="badge bg-secondary font-monospace">{{ v.targa }}</span>
                                 </td>
                                 <td>
@@ -845,13 +850,16 @@
             dataRows.sort((rowA, rowB) => {
                 let valA, valB;
 
-                if (colIndex === 0) { // Veicolo / Targa
-                    valA = ((rowA.dataset.marca || '') + " " + (rowA.dataset.modello || '') + " " + (rowA.dataset.targa || '')).toLowerCase();
-                    valB = ((rowB.dataset.marca || '') + " " + (rowB.dataset.modello || '') + " " + (rowB.dataset.targa || '')).toLowerCase();
-                } else if (colIndex === 2) { // Km
+                if (colIndex === 0) { // Veicolo
+                    valA = ((rowA.dataset.marca || '') + " " + (rowA.dataset.modello || '')).toLowerCase();
+                    valB = ((rowB.dataset.marca || '') + " " + (rowB.dataset.modello || '')).toLowerCase();
+                } else if (colIndex === 1) { // Targa
+                    valA = (rowA.dataset.targa || '').toLowerCase();
+                    valB = (rowB.dataset.targa || '').toLowerCase();
+                } else if (colIndex === 3) { // Km
                     valA = parseFloat(rowA.dataset.km || 0);
                     valB = parseFloat(rowB.dataset.km || 0);
-                } else if (colIndex === 3) { // Immatricolazione
+                } else if (colIndex === 4) { // Immatricolazione
                     valA = rowA.dataset.imm || '0000-00-00';
                     valB = rowB.dataset.imm || '0000-00-00';
                 } else {
@@ -880,10 +888,10 @@
             rows.forEach(row => {
                 if(row.children.length < 5) return; // skip empty message row
                 
-                const targaModello = row.children[0].textContent.toLowerCase();
-                const sede = row.children[4].textContent.toLowerCase();
-                const reparto = row.children[5].textContent.toLowerCase();
-                const stato = row.children[6].textContent.toLowerCase();
+                const targaModello = (row.children[0].textContent + " " + row.children[1].textContent).toLowerCase();
+                const sede = row.children[5].textContent.toLowerCase();
+                const reparto = row.children[6].textContent.toLowerCase();
+                const stato = row.children[7].textContent.toLowerCase();
                 
                 let show = true;
                 if(targaVal && !targaModello.includes(targaVal)) show = false;
