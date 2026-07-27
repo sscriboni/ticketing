@@ -126,11 +126,12 @@
                                 <td><span class="text-muted small">{{ v.note or '-' }}</span></td>
                                 <td class="text-end">
                                     <div class="d-inline-flex gap-2 align-items-center">
-                                        <form action="../../autopark/avvia/{{ v.viaggio_id }}" method="post" class="m-0">
-                                            <button class="btn btn-sm btn-outline-primary fw-bold" type="submit">
-                                                <i class="bi bi-play-fill me-1"></i> Avvia Viaggio
-                                            </button>
-                                        </form>
+                                         {% set is_future_date = (v.data_viaggio > today_str) %}
+                                         <form action="../../autopark/avvia/{{ v.viaggio_id }}" method="post" class="m-0">
+                                             <button class="btn btn-sm btn-outline-primary fw-bold" type="submit" {% if is_future_date %}disabled title="Il viaggio potrà essere avviato solo a partire dal giorno di prenotazione ({{ v.data_viaggio }})"{% endif %}>
+                                                 <i class="bi bi-play-fill me-1"></i> Avvia Viaggio
+                                             </button>
+                                         </form>
                                         <button class="btn btn-sm btn-outline-danger" onclick="confirmDeleteTrip({{ v.viaggio_id }}, '{{ v.targa }}', {{ v.km_iniziali or 0 }}, false)">
                                             <i class="bi bi-trash"></i>
                                         </button>

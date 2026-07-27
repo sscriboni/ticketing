@@ -437,9 +437,17 @@
                                         
                                         <!-- Actions -->
                                         <div class="d-flex gap-2 mt-3">
-                                            <button type="button" class="btn btn-sm btn-success w-100 rounded-3 fw-bold flex-fill text-white" data-bs-toggle="collapse" data-bs-target="#rf-{{ p.viaggio_id }}" {% if p.user_id != user.id and user.ruolo not in ('admin', 'fleet_manager', 'global_fleet_manager') %}disabled title="Solo l'utente assegnato o gli amministratori possono registrare il viaggio"{% endif %}>
-                                                <i class="bi bi-journal-check me-1"></i> Registra viaggio
-                                            </button>
+                                            {% set is_future_date = (p.data_viaggio > today_str) %}
+                                            {% set is_not_owner_or_manager = (p.user_id != user.id and user.ruolo not in ('admin', 'fleet_manager', 'global_fleet_manager')) %}
+                                        <button type="button" class="btn btn-sm btn-success w-100 rounded-3 fw-bold flex-fill text-white" 
+                                                {% if not is_future_date and not is_not_owner_or_manager %}data-bs-toggle="collapse" data-bs-target="#rf-{{ p.viaggio_id }}"{% endif %} 
+                                                {% if is_not_owner_or_manager %}
+                                                    disabled title="Solo l'utente assegnato o gli amministratori possono registrare il viaggio"
+                                                {% elif is_future_date %}
+                                                    disabled title="Il viaggio potrà essere registrato solo a partire dal giorno di prenotazione ({{ p.data_viaggio }})"
+                                                {% endif %}>
+                                            <i class="bi bi-journal-check me-1"></i> Registra viaggio
+                                        </button>
                                             
                                             {% if user.ruolo in ('admin', 'fleet_manager', 'global_fleet_manager') or p.user_id == user.id %}
                                             {% set is_past_date = (p.data_viaggio < today_str) %}

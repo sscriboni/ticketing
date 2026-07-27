@@ -367,6 +367,9 @@ def registra_viaggio_posteriori(
         now_time_str = now.strftime("%H:%M")
         today_str = now.strftime("%Y-%m-%d")
 
+        if v["data_viaggio"] > today_str:
+            return _redirect_err(f"Impossibile registrare il viaggio prima della data prenotata ({v['data_viaggio']}).")
+
         if v["data_viaggio"] == today_str and ora_arrivo > now_time_str:
             return _redirect_err(f"L'orario di rientro ({ora_arrivo}) non può essere nel futuro rispetto all'orario attuale ({now_time_str}).")
 
@@ -534,6 +537,9 @@ def avvia_viaggio_app(
 
         if b["user_id"] != uid and role not in ("admin", "fleet_manager", "global_fleet_manager"):
             return _redirect_err("Non sei autorizzato ad avviare questo viaggio.")
+
+        if b["data_viaggio"] > today_str:
+            return _redirect_err(f"Impossibile avviare il viaggio prima della data prenotata ({b['data_viaggio']}).")
 
         current_auto_km = b["km_attuali"] or 0
         if km_iniziali < current_auto_km:

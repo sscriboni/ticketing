@@ -343,7 +343,15 @@
                         </div>
                     {% else %}
                         <div class="d-flex gap-2 mt-3">
-                            <button type="button" class="btn btn-sm btn-success w-100 py-2 fw-bold text-white flex-fill" data-bs-toggle="collapse" data-bs-target="#start-panel-{{ p.viaggio_id }}" {% if p.user_id != user.id and user.ruolo not in ('admin', 'fleet_manager', 'global_fleet_manager') %}disabled title="Solo l'utente assegnato può avviare il viaggio"{% endif %}>
+                            {% set is_future_date = (p.data_viaggio > today_str) %}
+                            {% set is_not_owner_or_manager = (p.user_id != user.id and user.ruolo not in ('admin', 'fleet_manager', 'global_fleet_manager')) %}
+                            <button type="button" class="btn btn-sm btn-success w-100 py-2 fw-bold text-white flex-fill" 
+                                    {% if not is_future_date and not is_not_owner_or_manager %}data-bs-toggle="collapse" data-bs-target="#start-panel-{{ p.viaggio_id }}"{% endif %} 
+                                    {% if is_not_owner_or_manager %}
+                                        disabled title="Solo l'utente assegnato può avviare il viaggio"
+                                    {% elif is_future_date %}
+                                        disabled title="Il viaggio potrà essere registrato/avviato solo a partire dal giorno di prenotazione ({{ p.data_viaggio }})"
+                                    {% endif %}>
                                 <i class="bi bi-play-fill me-1"></i> Parti..
                             </button>
                             

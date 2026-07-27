@@ -1340,7 +1340,7 @@ def list_viaggi(r: Request):
         sedi = conn.execute(text("SELECT sede_id, nome FROM sedi ORDER BY nome")).mappings().all()
         
     return templates.TemplateResponse(r, "admin_automezzi_viaggi.html", {
-        "request": r, "cfg": CFG, "user": user, 
+        "request": r, "cfg": CFG, "user": user, "today_str": datetime.date.today().isoformat(),
         "viaggi_in_corso": viaggi_in_corso, "prenotazioni": prenotazioni, "viaggi_completati": viaggi_completati,
         "veicoli": veicoli, "operatori": operatori, "sedi": sedi
     })
@@ -2159,6 +2159,11 @@ def registra_viaggio_posteriori_autopark(
         now_time_str = now.strftime("%H:%M")
         today_str = now.strftime("%Y-%m-%d")
 
+        if v["data_viaggio"] > today_str:
+            import urllib.parse
+            err_txt = f"Impossibile registrare il viaggio prima della data prenotata ({v['data_viaggio']})."
+            return RedirectResponse(url=f"/autopark?error={urllib.parse.quote(err_txt)}", status_code=303)
+
         if v["data_viaggio"] == today_str and ora_arrivo > now_time_str:
             import urllib.parse
             err_txt = f"L'orario di rientro ({ora_arrivo}) non può essere nel futuro rispetto all'orario attuale ({now_time_str})."
@@ -2342,7 +2347,7 @@ def avvia_prenotazione_id(id: int, r: Request):
     uid = user.get("id")
     
     with engine.begin() as conn:
-        booking = conn.execute(text("SELECT user_id, ora_partenza_effettiva FROM viaggi_automezzi WHERE viaggio_id = :id"), {"id": id}).first()
+        booking = conn.execute(text("SELECT user_id, ora_partenza_effettiva, data_viaggio FROM viaggi_automezzi WHERE viaggio_id = :id"), {"id": id}).first()
         import urllib.parse
         if not booking:
             err_msg = "Prenotazione non trovata."
@@ -2351,6 +2356,11 @@ def avvia_prenotazione_id(id: int, r: Request):
             err_msg = "Non sei autorizzato ad avviare questo viaggio."
             return RedirectResponse(url=f"/autopark?error={urllib.parse.quote(err_msg)}", status_code=303)
             
+        today_str = datetime.date.today().isoformat()
+        if booking.data_viaggio > today_str:
+            err_msg = f"Impossibile avviare il viaggio prima della data prenotata ({booking.data_viaggio})."
+            return RedirectResponse(url=f"/autopark?error={urllib.parse.quote(err_msg)}", status_code=303)
+
         now_str = datetime.datetime.now().strftime("%H:%M")
         conn.execute(text("UPDATE viaggi_automezzi SET ora_partenza_effettiva = :now, in_pausa = 0 WHERE viaggio_id = :id"), {"now": now_str, "id": id})
         
