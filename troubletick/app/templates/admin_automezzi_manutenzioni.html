@@ -108,7 +108,12 @@
 
 
             <!-- Manutenzioni Programmate -->
-            <h4 class="mb-3 text-secondary"><i class="bi bi-calendar-event me-1 text-primary"></i> Manutenzioni Programmate</h4>
+            <div class="d-flex justify-content-between align-items-center mb-3">
+                <h4 class="mb-0 text-secondary"><i class="bi bi-calendar-event me-1 text-primary"></i> Manutenzioni Programmate</h4>
+                <button type="button" class="btn btn-sm btn-outline-primary fw-bold px-3 py-1" onclick="openProgrammaManutenzioneModal()">
+                    <i class="bi bi-plus-lg me-1"></i> Programma manutenzione..
+                </button>
+            </div>
             <div class="table-container mb-5">
                 <div class="table-responsive">
                     <table class="table table-hover custom-table align-middle">
@@ -120,6 +125,7 @@
                                 <th>Scadenza Temporale</th>
                                 <th>Scadenza Chilometrica</th>
                                 <th>Stato</th>
+                                <th class="text-end">Azioni</th>
                             </tr>
                         </thead>
                         <tbody>
@@ -130,7 +136,7 @@
                                 <td><span class="badge bg-info text-dark">{{ p.tipo_nome }}</span></td>
                                 
                                 <td>
-                                    {% if p.scadenza_mesi %}
+                                    {% if p.scadenza_stimata_data %}
                                         Prevista: <strong>{{ p.scadenza_stimata_data }}</strong>
                                         <br><small class="text-muted">Mancano {{ p.giorni_rimanenti }} giorni</small>
                                     {% else %}
@@ -150,10 +156,20 @@
                                 <td>
                                     <span class="badge bg-{{ p.alert_class }}">{{ p.stato_scadenza }}</span>
                                 </td>
+                                
+                                <td class="text-end">
+                                    <form action="/admin/automezzi/manutenzioni/programma/elimina" method="POST" class="d-inline" onsubmit="return confirm('Sei sicuro di voler rimuovere questa manutenzione programmata dal veicolo?');">
+                                        <input type="hidden" name="automezzo_id" value="{{ p.automezzo_id }}">
+                                        <input type="hidden" name="tipo_manutenzione_id" value="{{ p.tipo_manutenzione_id }}">
+                                        <button type="submit" class="btn btn-xs btn-outline-danger py-0 px-2 rounded" title="Rimuovi Programmazione">
+                                            <i class="bi bi-trash"></i>
+                                        </button>
+                                    </form>
+                                </td>
                             </tr>
                             {% else %}
                             <tr>
-                                <td colspan="6" class="text-center text-muted py-4">Nessuna manutenzione programmata trovata.</td>
+                                <td colspan="7" class="text-center text-muted py-4">Nessuna manutenzione programmata trovata.</td>
                             </tr>
                             {% endfor %}
                         </tbody>
@@ -433,6 +449,49 @@
                     }
                 });
             }
+
+            // Vehicle search box and dynamic filtering for Programma Manutenzione Modal
+            const progSelect = document.getElementById('progAutomezzoId');
+            const progSearchInput = document.getElementById('searchProgTargaInput');
+            const progOriginalVehicles = [];
+
+            if (progSelect && progSearchInput) {
+                for (let i = 1; i < progSelect.options.length; i++) {
+                    const opt = progSelect.options[i];
+                    progOriginalVehicles.push({
+                        value: opt.value,
+                        targa: opt.getAttribute('data-targa') || '',
+                        desc: opt.getAttribute('data-desc') || '',
+                        km: opt.getAttribute('data-km') || '0',
+                        text: opt.text
+                    });
+                }
+
+                progSearchInput.addEventListener('input', (e) => {
+                    const q = e.target.value.toLowerCase().trim();
+                    progSelect.innerHTML = '<option value="">-- Seleziona Autoveicolo --</option>';
+
+                    const filtered = progOriginalVehicles.filter(v =>
+                        v.targa.toLowerCase().includes(q) ||
+                        v.desc.toLowerCase().includes(q)
+                    );
+
+                    filtered.forEach(v => {
+                        const opt = document.createElement('option');
+                        opt.value = v.value;
+                        opt.setAttribute('data-targa', v.targa);
+                        opt.setAttribute('data-desc', v.desc);
+                        opt.setAttribute('data-km', v.km);
+                        opt.textContent = v.text;
+                        progSelect.appendChild(opt);
+                    });
+
+                    if (filtered.length === 1) {
+                        progSelect.value = filtered[0].value;
+                    }
+                    onProgVehOrTypeChange();
+                });
+            }
         });
 
         function showAddMaintenanceModal() {
@@ -462,7 +521,182 @@
                 form.submit();
             }
         }
+
+        function openProgrammaManutenzioneModal() {
+            const modalEl = document.getElementById('modalProgrammaManutenzione');
+            if (!modalEl) return;
+            const modal = new bootstrap.Modal(modalEl);
+            modal.show();
+            onProgVehOrTypeChange();
+        }
+
+        function onProgVehOrTypeChange() {
+            const vehSelect = document.getElementById('progAutomezzoId');
+            const typeSelect = document.getElementById('progTipoManutenzioneId');
+
+            const divKm = document.getElementById('divProgKmPartenza');
+            const inputKm = document.getElementById('progKmPartenzaInput');
+
+            const divData = document.getElementById('divProgDataInizio');
+            const inputData = document.getElementById('progDataInizioInput');
+
+            const alertNoParams = document.getElementById('alertNoParams');
+
+            if (!typeSelect || !typeSelect.value) {
+                if (divKm) divKm.style.display = 'none';
+                if (divData) divData.style.display = 'none';
+                if (alertNoParams) alertNoParams.style.display = 'none';
+                return;
+            }
+
+            const selectedTypeOpt = typeSelect.options[typeSelect.selectedIndex];
+            const scadKm = parseInt(selectedTypeOpt.dataset.km || '0');
+            const scadMesi = parseInt(selectedTypeOpt.dataset.mesi || '0');
+            const scadAnni = parseInt(selectedTypeOpt.dataset.anni || '0');
+
+            // Handle KM Field
+            if (scadKm > 0) {
+                divKm.style.display = 'block';
+                inputKm.required = true;
+                
+                // Auto pre-fill with selected vehicle's current KM
+                if (vehSelect && vehSelect.value && vehSelect.selectedIndex >= 0) {
+                    const selectedVehOpt = vehSelect.options[vehSelect.selectedIndex];
+                    const currentKm = selectedVehOpt.getAttribute('data-km') || '0';
+                    if (!inputKm.value || inputKm.dataset.lastVehId !== vehSelect.value) {
+                        inputKm.value = currentKm;
+                        inputKm.dataset.lastVehId = vehSelect.value;
+                    }
+                }
+            } else {
+                divKm.style.display = 'none';
+                inputKm.required = false;
+                inputKm.value = '';
+                delete inputKm.dataset.lastVehId;
+            }
+
+            // Handle Date Field
+            if (scadMesi > 0 || scadAnni > 0) {
+                divData.style.display = 'block';
+                inputData.required = true;
+                
+                // Auto pre-fill with today's date if empty
+                if (!inputData.value) {
+                    const today = new Date().toISOString().split('T')[0];
+                    inputData.value = today;
+                }
+            } else {
+                divData.style.display = 'none';
+                inputData.required = false;
+                inputData.value = '';
+            }
+
+            // Handle No Params Alert
+            if (scadKm === 0 && scadMesi === 0 && scadAnni === 0) {
+                if (alertNoParams) alertNoParams.style.display = 'block';
+            } else {
+                if (alertNoParams) alertNoParams.style.display = 'none';
+            }
+        }
     </script>
+
+    <!-- Modal Programma Manutenzione -->
+    <div class="modal fade" id="modalProgrammaManutenzione" tabindex="-1" aria-hidden="true">
+        <div class="modal-dialog modal-dialog-centered">
+            <div class="modal-content shadow-lg border-0">
+                <div class="modal-header bg-primary text-white">
+                    <h5 class="modal-title fw-bold">
+                        <i class="bi bi-calendar-plus me-2"></i> Programma Manutenzione Veicolo
+                    </h5>
+                    <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Chiudi"></button>
+                </div>
+                <form action="/admin/automezzi/manutenzioni/programma" method="POST" id="formProgrammaManutenzione">
+                    <div class="modal-body p-4">
+                        
+                        <!-- 1. Selezione Autoveicolo -->
+                        <div class="mb-3">
+                            <label class="form-label fw-bold text-dark">Autoveicolo <span class="text-danger">*</span></label>
+                            <div class="input-group mb-2">
+                                <span class="input-group-text bg-light"><i class="bi bi-search text-muted"></i></span>
+                                <input type="text" id="searchProgTargaInput" class="form-control" placeholder="Cerca parziale per targa, marca o modello...">
+                            </div>
+                            <select name="automezzo_id" id="progAutomezzoId" class="form-select" required onchange="onProgVehOrTypeChange()">
+                                <option value="">-- Seleziona Autoveicolo --</option>
+                                {% for v in veicoli %}
+                                    <option value="{{ v.automezzo_id }}" 
+                                            data-targa="{{ v.targa }}" 
+                                            data-desc="{{ v.marca }} {{ v.modello }}" 
+                                            data-km="{{ v.km_attuali or 0 }}">
+                                        {{ v.marca }} {{ v.modello }} ({{ v.targa }}) — {{ v.km_attuali or 0 }} km
+                                    </option>
+                                {% endfor %}
+                            </select>
+                        </div>
+
+                        <!-- 2. Selezione Tipo Manutenzione -->
+                        <div class="mb-3">
+                            <label class="form-label fw-bold text-dark">Tipo Manutenzione <span class="text-danger">*</span></label>
+                            <select name="tipo_manutenzione_id" id="progTipoManutenzioneId" class="form-select" required onchange="onProgVehOrTypeChange()">
+                                <option value="">-- Seleziona Tipo Manutenzione --</option>
+                                {% for t in tipi_manutenzione %}
+                                    <option value="{{ t.tipo_manutenzione_id }}" 
+                                            data-km="{{ t.scadenza_km or 0 }}" 
+                                            data-mesi="{{ t.scadenza_mesi or 0 }}" 
+                                            data-anni="{{ t.scadenza_anni or 0 }}">
+                                        {{ t.nome }} ({{ t.categoria or 'Generale' }})
+                                        {% if t.scadenza_km or t.scadenza_mesi or t.scadenza_anni %}
+                                            — [
+                                            {%- if t.scadenza_km %}{{ t.scadenza_km }} km{% endif -%}
+                                            {%- if t.scadenza_km and (t.scadenza_mesi or t.scadenza_anni) %}, {% endif -%}
+                                            {%- if t.scadenza_mesi %}{{ t.scadenza_mesi }} mesi{% endif -%}
+                                            {%- if t.scadenza_mesi and t.scadenza_anni %}, {% endif -%}
+                                            {%- if t.scadenza_anni %}{{ t.scadenza_anni }} anni{% endif -%}
+                                            ]
+                                        {% endif %}
+                                    </option>
+                                {% endfor %}
+                            </select>
+                        </div>
+
+                        <!-- 3. Campo KM Iniziali di partenza (Dinamico) -->
+                        <div class="mb-3" id="divProgKmPartenza" style="display: none;">
+                            <label class="form-label fw-bold text-dark">
+                                Chilometri Iniziali di Partenza <span class="text-danger">*</span>
+                            </label>
+                            <div class="input-group">
+                                <input type="number" name="km_partenza_calcolo" id="progKmPartenzaInput" class="form-control" placeholder="es. 15000" min="0">
+                                <span class="input-group-text">km</span>
+                            </div>
+                            <small class="text-muted d-block mt-1">
+                                <i class="bi bi-info-circle me-1"></i> Proposti di default i chilometri attuali del veicolo selezionato.
+                            </small>
+                        </div>
+
+                        <!-- 4. Campo Data di Partenza (Dinamico) -->
+                        <div class="mb-3" id="divProgDataInizio" style="display: none;">
+                            <label class="form-label fw-bold text-dark">
+                                Data di Partenza Calcolo <span class="text-danger">*</span>
+                            </label>
+                            <input type="date" name="data_inizio_calcolo" id="progDataInizioInput" class="form-control">
+                            <small class="text-muted d-block mt-1">
+                                <i class="bi bi-info-circle me-1"></i> Proposta di default la data odierna.
+                            </small>
+                        </div>
+
+                        <!-- 5. Messaggio Nessun parametro impostato sul Tipo -->
+                        <div class="alert alert-warning py-2 small mb-0" id="alertNoParams" style="display: none;">
+                            <i class="bi bi-exclamation-triangle-fill me-1"></i> Il tipo di manutenzione selezionato non ha ancora intervalli definiti (km, mesi o anni). Sarà comunque salvato come associazione.
+                        </div>
+
+                    </div>
+                    <div class="modal-footer bg-light">
+                        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Annulla</button>
+                        <button type="submit" class="btn btn-primary fw-bold px-4">Salva Programmazione</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
 </body>
 
 </html>

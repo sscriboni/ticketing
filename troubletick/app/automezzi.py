@@ -985,7 +985,7 @@ def list_manutenzioni(r: Request):
         programmate_query = conn.execute(text("""
             SELECT 
                 a.automezzo_id, a.targa, b.nome as marca, a.modello, a.km_attuali,
-                tm.nome as tipo_nome, tm.scadenza_mesi, tm.scadenza_km,
+                tm.tipo_manutenzione_id, tm.nome as tipo_nome, tm.scadenza_mesi, tm.scadenza_anni, tm.scadenza_km,
                 atm.data_inizio_calcolo, atm.km_partenza_calcolo
             FROM automezzi a
             JOIN marche_automezzi b ON a.marca_id = b.marca_id
@@ -1009,10 +1009,11 @@ def list_manutenzioni(r: Request):
             
             prog['scadenza_stimata_data'] = None
             prog['giorni_rimanenti'] = None
-            if prog['scadenza_mesi'] and prog['data_inizio_calcolo']:
+            tot_mesi = (prog.get('scadenza_mesi') or 0) + (prog.get('scadenza_anni') or 0) * 12
+            if tot_mesi > 0 and prog['data_inizio_calcolo']:
                 try:
                     d_inizio = datetime.datetime.strptime(prog['data_inizio_calcolo'], "%Y-%m-%d").date()
-                    d_scadenza = add_months(d_inizio, prog['scadenza_mesi'])
+                    d_scadenza = add_months(d_inizio, tot_mesi)
                     prog['scadenza_stimata_data'] = d_scadenza
                     prog['giorni_rimanenti'] = (d_scadenza - oggi).days
                 except:
@@ -1154,6 +1155,66 @@ def delete_manutenzione(id: int, r: Request):
             conn.execute(text("UPDATE automezzi SET stato = 'Disponibile' WHERE automezzo_id = :automezzo_id"), {"automezzo_id": m.automezzo_id})
         conn.execute(text("DELETE FROM manutenzioni_automezzi WHERE manutenzione_id = :id"), {"id": id})
         
+    return RedirectResponse(url="/admin/automezzi/manutenzioni", status_code=303)
+
+@router.post("/admin/automezzi/manutenzioni/programma")
+def programma_manutenzione_automezzo(
+    automezzo_id: int = Form(...),
+    tipo_manutenzione_id: int = Form(...),
+    km_partenza_calcolo: typing.Optional[int] = Form(None),
+    data_inizio_calcolo: typing.Optional[str] = Form(None),
+    r: Request = None
+):
+    if "user" not in r.session:
+        return RedirectResponse(url="/login", status_code=303)
+    user = r.session.get("user")
+    if user.get("ruolo") not in ("admin", "global_fleet_manager"):
+        return RedirectResponse(url="/", status_code=303)
+
+    with engine.begin() as conn:
+        existing = conn.execute(text("""
+            SELECT 1 FROM automezzi_tipi_manutenzione 
+            WHERE automezzo_id = :aid AND tipo_manutenzione_id = :tid
+        """), {"aid": automezzo_id, "tid": tipo_manutenzione_id}).first()
+
+        if existing:
+            conn.execute(text("""
+                UPDATE automezzi_tipi_manutenzione 
+                SET data_inizio_calcolo = :data_i, km_partenza_calcolo = :km_p 
+                WHERE automezzo_id = :aid AND tipo_manutenzione_id = :tid
+            """), {
+                "aid": automezzo_id, "tid": tipo_manutenzione_id,
+                "data_i": data_inizio_calcolo, "km_p": km_partenza_calcolo
+            })
+        else:
+            conn.execute(text("""
+                INSERT INTO automezzi_tipi_manutenzione (automezzo_id, tipo_manutenzione_id, data_inizio_calcolo, km_partenza_calcolo)
+                VALUES (:aid, :tid, :data_i, :km_p)
+            """), {
+                "aid": automezzo_id, "tid": tipo_manutenzione_id,
+                "data_i": data_inizio_calcolo, "km_p": km_partenza_calcolo
+            })
+
+    return RedirectResponse(url="/admin/automezzi/manutenzioni", status_code=303)
+
+@router.post("/admin/automezzi/manutenzioni/programma/elimina")
+def elimina_programma_manutenzione(
+    automezzo_id: int = Form(...),
+    tipo_manutenzione_id: int = Form(...),
+    r: Request = None
+):
+    if "user" not in r.session:
+        return RedirectResponse(url="/login", status_code=303)
+    user = r.session.get("user")
+    if user.get("ruolo") not in ("admin", "global_fleet_manager"):
+        return RedirectResponse(url="/", status_code=303)
+
+    with engine.begin() as conn:
+        conn.execute(text("""
+            DELETE FROM automezzi_tipi_manutenzione 
+            WHERE automezzo_id = :aid AND tipo_manutenzione_id = :tid
+        """), {"aid": automezzo_id, "tid": tipo_manutenzione_id})
+
     return RedirectResponse(url="/admin/automezzi/manutenzioni", status_code=303)
 
 @router.get("/admin/automezzi/marche", response_class=HTMLResponse)
