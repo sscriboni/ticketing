@@ -32,28 +32,25 @@
     <p class="text-muted">Compila i tuoi dati per richiedere l'accesso al pannello di assistenza. <strong>L'account dovrà essere approvato da un amministratore prima di poter accedere.</strong></p>
     
     {% if error %}<div class="alert alert-danger">{{ error }}</div>{% endif %}
+    <div id="jsErrorAlert" class="alert alert-danger d-none"></div>
     
-    <form method="post" action="/register" class="mt-3 bg-white p-4 rounded shadow-sm">
+    <form method="post" action="/register" id="registerForm" class="mt-3 bg-white p-4 rounded shadow-sm">
         <div class="row g-3">
             <div class="col-md-6">
                 <label class="form-label fw-bold">Nome *</label>
-                <input type="text" name="nome" class="form-control" required>
+                <input type="text" name="nome" class="form-control" required minlength="2">
             </div>
             <div class="col-md-6">
                 <label class="form-label fw-bold">Cognome *</label>
-                <input type="text" name="cognome" class="form-control" required>
-            </div>
-            <div class="col-md-6">
-                <label class="form-label fw-bold">Username *</label>
-                <input type="text" name="username" class="form-control" required>
-            </div>
-            <div class="col-md-6">
-                <label class="form-label fw-bold">Password *</label>
-                <input type="password" name="password" class="form-control" required minlength="6">
+                <input type="text" name="cognome" class="form-control" required minlength="2">
             </div>
             <div class="col-md-6">
                 <label class="form-label fw-bold">Email *</label>
                 <input type="email" name="email" class="form-control" required>
+            </div>
+            <div class="col-md-6">
+                <label class="form-label fw-bold">Password *</label>
+                <input type="password" name="password" class="form-control" required minlength="5">
             </div>
             <div class="col-md-6">
                 <label class="form-label fw-bold">Telefono/Cell *</label>
@@ -71,4 +68,81 @@
         <button type="submit" class="btn btn-primary w-100 mt-4">Invia Richiesta di Registrazione</button>
     </form>
 </div>
+
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    const form = document.getElementById('registerForm');
+    if (!form) return;
+
+    form.addEventListener('submit', function(e) {
+        const errorAlert = document.getElementById('jsErrorAlert');
+        if (errorAlert) {
+            errorAlert.classList.add('d-none');
+            errorAlert.textContent = '';
+        }
+
+        const nomeInput = form.querySelector('[name="nome"]');
+        const cognomeInput = form.querySelector('[name="cognome"]');
+        const passwordInput = form.querySelector('[name="password"]');
+        const emailInput = form.querySelector('[name="email"]');
+        const telefonoInput = form.querySelector('[name="telefono"]');
+
+        const nome = nomeInput.value.trim();
+        const cognome = cognomeInput.value.trim();
+        const password = passwordInput.value.trim();
+        const email = emailInput.value.trim();
+        const telefono = telefonoInput ? telefonoInput.value.trim() : '';
+
+        // Write trimmed values back
+        nomeInput.value = nome;
+        cognomeInput.value = cognome;
+        passwordInput.value = password;
+        emailInput.value = email;
+        if (telefonoInput) telefonoInput.value = telefono;
+
+        function showError(msg) {
+            e.preventDefault();
+            if (errorAlert) {
+                errorAlert.textContent = msg;
+                errorAlert.classList.remove('d-none');
+                errorAlert.scrollIntoView({ behavior: 'smooth', block: 'center' });
+            } else {
+                alert(msg);
+            }
+        }
+
+        // 1. Controllo campi vuoti dopo trim
+        if (!nome || !cognome || !password || !email || (telefonoInput && telefonoInput.hasAttribute('required') && !telefono)) {
+            showError('Non è possibile inserire dati vuoti o composti solo da spazi.');
+            return;
+        }
+
+        // 2. Controllo lunghezza minima (nome/cognome >= 2, password >= 5)
+        if (nome.length < 2) {
+            showError('Il nome deve contenere almeno 2 caratteri (dopo aver rimosso gli spazi).');
+            return;
+        }
+        if (cognome.length < 2) {
+            showError('Il cognome deve contenere almeno 2 caratteri (dopo aver rimosso gli spazi).');
+            return;
+        }
+        if (password.length < 5) {
+            showError('La password deve contenere almeno 5 caratteri.');
+            return;
+        }
+
+        // 3. Controllo non solo caratteri speciali (deve contenere almeno lettere)
+        const hasLetterRegex = /[\p{L}]/u;
+
+        if (!hasLetterRegex.test(nome)) {
+            showError('Il nome non può contenere solo caratteri speciali o numeri.');
+            return;
+        }
+        if (!hasLetterRegex.test(cognome)) {
+            showError('Il cognome non può contenere solo caratteri speciali o numeri.');
+            return;
+        }
+    });
+});
+</script>
 </body></html>

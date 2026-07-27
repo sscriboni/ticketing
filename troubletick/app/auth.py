@@ -168,19 +168,43 @@ def register_form(r: Request):
     return templates.TemplateResponse(r, "register.html", {"request": r, "cfg": CFG, "reparti": reparti, "sedi": sedi})
 
 @router.post("/register")
-def register_action(r: Request, username: str=Form(...), password: str=Form(...),
+def register_action(r: Request, password: str=Form(...),
                     nome: str=Form(...), cognome: str=Form(...), email: str=Form(...),
-                    telefono: str=Form(...), reparto_id: int=Form(...), sede_id: int=Form(...)):
-    username = username.strip()
-    password = password.strip()
-    email = email.strip()
-    telefono = telefono.strip()
+                    telefono: str=Form(...), reparto_id: int=Form(...), sede_id: int=Form(...),
+                    username: str=Form(None)):
+    email = (email or "").strip()
+    username = (username or "").strip() or email
+    password = (password or "").strip()
+    nome = (nome or "").strip()
+    cognome = (cognome or "").strip()
+    telefono = (telefono or "").strip()
+
+    error_msg = None
+    if not password or not nome or not cognome or not email or not telefono:
+        error_msg = "Tutti i campi obbligatori devono essere compilati e non possono contenere solo spazi."
+    elif len(nome) < 2:
+        error_msg = "Il nome deve contenere almeno 2 caratteri (dopo il trim)."
+    elif len(cognome) < 2:
+        error_msg = "Il cognome deve contenere almeno 2 caratteri (dopo il trim)."
+    elif len(password) < 5:
+        error_msg = "La password deve contenere almeno 5 caratteri."
+    elif not any(c.isalpha() for c in nome):
+        error_msg = "Il nome non può essere composto solo da caratteri speciali o numeri."
+    elif not any(c.isalpha() for c in cognome):
+        error_msg = "Il cognome non può essere composto solo da caratteri speciali o numeri."
+
+    if error_msg:
+        with engine.connect() as c:
+            reparti = c.execute(text("SELECT reparto_id, nome FROM reparti ORDER BY nome")).mappings().all()
+            sedi = c.execute(text("SELECT sede_id, nome FROM sedi ORDER BY nome")).mappings().all()
+        return templates.TemplateResponse(r, "register.html", {"request": r, "cfg": CFG, "reparti": reparti, "sedi": sedi, "error": error_msg})
+
     with engine.begin() as c:
         existing = c.execute(text("SELECT user_id FROM users WHERE username = :u OR email = :e"), {"u": username, "e": email}).scalar()
         if existing:
             reparti = c.execute(text("SELECT reparto_id, nome FROM reparti ORDER BY nome")).mappings().all()
             sedi = c.execute(text("SELECT sede_id, nome FROM sedi ORDER BY nome")).mappings().all()
-            return templates.TemplateResponse(r, "register.html", {"request": r, "cfg": CFG, "reparti": reparti, "sedi": sedi, "error": "Username o Email già in uso."})
+            return templates.TemplateResponse(r, "register.html", {"request": r, "cfg": CFG, "reparti": reparti, "sedi": sedi, "error": "Indirizzo Email già registrato nel sistema."})
 
         hashed = bcrypt.hashpw(password.encode('utf-8'), bcrypt.gensalt()).decode('utf-8')
         c.execute(text("""
@@ -206,10 +230,33 @@ def register_utente_form(r: Request, email: str = None):
 def register_utente_action(r: Request, background_tasks: BackgroundTasks, password: str=Form(...),
                            nome: str=Form(...), cognome: str=Form(...), email: str=Form(...),
                            telefono: str=Form(None), reparto_id: int=Form(...), sede_id: int=Form(...)):
-    email = email.strip()
+    email = (email or "").strip()
     username = email
-    password = password.strip()
-    tel_val = telefono.strip() if telefono else None
+    password = (password or "").strip()
+    nome = (nome or "").strip()
+    cognome = (cognome or "").strip()
+    tel_val = (telefono or "").strip() if telefono else None
+
+    error_msg = None
+    if not email or not password or not nome or not cognome:
+        error_msg = "Tutti i campi obbligatori devono essere compilati e non possono contenere solo spazi."
+    elif len(nome) < 2:
+        error_msg = "Il nome deve contenere almeno 2 caratteri (dopo il trim)."
+    elif len(cognome) < 2:
+        error_msg = "Il cognome deve contenere almeno 2 caratteri (dopo il trim)."
+    elif len(password) < 5:
+        error_msg = "La password deve contenere almeno 5 caratteri."
+    elif not any(c.isalpha() for c in nome):
+        error_msg = "Il nome non può essere composto solo da caratteri speciali o numeri."
+    elif not any(c.isalpha() for c in cognome):
+        error_msg = "Il cognome non può essere composto solo da caratteri speciali o numeri."
+
+    if error_msg:
+        with engine.connect() as c:
+            reparti = c.execute(text("SELECT reparto_id, nome FROM reparti ORDER BY nome")).mappings().all()
+            sedi = c.execute(text("SELECT sede_id, nome FROM sedi ORDER BY nome")).mappings().all()
+        return templates.TemplateResponse(r, "register_utente.html", {"request": r, "cfg": CFG, "reparti": reparti, "sedi": sedi, "error": error_msg, "prefilled_email": email})
+
     with engine.begin() as c:
         existing = c.execute(text("SELECT user_id FROM users WHERE username = :u OR email = :e"), {"u": username, "e": email}).scalar()
         if existing:

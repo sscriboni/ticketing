@@ -2593,9 +2593,24 @@ def new_operatore(r: Request, username: str=Form(...), password: str=Form(...), 
     
     ruoli = ruoli or []
     servizi = servizi or []
-    username = username.strip()
-    password = password.strip()
-    email = email.strip()
+    username = (username or "").strip()
+    password = (password or "").strip()
+    nome = (nome or "").strip()
+    cognome = (cognome or "").strip()
+    email = (email or "").strip()
+    tel_val = (telefono or "").strip() if telefono else None
+
+    if not username or not password or not nome or not cognome or not email:
+        return RedirectResponse(url=f"/admin/operatori?error={urllib.parse.quote('Tutti i campi obbligatori devono essere compilati e non vuoti.')}", status_code=303)
+    if len(nome) < 2 or len(cognome) < 2:
+        return RedirectResponse(url=f"/admin/operatori?error={urllib.parse.quote('Nome e cognome devono essere di almeno 2 caratteri.')}", status_code=303)
+    if len(password) < 5:
+        return RedirectResponse(url=f"/admin/operatori?error={urllib.parse.quote('La password deve essere di almeno 5 caratteri.')}", status_code=303)
+    if not any(c.isalpha() for c in nome) or not any(c.isalpha() for c in cognome):
+        return RedirectResponse(url=f"/admin/operatori?error={urllib.parse.quote('Nome e cognome devono contenere almeno una lettera (non solo caratteri speciali).')}", status_code=303)
+    if not any(c.isalnum() for c in username):
+        return RedirectResponse(url=f"/admin/operatori?error={urllib.parse.quote('Lo username non può contenere solo caratteri speciali.')}", status_code=303)
+
     def h(p): return bcrypt.hashpw(p.encode('utf-8'), bcrypt.gensalt()).decode('utf-8')
     reparto_id_val = int(reparto_id) if reparto_id and str(reparto_id).isdigit() else None
     sede_id_val = int(sede_id) if sede_id and str(sede_id).isdigit() else None
@@ -2606,7 +2621,7 @@ def new_operatore(r: Request, username: str=Form(...), password: str=Form(...), 
             c.execute(text("""
                 INSERT INTO users (username, password_hash, nome, cognome, email, telefono, ruolo, reparto_id, attivo, sede_id, is_test)
                 VALUES (:u, :h, :n, :c, :e, :tel, :ruolo, :r, 1, :sede, :is_test)
-            """), {"u": username, "h": h(password), "n": nome, "c": cognome, "e": email, "tel": telefono, "ruolo": role_val, "r": reparto_id_val, "sede": sede_id_val, "is_test": is_test})
+            """), {"u": username, "h": h(password), "n": nome, "c": cognome, "e": email, "tel": tel_val, "ruolo": role_val, "r": reparto_id_val, "sede": sede_id_val, "is_test": is_test})
             
             user_id = c.execute(text("SELECT user_id FROM users WHERE username = :u"), {"u": username}).scalar()
             
