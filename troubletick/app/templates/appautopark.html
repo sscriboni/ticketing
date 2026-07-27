@@ -51,9 +51,14 @@
                     </span>
                 </div>
                 {% if user.ruolo in ('admin', 'fleet_manager', 'global_fleet_manager') %}
-                <button class="btn btn-primary px-4 py-2" onclick="showAddVehicleModal()">
-                    <i class="bi bi-plus-circle me-1"></i> Aggiungi Veicolo
-                </button>
+                <div class="d-flex gap-2">
+                    <a href="/admin/automezzi/esporta/csv" class="btn btn-outline-success px-3 py-2 fw-bold" title="Scarica l'anagrafica completa in formato CSV">
+                        <i class="bi bi-file-earmark-excel me-1"></i> Esporta CSV
+                    </a>
+                    <button class="btn btn-primary px-4 py-2" onclick="showAddVehicleModal()">
+                        <i class="bi bi-plus-circle me-1"></i> Aggiungi Veicolo
+                    </button>
+                </div>
                 {% endif %}
             </div>
             <div class="row mb-3 g-2">

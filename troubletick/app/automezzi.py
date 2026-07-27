@@ -459,6 +459,95 @@ def list_automezzi(r: Request):
         "user_reparto_id": user_reparto_id
     })
 
+@router.get("/admin/automezzi/esporta/csv")
+def export_automezzi_csv(r: Request):
+    if "user" not in r.session: 
+        return RedirectResponse(url="/login")
+    user = r.session.get("user")
+    if user.get("ruolo") not in ("admin", "fleet_manager", "global_fleet_manager"):
+        return RedirectResponse(url="/")
+
+    user_reparto_id = None
+    with engine.connect() as conn:
+        if user.get("ruolo") == "fleet_manager":
+            user_reparto_id = conn.execute(text("SELECT reparto_id FROM users WHERE user_id = :uid"), {"uid": user.get("id")}).scalar()
+
+        if user.get("ruolo") == "fleet_manager" and user_reparto_id is not None:
+            automezzi = conn.execute(text("""
+                SELECT a.*, 
+                       m.nome as marca_nome,
+                       s_ass.nome as sede_assegnata_nome, 
+                       s_att.nome as sede_attuale_nome, 
+                       r.nome as reparto_assegnato_nome
+                FROM automezzi a
+                JOIN marche_automezzi m ON a.marca_id = m.marca_id
+                LEFT JOIN sedi s_ass ON a.sede_assegnata_id = s_ass.sede_id
+                LEFT JOIN sedi s_att ON a.sede_attuale_id = s_att.sede_id
+                LEFT JOIN reparti r ON a.reparto_assegnato_id = r.reparto_id
+                WHERE a.reparto_assegnato_id = :rep
+                ORDER BY a.automezzo_id DESC
+            """), {"rep": user_reparto_id}).mappings().all()
+        else:
+            automezzi = conn.execute(text("""
+                SELECT a.*, 
+                       m.nome as marca_nome,
+                       s_ass.nome as sede_assegnata_nome, 
+                       s_att.nome as sede_attuale_nome, 
+                       r.nome as reparto_assegnato_nome
+                FROM automezzi a
+                JOIN marche_automezzi m ON a.marca_id = m.marca_id
+                LEFT JOIN sedi s_ass ON a.sede_assegnata_id = s_ass.sede_id
+                LEFT JOIN sedi s_att ON a.sede_attuale_id = s_att.sede_id
+                LEFT JOIN reparti r ON a.reparto_assegnato_id = r.reparto_id
+                ORDER BY a.automezzo_id DESC
+            """)).mappings().all()
+
+    output = io.StringIO()
+    output.write('\ufeff')
+    writer = csv.writer(output, delimiter=';')
+
+    writer.writerow([
+        "ID", "Targa", "Marca", "Modello", "Tipo", "Colore", "Alimentazione",
+        "Km Attuali", "Classe Euro", "Data Immatricolazione", "Proprietà",
+        "Società Noleggio", "Canone Noleggio (€)", "Sede Assegnata", "Sede Attuale",
+        "Reparto Assegnato", "Stato", "Escluso Prenotazione", "Note"
+    ])
+
+    for v in automezzi:
+        v_dict = dict(v)
+        tipo_str = "Auto" if v_dict.get("tipo") == "auto" else "Furgone" if v_dict.get("tipo") == "furgone" else (v_dict.get("tipo") or "")
+        escluso_str = "Escluso" if v_dict.get("escluso_prenotazione") == 1 else "Abilitato"
+        
+        writer.writerow([
+            v_dict.get("automezzo_id", ""),
+            v_dict.get("targa", ""),
+            v_dict.get("marca_nome", ""),
+            v_dict.get("modello", ""),
+            tipo_str,
+            v_dict.get("colore", "") or "",
+            v_dict.get("alimentazione", "") or "",
+            v_dict.get("km_attuali", 0) or 0,
+            v_dict.get("classe_euro", "") or "",
+            v_dict.get("data_immatricolazione", "") or "",
+            v_dict.get("proprieta", "") or "",
+            v_dict.get("societa_noleggio", "") or "",
+            v_dict.get("canone_noleggio", 0) or 0,
+            v_dict.get("sede_assegnata_nome", "") or "",
+            v_dict.get("sede_attuale_nome", "") or "",
+            v_dict.get("reparto_assegnato_nome", "") or "",
+            v_dict.get("stato", "") or "",
+            escluso_str,
+            v_dict.get("note", "") or ""
+        ])
+
+    today_str = datetime.date.today().strftime("%Y%m%d")
+    filename = f"automezzi_{today_str}.csv"
+    return Response(
+        content=output.getvalue(),
+        media_type="text/csv; charset=utf-8",
+        headers={"Content-Disposition": f"attachment; filename={filename}"}
+    )
+
 @router.post("/veicolo/nuovo")
 async def add_vehicle(
     r: Request,
