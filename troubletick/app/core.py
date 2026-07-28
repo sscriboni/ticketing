@@ -1,5 +1,5 @@
 import os, json
-from sqlalchemy import create_engine
+from sqlalchemy import create_engine, text
 from fastapi.templating import Jinja2Templates
 from dotenv import load_dotenv
 
