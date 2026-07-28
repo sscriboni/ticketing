@@ -12,20 +12,26 @@
         .table-container {
             background: white;
             border-radius: 8px;
-            padding: 1.5rem;
+            padding: 1rem;
             box-shadow: 0 4px 6px rgba(0,0,0,0.05);
             border: 1px solid #dee2e6;
+        }
+        .custom-table {
+            font-size: 0.85rem;
         }
         .custom-table th {
             font-weight: 600;
             color: #495057;
             text-transform: uppercase;
-            font-size: 0.8rem;
-            letter-spacing: 0.5px;
+            font-size: 0.75rem;
+            letter-spacing: 0.3px;
             border-bottom: 2px solid #dee2e6;
+            padding: 0.55rem 0.6rem;
+            white-space: nowrap;
         }
         .custom-table td {
             vertical-align: middle;
+            padding: 0.45rem 0.6rem;
         }
     </style>
 </head>
@@ -33,7 +39,7 @@
 <body class="bg-light">
     {% include 'navbar.html' %}
 
-    <div class="container py-4">
+    <div class="container-fluid px-4 py-4">
         {% if request.query_params.get('error') %}
         <div class="alert alert-danger alert-dismissible fade show shadow-sm border-0 rounded-3 mb-4" role="alert">
             <i class="bi bi-exclamation-triangle-fill me-2"></i> <strong>Errore:</strong> {{ request.query_params.get('error') }}
@@ -104,7 +110,7 @@
             
             <div class="table-container">
                 <div class="table-responsive">
-                    <table class="table table-hover custom-table align-middle" id="automezziTable">
+                    <table class="table table-hover table-sm custom-table align-middle" id="automezziTable">
                         <thead class="user-select-none">
                             <tr>
                                 <th class="sortable" onclick="sortTable(0)" style="cursor: pointer;" title="Clicca per ordinare per Veicolo">
@@ -199,8 +205,8 @@
                                         </form>
                                     {% endif %}
                                 </td>
-                                <td class="text-end">
-                                    <div class="d-inline-flex gap-2">
+                                <td class="text-end text-nowrap">
+                                    <div class="d-inline-flex gap-1">
                                         {% if user.ruolo in ('admin', 'global_fleet_manager') or (user.ruolo == 'fleet_manager' and v.reparto_assegnato_id == user_reparto_id) %}
                                             <button class="btn btn-sm btn-outline-info text-dark font-monospace" data-id="{{ v.automezzo_id }}" data-title="{{ v.marca_nome }} {{ v.modello }} ({{ v.targa }})" data-km="{{ v.km_attuali or 0 }}" onclick="openRegistroKmModalFromBtn(this)" title="Registro Chilometraggi & Storico KM">
                                                 <i class="bi bi-speedometer2 me-1"></i> Registro KM
