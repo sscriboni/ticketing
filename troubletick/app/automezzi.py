@@ -830,6 +830,97 @@ def add_registro_km_automezzo(
     return RedirectResponse(url=referer, status_code=303)
 
 
+@router.post("/admin/automezzi/{automezzo_id}/importa-km-rifornimenti")
+def import_km_from_rifornimenti(automezzo_id: int, r: Request):
+    if "user" not in r.session:
+        return RedirectResponse(url="/login", status_code=303)
+    user = r.session.get("user")
+    if user.get("ruolo") not in ("admin", "fleet_manager", "global_fleet_manager"):
+        return RedirectResponse(url="/", status_code=303)
+
+    uid = user.get("id")
+
+    with engine.begin() as conn:
+        # Fetch vehicle targa and current km
+        v = conn.execute(text("SELECT targa, km_attuali FROM automezzi WHERE automezzo_id = :id"), {"id": automezzo_id}).mappings().first()
+        if not v:
+            import urllib.parse
+            referer = r.headers.get("referer") or "/admin/automezzi"
+            separator = "&" if "?" in referer else "?"
+            return RedirectResponse(url=f"{referer}{separator}error={urllib.parse.quote('Veicolo non trovato')}", status_code=303)
+
+        targa = v["targa"]
+        current_km = v["km_attuali"] or 0
+
+        # Fetch latest date in existing registro_km_automezzi before import
+        last_reg_date = conn.execute(text("""
+            SELECT MAX(data_registrazione) FROM registro_km_automezzi WHERE automezzo_id = :aid
+        """), {"aid": automezzo_id}).scalar()
+
+        # Fetch all refuelings for this vehicle targa with valid km > 0
+        rifornimenti_list = conn.execute(text("""
+            SELECT rifornimento_id, data, ora, km, prodotto, pan_carta, cod_impianto
+            FROM rifornimenti
+            WHERE targa = :targa AND km IS NOT NULL AND km > 0
+            ORDER BY data ASC, ora ASC, rifornimento_id ASC
+        """), {"targa": targa}).mappings().all()
+
+        if not rifornimenti_list:
+            import urllib.parse
+            referer = r.headers.get("referer") or "/admin/automezzi"
+            separator = "&" if "?" in referer else "?"
+            return RedirectResponse(url=f"{referer}{separator}error={urllib.parse.quote('Nessun rifornimento con chilometraggio trovato per questo veicolo')}", status_code=303)
+
+        imported_count = 0
+        latest_refuel_date = None
+        latest_refuel_km = 0
+
+        for r_item in rifornimenti_list:
+            r_data = r_item["data"]
+            r_km = r_item["km"]
+            r_prodotto = r_item["prodotto"] or "Carburante"
+            r_pan = r_item["pan_carta"] or ""
+
+            # Check if this KM entry already exists in registro_km_automezzi for this vehicle
+            exists = conn.execute(text("""
+                SELECT COUNT(*) FROM registro_km_automezzi
+                WHERE automezzo_id = :aid AND data_registrazione = :dreg AND km = :km
+            """), {"aid": automezzo_id, "dreg": r_data, "km": r_km}).scalar()
+
+            if not exists or exists == 0:
+                note_str = f"Rifornimento {r_prodotto}" + (f" (Carta PAN: {r_pan})" if r_pan else "")
+                conn.execute(text("""
+                    INSERT INTO registro_km_automezzi (
+                        automezzo_id, data_registrazione, km, sorgente, user_id, note
+                    ) VALUES (
+                        :aid, :dreg, :km, 'Carta Carburante', :uid, :note
+                    )
+                """), {
+                    "aid": automezzo_id,
+                    "dreg": r_data,
+                    "km": r_km,
+                    "uid": uid,
+                    "note": note_str
+                })
+                imported_count += 1
+
+            # Track latest refueling by date/km
+            if not latest_refuel_date or r_data > latest_refuel_date or (r_data == latest_refuel_date and r_km > latest_refuel_km):
+                latest_refuel_date = r_data
+                latest_refuel_km = r_km
+
+        # Rule check: "se la data dell'ultimo rifornimento è maggiore dell'ultima inserita, aggiorna il contachilomentri dell'auto"
+        if latest_refuel_date and (not last_reg_date or latest_refuel_date >= last_reg_date):
+            if latest_refuel_km > current_km:
+                conn.execute(text("""
+                    UPDATE automezzi SET km_attuali = :new_km WHERE automezzo_id = :aid
+                """), {"new_km": latest_refuel_km, "aid": automezzo_id})
+
+    referer = r.headers.get("referer") or "/admin/automezzi"
+    separator = "&" if "?" in referer else "?"
+    return RedirectResponse(url=f"{referer}{separator}msg=import_km_ok&count={imported_count}", status_code=303)
+
+
 @router.post("/veicolo/elimina/{id}")
 def delete_vehicle(id: int, r: Request):
     if "user" not in r.session:
@@ -3073,6 +3164,7 @@ async def import_rifornimenti(r: Request, file: UploadFile = File(...)):
 
     imported_count = 0
     discarded_list = []
+    seen_in_file = set()
 
     with engine.begin() as conn:
         for line_idx, row in enumerate(reader, start=2):
@@ -3090,6 +3182,9 @@ async def import_rifornimenti(r: Request, file: UploadFile = File(...)):
             
             raw_data = mapped_data.get("data")
             parsed_data = parse_date(raw_data)
+            ora_val = mapped_data.get("ora")
+            if ora_val:
+                ora_val = ora_val.strip()
 
             if not targa:
                 discarded_list.append({
@@ -3109,6 +3204,40 @@ async def import_rifornimenti(r: Request, file: UploadFile = File(...)):
                 })
                 continue
 
+            # Duplicate Check 1: Check duplicate within the same CSV file
+            dup_key = (targa, parsed_data, ora_val or "")
+            if dup_key in seen_in_file:
+                discarded_list.append({
+                    "linea": line_idx,
+                    "targa": targa,
+                    "data": parsed_data or raw_data or "-",
+                    "motivo": f"Record duplicato all'interno del file CSV (targa: {targa}, data: {parsed_data}, ora: {ora_val or '-'})"
+                })
+                continue
+
+            # Duplicate Check 2: Check duplicate in Database
+            if ora_val:
+                exists = conn.execute(text("""
+                    SELECT COUNT(*) FROM rifornimenti
+                    WHERE targa = :targa AND data = :data AND ora = :ora
+                """), {"targa": targa, "data": parsed_data, "ora": ora_val}).scalar()
+            else:
+                exists = conn.execute(text("""
+                    SELECT COUNT(*) FROM rifornimenti
+                    WHERE targa = :targa AND data = :data AND (ora IS NULL OR ora = '')
+                """), {"targa": targa, "data": parsed_data}).scalar()
+
+            if exists and exists > 0:
+                discarded_list.append({
+                    "linea": line_idx,
+                    "targa": targa,
+                    "data": parsed_data or raw_data or "-",
+                    "motivo": f"Record duplicato già presente nel database (targa: {targa}, data: {parsed_data}, ora: {ora_val or '-'})"
+                })
+                continue
+
+            seen_in_file.add(dup_key)
+
             try:
                 conn.execute(text("""
                     INSERT INTO rifornimenti (
@@ -3123,7 +3252,7 @@ async def import_rifornimenti(r: Request, file: UploadFile = File(...)):
                 """), {
                     "pan_carta": mapped_data.get("pan_carta"),
                     "data": parsed_data,
-                    "ora": mapped_data.get("ora"),
+                    "ora": ora_val,
                     "prodotto": mapped_data.get("prodotto"),
                     "targa": targa,
                     "km": parse_int(mapped_data.get("km")),
