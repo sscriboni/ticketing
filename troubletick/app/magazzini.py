@@ -2287,4 +2287,266 @@ def magazzini_report(r: Request, mese: int = None, anno: int = None, magazzino_i
     })
 
 
+@router.get("/magazzini/report-movimentazione", response_class=HTMLResponse)
+def report_movimentazione_magazzini(r: Request, mese: int = None, anno: int = None, magazzino_id: str = None, q: str = None):
+    if "user" not in r.session: return RedirectResponse(url="/login")
+    user = r.session.get("user")
+    if user.get("ruolo") not in ("admin", "responsabile", "assistenza"):
+        return RedirectResponse(url="/tickets")
+
+    from datetime import datetime
+    now = datetime.now()
+    if anno is None:
+        anno = now.year
+    if mese is None:
+        mese = now.month
+
+    prefix = f"{anno}-{mese:02d}-%"
+    
+    with engine.connect() as c:
+        if user.get("ruolo") == "admin":
+            magazzini_list = c.execute(text("SELECT magazzino_id, nome FROM magazzini ORDER BY nome")).mappings().all()
+        else:
+            magazzini_list = c.execute(text("""
+                SELECT m.magazzino_id, m.nome FROM magazzini m
+                JOIN operatori_magazzini om ON m.magazzino_id = om.magazzino_id
+                WHERE om.user_id = :uid
+                ORDER BY m.nome
+            """), {"uid": user.get("id")}).mappings().all()
+
+        user_mag_ids = [m["magazzino_id"] for m in magazzini_list]
+        
+        if user.get("ruolo") != "admin" and not user_mag_ids:
+            return templates.TemplateResponse(r, "report_movimentazione_magazzino.html", {
+                "request": r, "cfg": CFG, "user": user,
+                "riepilogo": [], "dettaglio": [], "magazzini": [], "anno": anno, "mese": mese, "nome_mese": "",
+                "tot_scarichi": 0, "tot_quantita": 0, "tot_materiali": 0, "tot_magazzini": 0,
+                "filtri": {"magazzino_id": magazzino_id, "q": q}
+            })
+
+        # Clause for discharges excluding inter-warehouse transfers
+        where_clauses = [
+            "mm.operazione = 'scarico'",
+            "mm.data_movimento LIKE :prefix",
+            "(mm.descrizione IS NULL OR (mm.descrizione NOT LIKE '[Spedizione verso %' AND mm.descrizione NOT LIKE '[Trasferimento %'))"
+        ]
+        params = {"prefix": prefix}
+
+        if user.get("ruolo") != "admin":
+            where_clauses.append("mm.magazzino_id IN :user_mag_ids")
+            params["user_mag_ids"] = user_mag_ids
+
+        if magazzino_id and magazzino_id.isdigit():
+            where_clauses.append("mm.magazzino_id = :mag_id")
+            params["mag_id"] = int(magazzino_id)
+
+        if q and q.strip():
+            q_clean = f"%{q.strip()}%"
+            where_clauses.append("(mat.nome LIKE :q OR cat.nome LIKE :q OR mm.nominativo_consegna LIKE :q OR mm.descrizione LIKE :q OR r_dest.nome LIKE :q)")
+            params["q"] = q_clean
+
+        where_sql = " AND ".join(where_clauses)
+
+        # 1. Query Detailed Movements (Dettaglio Movimenti)
+        detail_query = f"""
+            SELECT mm.movimento_id, mm.data_movimento, mm.quantita, mm.descrizione,
+                   mm.nominativo_consegna, mm.email_consegna, mm.posizione_fisica, mm.marca, mm.modello,
+                   m.magazzino_id, m.nome AS magazzino_nome,
+                   mat.materiale_id, mat.nome AS materiale_nome,
+                   cat.nome AS categoria_nome,
+                   u_op.nome AS op_nome, u_op.cognome AS op_cognome, u_op.username AS op_username,
+                   r_dest.nome AS reparto_dest_nome,
+                   s_dest.nome AS sede_dest_nome
+            FROM movimenti_magazzino mm
+            JOIN magazzini m ON mm.magazzino_id = m.magazzino_id
+            JOIN materiali mat ON mm.materiale_id = mat.materiale_id
+            LEFT JOIN categorie cat ON mat.categoria_id = cat.categoria_id
+            LEFT JOIN users u_op ON mm.user_id = u_op.user_id
+            LEFT JOIN reparti r_dest ON mm.reparto_id = r_dest.reparto_id
+            LEFT JOIN sedi s_dest ON mm.sede_assegnazione_id = s_dest.sede_id
+            WHERE {where_sql}
+            ORDER BY mm.data_movimento DESC, mm.movimento_id DESC
+        """
+        stmt_detail = text(detail_query)
+        if "user_mag_ids" in params:
+            from sqlalchemy import bindparam
+            stmt_detail = stmt_detail.bindparams(bindparam("user_mag_ids", expanding=True))
+
+        raw_detail = c.execute(stmt_detail, params).mappings().all()
+
+        dettaglio = []
+        for r_item in raw_detail:
+            op_fullname = f"{r_item['op_nome'] or ''} {r_item['op_cognome'] or ''}".strip() or r_item['op_username'] or "Sistema"
+            dettaglio.append({
+                "movimento_id": r_item["movimento_id"],
+                "data_movimento": r_item["data_movimento"],
+                "magazzino_nome": r_item["magazzino_nome"],
+                "materiale_nome": r_item["materiale_nome"],
+                "categoria_nome": r_item["categoria_nome"] or "Generica",
+                "quantita": int(r_item["quantita"] or 0),
+                "nominativo_consegna": r_item["nominativo_consegna"] or r_item["email_consegna"] or "-",
+                "reparto_dest_nome": r_item["reparto_dest_nome"] or r_item["sede_dest_nome"] or "-",
+                "operatore_nome": op_fullname,
+                "descrizione": r_item["descrizione"] or "-",
+                "posizione_fisica": r_item["posizione_fisica"] or "-",
+                "marca": r_item["marca"] or "",
+                "modello": r_item["modello"] or ""
+            })
+
+        # 2. Query Summary per Materiale e Magazzino (Riepilogo)
+        summary_query = f"""
+            SELECT m.magazzino_id, m.nome AS magazzino_nome,
+                   mat.materiale_id, mat.nome AS materiale_nome,
+                   cat.nome AS categoria_nome,
+                   COUNT(mm.movimento_id) AS num_operazioni,
+                   SUM(mm.quantita) AS tot_quantita
+            FROM movimenti_magazzino mm
+            JOIN magazzini m ON mm.magazzino_id = m.magazzino_id
+            JOIN materiali mat ON mm.materiale_id = mat.materiale_id
+            LEFT JOIN categorie cat ON mat.categoria_id = cat.categoria_id
+            LEFT JOIN reparti r_dest ON mm.reparto_id = r_dest.reparto_id
+            WHERE {where_sql}
+            GROUP BY m.magazzino_id, m.nome, mat.materiale_id, mat.nome, cat.nome
+            ORDER BY m.nome, cat.nome, mat.nome
+        """
+        stmt_summary = text(summary_query)
+        if "user_mag_ids" in params:
+            from sqlalchemy import bindparam
+            stmt_summary = stmt_summary.bindparams(bindparam("user_mag_ids", expanding=True))
+
+        raw_summary = c.execute(stmt_summary, params).mappings().all()
+
+        riepilogo = []
+        for s_item in raw_summary:
+            riepilogo.append({
+                "magazzino_nome": s_item["magazzino_nome"],
+                "categoria_nome": s_item["categoria_nome"] or "Generica",
+                "materiale_nome": s_item["materiale_nome"],
+                "num_operazioni": int(s_item["num_operazioni"] or 0),
+                "tot_quantita": int(s_item["tot_quantita"] or 0)
+            })
+
+        tot_scarichi = len(dettaglio)
+        tot_quantita = sum(d["quantita"] for d in dettaglio)
+        tot_materiali = len(set(d["materiale_nome"] for d in dettaglio))
+        tot_magazzini = len(set(d["magazzino_nome"] for d in dettaglio))
+
+        months_it = {
+            1: "Gennaio", 2: "Febbraio", 3: "Marzo", 4: "Aprile",
+            5: "Maggio", 6: "Giugno", 7: "Luglio", 8: "Agosto",
+            9: "Settembre", 10: "Ottobre", 11: "Novembre", 12: "Dicembre"
+        }
+        nome_mese = months_it.get(mese, str(mese))
+
+    return templates.TemplateResponse(r, "report_movimentazione_magazzino.html", {
+        "request": r, "cfg": CFG, "user": user,
+        "riepilogo": riepilogo, "dettaglio": dettaglio, "magazzini": magazzini_list,
+        "anno": anno, "mese": mese, "nome_mese": nome_mese,
+        "tot_scarichi": tot_scarichi, "tot_quantita": tot_quantita,
+        "tot_materiali": tot_materiali, "tot_magazzini": tot_magazzini,
+        "filtri": {"magazzino_id": magazzino_id, "q": q}
+    })
+
+
+@router.get("/magazzini/report-movimentazione/export")
+def export_report_movimentazione(r: Request, mese: int = None, anno: int = None, magazzino_id: str = None, q: str = None):
+    if "user" not in r.session: return RedirectResponse(url="/login")
+    user = r.session.get("user")
+    if user.get("ruolo") not in ("admin", "responsabile", "assistenza"):
+        return RedirectResponse(url="/tickets")
+
+    from datetime import datetime
+    now = datetime.now()
+    if anno is None: anno = now.year
+    if mese is None: mese = now.month
+
+    prefix = f"{anno}-{mese:02d}-%"
+
+    with engine.connect() as c:
+        if user.get("ruolo") == "admin":
+            magazzini_list = c.execute(text("SELECT magazzino_id FROM magazzini")).mappings().all()
+        else:
+            magazzini_list = c.execute(text("SELECT magazzino_id FROM operatori_magazzini WHERE user_id = :uid"), {"uid": user.get("id")}).mappings().all()
+
+        user_mag_ids = [m["magazzino_id"] for m in magazzini_list]
+
+        where_clauses = [
+            "mm.operazione = 'scarico'",
+            "mm.data_movimento LIKE :prefix",
+            "(mm.descrizione IS NULL OR (mm.descrizione NOT LIKE '[Spedizione verso %' AND mm.descrizione NOT LIKE '[Trasferimento %'))"
+        ]
+        params = {"prefix": prefix}
+
+        if user.get("ruolo") != "admin":
+            if not user_mag_ids:
+                user_mag_ids = [-1]
+            where_clauses.append("mm.magazzino_id IN :user_mag_ids")
+            params["user_mag_ids"] = user_mag_ids
+
+        if magazzino_id and magazzino_id.isdigit():
+            where_clauses.append("mm.magazzino_id = :mag_id")
+            params["mag_id"] = int(magazzino_id)
+
+        if q and q.strip():
+            q_clean = f"%{q.strip()}%"
+            where_clauses.append("(mat.nome LIKE :q OR cat.nome LIKE :q OR mm.nominativo_consegna LIKE :q OR mm.descrizione LIKE :q OR r_dest.nome LIKE :q)")
+            params["q"] = q_clean
+
+        where_sql = " AND ".join(where_clauses)
+
+        query = f"""
+            SELECT mm.data_movimento, m.nome AS magazzino_nome,
+                   cat.nome AS categoria_nome, mat.nome AS materiale_nome,
+                   mm.quantita, mm.nominativo_consegna, mm.email_consegna,
+                   r_dest.nome AS reparto_dest, s_dest.nome AS sede_dest,
+                   u_op.nome AS op_nome, u_op.cognome AS op_cognome,
+                   mm.descrizione, mm.posizione_fisica
+            FROM movimenti_magazzino mm
+            JOIN magazzini m ON mm.magazzino_id = m.magazzino_id
+            JOIN materiali mat ON mm.materiale_id = mat.materiale_id
+            LEFT JOIN categorie cat ON mat.categoria_id = cat.categoria_id
+            LEFT JOIN users u_op ON mm.user_id = u_op.user_id
+            LEFT JOIN reparti r_dest ON mm.reparto_id = r_dest.reparto_id
+            LEFT JOIN sedi s_dest ON mm.sede_assegnazione_id = s_dest.sede_id
+            WHERE {where_sql}
+            ORDER BY mm.data_movimento DESC
+        """
+        stmt = text(query)
+        if "user_mag_ids" in params:
+            from sqlalchemy import bindparam
+            stmt = stmt.bindparams(bindparam("user_mag_ids", expanding=True))
+
+        raw_rows = c.execute(stmt, params).mappings().all()
+
+    output = io.StringIO()
+    writer = csv.writer(output, delimiter=';')
+    writer.writerow(["Data Movimento", "Magazzino", "Categoria", "Materiale", "Quantita", "Destinatario", "Email Destinatario", "Reparto Destinazione", "Sede Destinazione", "Operatore", "Posizione Fisica", "Note"])
+
+    for row in raw_rows:
+        op_fullname = f"{row['op_nome'] or ''} {row['op_cognome'] or ''}".strip() or "Sistema"
+        writer.writerow([
+            row["data_movimento"],
+            row["magazzino_nome"],
+            row["categoria_nome"] or "Generica",
+            row["materiale_nome"],
+            row["quantita"],
+            row["nominativo_consegna"] or "",
+            row["email_consegna"] or "",
+            row["reparto_dest"] or "",
+            row["sede_dest"] or "",
+            op_fullname,
+            row["posizione_fisica"] or "",
+            row["descrizione"] or ""
+        ])
+
+    csv_content = output.getvalue()
+    filename = f"report_movimentazione_scarichi_{anno}_{mese:02d}.csv"
+    return Response(
+        content=csv_content,
+        media_type="text/csv",
+        headers={"Content-Disposition": f"attachment; filename={filename}"}
+    )
+
+
+
 
