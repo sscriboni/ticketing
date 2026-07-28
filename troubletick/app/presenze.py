@@ -363,7 +363,7 @@ def copertura_servizi(r: Request, mese: int = None, anno: int = None, reparto_id
     })
 
 @router.get("/assenze-mese", response_class=HTMLResponse)
-def assenze_mese(r: Request, mese: int = None, anno: int = None, reparto_id: int = None):
+def assenze_mese(r: Request, mese: int = None, anno: int = None, reparto_id: int = None, sede_id: int = None):
     if not CFG.get('modulo_presenze', True):
         return RedirectResponse(url="/")
     if "user" not in r.session: return RedirectResponse(url="/login")
@@ -391,18 +391,35 @@ def assenze_mese(r: Request, mese: int = None, anno: int = None, reparto_id: int
             return templates.TemplateResponse(r, "matrice_assenze.html", {
                 "request": r, "cfg": CFG, "user": user, 
                 "error": "Non sei assegnato a nessun reparto. Contatta l'amministratore.", 
-                "mese": mese, "anno": anno, "reparto_id": None, "reparti": reparti_list
+                "mese": mese, "anno": anno, "reparto_id": None, "reparti": reparti_list,
+                "sedi_reparto": [], "sede_id": None
             })
             
         reparto_nome = c.execute(text("SELECT nome FROM reparti WHERE reparto_id = :rid"), {"rid": reparto_id}).scalar()
-        
-        # Query active operators in this department
-        operators = c.execute(text("""
-            SELECT user_id, nome, cognome, username, ruolo
-            FROM users
-            WHERE reparto_id = :rid AND attivo = 1
-            ORDER BY cognome, nome
+
+        # Query distinct sedi of operators assigned to this department
+        sedi_reparto = c.execute(text("""
+            SELECT DISTINCT s.sede_id, s.nome
+            FROM users u
+            JOIN sedi s ON u.sede_id = s.sede_id
+            WHERE u.reparto_id = :rid AND u.attivo = 1
+            ORDER BY s.nome
         """), {"rid": reparto_id}).mappings().all()
+        
+        # Query active operators in this department (filtered by sede_id if provided)
+        op_where = "u.reparto_id = :rid AND u.attivo = 1"
+        op_params = {"rid": reparto_id}
+        if sede_id:
+            op_where += " AND u.sede_id = :sid"
+            op_params["sid"] = sede_id
+
+        operators = c.execute(text(f"""
+            SELECT u.user_id, u.nome, u.cognome, u.username, u.ruolo, u.sede_id, s.nome AS sede_nome
+            FROM users u
+            LEFT JOIN sedi s ON u.sede_id = s.sede_id
+            WHERE {op_where}
+            ORDER BY u.cognome, u.nome
+        """), op_params).mappings().all()
         
         _, num_days = calendar.monthrange(anno, mese)
         first_day_of_month = date(anno, mese, 1)
@@ -487,6 +504,7 @@ def assenze_mese(r: Request, mese: int = None, anno: int = None, reparto_id: int
             matrix.append({
                 "operator_nome": f"{op['nome']} {op['cognome']}".strip() or op['username'],
                 "operator_ruolo": op["ruolo"] or "operatore",
+                "sede_nome": op["sede_nome"] or "",
                 "giorni_stato": giorni_stato
             })
             
@@ -522,7 +540,9 @@ def assenze_mese(r: Request, mese: int = None, anno: int = None, reparto_id: int
         "next_anno": next_anno,
         "reparto_id": reparto_id,
         "reparto_nome": reparto_nome,
-        "reparti": reparti_list
+        "reparti": reparti_list,
+        "sedi_reparto": sedi_reparto,
+        "sede_id": sede_id
     })
 
 @router.get("/servizi-assegnati", response_class=HTMLResponse)

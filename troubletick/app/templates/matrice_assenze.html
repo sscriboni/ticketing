@@ -162,10 +162,21 @@
                 </select>
             </div>
             {% endif %}
+            {% if sedi_reparto %}
+            <div class="d-flex align-items-center gap-2">
+                <label class="form-label fw-bold mb-0 text-nowrap"><i class="bi bi-building me-1"></i>Sede:</label>
+                <select class="form-select form-select-sm" id="sedeSelect" onchange="changeSede(this)">
+                    <option value="">Tutte le Sedi</option>
+                    {% for s in sedi_reparto %}
+                    <option value="{{ s.sede_id }}" {% if s.sede_id == sede_id %}selected{% endif %}>{{ s.nome }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+            {% endif %}
             <div class="btn-group btn-group-sm">
-                <a href="/assenze-mese?mese={{ prev_mese }}&anno={{ prev_anno }}{% if user.ruolo == 'admin' %}&reparto_id={{ reparto_id }}{% endif %}" class="btn btn-outline-primary"><i class="bi bi-chevron-left"></i> Mese Prec.</a>
+                <a href="/assenze-mese?mese={{ prev_mese }}&anno={{ prev_anno }}{% if user.ruolo == 'admin' %}&reparto_id={{ reparto_id }}{% endif %}{% if sede_id %}&sede_id={{ sede_id }}{% endif %}" class="btn btn-outline-primary"><i class="bi bi-chevron-left"></i> Mese Prec.</a>
                 <span class="btn btn-primary disabled fw-bold text-white">{{ nome_mese }} {{ anno }}</span>
-                <a href="/assenze-mese?mese={{ next_mese }}&anno={{ next_anno }}{% if user.ruolo == 'admin' %}&reparto_id={{ reparto_id }}{% endif %}" class="btn btn-outline-primary">Mese Succ. <i class="bi bi-chevron-right"></i></a>
+                <a href="/assenze-mese?mese={{ next_mese }}&anno={{ next_anno }}{% if user.ruolo == 'admin' %}&reparto_id={{ reparto_id }}{% endif %}{% if sede_id %}&sede_id={{ sede_id }}{% endif %}" class="btn btn-outline-primary">Mese Succ. <i class="bi bi-chevron-right"></i></a>
             </div>
         </div>
     </div>
@@ -199,7 +210,7 @@
                     <tr>
                         <td class="operator-col">
                             <strong>{{ row.operator_nome }}</strong><br>
-                            <small class="text-muted" style="font-size: 0.7rem;">{{ row.operator_ruolo|capitalize }}</small>
+                            <small class="text-muted" style="font-size: 0.7rem;">{{ row.operator_ruolo|capitalize }}{% if row.sede_nome %} &bull; {{ row.sede_nome }}{% endif %}</small>
                         </td>
                         {% for cell in row.giorni_stato %}
                         <td class="{% if cell.holiday %}holiday-cell{% elif cell.is_weekend %}weekend-cell{% endif %} 
@@ -295,6 +306,18 @@ function changeReparto(selectElement) {
     const val = selectElement.value;
     const urlParams = new URLSearchParams(window.location.search);
     urlParams.set('reparto_id', val);
+    urlParams.delete('sede_id');
+    window.location.search = urlParams.toString();
+}
+
+function changeSede(selectElement) {
+    const val = selectElement.value;
+    const urlParams = new URLSearchParams(window.location.search);
+    if (val) {
+        urlParams.set('sede_id', val);
+    } else {
+        urlParams.delete('sede_id');
+    }
     window.location.search = urlParams.toString();
 }
 
