@@ -1048,6 +1048,7 @@ def tickets(r: Request, reparto_id: str = None, servizio_id: str = None, stato: 
         rows = c.execute(text(f"""
             SELECT t.ticket_id, t.codice_ticket, t.nome, t.cognome, t.riferimento, t.priorita, t.stato,
                    t.creato_il, t.ip, t.reparto_id, t.servizio_id, t.sede, t.is_test,
+                   COALESCE(t.reparto_appartenenza, ra.nome, u_rep.nome) AS reparto_appartenenza_nome,
                    r.nome AS reparto_nome, s.descrizione AS servizio_desc, a.descrizione AS argomento_desc,
                    t.descrizione,
                    (SELECT autore FROM ticket_notes tn WHERE tn.ticket_id = t.ticket_id ORDER BY tn.creato_il DESC LIMIT 1) AS ultimo_operatore,
@@ -1055,6 +1056,9 @@ def tickets(r: Request, reparto_id: str = None, servizio_id: str = None, stato: 
                    (SELECT COUNT(*) FROM richieste_materiale rm WHERE rm.ticket_id = t.ticket_id AND rm.stato = 'evasa') AS req_evase
               FROM tickets t
               LEFT JOIN reparti r ON t.reparto_id = r.reparto_id
+              LEFT JOIN reparti ra ON t.reparto_appartenenza_id = ra.reparto_id
+              LEFT JOIN users u ON LOWER(t.email) = LOWER(u.email) AND u.email IS NOT NULL AND u.email != ''
+              LEFT JOIN reparti u_rep ON u.reparto_id = u_rep.reparto_id
               LEFT JOIN servizi s ON t.servizio_id = s.servizio_id
               LEFT JOIN argomenti a ON t.argomento_id = a.argomento_id
               {where_clause}

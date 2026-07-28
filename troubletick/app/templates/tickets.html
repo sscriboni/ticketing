@@ -154,7 +154,15 @@
       {% endif %}
     {% endif %}
   </td>
-  <td>{{ t.nome }} {{ t.cognome }}<br><small class="text-muted">{{ t.sede or '' }}</small></td>
+  <td>
+    <strong>{{ t.nome }} {{ t.cognome }}</strong>
+    {% if t.reparto_appartenenza_nome %}
+      <br><small class="text-primary fw-semibold"><i class="bi bi-diagram-3 me-1"></i>{{ t.reparto_appartenenza_nome }}</small>
+    {% endif %}
+    {% if t.sede %}
+      <br><small class="text-muted"><i class="bi bi-geo-alt me-1"></i>{{ t.sede }}</small>
+    {% endif %}
+  </td>
   <td>{{ t.riferimento or '—' }}</td>
   <td><strong>{{ t.reparto_nome or '—' }}</strong><br><small>{{ t.servizio_desc or 'Nessuno' }}{% if t.argomento_desc %} / {{ t.argomento_desc }}{% endif %}</small></td>
   <td>{{ t.descrizione }}</td>
