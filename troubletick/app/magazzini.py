@@ -2182,7 +2182,7 @@ def magazzini_report(r: Request, mese: int = None, anno: int = None, magazzino_i
         mese = now.month
         
     with engine.connect() as c:
-        if user.get("ruolo") == "admin":
+        if user.get("ruolo") in ("admin", "responsabile"):
             magazzini_list = c.execute(text("SELECT magazzino_id, nome FROM magazzini ORDER BY nome")).mappings().all()
         else:
             magazzini_list = c.execute(text("""
@@ -2196,7 +2196,7 @@ def magazzini_report(r: Request, mese: int = None, anno: int = None, magazzino_i
         params = {"prefix": prefix}
         
         filter_sql = ""
-        if user.get("ruolo") != "admin":
+        if user.get("ruolo") not in ("admin", "responsabile"):
             user_mag_ids = [m["magazzino_id"] for m in magazzini_list]
             if not user_mag_ids:
                 return templates.TemplateResponse(r, "magazzino_report.html", {
@@ -2304,7 +2304,7 @@ def report_movimentazione_magazzini(r: Request, mese: int = None, anno: int = No
     prefix = f"{anno}-{mese:02d}-%"
     
     with engine.connect() as c:
-        if user.get("ruolo") == "admin":
+        if user.get("ruolo") in ("admin", "responsabile"):
             magazzini_list = c.execute(text("SELECT magazzino_id, nome FROM magazzini ORDER BY nome")).mappings().all()
         else:
             magazzini_list = c.execute(text("""
@@ -2316,7 +2316,7 @@ def report_movimentazione_magazzini(r: Request, mese: int = None, anno: int = No
 
         user_mag_ids = [m["magazzino_id"] for m in magazzini_list]
         
-        if user.get("ruolo") != "admin" and not user_mag_ids:
+        if user.get("ruolo") not in ("admin", "responsabile") and not user_mag_ids:
             return templates.TemplateResponse(r, "report_movimentazione_magazzino.html", {
                 "request": r, "cfg": CFG, "user": user,
                 "riepilogo": [], "dettaglio": [], "magazzini": [], "anno": anno, "mese": mese, "nome_mese": "",
@@ -2332,7 +2332,7 @@ def report_movimentazione_magazzini(r: Request, mese: int = None, anno: int = No
         ]
         params = {"prefix": prefix}
 
-        if user.get("ruolo") != "admin":
+        if user.get("ruolo") not in ("admin", "responsabile"):
             where_clauses.append("mm.magazzino_id IN :user_mag_ids")
             params["user_mag_ids"] = user_mag_ids
 
@@ -2429,7 +2429,7 @@ def report_movimentazione_magazzini(r: Request, mese: int = None, anno: int = No
         # 3. Query Totali Operazioni per ciascun Magazzino nel mese
         mag_where_sql = ""
         mag_params = {"prefix": prefix}
-        if user.get("ruolo") != "admin":
+        if user.get("ruolo") not in ("admin", "responsabile"):
             mag_where_sql = " WHERE m.magazzino_id IN :user_mag_ids"
             mag_params["user_mag_ids"] = user_mag_ids
 
@@ -2502,7 +2502,7 @@ def export_report_movimentazione(r: Request, mese: int = None, anno: int = None,
     prefix = f"{anno}-{mese:02d}-%"
 
     with engine.connect() as c:
-        if user.get("ruolo") == "admin":
+        if user.get("ruolo") in ("admin", "responsabile"):
             magazzini_list = c.execute(text("SELECT magazzino_id FROM magazzini")).mappings().all()
         else:
             magazzini_list = c.execute(text("SELECT magazzino_id FROM operatori_magazzini WHERE user_id = :uid"), {"uid": user.get("id")}).mappings().all()
@@ -2516,7 +2516,7 @@ def export_report_movimentazione(r: Request, mese: int = None, anno: int = None,
         ]
         params = {"prefix": prefix}
 
-        if user.get("ruolo") != "admin":
+        if user.get("ruolo") not in ("admin", "responsabile"):
             if not user_mag_ids:
                 user_mag_ids = [-1]
             where_clauses.append("mm.magazzino_id IN :user_mag_ids")
