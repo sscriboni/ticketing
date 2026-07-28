@@ -706,6 +706,8 @@ async def edit_vehicle(
             if user_rep_id:
                 reparto_assegnato_id = user_rep_id
 
+        old_km = conn.execute(text("SELECT km_attuali FROM automezzi WHERE automezzo_id = :id"), {"id": id}).scalar() or 0
+
         conn.execute(text("""
             UPDATE automezzi SET
                 targa = :targa,
@@ -745,7 +747,8 @@ async def edit_vehicle(
             "classe_euro": classe_euro.strip() if classe_euro else None
         })
         
-        registra_storico_km(conn, id, km_attuali, "Manuale", user_id=user.get("id"), note="Aggiornamento manuale in anagrafica")
+        if km_attuali != old_km:
+            registra_storico_km(conn, id, km_attuali, "Manuale", user_id=user.get("id"), note="Aggiornamento manuale in anagrafica")
 
         # Sync associated maintenance types
         conn.execute(text("DELETE FROM automezzi_tipi_manutenzione WHERE automezzo_id = :id"), {"id": id})
@@ -828,6 +831,30 @@ def add_registro_km_automezzo(
 
     referer = r.headers.get("referer") or "/admin/automezzi"
     return RedirectResponse(url=referer, status_code=303)
+
+
+@router.post("/admin/automezzi/registro-km/elimina/{registro_km_id}")
+def delete_registro_km_automezzo(registro_km_id: int, r: Request):
+    if "user" not in r.session:
+        return JSONResponse({"error": "Non autorizzato"}, status_code=401)
+    user = r.session.get("user")
+    if user.get("ruolo") not in ("admin", "fleet_manager", "global_fleet_manager"):
+        return JSONResponse({"error": "Non autorizzato"}, status_code=403)
+
+    with engine.begin() as conn:
+        rec = conn.execute(text("SELECT automezzo_id FROM registro_km_automezzi WHERE registro_km_id = :id"), {"id": registro_km_id}).mappings().first()
+        if not rec:
+            return JSONResponse({"error": "Record non trovato"}, status_code=404)
+
+        aid = rec["automezzo_id"]
+        conn.execute(text("DELETE FROM registro_km_automezzi WHERE registro_km_id = :id"), {"id": registro_km_id})
+
+        # Recalculate max km for this vehicle after deletion
+        max_km = conn.execute(text("SELECT MAX(km) FROM registro_km_automezzi WHERE automezzo_id = :aid"), {"aid": aid}).scalar()
+        if max_km is not None:
+            conn.execute(text("UPDATE automezzi SET km_attuali = :mkm WHERE automezzo_id = :aid"), {"mkm": max_km, "aid": aid})
+
+    return JSONResponse({"success": True})
 
 
 @router.post("/admin/automezzi/{automezzo_id}/importa-km-rifornimenti")
@@ -2866,6 +2893,15 @@ def list_rifornimenti(
         totale_spesa = sum(row["imp_scontato"] or row["imp_intero"] or 0 for row in rifornimenti)
         veicoli_unici = len(set(row["targa"] for row in rifornimenti if row["targa"]))
 
+        # Volume breakdown per fuel product type
+        volume_per_prodotto = {}
+        for row in rifornimenti:
+            prod_key = (row["prodotto"] or "Non specificato").strip()
+            vol_val = float(row["volume"] or 0)
+            volume_per_prodotto[prod_key] = volume_per_prodotto.get(prod_key, 0.0) + vol_val
+
+        volume_per_prodotto = {k: round(v, 2) for k, v in sorted(volume_per_prodotto.items(), key=lambda x: x[1], reverse=True)}
+
         opt_targhe = [row[0] for row in conn.execute(text("SELECT DISTINCT targa FROM rifornimenti WHERE targa IS NOT NULL AND targa != '' ORDER BY targa")).all()]
         opt_prodotti = [row[0] for row in conn.execute(text("SELECT DISTINCT prodotto FROM rifornimenti WHERE prodotto IS NOT NULL AND prodotto != '' ORDER BY prodotto")).all()]
         opt_carte = [row[0] for row in conn.execute(text("SELECT DISTINCT pan_carta FROM rifornimenti WHERE pan_carta IS NOT NULL AND pan_carta != '' ORDER BY pan_carta")).all()]
@@ -2883,6 +2919,7 @@ def list_rifornimenti(
         "totale_volume": round(totale_volume, 2),
         "totale_spesa": round(totale_spesa, 2),
         "veicoli_unici": veicoli_unici,
+        "volume_per_prodotto": volume_per_prodotto,
         "opt_targhe": opt_targhe,
         "opt_prodotti": opt_prodotti,
         "opt_carte": opt_carte,

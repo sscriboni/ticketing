@@ -143,7 +143,7 @@
                 </div>
             </div>
             <div class="col-md-3">
-                <div class="p-3 kpi-card shadow-sm">
+                <div class="p-3 kpi-card shadow-sm h-100">
                     <div class="d-flex justify-content-between align-items-center mb-1">
                         <span class="text-muted small fw-bold text-uppercase">Volume Totale (Litri)</span>
                         <div class="bg-danger-subtle text-danger p-2 rounded-circle"><i class="bi bi-droplet-fill"></i></div>
@@ -153,7 +153,7 @@
                 </div>
             </div>
             <div class="col-md-3">
-                <div class="p-3 kpi-card shadow-sm">
+                <div class="p-3 kpi-card shadow-sm h-100">
                     <div class="d-flex justify-content-between align-items-center mb-1">
                         <span class="text-muted small fw-bold text-uppercase">Spesa Totale (€)</span>
                         <div class="bg-success-subtle text-success p-2 rounded-circle"><i class="bi bi-currency-euro"></i></div>
@@ -163,7 +163,7 @@
                 </div>
             </div>
             <div class="col-md-3">
-                <div class="p-3 kpi-card shadow-sm">
+                <div class="p-3 kpi-card shadow-sm h-100">
                     <div class="d-flex justify-content-between align-items-center mb-1">
                         <span class="text-muted small fw-bold text-uppercase">Veicoli Distinti</span>
                         <div class="bg-info-subtle text-info p-2 rounded-circle"><i class="bi bi-car-front-fill"></i></div>
@@ -173,6 +173,27 @@
                 </div>
             </div>
         </div>
+
+        <!-- Dettaglio Litri per Tipo Carburante -->
+        {% if volume_per_prodotto %}
+        <div class="card border-0 shadow-sm rounded-3 mb-4 bg-white">
+            <div class="card-body p-3">
+                <div class="d-flex align-items-center gap-2 mb-2">
+                    <i class="bi bi-fuel-pump text-danger fs-5"></i>
+                    <strong class="text-dark small text-uppercase">Riepilogo Litri Erogati per Tipologia Carburante:</strong>
+                </div>
+                <div class="d-flex flex-wrap gap-2">
+                    {% for prod, vol in volume_per_prodotto.items() %}
+                    <div class="p-2 px-3 rounded-3 border bg-light d-flex align-items-center gap-2">
+                        <span class="badge bg-danger me-1">{{ loop.index }}</span>
+                        <span class="fw-semibold text-secondary">{{ prod }}:</span>
+                        <span class="fw-bold text-danger fs-6">{{ "{:,.2f}".format(vol) }} L</span>
+                    </div>
+                    {% endfor %}
+                </div>
+            </div>
+        </div>
+        {% endif %}
 
         <!-- Filter Form -->
         <div class="card border-0 shadow-sm rounded-3 mb-4">

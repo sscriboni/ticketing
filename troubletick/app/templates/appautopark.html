@@ -1015,6 +1015,7 @@
                                     <th>Sorgente</th>
                                     <th>Inserito da</th>
                                     <th>Note</th>
+                                    <th class="text-end">Azioni</th>
                                 </tr>
                             </thead>
                             <tbody id="regKmTableBody">
@@ -1036,6 +1037,24 @@
             const title = btn.getAttribute("data-title");
             const km = parseInt(btn.getAttribute("data-km")) || 0;
             openRegistroKmModal(id, title, km);
+        }
+
+        function deleteRegistroKmItem(registroKmId, automezzoId) {
+            if (!confirm("Sei sicuro di voler eliminare questa rilevazione chilometrica dallo storico?")) return;
+            
+            fetch("/admin/automezzi/registro-km/elimina/" + registroKmId, { method: "POST" })
+                .then(res => res.json())
+                .then(data => {
+                    if (data.success) {
+                        const title = document.getElementById("regKmModalTitle").textContent;
+                        openRegistroKmModal(automezzoId, title, 0);
+                    } else {
+                        alert("Errore durante l'eliminazione: " + (data.error || "Impossibile eliminare"));
+                    }
+                })
+                .catch(err => {
+                    alert("Errore di connessione durante l'eliminazione.");
+                });
         }
 
         function openRegistroKmModal(id, title, currentKm) {
@@ -1061,14 +1080,14 @@
             }
 
             const tbody = document.getElementById("regKmTableBody");
-            tbody.innerHTML = '<tr><td colspan="5" class="text-center text-muted py-3"><div class="spinner-border spinner-border-sm me-2"></div>Caricamento storico...</td></tr>';
+            tbody.innerHTML = '<tr><td colspan="6" class="text-center text-muted py-3"><div class="spinner-border spinner-border-sm me-2"></div>Caricamento storico...</td></tr>';
 
             fetch("/admin/automezzi/registro-km/" + id)
                 .then(res => res.json())
                 .then(data => {
                     tbody.innerHTML = "";
                     if (!data.registro || data.registro.length === 0) {
-                        tbody.innerHTML = '<tr><td colspan="5" class="text-center text-muted py-3">Nessuna rilevazione chilometrica in archivio.</td></tr>';
+                        tbody.innerHTML = '<tr><td colspan="6" class="text-center text-muted py-3">Nessuna rilevazione chilometrica in archivio.</td></tr>';
                         return;
                     }
                     data.registro.forEach(rec => {
@@ -1087,15 +1106,21 @@
                             <td><span class="badge ${badgeClass}">${rec.sorgente}</span></td>
                             <td><small class="text-muted">${operatore}</small></td>
                             <td><small>${rec.note || '-'}</small></td>
+                            <td class="text-end">
+                                <button type="button" class="btn btn-sm btn-outline-danger py-0 px-1 border-0" title="Elimina Rilevazione" onclick="deleteRegistroKmItem(${rec.registro_km_id}, ${id})">
+                                    <i class="bi bi-trash-fill"></i>
+                                </button>
+                            </td>
                         `;
                         tbody.appendChild(tr);
                     });
                 })
                 .catch(err => {
-                    tbody.innerHTML = '<tr><td colspan="5" class="text-center text-danger py-3">Errore durante il caricamento dello storico.</td></tr>';
+                    tbody.innerHTML = '<tr><td colspan="6" class="text-center text-danger py-3">Errore durante il caricamento dello storico.</td></tr>';
                 });
 
-            const modal = new bootstrap.Modal(document.getElementById("modalRegistroKm"));
+            const modalElement = document.getElementById("modalRegistroKm");
+            const modal = bootstrap.Modal.getInstance(modalElement) || new bootstrap.Modal(modalElement);
             modal.show();
         }
     </script>
