@@ -2426,6 +2426,44 @@ def report_movimentazione_magazzini(r: Request, mese: int = None, anno: int = No
                 "tot_quantita": int(s_item["tot_quantita"] or 0)
             })
 
+        # 3. Query Totali Operazioni per ciascun Magazzino nel mese
+        mag_where_sql = ""
+        mag_params = {"prefix": prefix}
+        if user.get("ruolo") != "admin":
+            mag_where_sql = " WHERE m.magazzino_id IN :user_mag_ids"
+            mag_params["user_mag_ids"] = user_mag_ids
+
+        mag_query = f"""
+            SELECT m.magazzino_id, m.nome AS magazzino_nome,
+                   COUNT(mm.movimento_id) AS num_operazioni,
+                   COALESCE(SUM(mm.quantita), 0) AS tot_quantita,
+                   COUNT(DISTINCT mm.materiale_id) AS materiali_distinti
+            FROM magazzini m
+            LEFT JOIN movimenti_magazzino mm ON m.magazzino_id = mm.magazzino_id
+                 AND mm.operazione = 'scarico'
+                 AND mm.data_movimento LIKE :prefix
+                 AND (mm.descrizione IS NULL OR (mm.descrizione NOT LIKE '[Spedizione verso %' AND mm.descrizione NOT LIKE '[Trasferimento %'))
+            {mag_where_sql}
+            GROUP BY m.magazzino_id, m.nome
+            ORDER BY num_operazioni DESC, m.nome
+        """
+        stmt_mag = text(mag_query)
+        if "user_mag_ids" in mag_params:
+            from sqlalchemy import bindparam
+            stmt_mag = stmt_mag.bindparams(bindparam("user_mag_ids", expanding=True))
+
+        raw_mag_summary = c.execute(stmt_mag, mag_params).mappings().all()
+
+        riepilogo_magazzini = []
+        for mag_item in raw_mag_summary:
+            riepilogo_magazzini.append({
+                "magazzino_id": mag_item["magazzino_id"],
+                "magazzino_nome": mag_item["magazzino_nome"],
+                "num_operazioni": int(mag_item["num_operazioni"] or 0),
+                "tot_quantita": int(mag_item["tot_quantita"] or 0),
+                "materiali_distinti": int(mag_item["materiali_distinti"] or 0)
+            })
+
         tot_scarichi = len(dettaglio)
         tot_quantita = sum(d["quantita"] for d in dettaglio)
         tot_materiali = len(set(d["materiale_nome"] for d in dettaglio))
@@ -2440,7 +2478,8 @@ def report_movimentazione_magazzini(r: Request, mese: int = None, anno: int = No
 
     return templates.TemplateResponse(r, "report_movimentazione_magazzino.html", {
         "request": r, "cfg": CFG, "user": user,
-        "riepilogo": riepilogo, "dettaglio": dettaglio, "magazzini": magazzini_list,
+        "riepilogo": riepilogo, "dettaglio": dettaglio, "riepilogo_magazzini": riepilogo_magazzini,
+        "magazzini": magazzini_list,
         "anno": anno, "mese": mese, "nome_mese": nome_mese,
         "tot_scarichi": tot_scarichi, "tot_quantita": tot_quantita,
         "tot_materiali": tot_materiali, "tot_magazzini": tot_magazzini,

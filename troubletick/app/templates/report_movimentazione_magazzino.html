@@ -147,7 +147,69 @@
         </div>
     </div>
 
-    <!-- TABS PER VISTA RIEPILOGO vs DETTAGLIO -->
+    <!-- SEZIONE RIEPILOGO PER MAGAZZINO -->
+    <div class="card border-0 shadow-sm mb-4">
+        <div class="card-header bg-white py-3">
+            <h5 class="card-title mb-0 fw-bold text-dark">
+                <i class="bi bi-buildings text-primary me-2"></i>Totale Operazioni per Magazzino ({{ nome_mese }} {{ anno }})
+            </h5>
+        </div>
+        <div class="card-body p-0">
+            <div class="table-responsive">
+                <table class="table table-hover align-middle mb-0">
+                    <thead class="table-light">
+                        <tr>
+                            <th class="ps-4">Magazzino</th>
+                            <th class="text-center">Operazioni di Scarico</th>
+                            <th class="text-center">Materiali Diversi Movimentati</th>
+                            <th class="text-end pe-4">Quantità Totale Scaricata</th>
+                            <th class="text-center">Azione</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for rm in riepilogo_magazzini %}
+                        <tr {% if filtri.magazzino_id and filtri.magazzino_id|string == rm.magazzino_id|string %}class="table-primary"{% endif %}>
+                            <td class="ps-4">
+                                <strong class="text-dark"><i class="bi bi-building me-2 text-secondary"></i>{{ rm.magazzino_nome }}</strong>
+                            </td>
+                            <td class="text-center">
+                                {% if rm.num_operazioni > 0 %}
+                                    <span class="badge bg-primary rounded-pill px-3 py-2 fs-6">{{ rm.num_operazioni }} operazioni</span>
+                                {% else %}
+                                    <span class="badge bg-light text-muted border px-3 py-1">0 operazioni</span>
+                                {% endif %}
+                            </td>
+                            <td class="text-center">
+                                <span class="badge bg-info text-dark rounded-pill px-3 py-1">{{ rm.materiali_distinti }} materiali</span>
+                            </td>
+                            <td class="text-end pe-4">
+                                {% if rm.tot_quantita > 0 %}
+                                    <span class="fs-6 fw-bold text-danger">{{ rm.tot_quantita }}</span> <small class="text-muted">pz</small>
+                                {% else %}
+                                    <span class="text-muted">—</span>
+                                {% endif %}
+                            </td>
+                            <td class="text-center">
+                                <a href="/magazzini/report-movimentazione?mese={{ mese }}&anno={{ anno }}&magazzino_id={{ rm.magazzino_id }}" 
+                                   class="btn btn-sm btn-outline-primary fw-semibold" title="Filtra il report per {{ rm.magazzino_nome }}">
+                                    <i class="bi bi-filter me-1"></i> Filtra
+                                </a>
+                            </td>
+                        </tr>
+                        {% else %}
+                        <tr>
+                            <td colspan="5" class="text-center py-4 text-muted">
+                                Nessun magazzino censito o disponibile per il tuo utente.
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+
+    <!-- TABS PER VISTA RIEPILOGO DETTAGLIATO PER MATERIALE vs REGISTRO SCARICHI -->
     <div class="bg-white p-4 rounded shadow-sm mb-4">
         <ul class="nav nav-tabs mb-3" id="reportTabs" role="tablist">
             <li class="nav-item" role="presentation">
@@ -157,7 +219,7 @@
             </li>
             <li class="nav-item" role="presentation">
                 <button class="nav-link fw-bold" id="dettaglio-tab" data-bs-toggle="tab" data-bs-target="#dettaglio-pane" type="button" role="tab" aria-controls="dettaglio-pane" aria-selected="false">
-                    <i class="bi bi-clock-history me-1 text-info"></i> Dettaglio Registro Scarichi ({{ dettaglio|length }})
+                    <i class="bi bi-clock-history me-1 text-info"></i> Registro Dettagliato ({{ dettaglio|length }})
                 </button>
             </li>
         </ul>
