@@ -129,23 +129,26 @@
                                 <th class="sortable" onclick="sortTable(2)" style="cursor: pointer;" title="Clicca per ordinare per Tipo / Note">
                                     Tipo / Note <i class="bi bi-arrow-down-up ms-1 text-muted sort-icon" id="sort-icon-2"></i>
                                 </th>
-                                <th class="sortable" onclick="sortTable(3)" style="cursor: pointer;" title="Clicca per ordinare per Chilometri">
-                                    Alimentazione / Km <i class="bi bi-arrow-down-up ms-1 text-muted sort-icon" id="sort-icon-3"></i>
+                                <th class="sortable text-nowrap" onclick="sortTable(3)" style="cursor: pointer;" title="Clicca per ordinare per Km Attuali">
+                                    <i class="bi bi-speedometer2 me-1 text-primary"></i> Km Attuali <i class="bi bi-arrow-down-up ms-1 text-muted sort-icon" id="sort-icon-3"></i>
                                 </th>
-                                <th class="sortable" onclick="sortTable(4)" style="cursor: pointer;" title="Clicca per ordinare per Immatricolazione">
-                                    Immatricolazione <i class="bi bi-arrow-down-up ms-1 text-muted sort-icon" id="sort-icon-4"></i>
+                                <th class="sortable" onclick="sortTable(4)" style="cursor: pointer;" title="Clicca per ordinare per Alimentazione">
+                                    Alimentazione <i class="bi bi-arrow-down-up ms-1 text-muted sort-icon" id="sort-icon-4"></i>
                                 </th>
-                                <th class="sortable" onclick="sortTable(5)" style="cursor: pointer;" title="Clicca per ordinare per Sede Assegnata">
-                                    Sede Assegnata <i class="bi bi-arrow-down-up ms-1 text-muted sort-icon" id="sort-icon-5"></i>
+                                <th class="sortable" onclick="sortTable(5)" style="cursor: pointer;" title="Clicca per ordinare per Immatricolazione">
+                                    Immatricolazione <i class="bi bi-arrow-down-up ms-1 text-muted sort-icon" id="sort-icon-5"></i>
                                 </th>
-                                <th class="sortable" onclick="sortTable(6)" style="cursor: pointer;" title="Clicca per ordinare per Reparto Assegnato">
-                                    Reparto Assegnato <i class="bi bi-arrow-down-up ms-1 text-muted sort-icon" id="sort-icon-6"></i>
+                                <th class="sortable" onclick="sortTable(6)" style="cursor: pointer;" title="Clicca per ordinare per Sede Assegnata">
+                                    Sede Assegnata <i class="bi bi-arrow-down-up ms-1 text-muted sort-icon" id="sort-icon-6"></i>
                                 </th>
-                                <th class="sortable" onclick="sortTable(7)" style="cursor: pointer;" title="Clicca per ordinare per Stato">
-                                    Stato <i class="bi bi-arrow-down-up ms-1 text-muted sort-icon" id="sort-icon-7"></i>
+                                <th class="sortable" onclick="sortTable(7)" style="cursor: pointer;" title="Clicca per ordinare per Reparto Assegnato">
+                                    Reparto Assegnato <i class="bi bi-arrow-down-up ms-1 text-muted sort-icon" id="sort-icon-7"></i>
                                 </th>
-                                <th class="sortable" onclick="sortTable(8)" style="cursor: pointer;" title="Clicca per ordinare per Prenotazione">
-                                    Prenotazione <i class="bi bi-arrow-down-up ms-1 text-muted sort-icon" id="sort-icon-8"></i>
+                                <th class="sortable" onclick="sortTable(8)" style="cursor: pointer;" title="Clicca per ordinare per Stato">
+                                    Stato <i class="bi bi-arrow-down-up ms-1 text-muted sort-icon" id="sort-icon-8"></i>
+                                </th>
+                                <th class="sortable" onclick="sortTable(9)" style="cursor: pointer;" title="Clicca per ordinare per Prenotazione">
+                                    Prenotazione <i class="bi bi-arrow-down-up ms-1 text-muted sort-icon" id="sort-icon-9"></i>
                                 </th>
                                 <th class="text-end">Azioni</th>
                             </tr>
@@ -164,6 +167,9 @@
                                     <small class="text-muted">{{ v.note or '-' }}</small>
                                 </td>
                                 <td>
+                                    <span class="fw-bold text-primary fs-6">{{ v.km_attuali or 0 }}</span> <small class="text-muted fw-semibold">km</small>
+                                </td>
+                                <td>
                                     <div>
                                         {% if v.alimentazione == 'B' %}B (Benzina)
                                         {% elif v.alimentazione == 'B-GPL' %}B-GPL (Benzina GPL)
@@ -172,7 +178,7 @@
                                         {% elif v.alimentazione == 'G' %}G (Gasolio)
                                         {% else %}{{ v.alimentazione or '-' }}{% endif %}
                                     </div>
-                                    <small class="text-muted">{{ v.km_attuali }} km | {{ v.classe_euro or '-' }}</small>
+                                    <small class="text-muted">{{ v.classe_euro or '-' }}</small>
                                 </td>
                                 <td>
                                     {% if v.data_immatricolazione and v.data_immatricolazione != '' %}
@@ -874,10 +880,10 @@
                 } else if (colIndex === 1) { // Targa
                     valA = (rowA.dataset.targa || '').toLowerCase();
                     valB = (rowB.dataset.targa || '').toLowerCase();
-                } else if (colIndex === 3) { // Km
+                } else if (colIndex === 3) { // Km Attuali
                     valA = parseFloat(rowA.dataset.km || 0);
                     valB = parseFloat(rowB.dataset.km || 0);
-                } else if (colIndex === 4) { // Immatricolazione
+                } else if (colIndex === 5) { // Immatricolazione
                     valA = rowA.dataset.imm || '0000-00-00';
                     valB = rowB.dataset.imm || '0000-00-00';
                 } else {
@@ -907,9 +913,9 @@
                 if(row.children.length < 5) return; // skip empty message row
                 
                 const targaModello = (row.children[0].textContent + " " + row.children[1].textContent).toLowerCase();
-                const sede = row.children[5].textContent.toLowerCase();
-                const reparto = row.children[6].textContent.toLowerCase();
-                const stato = row.children[7].textContent.toLowerCase();
+                const sede = row.children[6].textContent.toLowerCase();
+                const reparto = row.children[7].textContent.toLowerCase();
+                const stato = row.children[8].textContent.toLowerCase();
                 
                 let show = true;
                 if(targaVal && !targaModello.includes(targaVal)) show = false;

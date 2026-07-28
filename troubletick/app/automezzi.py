@@ -857,11 +857,11 @@ def import_km_from_rifornimenti(automezzo_id: int, r: Request):
             SELECT MAX(data_registrazione) FROM registro_km_automezzi WHERE automezzo_id = :aid
         """), {"aid": automezzo_id}).scalar()
 
-        # Fetch all refuelings for this vehicle targa with valid km > 0
+        # Fetch all refuelings for this vehicle targa with valid km >= 10
         rifornimenti_list = conn.execute(text("""
             SELECT rifornimento_id, data, ora, km, prodotto, pan_carta, cod_impianto
             FROM rifornimenti
-            WHERE targa = :targa AND km IS NOT NULL AND km > 0
+            WHERE targa = :targa AND km IS NOT NULL AND km >= 10
             ORDER BY data ASC, ora ASC, rifornimento_id ASC
         """), {"targa": targa}).mappings().all()
 
@@ -869,7 +869,7 @@ def import_km_from_rifornimenti(automezzo_id: int, r: Request):
             import urllib.parse
             referer = r.headers.get("referer") or "/admin/automezzi"
             separator = "&" if "?" in referer else "?"
-            return RedirectResponse(url=f"{referer}{separator}error={urllib.parse.quote('Nessun rifornimento con chilometraggio trovato per questo veicolo')}", status_code=303)
+            return RedirectResponse(url=f"{referer}{separator}error={urllib.parse.quote('Nessun rifornimento con chilometraggio valido (>= 10 km) trovato per questo veicolo')}", status_code=303)
 
         imported_count = 0
         latest_refuel_date = None
