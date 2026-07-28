@@ -29,3 +29,11 @@ UPLOAD_DIR = os.path.join(BASE_DIR, "uploads")
 os.makedirs(UPLOAD_DIR, exist_ok=True)
 
 templates = Jinja2Templates(directory=os.path.join(BASE_DIR, "templates"))
+
+def get_last_inserted_id(conn):
+    if DB_DRIVER.startswith("sqlite"):
+        return conn.execute(text("SELECT last_insert_rowid()")).scalar()
+    elif DB_DRIVER.startswith("mysql"):
+        return conn.execute(text("SELECT LAST_INSERT_ID()")).scalar()
+    else:
+        return conn.execute(text("SELECT LASTVAL()")).scalar()

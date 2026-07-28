@@ -6,7 +6,7 @@ from typing import Optional
 from fastapi import APIRouter, Request, Form, UploadFile, File, Query
 from fastapi.responses import HTMLResponse, RedirectResponse, Response, JSONResponse
 from sqlalchemy import text
-from core import CFG, templates, engine, DB_PK
+from core import CFG, templates, engine, DB_PK, DB_DRIVER, get_last_inserted_id
 
 router = APIRouter()
 
@@ -613,7 +613,7 @@ async def add_vehicle(
         })
         
         # Save associated maintenance types
-        new_id = conn.execute(text("SELECT last_insert_rowid()")).scalar()
+        new_id = get_last_inserted_id(conn)
         registra_storico_km(conn, new_id, km_attuali, "Manuale", user_id=user.get("id"), note="Inserimento Veicolo Iniziale")
 
         if tipi_manutenzione_ids:

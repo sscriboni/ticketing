@@ -5,7 +5,7 @@ from fastapi import APIRouter, Request, Form, UploadFile, File, Query, Backgroun
 from fastapi.responses import HTMLResponse, RedirectResponse
 from sqlalchemy import text
 
-from core import engine, CFG, templates, BASE_DIR, DB_DRIVER
+from core import engine, CFG, templates, BASE_DIR, DB_DRIVER, get_last_inserted_id
 from utils import require_superuser, save_upload
 from email_utils import send_email_async
 
@@ -903,12 +903,7 @@ async def magazzino_movimento_action(
                 "q": quantita, "uid": user["id"], "note": descrizione, "all": allegato_filename,
                 "marca": marca, "modello": modello, "pos": pos_clean
             })
-            if DB_DRIVER.startswith("sqlite"):
-                trsf_id_val = c.execute(text("SELECT last_insert_rowid()")).scalar()
-            elif DB_DRIVER.startswith("mysql"):
-                trsf_id_val = c.execute(text("SELECT LAST_INSERT_ID()")).scalar()
-            else:
-                trsf_id_val = c.execute(text("SELECT LASTVAL()")).scalar()
+            trsf_id_val = get_last_inserted_id(c)
             
         if operazione == "scarico" and richiesta_id and str(richiesta_id).isdigit():
             rid = int(richiesta_id)
@@ -2037,12 +2032,7 @@ async def post_scarico_multiplo(
                     "marca": m_marca, "modello": m_modello, "pos": pos, "grp": gruppo_scarico_id
                 })
                 if first_trsf_id is None:
-                    if DB_DRIVER.startswith("sqlite"):
-                        first_trsf_id = c.execute(text("SELECT last_insert_rowid()")).scalar()
-                    elif DB_DRIVER.startswith("mysql"):
-                        first_trsf_id = c.execute(text("SELECT LAST_INSERT_ID()")).scalar()
-                    else:
-                        first_trsf_id = c.execute(text("SELECT LASTVAL()")).scalar()
+                    first_trsf_id = get_last_inserted_id(c)
             
         # Greedy matching delle richieste pendenti per il ticket_id (se presente)
         if ticket_id:
