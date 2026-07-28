@@ -39,7 +39,7 @@ try:
             marca TEXT NOT NULL,
             modello TEXT NOT NULL,
             tipo TEXT NOT NULL,
-            colore TEXT,
+            note TEXT,
             alimentazione TEXT,
             data_immatricolazione TEXT,
             proprieta TEXT,
@@ -50,6 +50,14 @@ try:
             sede_attuale_id INTEGER,
             reparto_assegnato_id INTEGER
         )"""))
+        try:
+            c.execute(text("ALTER TABLE automezzi ADD COLUMN note TEXT"))
+        except Exception:
+            pass
+        try:
+            c.execute(text("UPDATE automezzi SET note = colore WHERE (note IS NULL OR note = '') AND colore IS NOT NULL AND colore != ''"))
+        except Exception:
+            pass
         c.execute(text(f"""CREATE TABLE IF NOT EXISTS users (
             user_id {DB_PK},
             username TEXT UNIQUE NOT NULL,

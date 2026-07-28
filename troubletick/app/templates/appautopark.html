@@ -113,8 +113,8 @@
                                 <th class="sortable" onclick="sortTable(1)" style="cursor: pointer;" title="Clicca per ordinare per Targa">
                                     Targa <i class="bi bi-arrow-down-up ms-1 text-muted sort-icon" id="sort-icon-1"></i>
                                 </th>
-                                <th class="sortable" onclick="sortTable(2)" style="cursor: pointer;" title="Clicca per ordinare per Tipo / Colore">
-                                    Tipo / Colore <i class="bi bi-arrow-down-up ms-1 text-muted sort-icon" id="sort-icon-2"></i>
+                                <th class="sortable" onclick="sortTable(2)" style="cursor: pointer;" title="Clicca per ordinare per Tipo / Note">
+                                    Tipo / Note <i class="bi bi-arrow-down-up ms-1 text-muted sort-icon" id="sort-icon-2"></i>
                                 </th>
                                 <th class="sortable" onclick="sortTable(3)" style="cursor: pointer;" title="Clicca per ordinare per Chilometri">
                                     Alimentazione / Km <i class="bi bi-arrow-down-up ms-1 text-muted sort-icon" id="sort-icon-3"></i>
@@ -148,7 +148,7 @@
                                 </td>
                                 <td>
                                     <div class="text-capitalize">{{ v.tipo }}</div>
-                                    <small class="text-muted">{{ v.colore or '-' }}</small>
+                                    <small class="text-muted">{{ v.note or '-' }}</small>
                                 </td>
                                 <td>
                                     <div>
@@ -211,7 +211,7 @@
                                                 "marca_id": v.marca_id,
                                                 "modello": v.modello,
                                                 "tipo": v.tipo,
-                                                "colore": v.colore or "",
+                                                "note": v.note or "",
                                                 "alimentazione": v.alimentazione or "",
                                                 "data_immatricolazione": v.data_immatricolazione or "",
                                                 "proprieta": v.proprieta or "",
@@ -288,8 +288,8 @@
                                 </select>
                             </div>
                             <div class="col-md-4">
-                                <label class="form-label text-muted">Colore</label>
-                                <input type="text" class="form-control" name="colore" placeholder="Es. Bianco">
+                                <label class="form-label text-muted">Note</label>
+                                <input type="text" class="form-control" name="note" placeholder="Es. Note aggiuntive...">
                             </div>
                             <div class="col-md-4">
                                 <label class="form-label text-muted">Alimentazione *</label>
@@ -472,8 +472,8 @@
                                 </select>
                             </div>
                             <div class="col-md-4">
-                                <label class="form-label text-muted">Colore</label>
-                                <input type="text" class="form-control" name="colore" id="editColore">
+                                <label class="form-label text-muted">Note</label>
+                                <input type="text" class="form-control" name="note" id="editNote">
                             </div>
                             <div class="col-md-4">
                                 <label class="form-label text-muted">Alimentazione *</label>
@@ -687,7 +687,7 @@
             document.getElementById('editMarcaId').value = v.marca_id;
             document.getElementById('editModello').value = v.modello;
             document.getElementById('editTipo').value = v.tipo;
-            document.getElementById('editColore').value = v.colore;
+            document.getElementById('editNote').value = v.note || '';
             document.getElementById('editAlimentazione').value = v.alimentazione;
             document.getElementById('editDataImmatricolazione').value = v.data_immatricolazione;
             document.getElementById('editProprieta').value = v.proprieta;

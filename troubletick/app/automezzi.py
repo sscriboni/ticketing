@@ -26,7 +26,7 @@ with engine.begin() as conn:
             marca_id INTEGER NOT NULL,
             modello TEXT NOT NULL,
             tipo TEXT NOT NULL,                -- 'auto' o 'furgone'
-            colore TEXT,
+            note TEXT,
             alimentazione TEXT,
             data_immatricolazione TEXT,
             proprieta TEXT,                   -- 'Noleggio' o 'Proprietà'
@@ -43,6 +43,16 @@ with engine.begin() as conn:
         )
     """))
     
+    try:
+        conn.execute(text("ALTER TABLE automezzi ADD COLUMN note TEXT"))
+    except Exception:
+        pass
+
+    try:
+        conn.execute(text("UPDATE automezzi SET note = colore WHERE (note IS NULL OR note = '') AND colore IS NOT NULL AND colore != ''"))
+    except Exception:
+        pass
+
     try:
         conn.execute(text("ALTER TABLE automezzi ADD COLUMN escluso_prenotazione INTEGER DEFAULT 0"))
     except Exception:
@@ -227,12 +237,12 @@ def registra_storico_km(conn, automezzo_id: int, km: int, sorgente: str, data_re
         rep3 = reparto_ids[2] if len(reparto_ids) > 2 else rep1
         
         conn.execute(text("""
-            INSERT INTO automezzi (targa, marca_id, modello, tipo, colore, alimentazione, data_immatricolazione, proprieta, canone_noleggio, km_attuali, stato, sede_assegnata_id, sede_attuale_id, reparto_assegnato_id, fornitore, classe_euro)
+            INSERT INTO automezzi (targa, marca_id, modello, tipo, note, alimentazione, data_immatricolazione, proprieta, canone_noleggio, km_attuali, stato, sede_assegnata_id, sede_attuale_id, reparto_assegnato_id, fornitore, classe_euro)
             VALUES 
-            ('GF345KK', :tesla, 'Model 3', 'auto', 'Nero', 'E', '2023-05-15', 'Noleggio', 450.00, 12500, 'Disponibile', :s1, :s1, :rep1, 'LeasePlan', 'Elettrico'),
-            ('FN123XX', :audi, 'A4 Avant', 'auto', 'Grigio', 'G', '2022-10-10', 'Noleggio', 580.00, 48000, 'In Uso', :s2, :s2, :rep2, 'Arval', 'Euro 6'),
-            ('GE987YY', :fiat, '500 Hybrid', 'auto', 'Bianco', 'B', '2021-03-20', 'Proprietà', 0.00, 32000, 'Disponibile', :s3, :s3, :rep3, 'Concessionaria Fiat Torino', 'Euro 6'),
-            ('GJ567ZZ', :jeep, 'Compass 4xe', 'auto', 'Rosso', 'G', '2022-06-01', 'Proprietà', 0.00, 19500, 'In Manutenzione', :s1, :s1, :rep1, 'Leasys', 'Euro 6')
+            ('GF345KK', :tesla, 'Model 3', 'auto', 'Aziendale Dirigenza', 'E', '2023-05-15', 'Noleggio', 450.00, 12500, 'Disponibile', :s1, :s1, :rep1, 'LeasePlan', 'Elettrico'),
+            ('FN123XX', :audi, 'A4 Avant', 'auto', 'Assegnata commerciale', 'G', '2022-10-10', 'Noleggio', 580.00, 48000, 'In Uso', :s2, :s2, :rep2, 'Arval', 'Euro 6'),
+            ('GE987YY', :fiat, '500 Hybrid', 'auto', 'Uso navetta sede', 'B', '2021-03-20', 'Proprietà', 0.00, 32000, 'Disponibile', :s3, :s3, :rep3, 'Concessionaria Fiat Torino', 'Euro 6'),
+            ('GJ567ZZ', :jeep, 'Compass 4xe', 'auto', 'In dotazione reperibilità', 'G', '2022-06-01', 'Proprietà', 0.00, 19500, 'In Manutenzione', :s1, :s1, :rep1, 'Leasys', 'Euro 6')
         """), {
             "tesla": tesla_id, "audi": audi_id, "fiat": fiat_id, "jeep": jeep_id,
             "s1": s1, "s2": s2, "s3": s3, "rep1": rep1, "rep2": rep2, "rep3": rep3
@@ -507,10 +517,10 @@ def export_automezzi_csv(r: Request):
     writer = csv.writer(output, delimiter=';')
 
     writer.writerow([
-        "ID", "Targa", "Marca", "Modello", "Tipo", "Colore", "Alimentazione",
+        "ID", "Targa", "Marca", "Modello", "Tipo", "Note", "Alimentazione",
         "Km Attuali", "Classe Euro", "Data Immatricolazione", "Proprietà",
         "Società Noleggio", "Canone Noleggio (€)", "Sede Assegnata", "Sede Attuale",
-        "Reparto Assegnato", "Stato", "Escluso Prenotazione", "Note"
+        "Reparto Assegnato", "Stato", "Escluso Prenotazione"
     ])
 
     for v in automezzi:
@@ -524,7 +534,7 @@ def export_automezzi_csv(r: Request):
             v_dict.get("marca_nome", ""),
             v_dict.get("modello", ""),
             tipo_str,
-            v_dict.get("colore", "") or "",
+            v_dict.get("note", "") or "",
             v_dict.get("alimentazione", "") or "",
             v_dict.get("km_attuali", 0) or 0,
             v_dict.get("classe_euro", "") or "",
@@ -555,7 +565,7 @@ async def add_vehicle(
     marca_id: int = Form(...),
     modello: str = Form(...),
     tipo: str = Form(...),
-    colore: str = Form(None),
+    note: str = Form(None),
     alimentazione: str = Form(None),
     data_immatricolazione: str = Form(None),
     proprieta: str = Form(None),
@@ -583,12 +593,12 @@ async def add_vehicle(
 
         conn.execute(text("""
             INSERT INTO automezzi (
-                targa, marca_id, modello, tipo, colore, alimentazione, data_immatricolazione, 
+                targa, marca_id, modello, tipo, note, alimentazione, data_immatricolazione, 
                 proprieta, canone_noleggio, km_attuali, stato, 
                 sede_assegnata_id, sede_attuale_id, reparto_assegnato_id,
                 fornitore, classe_euro
             ) VALUES (
-                :targa, :marca_id, :modello, :tipo, :colore, :alimentazione, :data_immatricolazione, 
+                :targa, :marca_id, :modello, :tipo, :note, :alimentazione, :data_immatricolazione, 
                 :proprieta, :canone_noleggio, :km_attuali, :stato, 
                 :sede_assegnata_id, :sede_attuale_id, :reparto_assegnato_id,
                 :fornitore, :classe_euro
@@ -598,7 +608,7 @@ async def add_vehicle(
             "marca_id": marca_id,
             "modello": modello.strip(),
             "tipo": tipo,
-            "colore": colore.strip() if colore else None,
+            "note": note.strip() if note else None,
             "alimentazione": alimentazione.strip() if alimentazione else None,
             "data_immatricolazione": data_immatricolazione if data_immatricolazione else None,
             "proprieta": proprieta,
@@ -640,7 +650,7 @@ async def edit_vehicle(
     marca_id: int = Form(...),
     modello: str = Form(...),
     tipo: str = Form(...),
-    colore: str = Form(None),
+    note: str = Form(None),
     alimentazione: str = Form(None),
     data_immatricolazione: str = Form(None),
     proprieta: str = Form(None),
@@ -675,7 +685,7 @@ async def edit_vehicle(
                 marca_id = :marca_id,
                 modello = :modello,
                 tipo = :tipo,
-                colore = :colore,
+                note = :note,
                 alimentazione = :alimentazione,
                 data_immatricolazione = :data_immatricolazione,
                 proprieta = :proprieta,
@@ -694,7 +704,7 @@ async def edit_vehicle(
             "marca_id": marca_id,
             "modello": modello.strip(),
             "tipo": tipo,
-            "colore": colore.strip() if colore else None,
+            "note": note.strip() if note else None,
             "alimentazione": alimentazione.strip() if alimentazione else None,
             "data_immatricolazione": data_immatricolazione if data_immatricolazione else None,
             "proprieta": proprieta,
@@ -833,7 +843,7 @@ def export_automezzi_csv(r: Request):
         
     with engine.connect() as conn:
         rows = conn.execute(text("""
-            SELECT a.targa, m.nome as marca, a.modello, a.tipo, a.colore, a.alimentazione, a.data_immatricolazione, 
+            SELECT a.targa, m.nome as marca, a.modello, a.tipo, a.note, a.alimentazione, a.data_immatricolazione, 
                    a.proprieta, a.canone_noleggio, a.km_attuali, a.stato, 
                    s_ass.nome as sede_assegnata, s_att.nome as sede_attuale, r_ass.nome as reparto_assegnato,
                    a.fornitore, a.classe_euro
@@ -848,7 +858,7 @@ def export_automezzi_csv(r: Request):
     output = io.StringIO()
     writer = csv.writer(output, delimiter=';')
     writer.writerow([
-        "targa", "marca", "modello", "tipo", "colore", "alimentazione", "data_immatricolazione",
+        "targa", "marca", "modello", "tipo", "note", "alimentazione", "data_immatricolazione",
         "proprieta", "canone_noleggio", "km_attuali", "stato", "sede_assegnata", "sede_attuale", "reparto_assegnato",
         "fornitore", "classe_euro"
     ])
@@ -939,7 +949,7 @@ def import_automezzi_csv(r: Request, file: UploadFile = File(...)):
             marca_nome = data["marca"].strip()
             modello = data["modello"]
             tipo = data.get("tipo", "auto")
-            colore = data.get("colore")
+            note = data.get("note") or data.get("colore")
             alimentazione = data.get("alimentazione")
             
             data_immatricolazione = data.get("data_immatricolazione")
@@ -989,7 +999,7 @@ def import_automezzi_csv(r: Request, file: UploadFile = File(...)):
             if existing:
                 conn.execute(text("""
                     UPDATE automezzi SET
-                        marca_id = :marca_id, modello = :modello, tipo = :tipo, colore = :colore,
+                        marca_id = :marca_id, modello = :modello, tipo = :tipo, note = :note,
                         alimentazione = :alimentazione, data_immatricolazione = :data_immatricolazione,
                         proprieta = :proprieta, canone_noleggio = :canone_noleggio, km_attuali = :km_attuali,
                         stato = :stato, sede_assegnata_id = :sede_assegnata_id, sede_attuale_id = :sede_attuale_id,
@@ -997,7 +1007,7 @@ def import_automezzi_csv(r: Request, file: UploadFile = File(...)):
                         escluso_prenotazione = 1
                     WHERE automezzo_id = :id
                 """), {
-                    "id": existing, "targa": targa, "marca_id": marca_id, "modello": modello, "tipo": tipo, "colore": colore,
+                    "id": existing, "targa": targa, "marca_id": marca_id, "modello": modello, "tipo": tipo, "note": note,
                     "alimentazione": alimentazione, "data_immatricolazione": data_immatricolazione, "proprieta": proprieta,
                     "canone_noleggio": canone_noleggio, "km_attuali": km_attuali, "stato": stato,
                     "sede_assegnata_id": sede_assegnata_id, "sede_attuale_id": sede_attuale_id,
@@ -1008,16 +1018,16 @@ def import_automezzi_csv(r: Request, file: UploadFile = File(...)):
             else:
                 conn.execute(text("""
                     INSERT INTO automezzi (
-                        targa, marca_id, modello, tipo, colore, alimentazione, data_immatricolazione,
+                        targa, marca_id, modello, tipo, note, alimentazione, data_immatricolazione,
                         proprieta, canone_noleggio, km_attuali, stato, sede_assegnata_id, sede_attuale_id,
                         reparto_assegnato_id, fornitore, classe_euro, escluso_prenotazione
                     ) VALUES (
-                        :targa, :marca_id, :modello, :tipo, :colore, :alimentazione, :data_immatricolazione,
+                        :targa, :marca_id, :modello, :tipo, :note, :alimentazione, :data_immatricolazione,
                         :proprieta, :canone_noleggio, :km_attuali, :stato, :sede_assegnata_id, :sede_attuale_id,
                         :reparto_assegnato_id, :fornitore, :classe_euro, 1
                     )
                 """), {
-                    "targa": targa, "marca_id": marca_id, "modello": modello, "tipo": tipo, "colore": colore,
+                    "targa": targa, "marca_id": marca_id, "modello": modello, "tipo": tipo, "note": note,
                     "alimentazione": alimentazione, "data_immatricolazione": data_immatricolazione, "proprieta": proprieta,
                     "canone_noleggio": canone_noleggio, "km_attuali": km_attuali, "stato": stato,
                     "sede_assegnata_id": sede_assegnata_id, "sede_attuale_id": sede_attuale_id,
