@@ -98,6 +98,9 @@
               {% endif %}
               <li><a class="dropdown-item" href="/autopark"><i class="bi bi-calendar-check me-2 text-success"></i>Prenotazioni</a></li>
               <li><a class="dropdown-item" href="/admin/automezzi/viaggi"><i class="bi bi-journal-text me-2 text-info"></i>Registro Viaggi</a></li>
+              {% if user.ruolo in ('admin', 'fleet_manager', 'global_fleet_manager') %}
+              <li><a class="dropdown-item" href="/admin/automezzi/rifornimenti"><i class="bi bi-fuel-pump-fill me-2 text-danger"></i>Rifornimenti Carburante</a></li>
+              {% endif %}
               {% if user.ruolo in ('admin', 'global_fleet_manager') %}
               <li><a class="dropdown-item" href="/admin/automezzi/tipi-manutenzione"><i class="bi bi-list-check me-2 text-secondary"></i>Tipi Manutenzione</a></li>
               {% endif %}
@@ -342,6 +345,9 @@
               {% endif %}
               <li><a class="dropdown-item" href="/autopark"><i class="bi bi-calendar-check me-2 text-success"></i>Prenotazioni</a></li>
               <li><a class="dropdown-item" href="/admin/automezzi/viaggi"><i class="bi bi-journal-text me-2 text-info"></i>Registro Viaggi</a></li>
+              {% if user.ruolo in ('admin', 'fleet_manager', 'global_fleet_manager') %}
+              <li><a class="dropdown-item" href="/admin/automezzi/rifornimenti"><i class="bi bi-fuel-pump-fill me-2 text-danger"></i>Rifornimenti Carburante</a></li>
+              {% endif %}
               {% if user.ruolo in ('admin', 'global_fleet_manager') %}
               <li><a class="dropdown-item" href="/admin/automezzi/tipi-manutenzione"><i class="bi bi-list-check me-2 text-secondary"></i>Tipi Manutenzione</a></li>
               {% endif %}

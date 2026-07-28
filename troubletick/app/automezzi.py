@@ -117,6 +117,33 @@ with engine.begin() as conn:
         )
     """))
 
+    conn.execute(text(f"""
+        CREATE TABLE IF NOT EXISTS rifornimenti (
+            rifornimento_id {DB_PK},
+            pan_carta TEXT,
+            data TEXT,
+            ora TEXT,
+            prodotto TEXT,
+            targa TEXT,
+            km INTEGER,
+            cod_terminale TEXT,
+            cod_impianto TEXT,
+            indirizzo TEXT,
+            citta TEXT,
+            imp_intero REAL,
+            imp_intero_no_iva REAL,
+            volume REAL,
+            prezzo_eur_l REAL,
+            sconto_eur_l REAL,
+            prezzo_scontato REAL,
+            imp_scontato REAL,
+            iva REAL,
+            imp_scontato_no_iva REAL,
+            tipo_servizio TEXT,
+            creato_il TEXT DEFAULT CURRENT_TIMESTAMP
+        )
+    """))
+
     try:
         conn.execute(text("ALTER TABLE viaggi_automezzi ADD COLUMN ora_riconsegna_prevista TEXT"))
     except Exception:
@@ -2669,4 +2696,342 @@ def delete_tipo_manutenzione(id: int, r: Request):
         conn.execute(text("DELETE FROM automezzi_tipi_manutenzione WHERE tipo_manutenzione_id = :id"), {"id": id})
         conn.execute(text("DELETE FROM tipi_manutenzione WHERE tipo_manutenzione_id = :id"), {"id": id})
     return RedirectResponse(url="/admin/automezzi/tipi-manutenzione", status_code=303)
+
+
+# --------------------------------------------------------------------------
+# RIFORNIMENTI CARBURANTE
+# --------------------------------------------------------------------------
+
+@router.get("/admin/automezzi/rifornimenti", response_class=HTMLResponse)
+def list_rifornimenti(
+    r: Request,
+    q: str = Query(None),
+    targa: str = Query(None),
+    prodotto: str = Query(None),
+    pan_carta: str = Query(None),
+    citta: str = Query(None),
+    data_dal: str = Query(None),
+    data_al: str = Query(None)
+):
+    if "user" not in r.session:
+        return RedirectResponse(url="/login", status_code=303)
+    user = r.session.get("user")
+    if user.get("ruolo") not in ("admin", "fleet_manager", "global_fleet_manager"):
+        return RedirectResponse(url="/", status_code=303)
+        
+    with engine.connect() as conn:
+        user_reparto_id = None
+        if user.get("ruolo") == "fleet_manager":
+            user_reparto_id = conn.execute(text("SELECT reparto_id FROM users WHERE user_id = :uid"), {"uid": user.get("id")}).scalar()
+
+        where_clauses = ["1=1"]
+        params = {}
+
+        if user.get("ruolo") == "fleet_manager" and user_reparto_id:
+            where_clauses.append("r.targa IN (SELECT targa FROM automezzi WHERE reparto_assegnato_id = :rep_id)")
+            params["rep_id"] = user_reparto_id
+
+        if q:
+            where_clauses.append("(LOWER(r.targa) LIKE LOWER(:q) OR LOWER(r.prodotto) LIKE LOWER(:q) OR LOWER(r.cod_impianto) LIKE LOWER(:q) OR LOWER(r.citta) LIKE LOWER(:q) OR LOWER(r.pan_carta) LIKE LOWER(:q))")
+            params["q"] = f"%{q.strip()}%"
+        if targa:
+            where_clauses.append("r.targa = :targa")
+            params["targa"] = targa.strip().upper()
+        if prodotto:
+            where_clauses.append("r.prodotto = :prodotto")
+            params["prodotto"] = prodotto
+        if pan_carta:
+            where_clauses.append("r.pan_carta = :pan_carta")
+            params["pan_carta"] = pan_carta
+        if citta:
+            where_clauses.append("r.citta = :citta")
+            params["citta"] = citta
+        if data_dal:
+            where_clauses.append("r.data >= :data_dal")
+            params["data_dal"] = data_dal
+        if data_al:
+            where_clauses.append("r.data <= :data_al")
+            params["data_al"] = data_al
+
+        where_sql = " AND ".join(where_clauses)
+        
+        rifornimenti = conn.execute(text(f"""
+            SELECT r.*
+            FROM rifornimenti r
+            WHERE {where_sql}
+            ORDER BY r.data DESC, r.ora DESC, r.rifornimento_id DESC
+        """), params).mappings().all()
+
+        totale_operazioni = len(rifornimenti)
+        totale_volume = sum(row["volume"] or 0 for row in rifornimenti)
+        totale_spesa = sum(row["imp_scontato"] or row["imp_intero"] or 0 for row in rifornimenti)
+        veicoli_unici = len(set(row["targa"] for row in rifornimenti if row["targa"]))
+
+        opt_targhe = [row[0] for row in conn.execute(text("SELECT DISTINCT targa FROM rifornimenti WHERE targa IS NOT NULL AND targa != '' ORDER BY targa")).all()]
+        opt_prodotti = [row[0] for row in conn.execute(text("SELECT DISTINCT prodotto FROM rifornimenti WHERE prodotto IS NOT NULL AND prodotto != '' ORDER BY prodotto")).all()]
+        opt_carte = [row[0] for row in conn.execute(text("SELECT DISTINCT pan_carta FROM rifornimenti WHERE pan_carta IS NOT NULL AND pan_carta != '' ORDER BY pan_carta")).all()]
+        opt_citta = [row[0] for row in conn.execute(text("SELECT DISTINCT citta FROM rifornimenti WHERE citta IS NOT NULL AND citta != '' ORDER BY citta")).all()]
+
+        automezzi_list = conn.execute(text("SELECT automezzo_id, targa, modello FROM automezzi ORDER BY targa")).mappings().all()
+
+    return templates.TemplateResponse(r, "admin_automezzi_rifornimenti.html", {
+        "request": r,
+        "cfg": CFG,
+        "user": user,
+        "rifornimenti": rifornimenti,
+        "totale_operazioni": totale_operazioni,
+        "totale_volume": round(totale_volume, 2),
+        "totale_spesa": round(totale_spesa, 2),
+        "veicoli_unici": veicoli_unici,
+        "opt_targhe": opt_targhe,
+        "opt_prodotti": opt_prodotti,
+        "opt_carte": opt_carte,
+        "opt_citta": opt_citta,
+        "automezzi_list": automezzi_list,
+        "filters": {
+            "q": q or "",
+            "targa": targa or "",
+            "prodotto": prodotto or "",
+            "pan_carta": pan_carta or "",
+            "citta": citta or "",
+            "data_dal": data_dal or "",
+            "data_al": data_al or ""
+        }
+    })
+
+
+@router.get("/admin/automezzi/rifornimenti/esporta/csv")
+def export_rifornimenti_csv(
+    r: Request,
+    q: str = Query(None),
+    targa: str = Query(None),
+    prodotto: str = Query(None),
+    pan_carta: str = Query(None),
+    citta: str = Query(None),
+    data_dal: str = Query(None),
+    data_al: str = Query(None)
+):
+    if "user" not in r.session:
+        return RedirectResponse(url="/login", status_code=303)
+    user = r.session.get("user")
+    if user.get("ruolo") not in ("admin", "fleet_manager", "global_fleet_manager"):
+        return RedirectResponse(url="/", status_code=303)
+        
+    with engine.connect() as conn:
+        user_reparto_id = None
+        if user.get("ruolo") == "fleet_manager":
+            user_reparto_id = conn.execute(text("SELECT reparto_id FROM users WHERE user_id = :uid"), {"uid": user.get("id")}).scalar()
+
+        where_clauses = ["1=1"]
+        params = {}
+
+        if user.get("ruolo") == "fleet_manager" and user_reparto_id:
+            where_clauses.append("r.targa IN (SELECT targa FROM automezzi WHERE reparto_assegnato_id = :rep_id)")
+            params["rep_id"] = user_reparto_id
+
+        if q:
+            where_clauses.append("(LOWER(r.targa) LIKE LOWER(:q) OR LOWER(r.prodotto) LIKE LOWER(:q) OR LOWER(r.cod_impianto) LIKE LOWER(:q) OR LOWER(r.citta) LIKE LOWER(:q) OR LOWER(r.pan_carta) LIKE LOWER(:q))")
+            params["q"] = f"%{q.strip()}%"
+        if targa:
+            where_clauses.append("r.targa = :targa")
+            params["targa"] = targa.strip().upper()
+        if prodotto:
+            where_clauses.append("r.prodotto = :prodotto")
+            params["prodotto"] = prodotto
+        if pan_carta:
+            where_clauses.append("r.pan_carta = :pan_carta")
+            params["pan_carta"] = pan_carta
+        if citta:
+            where_clauses.append("r.citta = :citta")
+            params["citta"] = citta
+        if data_dal:
+            where_clauses.append("r.data >= :data_dal")
+            params["data_dal"] = data_dal
+        if data_al:
+            where_clauses.append("r.data <= :data_al")
+            params["data_al"] = data_al
+
+        where_sql = " AND ".join(where_clauses)
+        
+        rows = conn.execute(text(f"""
+            SELECT r.rifornimento_id, r.pan_carta, r.data, r.ora, r.prodotto, r.targa, r.km,
+                   r.cod_terminale, r.cod_impianto, r.indirizzo, r.citta, r.imp_intero,
+                   r.imp_intero_no_iva, r.volume, r.prezzo_eur_l, r.sconto_eur_l,
+                   r.prezzo_scontato, r.imp_scontato, r.iva, r.imp_scontato_no_iva, r.tipo_servizio
+            FROM rifornimenti r
+            WHERE {where_sql}
+            ORDER BY r.data DESC, r.ora DESC, r.rifornimento_id DESC
+        """), params).all()
+
+    output = io.StringIO()
+    output.write('\ufeff')
+    writer = csv.writer(output, delimiter=';')
+    writer.writerow([
+        "ID", "PAN_Carta", "Data", "Ora", "Prodotto", "Targa", "Km",
+        "Cod_terminale", "Cod_impianto", "Indirizzo", "Citta", "Imp_intero",
+        "Imp_intero_no_IVA", "Volume", "Prezzo_EUR_l", "Sconto_EUR_l",
+        "Prezzo_Scontato", "Imp_Scontato", "IVA", "Imp_scontato_no_IVA", "Tipo_servizio"
+    ])
+    for row in rows:
+        writer.writerow([val if val is not None else "" for val in row])
+
+    today_str = datetime.date.today().strftime("%Y%m%d")
+    filename = f"rifornimenti_{today_str}.csv"
+    return Response(
+        content=output.getvalue(),
+        media_type="text/csv; charset=utf-8",
+        headers={"Content-Disposition": f"attachment; filename={filename}"}
+    )
+
+
+@router.post("/admin/automezzi/rifornimenti/nuovo")
+def add_rifornimento(
+    r: Request,
+    pan_carta: str = Form(None),
+    data: str = Form(...),
+    ora: str = Form(None),
+    prodotto: str = Form(None),
+    targa: str = Form(...),
+    km: int = Form(0),
+    cod_terminale: str = Form(None),
+    cod_impianto: str = Form(None),
+    indirizzo: str = Form(None),
+    citta: str = Form(None),
+    imp_intero: float = Form(0.0),
+    imp_intero_no_iva: float = Form(0.0),
+    volume: float = Form(0.0),
+    prezzo_eur_l: float = Form(0.0),
+    sconto_eur_l: float = Form(0.0),
+    prezzo_scontato: float = Form(0.0),
+    imp_scontato: float = Form(0.0),
+    iva: float = Form(0.0),
+    imp_scontato_no_iva: float = Form(0.0),
+    tipo_servizio: str = Form(None)
+):
+    if "user" not in r.session:
+        return RedirectResponse(url="/login", status_code=303)
+    user = r.session.get("user")
+    if user.get("ruolo") not in ("admin", "fleet_manager", "global_fleet_manager"):
+        return RedirectResponse(url="/", status_code=303)
+
+    with engine.begin() as conn:
+        conn.execute(text("""
+            INSERT INTO rifornimenti (
+                pan_carta, data, ora, prodotto, targa, km, cod_terminale, cod_impianto,
+                indirizzo, citta, imp_intero, imp_intero_no_iva, volume, prezzo_eur_l,
+                sconto_eur_l, prezzo_scontato, imp_scontato, iva, imp_scontato_no_iva, tipo_servizio
+            ) VALUES (
+                :pan_carta, :data, :ora, :prodotto, :targa, :km, :cod_terminale, :cod_impianto,
+                :indirizzo, :citta, :imp_intero, :imp_intero_no_iva, :volume, :prezzo_eur_l,
+                :sconto_eur_l, :prezzo_scontato, :imp_scontato, :iva, :imp_scontato_no_iva, :tipo_servizio
+            )
+        """), {
+            "pan_carta": pan_carta.strip() if pan_carta else None,
+            "data": data.strip(),
+            "ora": ora.strip() if ora else None,
+            "prodotto": prodotto.strip() if prodotto else None,
+            "targa": targa.strip().upper(),
+            "km": km,
+            "cod_terminale": cod_terminale.strip() if cod_terminale else None,
+            "cod_impianto": cod_impianto.strip() if cod_impianto else None,
+            "indirizzo": indirizzo.strip() if indirizzo else None,
+            "citta": citta.strip() if citta else None,
+            "imp_intero": imp_intero,
+            "imp_intero_no_iva": imp_intero_no_iva,
+            "volume": volume,
+            "prezzo_eur_l": prezzo_eur_l,
+            "sconto_eur_l": sconto_eur_l,
+            "prezzo_scontato": prezzo_scontato if prezzo_scontato else (imp_scontato / volume if volume > 0 else 0.0),
+            "imp_scontato": imp_scontato,
+            "iva": iva,
+            "imp_scontato_no_iva": imp_scontato_no_iva,
+            "tipo_servizio": tipo_servizio.strip() if tipo_servizio else None
+        })
+
+    return RedirectResponse(url="/admin/automezzi/rifornimenti", status_code=303)
+
+
+@router.post("/admin/automezzi/rifornimenti/elimina/{id}")
+def delete_rifornimento(id: int, r: Request):
+    if "user" not in r.session:
+        return RedirectResponse(url="/login", status_code=303)
+    user = r.session.get("user")
+    if user.get("ruolo") not in ("admin", "fleet_manager", "global_fleet_manager"):
+        return RedirectResponse(url="/", status_code=303)
+
+    with engine.begin() as conn:
+        conn.execute(text("DELETE FROM rifornimenti WHERE rifornimento_id = :id"), {"id": id})
+
+    return RedirectResponse(url="/admin/automezzi/rifornimenti?msg=deleted", status_code=303)
+
+
+@router.post("/admin/automezzi/rifornimenti/importa")
+async def import_rifornimenti(r: Request, file: UploadFile = File(...)):
+    if "user" not in r.session:
+        return RedirectResponse(url="/login", status_code=303)
+    user = r.session.get("user")
+    if user.get("ruolo") not in ("admin", "fleet_manager", "global_fleet_manager"):
+        return RedirectResponse(url="/", status_code=303)
+
+    content = await file.read()
+    text_content = content.decode("utf-8-sig", errors="ignore")
+    delimiter = ";" if ";" in text_content else ","
+
+    reader = csv.DictReader(io.StringIO(text_content), delimiter=delimiter)
+    imported_count = 0
+    with engine.begin() as conn:
+        for row in reader:
+            norm = {k.strip().lower(): v.strip() for k, v in row.items() if k and v}
+            targa = (norm.get("targa") or norm.get("targa_veicolo") or "").strip().upper()
+            if not targa:
+                continue
+
+            def to_float(val):
+                try:
+                    return float(str(val).replace(",", ".")) if val else 0.0
+                except (ValueError, TypeError):
+                    return 0.0
+
+            def to_int(val):
+                try:
+                    return int(float(str(val).replace(",", "."))) if val else 0
+                except (ValueError, TypeError):
+                    return 0
+
+            conn.execute(text("""
+                INSERT INTO rifornimenti (
+                    pan_carta, data, ora, prodotto, targa, km, cod_terminale, cod_impianto,
+                    indirizzo, citta, imp_intero, imp_intero_no_iva, volume, prezzo_eur_l,
+                    sconto_eur_l, prezzo_scontato, imp_scontato, iva, imp_scontato_no_iva, tipo_servizio
+                ) VALUES (
+                    :pan_carta, :data, :ora, :prodotto, :targa, :km, :cod_terminale, :cod_impianto,
+                    :indirizzo, :citta, :imp_intero, :imp_intero_no_iva, :volume, :prezzo_eur_l,
+                    :sconto_eur_l, :prezzo_scontato, :imp_scontato, :iva, :imp_scontato_no_iva, :tipo_servizio
+                )
+            """), {
+                "pan_carta": norm.get("pan_carta") or norm.get("pan") or norm.get("carta"),
+                "data": norm.get("data"),
+                "ora": norm.get("ora"),
+                "prodotto": norm.get("prodotto"),
+                "targa": targa,
+                "km": to_int(norm.get("km")),
+                "cod_terminale": norm.get("cod_terminale") or norm.get("terminale"),
+                "cod_impianto": norm.get("cod_impianto") or norm.get("impianto"),
+                "indirizzo": norm.get("indirizzo"),
+                "citta": norm.get("citta") or norm.get("città"),
+                "imp_intero": to_float(norm.get("imp_intero")),
+                "imp_intero_no_iva": to_float(norm.get("imp_intero_no_iva")),
+                "volume": to_float(norm.get("volume") or norm.get("litri")),
+                "prezzo_eur_l": to_float(norm.get("prezzo_eur_l") or norm.get("prezzo_l")),
+                "sconto_eur_l": to_float(norm.get("sconto_eur_l") or norm.get("sconto_l")),
+                "prezzo_scontato": to_float(norm.get("prezzo_scontato")),
+                "imp_scontato": to_float(norm.get("imp_scontato")),
+                "iva": to_float(norm.get("iva")),
+                "imp_scontato_no_iva": to_float(norm.get("imp_scontato_no_iva")),
+                "tipo_servizio": norm.get("tipo_servizio") or norm.get("servizio")
+            })
+            imported_count += 1
+
+    return RedirectResponse(url=f"/admin/automezzi/rifornimenti?msg=import_ok&count={imported_count}", status_code=303)
+
 

@@ -278,6 +278,31 @@ try:
             cron_key TEXT PRIMARY KEY,
             last_run TEXT NOT NULL
         )"""))
+
+        c.execute(text(f"""CREATE TABLE IF NOT EXISTS rifornimenti (
+            rifornimento_id {DB_PK},
+            pan_carta TEXT,
+            data TEXT,
+            ora TEXT,
+            prodotto TEXT,
+            targa TEXT,
+            km INTEGER,
+            cod_terminale TEXT,
+            cod_impianto TEXT,
+            indirizzo TEXT,
+            citta TEXT,
+            imp_intero REAL,
+            imp_intero_no_iva REAL,
+            volume REAL,
+            prezzo_eur_l REAL,
+            sconto_eur_l REAL,
+            prezzo_scontato REAL,
+            imp_scontato REAL,
+            iva REAL,
+            imp_scontato_no_iva REAL,
+            tipo_servizio TEXT,
+            creato_il TEXT DEFAULT CURRENT_TIMESTAMP
+        )"""))
     
         for stmt in [
             "ALTER TABLE tickets ADD COLUMN argomento_id INTEGER",
