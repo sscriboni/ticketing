@@ -19,7 +19,7 @@
 
     <div class="row g-4">
         <!-- LISTA OPERATORI -->
-        <div class="col-12 col-lg-9">
+        <div class="col-12">
             <div class="bg-white p-4 rounded shadow-sm">
                 <div class="d-flex justify-content-between align-items-center mb-3">
                     <h4 class="mb-0"><i class="bi bi-people-fill text-primary me-2"></i>Operatori Attuali</h4>
@@ -98,45 +98,47 @@
                             <tr class="align-middle operator-row" 
                                 data-nome="{{ op.nome }} {{ op.cognome }} {{ op.username }}" 
                                 data-email="{{ op.email }} {{ op.telefono or '' }}" 
-                                data-ruoli="{{ op.ruoli_assegnati or '' }}" 
-                                data-reparto="{{ op.reparto_nome or '' }}" 
-                                data-sede="{{ op.sede_nome or '' }}" 
-                                data-magazzino="{{ op.magazzino_nome or '' }}" 
-                                data-stato="{{ 'attivo' if op.attivo else 'inattivo' }}">
+                                data-ruoli="{% for r in op.ruoli %}{{ r.ruolo }} {% endfor %}"
+                                data-reparto="{{ op.reparto_nome or '' }}"
+                                data-sede="{{ op.sede_nome or '' }}"
+                                data-stato="{% if op.attivo %}attivo{% else %}inattivo{% endif %}">
                                 <td>
-                                    <strong>{{ op.nome }} {{ op.cognome }}</strong>{% if op.is_test %} <span class="badge bg-secondary" style="font-size: 0.6em;">TEST</span>{% endif %}<br>
-                                    <small class="text-muted">@{{ op.username }}</small>
-                                </td>
-                                <td>
-                                    {{ op.email }}
-                                    {% if op.telefono %}<br><small class="text-muted">Tel: {{ op.telefono }}</small>{% endif %}
-                                </td>
-                                <td>
-                                    {% if op.ruoli_assegnati %}
-                                        {% for r_name in op.ruoli_assegnati.split(',') %}
-                                            <span class="badge bg-secondary mb-1 d-block text-start" style="font-size: 0.75em; font-weight: normal;">{{ r_name|capitalize }}</span>
-                                        {% endfor %}
-                                    {% else %}
-                                        —
+                                    <strong>{{ op.nome }} {{ op.cognome }}</strong>
+                                    {% if op.username %}
+                                    <br><small class="text-muted">@{{ op.username }}</small>
+                                    {% endif %}
+                                    {% if op.is_test %}
+                                    <span class="badge bg-warning text-dark ms-1" style="font-size:0.7em;">TEST</span>
                                     {% endif %}
                                 </td>
                                 <td>
-                                    {{ op.reparto_nome or '—' }}<br>
-                                    <small class="text-muted">Sede assegnata: {{ op.sede_nome or '—' }}</small><br>
-                                    <small class="text-muted">Mag.: {{ op.magazzino_nome or '—' }}</small>
+                                    <div><i class="bi bi-envelope me-1"></i>{{ op.email }}</div>
+                                    {% if op.telefono %}
+                                    <small class="text-muted"><i class="bi bi-telephone me-1"></i>{{ op.telefono }}</small>
+                                    {% endif %}
+                                </td>
+                                <td>
+                                    {% if op.ruoli %}
+                                        {% for r in op.ruoli %}
+                                            <span class="badge bg-secondary me-1">{{ r.ruolo }}</span>
+                                        {% endfor %}
+                                    {% else %}
+                                        <span class="badge bg-secondary">{{ op.ruolo }}</span>
+                                    {% endif %}
+                                </td>
+                                <td>
+                                    <div><strong>Reparto:</strong> {{ op.reparto_nome or '-' }}</div>
+                                    <small class="text-muted"><strong>Sede:</strong> {{ op.sede_nome or '-' }}</small>
+                                    {% if op.magazzini_nomi %}
+                                    <div><small class="text-info"><strong>Magazzini:</strong> {{ op.magazzini_nomi }}</small></div>
+                                    {% endif %}
                                 </td>
                                 <td>
                                     {% if op.ultimo_accesso %}
-                                        {% set datetime_parts = op.ultimo_accesso.split(' ') %}
-                                        {% set date_part = datetime_parts[0] %}
-                                        {% set time_part = datetime_parts[1] if datetime_parts|length > 1 else '' %}
-                                        {% set d_parts = date_part.split('-') %}
-                                        {% if d_parts|length == 3 %}
-                                            {{ d_parts[2] }}/{{ d_parts[1] }}/{{ d_parts[0] }}{% if time_part %} {{ time_part }}{% endif %}
-                                        {% else %}
-                                            {{ op.ultimo_accesso }}
+                                        <div><small>{{ op.ultimo_accesso }}</small></div>
+                                        {% if op.ultimo_ip %}
+                                        <div><small class="text-muted">IP: {{ op.ultimo_ip }}</small></div>
                                         {% endif %}
-                                        <br><small class="text-muted">IP: {{ op.ultimo_ip or '—' }}</small>
                                         {% if user.ruolo == 'admin' %}
                                         <div class="mt-1">
                                             <form method="post" action="/admin/operatore/{{ op.user_id }}/reset-accesso" class="d-inline" onsubmit="return confirm('Sei sicuro di voler azzerare l\'ultimo accesso di questo operatore?');">
@@ -183,114 +185,120 @@
             </div>
         </div>
 
-        <!-- FORM NUOVO OPERATORE -->
-        <div class="col-12 col-lg-3">
-            <div class="bg-white p-4 rounded shadow-sm">
-                <h4 class="mb-3">Nuovo Operatore</h4>
+        <!-- FORM NUOVO OPERATORE (POSIZIONATO A FINE ELENCO) -->
+        <div class="col-12">
+            <div class="bg-white p-4 rounded shadow-sm border-top border-primary border-3">
+                <h4 class="mb-3"><i class="bi bi-person-plus-fill text-primary me-2"></i>Nuovo Operatore</h4>
                 <form method="post" action="/admin/operatore/nuovo">
-                    <div class="mb-3">
-                        <label class="form-label fw-bold">Username <span class="text-danger">*</span></label>
-                        <input type="text" name="username" class="form-control" required placeholder="es: luca.rossi">
-                    </div>
+                    <div class="row g-3">
+                        <div class="col-md-6 col-lg-4">
+                            <label class="form-label fw-bold">Username <span class="text-danger">*</span></label>
+                            <input type="text" name="username" class="form-control" required placeholder="es: luca.rossi" minlength="2">
+                        </div>
 
-                    <div class="mb-3">
-                        <label class="form-label fw-bold">Password <span class="text-danger">*</span></label>
-                        <input type="password" name="password" class="form-control" required placeholder="Password sicura">
-                    </div>
+                        <div class="col-md-6 col-lg-4">
+                            <label class="form-label fw-bold">Password <span class="text-danger">*</span></label>
+                            <input type="password" name="password" class="form-control" required placeholder="Password sicura" minlength="5">
+                        </div>
 
-                    <div class="mb-3">
-                        <label class="form-label fw-bold">Nome <span class="text-danger">*</span></label>
-                        <input type="text" name="nome" class="form-control" required placeholder="es: Luca">
-                    </div>
+                        <div class="col-md-6 col-lg-4">
+                            <label class="form-label fw-bold">Nome <span class="text-danger">*</span></label>
+                            <input type="text" name="nome" class="form-control" required placeholder="es: Luca" minlength="2">
+                        </div>
 
-                    <div class="mb-3">
-                        <label class="form-label fw-bold">Cognome <span class="text-danger">*</span></label>
-                        <input type="text" name="cognome" class="form-control" required placeholder="es: Rossi">
-                    </div>
+                        <div class="col-md-6 col-lg-4">
+                            <label class="form-label fw-bold">Cognome <span class="text-danger">*</span></label>
+                            <input type="text" name="cognome" class="form-control" required placeholder="es: Rossi" minlength="2">
+                        </div>
 
-                    <div class="mb-3">
-                        <label class="form-label fw-bold">Email <span class="text-danger">*</span></label>
-                        <input type="email" name="email" class="form-control" required placeholder="es: luca@example.com">
-                    </div>
+                        <div class="col-md-6 col-lg-4">
+                            <label class="form-label fw-bold">Email <span class="text-danger">*</span></label>
+                            <input type="email" name="email" class="form-control" required placeholder="es: luca@example.com">
+                        </div>
 
-                    <div class="mb-3">
-                        <label class="form-label fw-bold">Telefono/Cell</label>
-                        <input type="text" name="telefono" class="form-control" placeholder="es: 3331234567">
-                    </div>
+                        <div class="col-md-6 col-lg-4">
+                            <label class="form-label fw-bold">Telefono/Cell</label>
+                            <input type="text" name="telefono" class="form-control" placeholder="es: 3331234567">
+                        </div>
 
-                    <div class="mb-3">
-                        <label class="form-label fw-bold">Ruoli <span class="text-danger">*</span></label>
-                        <div class="border p-2 rounded bg-light" style="max-height: 150px; overflow-y: auto;">
-                            {% for r in ruoli %}
-                            <div class="form-check">
-                                <input class="form-check-input" type="checkbox" name="ruoli" value="{{ r.nome }}" id="ruolo_{{ r.nome }}"
-                                       {% if r.nome == 'assistenza' %}checked{% endif %}>
-                                <label class="form-check-label" for="ruolo_{{ r.nome }}">
-                                    {{ r.descrizione }}
-                                </label>
+                        <div class="col-md-6">
+                            <label class="form-label fw-bold">Reparto <span class="text-danger">*</span></label>
+                            <select name="reparto_id" class="form-select" id="newRepartoSelect" required>
+                                <option value="" disabled selected>Seleziona reparto</option>
+                                {% for reparto in reparti %}
+                                <option value="{{ reparto.reparto_id }}">{{ reparto.nome }}</option>
+                                {% endfor %}
+                            </select>
+                        </div>
+
+                        <div class="col-md-6">
+                            <label class="form-label fw-bold">Sede assegnata <span class="text-danger">*</span></label>
+                            <select name="sede_id" class="form-select" required>
+                                <option value="" disabled selected>Seleziona sede assegnata</option>
+                                {% for sede in sedi %}
+                                <option value="{{ sede.sede_id }}">{{ sede.nome }}</option>
+                                {% endfor %}
+                            </select>
+                        </div>
+
+                        <div class="col-md-6">
+                            <label class="form-label fw-bold">Ruoli <span class="text-danger">*</span></label>
+                            <div class="border p-2 rounded bg-light" style="max-height: 150px; overflow-y: auto;">
+                                {% for r in ruoli %}
+                                <div class="form-check">
+                                    <input class="form-check-input" type="checkbox" name="ruoli" value="{{ r.nome }}" id="ruolo_{{ r.nome }}"
+                                           {% if r.nome == 'assistenza' %}checked{% endif %}>
+                                    <label class="form-check-label" for="ruolo_{{ r.nome }}">
+                                        {{ r.descrizione }}
+                                    </label>
+                                </div>
+                                {% endfor %}
                             </div>
-                            {% endfor %}
+                        </div>
+
+                        <div class="col-md-6" id="newServiziContainer" style="display: none;">
+                            <label class="form-label fw-bold">Servizi di competenza</label>
+                            <div class="border p-2 rounded bg-light" style="max-height: 150px; overflow-y: auto;">
+                                {% for servizio in servizi %}
+                                <div class="form-check servizio-item" data-reparto="{{ servizio.reparto_id }}" style="display: none;">
+                                    <input class="form-check-input" type="checkbox" name="servizi" value="{{ servizio.servizio_id }}" id="new_servizio_{{ servizio.servizio_id }}">
+                                    <label class="form-check-label" for="new_servizio_{{ servizio.servizio_id }}">
+                                        {{ servizio.descrizione }}
+                                    </label>
+                                </div>
+                                {% endfor %}
+                                <p class="text-muted mb-0" id="newNoServiziMsg" style="display: none; font-size: 0.9em;">Nessun servizio per questo reparto.</p>
+                            </div>
+                        </div>
+
+                        <div class="col-md-6" id="newMagazziniContainer" style="display: none;">
+                            <label class="form-label fw-bold">Magazzini di competenza</label>
+                            <div class="border p-2 rounded bg-light" style="max-height: 150px; overflow-y: auto;">
+                                {% for magazzino in magazzini %}
+                                <div class="form-check magazzino-item" data-reparto="{{ magazzino.reparto_id }}" style="display: none;">
+                                    <input class="form-check-input" type="checkbox" name="magazzini" value="{{ magazzino.magazzino_id }}" id="new_magazzino_{{ magazzino.magazzino_id }}">
+                                    <label class="form-check-label" for="new_magazzino_{{ magazzino.magazzino_id }}">
+                                        {{ magazzino.nome }}
+                                    </label>
+                                </div>
+                                {% endfor %}
+                                <p class="text-muted mb-0" id="newNoMagazziniMsg" style="display: none; font-size: 0.9em;">Nessun magazzino per questo reparto.</p>
+                            </div>
+                        </div>
+
+                        <div class="col-12">
+                            <div class="form-check form-switch">
+                                <input class="form-check-input" type="checkbox" name="is_test" value="1" id="newTestSwitch">
+                                <label class="form-check-label fw-bold" for="newTestSwitch">Utente di Test</label>
+                            </div>
+                        </div>
+
+                        <div class="col-12 mt-3">
+                            <button type="submit" class="btn btn-primary px-4">
+                                <i class="bi bi-plus-circle me-1"></i> Crea Operatore
+                            </button>
                         </div>
                     </div>
-
-                    <div class="mb-3">
-                        <label class="form-label fw-bold">Reparto <span class="text-danger">*</span></label>
-                        <select name="reparto_id" class="form-select" id="newRepartoSelect" required>
-                            <option value="" disabled selected>Seleziona reparto</option>
-                            {% for reparto in reparti %}
-                            <option value="{{ reparto.reparto_id }}">{{ reparto.nome }}</option>
-                            {% endfor %}
-                        </select>
-                    </div>
-
-                    <div class="mb-3" id="newServiziContainer" style="display: none;">
-                        <label class="form-label fw-bold">Servizi di competenza</label>
-                        <div class="border p-2 rounded bg-light">
-                            {% for servizio in servizi %}
-                            <div class="form-check servizio-item" data-reparto="{{ servizio.reparto_id }}" style="display: none;">
-                                <input class="form-check-input" type="checkbox" name="servizi" value="{{ servizio.servizio_id }}" id="new_servizio_{{ servizio.servizio_id }}">
-                                <label class="form-check-label" for="new_servizio_{{ servizio.servizio_id }}">
-                                    {{ servizio.descrizione }}
-                                </label>
-                            </div>
-                            {% endfor %}
-                            <p class="text-muted mb-0" id="newNoServiziMsg" style="display: none; font-size: 0.9em;">Nessun servizio per questo reparto.</p>
-                        </div>
-                    </div>
-
-                    <div class="mb-3">
-                        <label class="form-label fw-bold">Sede assegnata <span class="text-danger">*</span></label>
-                        <select name="sede_id" class="form-select" required>
-                            <option value="" disabled selected>Seleziona sede assegnata</option>
-                            {% for sede in sedi %}
-                            <option value="{{ sede.sede_id }}">{{ sede.nome }}</option>
-                            {% endfor %}
-                        </select>
-                    </div>
-
-                    <div class="mb-3" id="newMagazziniContainer" style="display: none;">
-                        <label class="form-label fw-bold">Magazzini di competenza</label>
-                        <div class="border p-2 rounded bg-light">
-                            {% for magazzino in magazzini %}
-                            <div class="form-check magazzino-item" data-reparto="{{ magazzino.reparto_id }}" style="display: none;">
-                                <input class="form-check-input" type="checkbox" name="magazzini" value="{{ magazzino.magazzino_id }}" id="new_magazzino_{{ magazzino.magazzino_id }}">
-                                <label class="form-check-label" for="new_magazzino_{{ magazzino.magazzino_id }}">
-                                    {{ magazzino.nome }}
-                                </label>
-                            </div>
-                            {% endfor %}
-                            <p class="text-muted mb-0" id="newNoMagazziniMsg" style="display: none; font-size: 0.9em;">Nessun magazzino per questo reparto.</p>
-                        </div>
-                    </div>
-
-                    <div class="mb-3 form-check form-switch">
-                        <input class="form-check-input" type="checkbox" name="is_test" value="1" id="newTestSwitch">
-                        <label class="form-check-label fw-bold" for="newTestSwitch">Utente di Test</label>
-                    </div>
-
-                    <button type="submit" class="btn btn-primary w-100">
-                        <i class="bi bi-plus-circle"></i> Crea Operatore
-                    </button>
                 </form>
             </div>
         </div>
