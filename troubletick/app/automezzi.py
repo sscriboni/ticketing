@@ -2771,8 +2771,9 @@ def list_rifornimenti(
         opt_prodotti = [row[0] for row in conn.execute(text("SELECT DISTINCT prodotto FROM rifornimenti WHERE prodotto IS NOT NULL AND prodotto != '' ORDER BY prodotto")).all()]
         opt_carte = [row[0] for row in conn.execute(text("SELECT DISTINCT pan_carta FROM rifornimenti WHERE pan_carta IS NOT NULL AND pan_carta != '' ORDER BY pan_carta")).all()]
         opt_citta = [row[0] for row in conn.execute(text("SELECT DISTINCT citta FROM rifornimenti WHERE citta IS NOT NULL AND citta != '' ORDER BY citta")).all()]
-
         automezzi_list = conn.execute(text("SELECT automezzo_id, targa, modello FROM automezzi ORDER BY targa")).mappings().all()
+
+    import_result = r.session.pop("import_rifornimenti_result", None)
 
     return templates.TemplateResponse(r, "admin_automezzi_rifornimenti.html", {
         "request": r,
@@ -2788,6 +2789,7 @@ def list_rifornimenti(
         "opt_carte": opt_carte,
         "opt_citta": opt_citta,
         "automezzi_list": automezzi_list,
+        "import_result": import_result,
         "filters": {
             "q": q or "",
             "targa": targa or "",
@@ -2978,60 +2980,183 @@ async def import_rifornimenti(r: Request, file: UploadFile = File(...)):
     delimiter = ";" if ";" in text_content else ","
 
     reader = csv.DictReader(io.StringIO(text_content), delimiter=delimiter)
+
+    # Specific Supplier & Custom Mapping requested by user
+    HEADER_MAP = {
+        "pan carta": "pan_carta",
+        "pan_carta": "pan_carta",
+        "pan": "pan_carta",
+        
+        "data": "data",
+        "ora": "ora",
+        
+        "prod.": "prodotto",
+        "prod": "prodotto",
+        "prodotto": "prodotto",
+        
+        "targa": "targa",
+        "targa veicolo": "targa",
+        "km": "km",
+        
+        "cod. term.": "cod_terminale",
+        "cod. term": "cod_terminale",
+        "cod_terminale": "cod_terminale",
+        "terminale": "cod_terminale",
+        
+        "impianto": "cod_impianto",
+        "cod_impianto": "cod_impianto",
+        "indirizzo": "indirizzo",
+        
+        "città": "citta",
+        "citta": "citta",
+        
+        "imp. intero": "imp_intero",
+        "imp_intero": "imp_intero",
+        
+        "imp. intero no iva": "imp_intero_no_iva",
+        "imp_intero_no_iva": "imp_intero_no_iva",
+        
+        "volume": "volume",
+        "litri": "volume",
+        
+        "prezzo eur/l": "prezzo_eur_l",
+        "prezzo_eur_l": "prezzo_eur_l",
+        
+        "sconto eur/l": "sconto_eur_l",
+        "sconto_eur_l": "sconto_eur_l",
+        
+        "prezzo scontato": "prezzo_scontato",
+        "prezzo_scontato": "prezzo_scontato",
+        
+        "imp. scontato": "imp_scontato",
+        "imp_scontato": "imp_scontato",
+        
+        "iva": "iva",
+        
+        "imp. scontato no iva": "imp_scontato_no_iva",
+        "imp_scontato_no_iva": "imp_scontato_no_iva",
+        
+        "tipo servizio": "tipo_servizio",
+        "tipo_servizio": "tipo_servizio"
+    }
+
+    def parse_date(d_val):
+        if not d_val:
+            return None
+        s = str(d_val).strip()
+        for fmt in ("%d/%m/%Y", "%d-%m-%Y", "%Y-%m-%d", "%d/%m/%y", "%d-%m-%y", "%Y/%m/%d"):
+            try:
+                return datetime.datetime.strptime(s, fmt).strftime("%Y-%m-%d")
+            except ValueError:
+                pass
+        return s
+
+    def parse_float(val):
+        if val is None or str(val).strip() == "":
+            return 0.0
+        s = str(val).strip().replace("€", "").replace(" ", "")
+        if "," in s:
+            s = s.replace(".", "").replace(",", ".")
+        try:
+            return float(s)
+        except (ValueError, TypeError):
+            return 0.0
+
+    def parse_int(val):
+        if val is None or str(val).strip() == "":
+            return 0
+        s = str(val).strip().replace(".", "").replace(",", "").replace(" ", "")
+        try:
+            return int(float(s))
+        except (ValueError, TypeError):
+            return 0
+
     imported_count = 0
+    discarded_list = []
+
     with engine.begin() as conn:
-        for row in reader:
-            norm = {k.strip().lower(): v.strip() for k, v in row.items() if k and v}
-            targa = (norm.get("targa") or norm.get("targa_veicolo") or "").strip().upper()
+        for line_idx, row in enumerate(reader, start=2):
+            mapped_data = {}
+            for col_name, col_val in row.items():
+                if not col_name:
+                    continue
+                norm_key = col_name.strip().lower()
+                if norm_key in HEADER_MAP:
+                    mapped_field = HEADER_MAP[norm_key]
+                    mapped_data[mapped_field] = col_val.strip() if col_val else None
+
+            targa_raw = mapped_data.get("targa")
+            targa = targa_raw.upper().replace(" ", "").replace("-", "") if targa_raw else None
+            
+            raw_data = mapped_data.get("data")
+            parsed_data = parse_date(raw_data)
+
             if not targa:
+                discarded_list.append({
+                    "linea": line_idx,
+                    "targa": "-",
+                    "data": raw_data or "-",
+                    "motivo": "Campo 'Targa' mancante o vuoto"
+                })
                 continue
 
-            def to_float(val):
-                try:
-                    return float(str(val).replace(",", ".")) if val else 0.0
-                except (ValueError, TypeError):
-                    return 0.0
+            if not parsed_data:
+                discarded_list.append({
+                    "linea": line_idx,
+                    "targa": targa,
+                    "data": raw_data or "-",
+                    "motivo": "Campo 'Data' mancante o formato non riconosciuto"
+                })
+                continue
 
-            def to_int(val):
-                try:
-                    return int(float(str(val).replace(",", "."))) if val else 0
-                except (ValueError, TypeError):
-                    return 0
+            try:
+                conn.execute(text("""
+                    INSERT INTO rifornimenti (
+                        pan_carta, data, ora, prodotto, targa, km, cod_terminale, cod_impianto,
+                        indirizzo, citta, imp_intero, imp_intero_no_iva, volume, prezzo_eur_l,
+                        sconto_eur_l, prezzo_scontato, imp_scontato, iva, imp_scontato_no_iva, tipo_servizio
+                    ) VALUES (
+                        :pan_carta, :data, :ora, :prodotto, :targa, :km, :cod_terminale, :cod_impianto,
+                        :indirizzo, :citta, :imp_intero, :imp_intero_no_iva, :volume, :prezzo_eur_l,
+                        :sconto_eur_l, :prezzo_scontato, :imp_scontato, :iva, :imp_scontato_no_iva, :tipo_servizio
+                    )
+                """), {
+                    "pan_carta": mapped_data.get("pan_carta"),
+                    "data": parsed_data,
+                    "ora": mapped_data.get("ora"),
+                    "prodotto": mapped_data.get("prodotto"),
+                    "targa": targa,
+                    "km": parse_int(mapped_data.get("km")),
+                    "cod_terminale": mapped_data.get("cod_terminale"),
+                    "cod_impianto": mapped_data.get("cod_impianto"),
+                    "indirizzo": mapped_data.get("indirizzo"),
+                    "citta": mapped_data.get("citta"),
+                    "imp_intero": parse_float(mapped_data.get("imp_intero")),
+                    "imp_intero_no_iva": parse_float(mapped_data.get("imp_intero_no_iva")),
+                    "volume": parse_float(mapped_data.get("volume")),
+                    "prezzo_eur_l": parse_float(mapped_data.get("prezzo_eur_l")),
+                    "sconto_eur_l": parse_float(mapped_data.get("sconto_eur_l")),
+                    "prezzo_scontato": parse_float(mapped_data.get("prezzo_scontato")),
+                    "imp_scontato": parse_float(mapped_data.get("imp_scontato")),
+                    "iva": parse_float(mapped_data.get("iva")),
+                    "imp_scontato_no_iva": parse_float(mapped_data.get("imp_scontato_no_iva")),
+                    "tipo_servizio": mapped_data.get("tipo_servizio")
+                })
+                imported_count += 1
+            except Exception as ex:
+                discarded_list.append({
+                    "linea": line_idx,
+                    "targa": targa,
+                    "data": parsed_data or raw_data or "-",
+                    "motivo": f"Errore salvataggio DB: {str(ex)[:100]}"
+                })
 
-            conn.execute(text("""
-                INSERT INTO rifornimenti (
-                    pan_carta, data, ora, prodotto, targa, km, cod_terminale, cod_impianto,
-                    indirizzo, citta, imp_intero, imp_intero_no_iva, volume, prezzo_eur_l,
-                    sconto_eur_l, prezzo_scontato, imp_scontato, iva, imp_scontato_no_iva, tipo_servizio
-                ) VALUES (
-                    :pan_carta, :data, :ora, :prodotto, :targa, :km, :cod_terminale, :cod_impianto,
-                    :indirizzo, :citta, :imp_intero, :imp_intero_no_iva, :volume, :prezzo_eur_l,
-                    :sconto_eur_l, :prezzo_scontato, :imp_scontato, :iva, :imp_scontato_no_iva, :tipo_servizio
-                )
-            """), {
-                "pan_carta": norm.get("pan_carta") or norm.get("pan") or norm.get("carta"),
-                "data": norm.get("data"),
-                "ora": norm.get("ora"),
-                "prodotto": norm.get("prodotto"),
-                "targa": targa,
-                "km": to_int(norm.get("km")),
-                "cod_terminale": norm.get("cod_terminale") or norm.get("terminale"),
-                "cod_impianto": norm.get("cod_impianto") or norm.get("impianto"),
-                "indirizzo": norm.get("indirizzo"),
-                "citta": norm.get("citta") or norm.get("città"),
-                "imp_intero": to_float(norm.get("imp_intero")),
-                "imp_intero_no_iva": to_float(norm.get("imp_intero_no_iva")),
-                "volume": to_float(norm.get("volume") or norm.get("litri")),
-                "prezzo_eur_l": to_float(norm.get("prezzo_eur_l") or norm.get("prezzo_l")),
-                "sconto_eur_l": to_float(norm.get("sconto_eur_l") or norm.get("sconto_l")),
-                "prezzo_scontato": to_float(norm.get("prezzo_scontato")),
-                "imp_scontato": to_float(norm.get("imp_scontato")),
-                "iva": to_float(norm.get("iva")),
-                "imp_scontato_no_iva": to_float(norm.get("imp_scontato_no_iva")),
-                "tipo_servizio": norm.get("tipo_servizio") or norm.get("servizio")
-            })
-            imported_count += 1
+    r.session["import_rifornimenti_result"] = {
+        "imported": imported_count,
+        "discarded_count": len(discarded_list),
+        "discarded": discarded_list
+    }
 
-    return RedirectResponse(url=f"/admin/automezzi/rifornimenti?msg=import_ok&count={imported_count}", status_code=303)
+    return RedirectResponse(url="/admin/automezzi/rifornimenti", status_code=303)
 
 
