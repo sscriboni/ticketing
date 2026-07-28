@@ -105,6 +105,79 @@
       </div>
     </div>
 
+    <!-- Vehicle Bookings Summary & Departure/Arrival Management for Support Operators -->
+    <div class="card shadow-sm border-0 rounded-3 p-4 mb-4">
+      <div class="d-flex justify-content-between align-items-center mb-3">
+        <h3 class="h5 fw-bold mb-0 d-flex align-items-center">
+          <i class="bi bi-car-front-fill text-danger me-2"></i> Riepilogo Prenotazioni Automezzi
+        </h3>
+        <a href="/autopark" class="btn btn-sm btn-outline-danger fw-semibold">
+          <i class="bi bi-plus-circle me-1"></i> Nuova Prenotazione / Carpooling
+        </a>
+      </div>
+
+      {% if stats.operator_prenotazioni %}
+      <div class="table-responsive">
+        <table class="table table-hover align-middle custom-table mb-0" style="font-size: 0.88rem;">
+          <thead class="table-light">
+            <tr>
+              <th>Veicolo</th>
+              <th>Data & Orari Previsti</th>
+              <th>Percorso Presunto</th>
+              <th>Stato Viaggio</th>
+              <th class="text-end">Gestione Partenza / Arrivo</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for p in stats.operator_prenotazioni %}
+            <tr>
+              <td>
+                <span class="badge bg-secondary font-monospace">{{ p.targa }}</span>
+                <strong class="d-block text-dark">{{ p.marca_nome }} {{ p.modello }}</strong>
+              </td>
+              <td>
+                <span class="fw-bold text-dark">{{ p.data_viaggio }}</span>
+                <small class="d-block text-muted">{{ p.ora_partenza }} &rarr; {{ p.ora_arrivo_presunta or '-' }}</small>
+              </td>
+              <td>
+                <small class="text-muted"><i class="bi bi-geo-alt me-1 text-danger"></i>{{ p.sede_partenza_nome or 'Sede' }} &rarr; {{ p.sede_arrivo_nome or 'Sede' }}</small>
+              </td>
+              <td>
+                {% if p.ora_partenza_effettiva %}
+                  <span class="badge bg-success"><i class="bi bi-car-front-fill me-1"></i> In Corso (Partito {{ p.ora_partenza_effettiva }})</span>
+                {% else %}
+                  <span class="badge bg-warning text-dark"><i class="bi bi-clock me-1"></i> Da Avviare</span>
+                {% endif %}
+              </td>
+              <td class="text-end">
+                {% if not p.ora_partenza_effettiva %}
+                  <form action="/autopark/avvia/{{ p.viaggio_id }}" method="POST" class="d-inline">
+                    <button type="submit" class="btn btn-sm btn-success fw-bold shadow-sm">
+                      <i class="bi bi-play-circle-fill me-1"></i> Registra Partenza
+                    </button>
+                  </form>
+                {% else %}
+                  <button type="button" class="btn btn-sm btn-danger fw-bold shadow-sm" onclick="openCompletaViaggioHomeModal({{ p.viaggio_id }}, '{{ p.targa }}', {{ p.auto_km_attuali or p.km_iniziali or 0 }})">
+                    <i class="bi bi-stop-circle-fill me-1"></i> Registra Arrivo
+                  </button>
+                {% endif %}
+              </td>
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+      {% else %}
+      <div class="text-center py-4 bg-light rounded-3">
+        <i class="bi bi-car-front text-muted" style="font-size: 2.5rem;"></i>
+        <p class="text-muted mt-2 mb-2">Non hai nessuna prenotazione automezzo attiva al momento.</p>
+        <a href="/autopark" class="btn btn-sm btn-danger fw-semibold">
+          <i class="bi bi-calendar-plus me-1"></i> Prenota un Automezzo Ora
+        </a>
+      </div>
+      {% endif %}
+    </div>
+
     <!-- Layout Grid -->
     <div class="row g-4">
       
@@ -205,6 +278,72 @@
       
     </div>
   </div>
+
+  <!-- Modal Completa Viaggio Home -->
+  <div class="modal fade" id="modalHomeCompletaViaggio" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered">
+      <div class="modal-content">
+        <div class="modal-header bg-danger text-white">
+          <h5 class="modal-title fw-bold"><i class="bi bi-flag-fill me-2"></i> Registra Arrivo / Fine Viaggio</h5>
+          <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
+        </div>
+        <form id="formHomeCompletaViaggio" action="" method="POST">
+          <div class="modal-body">
+            <div class="mb-3">
+              <label class="form-label text-muted fw-bold">Veicolo</label>
+              <input type="text" id="homeCompletaTarga" class="form-control bg-light" readonly>
+            </div>
+            <div class="mb-3">
+              <label class="form-label text-muted fw-bold">Chilometri Finali Rientro *</label>
+              <input type="number" name="km_finali" id="homeCompletaKmFinali" class="form-control" required>
+              <div class="form-text text-danger fw-semibold" id="homeCompletaKmHelp"></div>
+            </div>
+            <div class="mb-3">
+              <label class="form-label text-muted fw-bold">Sede di Rientro / Arrivo *</label>
+              <select name="sede_arrivo_id" class="form-select" required>
+                <option value="">-- Seleziona Sede Rientro --</option>
+                {% for s in stats.all_sedi %}
+                <option value="{{ s.sede_id }}">{{ s.nome }}</option>
+                {% endfor %}
+              </select>
+            </div>
+            <div class="mb-3">
+              <label class="form-label text-muted fw-bold">Orario Rientro Effettivo *</label>
+              <input type="time" name="ora_arrivo" id="homeCompletaOraArrivo" class="form-control" required>
+            </div>
+            <div class="mb-3">
+              <label class="form-label text-muted fw-bold">Note / Osservazioni (opzionale)</label>
+              <input type="text" name="note_finali" class="form-control" placeholder="Es. Veicolo parcheggiato in stallo 4">
+            </div>
+          </div>
+          <div class="modal-footer">
+            <button type="button" class="btn btn-light border" data-bs-dismiss="modal">Annulla</button>
+            <button type="submit" class="btn btn-danger fw-bold"><i class="bi bi-check-circle-fill me-1"></i> Conferma Rientro Viaggio</button>
+          </div>
+        </form>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    function openCompletaViaggioHomeModal(viaggioId, targa, minKm) {
+      document.getElementById("formHomeCompletaViaggio").action = "/autopark/completa/" + viaggioId;
+      document.getElementById("homeCompletaTarga").value = targa;
+      
+      const kmInp = document.getElementById("homeCompletaKmFinali");
+      kmInp.min = minKm;
+      kmInp.value = minKm;
+      
+      const helpEl = document.getElementById("homeCompletaKmHelp");
+      if (helpEl) helpEl.textContent = "Chilometri minimi consentiti: " + minKm + " km";
+      
+      const nowStr = new Date().toTimeString().split(" ")[0].substring(0, 5);
+      document.getElementById("homeCompletaOraArrivo").value = nowStr;
+      
+      const modal = new bootstrap.Modal(document.getElementById("modalHomeCompletaViaggio"));
+      modal.show();
+    }
+  </script>
 
   <footer class="bg-dark text-white text-center py-3 mt-auto">
     <div class="container">

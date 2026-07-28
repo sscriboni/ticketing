@@ -115,103 +115,115 @@
       </div>
     </div>
 
-    <!-- Layout Grid -->
-    <div class="row g-4">
+    <!-- Layout Grid: Elenco Automezzi ed Elenco Prenotazioni -->
+    <div class="row g-4 mb-4">
       
-      <!-- Recent Trips / Voyages -->
-      <div class="col-12 col-md-7">
+      <!-- Elenco Automezzi -->
+      <div class="col-12 col-xl-6">
         <div class="card shadow-sm border-0 rounded-3 p-4 h-100">
-          <h3 class="h5 fw-bold mb-3 d-flex align-items-center">
-            <i class="bi bi-signpost-split-fill text-teal me-2" style="color: #0d9488;"></i> Ultimi Viaggi Registrati
-          </h3>
-          {% if stats.fleet_recent_trips %}
-          <div class="table-responsive">
-            <table class="table table-hover align-middle">
-              <thead class="table-light">
+          <div class="d-flex justify-content-between align-items-center mb-3">
+            <h3 class="h5 fw-bold mb-0 d-flex align-items-center">
+              <i class="bi bi-car-front-fill text-teal me-2" style="color: #0d9488;"></i> Elenco Automezzi Flotta
+            </h3>
+            <a href="/admin/automezzi" class="btn btn-sm btn-outline-primary fw-semibold">
+              Gestione Completa &rarr;
+            </a>
+          </div>
+          {% if stats.fleet_vehicles_list %}
+          <div class="table-responsive" style="max-height: 380px; overflow-y: auto;">
+            <table class="table table-hover align-middle custom-table mb-0" style="font-size: 0.85rem;">
+              <thead class="table-light sticky-top">
                 <tr>
-                  <th>Veicolo</th>
-                  <th>Conducente</th>
-                  <th>Inizio</th>
-                  <th>Fine</th>
-                  <th>KM Effettuati</th>
+                  <th>Targa</th>
+                  <th>Marca & Modello</th>
+                  <th>Km Attuali</th>
+                  <th>Sede Attuale</th>
+                  <th>Stato</th>
                 </tr>
               </thead>
               <tbody>
-                 {% for viaggio in stats.fleet_recent_trips %}
-                 <tr>
-                   <td>
-                     <strong>{{ viaggio.targa }}</strong>
-                     <div class="small text-muted">{{ viaggio.marca }} {{ viaggio.modello }}</div>
-                   </td>
-                    <td>{{ viaggio.user_nome }} {{ viaggio.user_cognome }}</td>
-                    <td class="small">{{ viaggio.data_viaggio }} {{ viaggio.ora_partenza }}</td>
-                    <td class="small">
-                      {% if viaggio.ora_arrivo %}
-                        {{ viaggio.ora_arrivo }}
-                      {% elif viaggio.ora_partenza_effettiva %}
-                        In corso...
-                      {% else %}
-                        <span class="text-muted">Prenotato</span>
-                      {% endif %}
-                    </td>
-                    <td>
-                      {% if viaggio.km_finali %}
-                        <span class="badge bg-secondary">{{ viaggio.km_finali - viaggio.km_iniziali }} km</span>
-                      {% elif viaggio.ora_partenza_effettiva %}
-                        <span class="badge bg-success">In Corso</span>
-                      {% else %}
-                        <span class="badge bg-info">Prenotato</span>
-                      {% endif %}
-                    </td>
-                 </tr>
-                 {% endfor %}
+                {% for v in stats.fleet_vehicles_list %}
+                <tr>
+                  <td><span class="badge bg-secondary font-monospace">{{ v.targa }}</span></td>
+                  <td><strong>{{ v.marca_nome }} {{ v.modello }}</strong> <small class="text-muted d-block">{{ v.tipo }}</small></td>
+                  <td><span class="fw-bold text-primary">{{ v.km_attuali or 0 }}</span> <small class="text-muted">km</small></td>
+                  <td><small class="text-muted">{{ v.sede_attuale_nome or '-' }}</small></td>
+                  <td>
+                    <span class="badge bg-{{ 'success' if v.stato == 'Disponibile' else 'warning' if v.stato == 'In Uso' else 'danger' }} text-white">
+                      {{ v.stato }}
+                    </span>
+                  </td>
+                </tr>
+                {% endfor %}
               </tbody>
             </table>
           </div>
           {% else %}
-          <div class="text-center py-5">
-            <i class="bi bi-map-fill text-muted" style="font-size: 3rem;"></i>
-            <p class="text-muted mt-2 mb-0">Nessun viaggio registrato di recente.</p>
+          <div class="text-center py-4">
+            <i class="bi bi-car-front text-muted" style="font-size: 2.5rem;"></i>
+            <p class="text-muted mt-2 mb-0">Nessun veicolo presente in archivio.</p>
           </div>
           {% endif %}
         </div>
       </div>
 
-      <!-- Quick Autopark Operations -->
-      <div class="col-12 col-md-5">
+      <!-- Elenco Prenotazioni -->
+      <div class="col-12 col-xl-6">
         <div class="card shadow-sm border-0 rounded-3 p-4 h-100">
-          <h3 class="h5 fw-bold mb-3 d-flex align-items-center">
-            <i class="bi bi-car-front-fill text-teal me-2" style="color: #0d9488;"></i> Gestione Carpooling
-          </h3>
-          <div class="list-group list-group-flush">
-            <a href="/autopark" class="list-group-item list-group-item-action border-0 px-2 py-3 quick-link-item d-flex justify-content-between align-items-center">
-              <span><i class="bi bi-calendar3-event me-2 text-muted"></i> Tabellone Prenotazioni</span>
-              <i class="bi bi-chevron-right text-muted small"></i>
-            </a>
-            <a href="/admin/automezzi/dislocazioni" class="list-group-item list-group-item-action border-0 px-2 py-3 quick-link-item d-flex justify-content-between align-items-center">
-              <span><i class="bi bi-geo-fill me-2 text-primary"></i> Dislocazioni Automezzi</span>
-              <i class="bi bi-chevron-right text-muted small"></i>
-            </a>
-            <a href="/admin/automezzi" class="list-group-item list-group-item-action border-0 px-2 py-3 quick-link-item d-flex justify-content-between align-items-center">
-              <span><i class="bi bi-car-front me-2 text-muted"></i> Elenco Anagrafico Automezzi</span>
-              <i class="bi bi-chevron-right text-muted small"></i>
-            </a>
-            <a href="/admin/automezzi/manutenzioni" class="list-group-item list-group-item-action border-0 px-2 py-3 quick-link-item d-flex justify-content-between align-items-center">
-              <span><i class="bi bi-wrench-adjustable-circle me-2 text-muted"></i> Registro Manutenzioni Automezzi</span>
-              <i class="bi bi-chevron-right text-muted small"></i>
-            </a>
-            <a href="/admin/automezzi/viaggi" class="list-group-item list-group-item-action border-0 px-2 py-3 quick-link-item d-flex justify-content-between align-items-center">
-              <span><i class="bi bi-signpost-fill me-2 text-muted"></i> Registro Completo Viaggi</span>
-              <i class="bi bi-chevron-right text-muted small"></i>
-            </a>
-            <a href="/admin/automezzi/marche" class="list-group-item list-group-item-action border-0 px-2 py-3 quick-link-item d-flex justify-content-between align-items-center">
-              <span><i class="bi bi-tags me-2 text-muted"></i> Gestione Marche e Costruttori</span>
-              <i class="bi bi-chevron-right text-muted small"></i>
+          <div class="d-flex justify-content-between align-items-center mb-3">
+            <h3 class="h5 fw-bold mb-0 d-flex align-items-center">
+              <i class="bi bi-calendar3-event text-teal me-2" style="color: #0d9488;"></i> Elenco Prenotazioni Automezzi
+            </h3>
+            <a href="/autopark" class="btn btn-sm btn-outline-primary fw-semibold">
+              Tabellone Carpooling &rarr;
             </a>
           </div>
+          {% if stats.fleet_prenotazioni_list %}
+          <div class="table-responsive" style="max-height: 380px; overflow-y: auto;">
+            <table class="table table-hover align-middle custom-table mb-0" style="font-size: 0.85rem;">
+              <thead class="table-light sticky-top">
+                <tr>
+                  <th>Veicolo</th>
+                  <th>Richiedente</th>
+                  <th>Data & Orario</th>
+                  <th>Stato Viaggio</th>
+                </tr>
+              </thead>
+              <tbody>
+                {% for p in stats.fleet_prenotazioni_list %}
+                <tr>
+                  <td>
+                    <span class="badge bg-secondary font-monospace">{{ p.targa }}</span>
+                    <small class="d-block text-muted">{{ p.marca_nome }} {{ p.modello }}</small>
+                  </td>
+                  <td><span class="fw-semibold">{{ p.user_nome }} {{ p.user_cognome }}</span></td>
+                  <td>
+                    <small class="fw-bold text-dark">{{ p.data_viaggio }}</small>
+                    <small class="d-block text-muted">{{ p.ora_partenza }} &rarr; {{ p.ora_arrivo_presunta or '-' }}</small>
+                  </td>
+                  <td>
+                    {% if p.ora_arrivo %}
+                      <span class="badge bg-secondary"><i class="bi bi-check-circle me-1"></i> Completato</span>
+                    {% elif p.ora_partenza_effettiva %}
+                      <span class="badge bg-success"><i class="bi bi-car-front-fill me-1"></i> In Corso (Partito {{ p.ora_partenza_effettiva }})</span>
+                    {% else %}
+                      <span class="badge bg-warning text-dark"><i class="bi bi-clock me-1"></i> Prenotato</span>
+                    {% endif %}
+                  </td>
+                </tr>
+                {% endfor %}
+              </tbody>
+            </table>
+          </div>
+          {% else %}
+          <div class="text-center py-4">
+            <i class="bi bi-calendar-x text-muted" style="font-size: 2.5rem;"></i>
+            <p class="text-muted mt-2 mb-0">Nessuna prenotazione registrata di recente.</p>
+          </div>
+          {% endif %}
         </div>
       </div>
-      
+
     </div>
   </div>
 

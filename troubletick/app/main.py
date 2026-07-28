@@ -768,6 +768,23 @@ def home(r: Request):
                 "operator_recent_tickets": operator_recent_tickets,
                 "operator_services": operator_services
             }
+
+            # Vehicle bookings for support operator
+            operator_prenotazioni = c.execute(text("""
+                SELECT v.*, a.targa, m.nome as marca_nome, a.modello, a.km_attuali as auto_km_attuali,
+                       sp.nome as sede_partenza_nome, sa.nome as sede_arrivo_nome
+                FROM viaggi_automezzi v 
+                JOIN automezzi a ON v.automezzo_id = a.automezzo_id 
+                JOIN marche_automezzi m ON a.marca_id = m.marca_id
+                LEFT JOIN sedi sp ON v.sede_partenza_id = sp.sede_id
+                LEFT JOIN sedi sa ON v.sede_arrivo_presunta_id = sa.sede_id
+                WHERE v.user_id = :uid AND v.ora_arrivo IS NULL
+                ORDER BY v.data_viaggio DESC, v.ora_partenza DESC
+            """), {"uid": uid}).mappings().all()
+            all_sedi = c.execute(text("SELECT sede_id, nome FROM sedi ORDER BY nome")).mappings().all()
+            stats["operator_prenotazioni"] = operator_prenotazioni
+            stats["all_sedi"] = all_sedi
+
             return templates.TemplateResponse(r, "home_assistenza.html", {"request": r, "cfg": CFG, "avvisi": avvisi, "user": user, "stats": stats})
             
         elif ruolo in ("fleet_manager", "global_fleet_manager"):
@@ -787,16 +804,31 @@ def home(r: Request):
                     JOIN automezzi a ON m.automezzo_id = a.automezzo_id
                     WHERE a.reparto_assegnato_id = :rep AND (m.data_fine IS NULL OR m.data_fine = '')
                 """), {"rep": user_rep_id}).scalar() or 0
-                fleet_recent_trips = c.execute(text("""
-                    SELECT v.*, a.targa, b.nome as marca, a.modello,
-                           u.nome as user_nome, u.cognome as user_cognome
+                
+                fleet_vehicles_list = c.execute(text("""
+                    SELECT a.*, m.nome as marca_nome, s1.nome as sede_assegnata_nome, s2.nome as sede_attuale_nome, r.nome as reparto_assegnato_nome
+                    FROM automezzi a
+                    JOIN marche_automezzi m ON a.marca_id = m.marca_id
+                    LEFT JOIN sedi s1 ON a.sede_assegnata_id = s1.sede_id
+                    LEFT JOIN sedi s2 ON a.sede_attuale_id = s2.sede_id
+                    LEFT JOIN reparti r ON a.reparto_assegnato_id = r.reparto_id
+                    WHERE a.reparto_assegnato_id = :rep
+                    ORDER BY a.targa
+                """), {"rep": user_rep_id}).mappings().all()
+
+                fleet_prenotazioni_list = c.execute(text("""
+                    SELECT v.*, a.targa, m.nome as marca_nome, a.modello,
+                           u.nome as user_nome, u.cognome as user_cognome,
+                           sp.nome as sede_partenza_nome, sa.nome as sede_arrivo_nome
                     FROM viaggi_automezzi v 
                     JOIN automezzi a ON v.automezzo_id = a.automezzo_id 
-                    JOIN marche_automezzi b ON a.marca_id = b.marca_id
+                    JOIN marche_automezzi m ON a.marca_id = m.marca_id
                     JOIN users u ON v.user_id = u.user_id
+                    LEFT JOIN sedi sp ON v.sede_partenza_id = sp.sede_id
+                    LEFT JOIN sedi sa ON v.sede_arrivo_presunta_id = sa.sede_id
                     WHERE a.reparto_assegnato_id = :rep
                     ORDER BY v.data_viaggio DESC, v.ora_partenza DESC 
-                    LIMIT 5
+                    LIMIT 30
                 """), {"rep": user_rep_id}).mappings().all()
             else:
                 fleet_total = c.execute(text("SELECT COUNT(*) FROM automezzi")).scalar() or 0
@@ -804,23 +836,39 @@ def home(r: Request):
                 fleet_in_use = c.execute(text("SELECT COUNT(*) FROM automezzi WHERE stato = 'In Uso'")).scalar() or 0
                 fleet_maintenance = c.execute(text("SELECT COUNT(*) FROM automezzi WHERE stato = 'In Manutenzione'")).scalar() or 0
                 fleet_active_maintenance = c.execute(text("SELECT COUNT(*) FROM manutenzioni_automezzi WHERE data_fine IS NULL OR data_fine = ''")).scalar() or 0
-                fleet_recent_trips = c.execute(text("""
-                    SELECT v.*, a.targa, b.nome as marca, a.modello,
-                           u.nome as user_nome, u.cognome as user_cognome
+                
+                fleet_vehicles_list = c.execute(text("""
+                    SELECT a.*, m.nome as marca_nome, s1.nome as sede_assegnata_nome, s2.nome as sede_attuale_nome, r.nome as reparto_assegnato_nome
+                    FROM automezzi a
+                    JOIN marche_automezzi m ON a.marca_id = m.marca_id
+                    LEFT JOIN sedi s1 ON a.sede_assegnata_id = s1.sede_id
+                    LEFT JOIN sedi s2 ON a.sede_attuale_id = s2.sede_id
+                    LEFT JOIN reparti r ON a.reparto_assegnato_id = r.reparto_id
+                    ORDER BY a.targa
+                """)).mappings().all()
+
+                fleet_prenotazioni_list = c.execute(text("""
+                    SELECT v.*, a.targa, m.nome as marca_nome, a.modello,
+                           u.nome as user_nome, u.cognome as user_cognome,
+                           sp.nome as sede_partenza_nome, sa.nome as sede_arrivo_nome
                     FROM viaggi_automezzi v 
                     JOIN automezzi a ON v.automezzo_id = a.automezzo_id 
-                    JOIN marche_automezzi b ON a.marca_id = b.marca_id
+                    JOIN marche_automezzi m ON a.marca_id = m.marca_id
                     JOIN users u ON v.user_id = u.user_id
+                    LEFT JOIN sedi sp ON v.sede_partenza_id = sp.sede_id
+                    LEFT JOIN sedi sa ON v.sede_arrivo_presunta_id = sa.sede_id
                     ORDER BY v.data_viaggio DESC, v.ora_partenza DESC 
-                    LIMIT 5
+                    LIMIT 30
                 """)).mappings().all()
+
             stats = {
                 "fleet_total": fleet_total,
                 "fleet_available": fleet_available,
                 "fleet_in_use": fleet_in_use,
                 "fleet_maintenance": fleet_maintenance,
                 "fleet_active_maintenance": fleet_active_maintenance,
-                "fleet_recent_trips": fleet_recent_trips
+                "fleet_vehicles_list": fleet_vehicles_list,
+                "fleet_prenotazioni_list": fleet_prenotazioni_list
             }
             return templates.TemplateResponse(r, "home_fleet_manager.html", {"request": r, "cfg": CFG, "avvisi": avvisi, "user": user, "stats": stats})
             
@@ -847,12 +895,28 @@ def home(r: Request):
                 ORDER BY rm.creato_il DESC
                 LIMIT 5
             """), {"uid": uid}).mappings().all()
+
+            user_prenotazioni = c.execute(text("""
+                SELECT v.*, a.targa, m.nome as marca_nome, a.modello, a.km_attuali as auto_km_attuali,
+                       sp.nome as sede_partenza_nome, sa.nome as sede_arrivo_nome
+                FROM viaggi_automezzi v 
+                JOIN automezzi a ON v.automezzo_id = a.automezzo_id 
+                JOIN marche_automezzi m ON a.marca_id = m.marca_id
+                LEFT JOIN sedi sp ON v.sede_partenza_id = sp.sede_id
+                LEFT JOIN sedi sa ON v.sede_arrivo_presunta_id = sa.sede_id
+                WHERE v.user_id = :uid AND v.ora_arrivo IS NULL
+                ORDER BY v.data_viaggio DESC, v.ora_partenza DESC
+            """), {"uid": uid}).mappings().all()
+            all_sedi = c.execute(text("SELECT sede_id, nome FROM sedi ORDER BY nome")).mappings().all()
+
             stats = {
                 "user_open_tickets": user_open_tickets,
                 "user_closed_tickets": user_closed_tickets,
                 "user_pending_requests": user_pending_requests,
                 "user_recent_tickets": user_recent_tickets,
-                "user_recent_requests": user_recent_requests
+                "user_recent_requests": user_recent_requests,
+                "user_prenotazioni": user_prenotazioni,
+                "all_sedi": all_sedi
             }
             return templates.TemplateResponse(r, "home_normale.html", {"request": r, "cfg": CFG, "avvisi": avvisi, "user": user, "stats": stats})
 
