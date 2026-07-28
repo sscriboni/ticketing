@@ -909,12 +909,20 @@ def import_km_from_rifornimenti(automezzo_id: int, r: Request):
                 latest_refuel_date = r_data
                 latest_refuel_km = r_km
 
-        # Rule check: "se la data dell'ultimo rifornimento è maggiore dell'ultima inserita, aggiorna il contachilomentri dell'auto"
-        if latest_refuel_date and (not last_reg_date or latest_refuel_date >= last_reg_date):
-            if latest_refuel_km > current_km:
-                conn.execute(text("""
-                    UPDATE automezzi SET km_attuali = :new_km WHERE automezzo_id = :aid
-                """), {"new_km": latest_refuel_km, "aid": automezzo_id})
+        # Rule check: "l'importazione dallo storico deve aggiornare il contachilometri se la data di aggiornamento è piu' vecchia dell'ultimo rifornimento o il contachilometri è 0"
+        should_update_km = False
+        if latest_refuel_km > 0:
+            if current_km == 0:
+                should_update_km = True
+            elif not last_reg_date or last_reg_date <= latest_refuel_date:
+                should_update_km = True
+            elif latest_refuel_km > current_km:
+                should_update_km = True
+
+        if should_update_km:
+            conn.execute(text("""
+                UPDATE automezzi SET km_attuali = :new_km WHERE automezzo_id = :aid
+            """), {"new_km": latest_refuel_km, "aid": automezzo_id})
 
     referer = r.headers.get("referer") or "/admin/automezzi"
     separator = "&" if "?" in referer else "?"
