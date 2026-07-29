@@ -771,13 +771,14 @@ def home(r: Request):
 
             # Vehicle bookings for support operator
             operator_prenotazioni = c.execute(text("""
-                SELECT v.*, a.targa, m.nome as marca_nome, a.modello, a.km_attuali as auto_km_attuali,
+                SELECT v.*, v.ora_riconsegna_prevista as ora_arrivo_presunta,
+                       a.targa, m.nome as marca_nome, a.modello, a.km_attuali as auto_km_attuali,
                        sp.nome as sede_partenza_nome, sa.nome as sede_arrivo_nome
                 FROM viaggi_automezzi v 
                 JOIN automezzi a ON v.automezzo_id = a.automezzo_id 
                 JOIN marche_automezzi m ON a.marca_id = m.marca_id
                 LEFT JOIN sedi sp ON v.sede_partenza_id = sp.sede_id
-                LEFT JOIN sedi sa ON v.sede_arrivo_presunta_id = sa.sede_id
+                LEFT JOIN sedi sa ON v.sede_arrivo_id = sa.sede_id
                 WHERE v.user_id = :uid AND v.ora_arrivo IS NULL
                 ORDER BY v.data_viaggio DESC, v.ora_partenza DESC
             """), {"uid": uid}).mappings().all()
@@ -817,7 +818,8 @@ def home(r: Request):
                 """), {"rep": user_rep_id}).mappings().all()
 
                 fleet_prenotazioni_list = c.execute(text("""
-                    SELECT v.*, a.targa, m.nome as marca_nome, a.modello,
+                    SELECT v.*, v.ora_riconsegna_prevista as ora_arrivo_presunta,
+                           a.targa, m.nome as marca_nome, a.modello,
                            u.nome as user_nome, u.cognome as user_cognome,
                            sp.nome as sede_partenza_nome, sa.nome as sede_arrivo_nome
                     FROM viaggi_automezzi v 
@@ -825,7 +827,7 @@ def home(r: Request):
                     JOIN marche_automezzi m ON a.marca_id = m.marca_id
                     JOIN users u ON v.user_id = u.user_id
                     LEFT JOIN sedi sp ON v.sede_partenza_id = sp.sede_id
-                    LEFT JOIN sedi sa ON v.sede_arrivo_presunta_id = sa.sede_id
+                    LEFT JOIN sedi sa ON v.sede_arrivo_id = sa.sede_id
                     WHERE a.reparto_assegnato_id = :rep
                     ORDER BY v.data_viaggio DESC, v.ora_partenza DESC 
                     LIMIT 30
@@ -848,7 +850,8 @@ def home(r: Request):
                 """)).mappings().all()
 
                 fleet_prenotazioni_list = c.execute(text("""
-                    SELECT v.*, a.targa, m.nome as marca_nome, a.modello,
+                    SELECT v.*, v.ora_riconsegna_prevista as ora_arrivo_presunta,
+                           a.targa, m.nome as marca_nome, a.modello,
                            u.nome as user_nome, u.cognome as user_cognome,
                            sp.nome as sede_partenza_nome, sa.nome as sede_arrivo_nome
                     FROM viaggi_automezzi v 
@@ -856,7 +859,7 @@ def home(r: Request):
                     JOIN marche_automezzi m ON a.marca_id = m.marca_id
                     JOIN users u ON v.user_id = u.user_id
                     LEFT JOIN sedi sp ON v.sede_partenza_id = sp.sede_id
-                    LEFT JOIN sedi sa ON v.sede_arrivo_presunta_id = sa.sede_id
+                    LEFT JOIN sedi sa ON v.sede_arrivo_id = sa.sede_id
                     ORDER BY v.data_viaggio DESC, v.ora_partenza DESC 
                     LIMIT 30
                 """)).mappings().all()
@@ -897,13 +900,14 @@ def home(r: Request):
             """), {"uid": uid}).mappings().all()
 
             user_prenotazioni = c.execute(text("""
-                SELECT v.*, a.targa, m.nome as marca_nome, a.modello, a.km_attuali as auto_km_attuali,
+                SELECT v.*, v.ora_riconsegna_prevista as ora_arrivo_presunta,
+                       a.targa, m.nome as marca_nome, a.modello, a.km_attuali as auto_km_attuali,
                        sp.nome as sede_partenza_nome, sa.nome as sede_arrivo_nome
                 FROM viaggi_automezzi v 
                 JOIN automezzi a ON v.automezzo_id = a.automezzo_id 
                 JOIN marche_automezzi m ON a.marca_id = m.marca_id
                 LEFT JOIN sedi sp ON v.sede_partenza_id = sp.sede_id
-                LEFT JOIN sedi sa ON v.sede_arrivo_presunta_id = sa.sede_id
+                LEFT JOIN sedi sa ON v.sede_arrivo_id = sa.sede_id
                 WHERE v.user_id = :uid AND v.ora_arrivo IS NULL
                 ORDER BY v.data_viaggio DESC, v.ora_partenza DESC
             """), {"uid": uid}).mappings().all()
