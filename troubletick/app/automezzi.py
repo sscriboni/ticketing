@@ -3305,7 +3305,7 @@ def import_rifornimenti(
                     mapped_data[mapped_field] = col_val.strip() if col_val else None
 
             targa_raw = mapped_data.get("targa")
-            targa = targa_raw.upper().replace(" ", "").replace("-", "") if targa_raw else None
+            targa = targa_raw.upper().replace(" ", "").replace("-", "") if targa_raw else ""
             
             raw_data = mapped_data.get("data")
             parsed_data = parse_date(raw_data)
@@ -3313,7 +3313,14 @@ def import_rifornimenti(
             if ora_val:
                 ora_val = ora_val.strip()
 
-            if not targa:
+            row_km = parse_int(mapped_data.get("km"))
+
+            # Regola speciale: se KM == 1, significa che il rifornimento è stato fatto con la scheda carburante di un'altra auto.
+            # Il rifornimento deve essere comunque caricato a sistema, ma con targa vuota ("").
+            is_km_1 = (row_km == 1)
+            targa_effettiva = "" if is_km_1 else targa
+
+            if not is_km_1 and not targa:
                 discarded_list.append({
                     "linea": line_idx,
                     "targa": "-",
@@ -3325,17 +3332,14 @@ def import_rifornimenti(
             if not parsed_data:
                 discarded_list.append({
                     "linea": line_idx,
-                    "targa": targa,
+                    "targa": targa or "-",
                     "data": raw_data or "-",
                     "motivo": "Campo 'Data' mancante o formato non riconosciuto"
                 })
                 continue
 
-            row_km = parse_int(mapped_data.get("km"))
-
-            # Optional vehicle KM odometer update logic requested by user
-            # Executed in-memory fast
-            if aggiorna_km_auto and row_km >= 10:
+            # Optional vehicle KM odometer update logic
+            if aggiorna_km_auto and row_km >= 10 and targa:
                 car = automezzi_map.get(targa)
                 if car:
                     aid = car["automezzo_id"]
@@ -3362,36 +3366,27 @@ def import_rifornimenti(
                             automezzi_map[targa]["km_attuali"] = row_km
                             km_updated_vehicles.add(aid)
 
-            # Duplicate Check 1: Check duplicate within the same CSV file
-            dup_key = (targa, parsed_data, ora_val or "")
+            # Duplicate Check logic
+            pan_val = mapped_data.get("pan_carta") or ""
+            dup_targa_key = targa if targa else (pan_val or "KM1")
+            dup_key = (dup_targa_key, parsed_data, ora_val or "", parse_float(mapped_data.get("imp_scontato")) or parse_float(mapped_data.get("imp_intero")))
             if dup_key in seen_in_file:
                 discarded_list.append({
                     "linea": line_idx,
-                    "targa": targa,
+                    "targa": targa or "-",
                     "data": parsed_data or raw_data or "-",
-                    "motivo": f"Record duplicato all'interno del file CSV (targa: {targa}, data: {parsed_data}, ora: {ora_val or '-'})"
-                })
-                continue
-
-            # Duplicate Check 2: Check duplicate in Database (in-memory lookup)
-            if dup_key in db_rifornimenti_set or (targa, parsed_data, "") in db_rifornimenti_set:
-                discarded_list.append({
-                    "linea": line_idx,
-                    "targa": targa,
-                    "data": parsed_data or raw_data or "-",
-                    "motivo": f"Record duplicato già presente nel database (targa: {targa}, data: {parsed_data}, ora: {ora_val or '-'})"
+                    "motivo": f"Record duplicato all'interno del file CSV (targa: {targa or '-'}, data: {parsed_data}, ora: {ora_val or '-'})"
                 })
                 continue
 
             seen_in_file.add(dup_key)
-            db_rifornimenti_set.add(dup_key)
 
             rifornimenti_to_insert.append({
                 "pan_carta": mapped_data.get("pan_carta"),
                 "data": parsed_data,
                 "ora": ora_val,
                 "prodotto": mapped_data.get("prodotto"),
-                "targa": targa,
+                "targa": targa_effettiva,
                 "km": row_km,
                 "cod_terminale": mapped_data.get("cod_terminale"),
                 "cod_impianto": mapped_data.get("cod_impianto"),

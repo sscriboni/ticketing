@@ -282,7 +282,11 @@
                                 {% if r.ora %}<small class="text-muted ms-1">{{ r.ora }}</small>{% endif %}
                             </td>
                             <td>
-                                <strong class="font-monospace text-dark fs-5 text-uppercase" style="letter-spacing: 1.5px; font-weight: 800;">{{ r.targa }}</strong>
+                                {% if r.targa %}
+                                    <strong class="font-monospace text-dark fs-5 text-uppercase" style="letter-spacing: 1.5px; font-weight: 800;">{{ r.targa }}</strong>
+                                {% else %}
+                                    <span class="badge bg-secondary-subtle text-secondary border px-2 py-1" title="Rifornimento effettuato con carta di altra auto (Km = 1)"><i class="bi bi-credit-card-2-front me-1"></i>Scheda Altra Auto</span>
+                                {% endif %}
                             </td>
                             <td>
                                 <span class="badge bg-secondary text-capitalize">{{ r.prodotto or '-' }}</span>
@@ -456,6 +460,7 @@
                                 Verranno importate automaticamente le colonne della scheda Q8: <br>
                                 <code>PAN Carta</code> → <code>pan_carta</code>, <code>Data</code> → <code>data</code>, <code>Ora</code> → <code>ora</code>, <code>Prod.</code> → <code>prodotto</code>, <code>Targa</code> → <code>targa</code>, <code>Km</code> → <code>km</code>, <code>Cod. Term.</code> → <code>cod_terminale</code>, <code>Impianto</code> → <code>cod_impianto</code>, <code>Indirizzo</code> → <code>indirizzo</code>, <code>Città</code> → <code>citta</code>, <code>Imp. intero</code> → <code>imp_intero</code>, <code>Imp. intero no IVA</code> → <code>imp_intero_no_IVA</code>, <code>Volume</code> → <code>volume</code>, <code>Prezzo EUR/l</code> → <code>prezzo_eur_l</code>, <code>Sconto EUR/l</code> → <code>sconto_eur_l</code>, <code>Prezzo Scontato</code> → <code>prezzo_scontato</code>, <code>Imp. Scontato</code> → <code>imp_scontato</code>, <code>IVA</code> → <code>iva</code>, <code>Imp. Scontato no IVA</code> → <code>imp_scontato_no_IVA</code>, <code>Tipo servizio</code> → <code>tipo_servizio</code>.<br>
                                 <span class="text-danger mt-1 d-block"><i class="bi bi-info-circle me-1"></i> I record sprovvisti di Targa o Data valida verranno scartati ed evidenziati al termine dell'importazione.</span>
+                                <span class="text-primary mt-1 d-block"><i class="bi bi-credit-card-2-front me-1"></i> <strong>Regola Scheda Altra Auto (KM = 1):</strong> I rifornimenti con <code>Km = 1</code> verranno regolarmente caricati a sistema ma con <strong>targa vuota</strong>.</span>
                             </div>
                         </div>
                     </div>
