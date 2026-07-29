@@ -123,7 +123,7 @@
             {% if user.ruolo in ('admin', 'fleet_manager', 'global_fleet_manager') %}
             <div class="d-flex gap-2">
                 <button class="btn btn-outline-primary px-3 py-2 fw-semibold" data-bs-toggle="modal" data-bs-target="#importRifornimentiModal">
-                    <i class="bi bi-file-earmark-arrow-up me-1"></i> Importa CSV
+                    <i class="bi bi-file-earmark-arrow-up me-1"></i> Importa Q8 (CSV)
                 </button>
                 <a href="/admin/automezzi/rifornimenti/esporta/csv?q={{ filters.q }}&targa={{ filters.targa }}&prodotto={{ filters.prodotto }}&pan_carta={{ filters.pan_carta }}&citta={{ filters.citta }}&data_dal={{ filters.data_dal }}&data_al={{ filters.data_al }}" class="btn btn-outline-success px-3 py-2 fw-semibold" title="Esporta dati filtrati in CSV">
                     <i class="bi bi-file-earmark-excel me-1"></i> Esporta CSV
@@ -427,13 +427,18 @@
         <div class="modal-dialog modal-dialog-centered">
             <div class="modal-content">
                 <div class="modal-header bg-primary text-white">
-                    <h5 class="modal-title fw-bold" id="importRifornimentiModalLabel"><i class="bi bi-file-earmark-arrow-up me-2"></i> Importa Rifornimenti da CSV</h5>
+                    <h5 class="modal-title fw-bold" id="importRifornimentiModalLabel"><i class="bi bi-file-earmark-arrow-up me-2"></i> Importa Rifornimenti Q8 (CSV)</h5>
                     <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
                 </div>
                 <form action="/admin/automezzi/rifornimenti/importa" method="POST" enctype="multipart/form-data">
                     <div class="modal-body">
                         <div class="mb-3">
-                            <label class="form-label fw-bold">Seleziona File CSV</label>
+                            <div class="alert alert-info py-2 px-3 mb-3 border-0 rounded-3 text-dark small">
+                                <i class="bi bi-fuel-pump-fill me-1 text-primary fw-bold"></i> <strong>Tracciato Fornitore Q8 (Cartissima Q8):</strong><br>
+                                Il sistema acquisisce ed elabora il file CSV generato dal portale Carte Carburante Q8.
+                            </div>
+
+                            <label class="form-label fw-bold">Seleziona File CSV Q8</label>
                             <input type="file" name="file" class="form-control" accept=".csv" required>
                             
                             <div class="form-check p-3 bg-light rounded-3 border mt-3">
@@ -447,8 +452,8 @@
                             </div>
 
                             <div class="form-text mt-3" style="font-size: 0.75rem;">
-                                <strong>Tracciato Fornitore Mappato:</strong><br>
-                                Verranno importate automaticamente le colonne: <br>
+                                <strong>Tracciato Q8 Mappato:</strong><br>
+                                Verranno importate automaticamente le colonne della scheda Q8: <br>
                                 <code>PAN Carta</code> → <code>pan_carta</code>, <code>Data</code> → <code>data</code>, <code>Ora</code> → <code>ora</code>, <code>Prod.</code> → <code>prodotto</code>, <code>Targa</code> → <code>targa</code>, <code>Km</code> → <code>km</code>, <code>Cod. Term.</code> → <code>cod_terminale</code>, <code>Impianto</code> → <code>cod_impianto</code>, <code>Indirizzo</code> → <code>indirizzo</code>, <code>Città</code> → <code>citta</code>, <code>Imp. intero</code> → <code>imp_intero</code>, <code>Imp. intero no IVA</code> → <code>imp_intero_no_IVA</code>, <code>Volume</code> → <code>volume</code>, <code>Prezzo EUR/l</code> → <code>prezzo_eur_l</code>, <code>Sconto EUR/l</code> → <code>sconto_eur_l</code>, <code>Prezzo Scontato</code> → <code>prezzo_scontato</code>, <code>Imp. Scontato</code> → <code>imp_scontato</code>, <code>IVA</code> → <code>iva</code>, <code>Imp. Scontato no IVA</code> → <code>imp_scontato_no_IVA</code>, <code>Tipo servizio</code> → <code>tipo_servizio</code>.<br>
                                 <span class="text-danger mt-1 d-block"><i class="bi bi-info-circle me-1"></i> I record sprovvisti di Targa o Data valida verranno scartati ed evidenziati al termine dell'importazione.</span>
                             </div>
