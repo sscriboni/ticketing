@@ -70,7 +70,7 @@
                                 {% set active_count.value = active_count.value + 1 %}
                                 <tr>
                                     <td><strong>{{ m.marca }} {{ m.modello }}</strong></td>
-                                    <td><span class="badge bg-secondary font-monospace">{{ m.targa }}</span></td>
+                                    <td><strong class="font-monospace text-dark fs-6 text-uppercase" style="letter-spacing: 1.2px; font-weight: 800;">{{ m.targa }}</strong></td>
                                     <td><span class="badge bg-info text-dark">{{ m.tipo_servizio }}</span></td>
                                     <td>{{ m.luogo }}</td>
                                     <td>{{ m.data_inizio }} alle {{ m.ora_inizio }}</td>
@@ -132,7 +132,7 @@
                             {% for p in manutenzioni_programmate %}
                             <tr>
                                 <td><strong>{{ p.marca }} {{ p.modello }}</strong></td>
-                                <td><span class="badge bg-secondary font-monospace">{{ p.targa }}</span></td>
+                                <td><strong class="font-monospace text-dark fs-6 text-uppercase" style="letter-spacing: 1.2px; font-weight: 800;">{{ p.targa }}</strong></td>
                                 <td><span class="badge bg-info text-dark">{{ p.tipo_nome }}</span></td>
                                 
                                 <td>
@@ -202,7 +202,7 @@
                                 {% set history_count.value = history_count.value + 1 %}
                                 <tr>
                                     <td>{{ m.marca }} {{ m.modello }}</td>
-                                    <td><span class="badge bg-light text-dark border font-monospace">{{ m.targa }}</span></td>
+                                    <td><strong class="font-monospace text-dark fs-6 text-uppercase" style="letter-spacing: 1.2px; font-weight: 800;">{{ m.targa }}</strong></td>
                                     <td><span class="badge bg-light text-dark border">{{ m.tipo_servizio }}</span></td>
                                     <td>{{ m.luogo }}</td>
                                     <td>{{ m.data_inizio }}</td>

@@ -108,8 +108,8 @@
             {% for p in stats.user_prenotazioni %}
             <tr>
               <td>
-                <span class="badge bg-secondary font-monospace">{{ p.targa }}</span>
-                <strong class="d-block text-dark">{{ p.marca_nome }} {{ p.modello }}</strong>
+                <strong class="font-monospace text-dark fs-5 text-uppercase" style="letter-spacing: 1.5px; font-weight: 800;">{{ p.targa }}</strong>
+                <small class="d-block text-muted">{{ p.marca_nome }} {{ p.modello }}</small>
               </td>
               <td>
                 <span class="fw-bold text-dark">{{ p.data_viaggio }}</span>

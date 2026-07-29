@@ -68,7 +68,7 @@
                             {% for v in viaggi_in_corso %}
                             <tr>
                                 <td><span class="fw-bold">{{ v.marca }} {{ v.modello }}</span></td>
-                                <td><span class="badge bg-secondary font-monospace">{{ v.targa }}</span></td>
+                                <td><strong class="font-monospace text-dark fs-6 text-uppercase" style="letter-spacing: 1.2px; font-weight: 800;">{{ v.targa }}</strong></td>
                                 <td>{{ v.user_nome }} {{ v.user_cognome }}</td>
                                 <td><i class="bi bi-geo-alt-fill text-danger me-1"></i>{{ v.sede_partenza_nome }}</td>
                                 <td>{{ v.data_viaggio }} alle {{ v.ora_partenza }}</td>
@@ -119,7 +119,7 @@
                             {% for v in prenotazioni %}
                             <tr>
                                 <td><span class="fw-bold">{{ v.marca }} {{ v.modello }}</span></td>
-                                <td><span class="badge bg-secondary font-monospace">{{ v.targa }}</span></td>
+                                <td><strong class="font-monospace text-dark fs-6 text-uppercase" style="letter-spacing: 1.2px; font-weight: 800;">{{ v.targa }}</strong></td>
                                 <td>{{ v.user_nome }} {{ v.user_cognome }}</td>
                                 <td><i class="bi bi-geo-alt-fill text-danger me-1"></i>{{ v.sede_partenza_nome }}</td>
                                 <td>{{ v.data_viaggio }} alle {{ v.ora_partenza }}</td>
@@ -182,7 +182,7 @@
                             {% for v in viaggi_completati %}
                             <tr>
                                 <td class="vehicle-name"><span class="fw-medium">{{ v.marca }} {{ v.modello }}</span></td>
-                                <td class="vehicle-targa"><span class="badge bg-secondary font-monospace">{{ v.targa }}</span></td>
+                                <td class="vehicle-targa"><strong class="font-monospace text-dark fs-6 text-uppercase" style="letter-spacing: 1.2px; font-weight: 800;">{{ v.targa }}</strong></td>
                                 <td class="driver-name">{{ v.user_nome }} {{ v.user_cognome }}</td>
                                 <td>{{ v.sede_partenza_nome }}</td>
                                 <td><i class="bi bi-geo-alt-fill text-danger me-1"></i>{{ v.sede_arrivo_nome }}</td>
