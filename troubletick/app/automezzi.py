@@ -319,6 +319,11 @@ def page_dislocazioni(r: Request):
                 ORDER BY s_ass.nome, r.nome, a.targa
             """)).mappings().all()
 
+        marche = conn.execute(text("SELECT * FROM marche_automezzi ORDER BY nome")).mappings().all()
+        sedi = conn.execute(text("SELECT * FROM sedi ORDER BY nome")).mappings().all()
+        reparti = conn.execute(text("SELECT * FROM reparti ORDER BY nome")).mappings().all()
+        tipi_manutenzione = conn.execute(text("SELECT * FROM tipi_manutenzione ORDER BY nome")).mappings().all()
+
     sedi_map = {}
     servizi_map = {}
 
@@ -390,7 +395,12 @@ def page_dislocazioni(r: Request):
         "request": r, "cfg": CFG, "user": user,
         "elenco_sedi": elenco_sedi,
         "elenco_servizi": elenco_servizi,
-        "stats": stats
+        "stats": stats,
+        "marche": marche,
+        "sedi": sedi,
+        "reparti": reparti,
+        "tipi_manutenzione": tipi_manutenzione,
+        "user_reparto_id": user_reparto_id
     })
 
 @router.get("/admin/automezzi", response_class=HTMLResponse)
@@ -796,6 +806,9 @@ async def edit_vehicle(
                     VALUES (:aid, :tid, :din, :kmp)
                 """), {"aid": id, "tid": int(tid), "din": din, "kmp": kmp})
                 
+    referer = r.headers.get("referer") or ""
+    if "dislocazioni" in referer:
+        return RedirectResponse(url="/admin/automezzi/dislocazioni", status_code=303)
     return RedirectResponse(url="/admin/automezzi", status_code=303)
 
 @router.get("/admin/automezzi/registro-km/{automezzo_id}")
