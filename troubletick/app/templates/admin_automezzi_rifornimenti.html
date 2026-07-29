@@ -91,6 +91,11 @@
                                 {% endfor %}
                             </tbody>
                         </table>
+                        {% if import_result.discarded_count > import_result.discarded|length %}
+                        <div class="small text-muted p-2 text-center border-top bg-light">
+                            <i class="bi bi-info-circle me-1"></i> Mostrati i primi {{ import_result.discarded|length }} di {{ import_result.discarded_count }} record scartati.
+                        </div>
+                        {% endif %}
                     </div>
                 </div>
             </div>

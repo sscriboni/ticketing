@@ -3104,7 +3104,7 @@ def delete_rifornimento(id: int, r: Request):
 
 
 @router.post("/admin/automezzi/rifornimenti/importa")
-async def import_rifornimenti(
+def import_rifornimenti(
     r: Request,
     file: UploadFile = File(...),
     aggiorna_km_auto: bool = Form(False)
@@ -3115,7 +3115,7 @@ async def import_rifornimenti(
     if user.get("ruolo") not in ("admin", "fleet_manager", "global_fleet_manager"):
         return RedirectResponse(url="/", status_code=303)
 
-    content = await file.read()
+    content = file.file.read()
     text_content = content.decode("utf-8-sig", errors="ignore")
     delimiter = ";" if ";" in text_content else ","
 
@@ -3217,7 +3217,33 @@ async def import_rifornimenti(
     km_updated_vehicles = set()
     uid = user.get("id")
 
+    rifornimenti_to_insert = []
+    registro_km_to_insert = []
+    vehicles_to_update = {}  # aid -> new_km
+
     with engine.begin() as conn:
+        # Pre-fetch existing refuelings for fast in-memory duplicate check
+        db_rifornimenti_set = set()
+        for row in conn.execute(text("SELECT targa, data, COALESCE(ora, '') FROM rifornimenti")).all():
+            t_db = row[0].upper().replace(" ", "").replace("-", "") if row[0] else ""
+            db_rifornimenti_set.add((t_db, row[1], row[2]))
+
+        # Pre-fetch vehicles map
+        automezzi_map = {}
+        for row in conn.execute(text("SELECT automezzo_id, targa, km_attuali FROM automezzi")).mappings().all():
+            t_norm = row["targa"].upper().replace(" ", "").replace("-", "") if row["targa"] else ""
+            automezzi_map[t_norm] = {"automezzo_id": row["automezzo_id"], "km_attuali": row["km_attuali"] or 0}
+
+        # Pre-fetch max registered dates
+        max_km_dates = {}
+        for row in conn.execute(text("SELECT automezzo_id, MAX(data_registrazione) as max_d FROM registro_km_automezzi GROUP BY automezzo_id")).mappings().all():
+            max_km_dates[row["automezzo_id"]] = row["max_d"]
+
+        # Pre-fetch registered km entries
+        km_reg_set = set()
+        for row in conn.execute(text("SELECT automezzo_id, data_registrazione, km FROM registro_km_automezzi")).all():
+            km_reg_set.add((row[0], row[1], row[2]))
+
         for line_idx, row in enumerate(reader, start=2):
             mapped_data = {}
             for col_name, col_val in row.items():
@@ -3258,41 +3284,32 @@ async def import_rifornimenti(
             row_km = parse_int(mapped_data.get("km"))
 
             # Optional vehicle KM odometer update logic requested by user
-            # MUST be performed even if the refueling record is a duplicate in DB or in CSV
+            # Executed in-memory fast
             if aggiorna_km_auto and row_km >= 10:
-                car = conn.execute(text("SELECT automezzo_id, km_attuali FROM automezzi WHERE targa = :targa"), {"targa": targa}).mappings().first()
+                car = automezzi_map.get(targa)
                 if car:
                     aid = car["automezzo_id"]
-                    curr_km = car["km_attuali"] or 0
-                    last_reg_date = conn.execute(text("SELECT MAX(data_registrazione) FROM registro_km_automezzi WHERE automezzo_id = :aid"), {"aid": aid}).scalar()
+                    curr_km = vehicles_to_update.get(aid, car["km_attuali"])
+                    last_reg_date = max_km_dates.get(aid)
 
-                    # Rule: "se la data dei rifornimenti è maggiore della data di aggiornamento nel registro km"
                     if not last_reg_date or parsed_data > last_reg_date or curr_km == 0:
-                        exists_km_reg = conn.execute(text("""
-                            SELECT COUNT(*) FROM registro_km_automezzi
-                            WHERE automezzo_id = :aid AND data_registrazione = :dreg AND km = :km
-                        """), {"aid": aid, "dreg": parsed_data, "km": row_km}).scalar()
-
-                        if not exists_km_reg or exists_km_reg == 0:
+                        if (aid, parsed_data, row_km) not in km_reg_set:
                             note_km = f"Importato da Rifornimento {mapped_data.get('prodotto') or 'Carburante'}" + (f" (Carta PAN: {mapped_data.get('pan_carta')})" if mapped_data.get("pan_carta") else "")
-                            conn.execute(text("""
-                                INSERT INTO registro_km_automezzi (
-                                    automezzo_id, data_registrazione, km, sorgente, user_id, note
-                                ) VALUES (
-                                    :aid, :dreg, :km, 'Carta Carburante', :uid, :note
-                                )
-                            """), {
+                            registro_km_to_insert.append({
                                 "aid": aid,
                                 "dreg": parsed_data,
                                 "km": row_km,
                                 "uid": uid,
                                 "note": note_km
                             })
+                            km_reg_set.add((aid, parsed_data, row_km))
+                        
+                        if parsed_data > (last_reg_date or ""):
+                            max_km_dates[aid] = parsed_data
 
                         if row_km > curr_km or curr_km == 0:
-                            conn.execute(text("""
-                                UPDATE automezzi SET km_attuali = :new_km WHERE automezzo_id = :aid
-                            """), {"new_km": row_km, "aid": aid})
+                            vehicles_to_update[aid] = row_km
+                            automezzi_map[targa]["km_attuali"] = row_km
                             km_updated_vehicles.add(aid)
 
             # Duplicate Check 1: Check duplicate within the same CSV file
@@ -3306,19 +3323,8 @@ async def import_rifornimenti(
                 })
                 continue
 
-            # Duplicate Check 2: Check duplicate in Database
-            if ora_val:
-                exists = conn.execute(text("""
-                    SELECT COUNT(*) FROM rifornimenti
-                    WHERE targa = :targa AND data = :data AND ora = :ora
-                """), {"targa": targa, "data": parsed_data, "ora": ora_val}).scalar()
-            else:
-                exists = conn.execute(text("""
-                    SELECT COUNT(*) FROM rifornimenti
-                    WHERE targa = :targa AND data = :data AND (ora IS NULL OR ora = '')
-                """), {"targa": targa, "data": parsed_data}).scalar()
-
-            if exists and exists > 0:
+            # Duplicate Check 2: Check duplicate in Database (in-memory lookup)
+            if dup_key in db_rifornimenti_set or (targa, parsed_data, "") in db_rifornimenti_set:
                 discarded_list.append({
                     "linea": line_idx,
                     "targa": targa,
@@ -3328,54 +3334,66 @@ async def import_rifornimenti(
                 continue
 
             seen_in_file.add(dup_key)
+            db_rifornimenti_set.add(dup_key)
 
-            try:
-                conn.execute(text("""
-                    INSERT INTO rifornimenti (
-                        pan_carta, data, ora, prodotto, targa, km, cod_terminale, cod_impianto,
-                        indirizzo, citta, imp_intero, imp_intero_no_iva, volume, prezzo_eur_l,
-                        sconto_eur_l, prezzo_scontato, imp_scontato, iva, imp_scontato_no_iva, tipo_servizio
-                    ) VALUES (
-                        :pan_carta, :data, :ora, :prodotto, :targa, :km, :cod_terminale, :cod_impianto,
-                        :indirizzo, :citta, :imp_intero, :imp_intero_no_iva, :volume, :prezzo_eur_l,
-                        :sconto_eur_l, :prezzo_scontato, :imp_scontato, :iva, :imp_scontato_no_iva, :tipo_servizio
-                    )
-                """), {
-                    "pan_carta": mapped_data.get("pan_carta"),
-                    "data": parsed_data,
-                    "ora": ora_val,
-                    "prodotto": mapped_data.get("prodotto"),
-                    "targa": targa,
-                    "km": row_km,
-                    "cod_terminale": mapped_data.get("cod_terminale"),
-                    "cod_impianto": mapped_data.get("cod_impianto"),
-                    "indirizzo": mapped_data.get("indirizzo"),
-                    "citta": mapped_data.get("citta"),
-                    "imp_intero": parse_float(mapped_data.get("imp_intero")),
-                    "imp_intero_no_iva": parse_float(mapped_data.get("imp_intero_no_iva")),
-                    "volume": parse_float(mapped_data.get("volume")),
-                    "prezzo_eur_l": parse_float(mapped_data.get("prezzo_eur_l")),
-                    "sconto_eur_l": parse_float(mapped_data.get("sconto_eur_l")),
-                    "prezzo_scontato": parse_float(mapped_data.get("prezzo_scontato")),
-                    "imp_scontato": parse_float(mapped_data.get("imp_scontato")),
-                    "iva": parse_float(mapped_data.get("iva")),
-                    "imp_scontato_no_iva": parse_float(mapped_data.get("imp_scontato_no_iva")),
-                    "tipo_servizio": mapped_data.get("tipo_servizio")
-                })
-                imported_count += 1
-            except Exception as ex:
-                discarded_list.append({
-                    "linea": line_idx,
-                    "targa": targa,
-                    "data": parsed_data or raw_data or "-",
-                    "motivo": f"Errore salvataggio DB: {str(ex)[:100]}"
-                })
+            rifornimenti_to_insert.append({
+                "pan_carta": mapped_data.get("pan_carta"),
+                "data": parsed_data,
+                "ora": ora_val,
+                "prodotto": mapped_data.get("prodotto"),
+                "targa": targa,
+                "km": row_km,
+                "cod_terminale": mapped_data.get("cod_terminale"),
+                "cod_impianto": mapped_data.get("cod_impianto"),
+                "indirizzo": mapped_data.get("indirizzo"),
+                "citta": mapped_data.get("citta"),
+                "imp_intero": parse_float(mapped_data.get("imp_intero")),
+                "imp_intero_no_iva": parse_float(mapped_data.get("imp_intero_no_iva")),
+                "volume": parse_float(mapped_data.get("volume")),
+                "prezzo_eur_l": parse_float(mapped_data.get("prezzo_eur_l")),
+                "sconto_eur_l": parse_float(mapped_data.get("sconto_eur_l")),
+                "prezzo_scontato": parse_float(mapped_data.get("prezzo_scontato")),
+                "imp_scontato": parse_float(mapped_data.get("imp_scontato")),
+                "iva": parse_float(mapped_data.get("iva")),
+                "imp_scontato_no_iva": parse_float(mapped_data.get("imp_scontato_no_iva")),
+                "tipo_servizio": mapped_data.get("tipo_servizio")
+            })
+            imported_count += 1
 
+        # Bulk Database Writes
+        if rifornimenti_to_insert:
+            conn.execute(text("""
+                INSERT INTO rifornimenti (
+                    pan_carta, data, ora, prodotto, targa, km, cod_terminale, cod_impianto,
+                    indirizzo, citta, imp_intero, imp_intero_no_iva, volume, prezzo_eur_l,
+                    sconto_eur_l, prezzo_scontato, imp_scontato, iva, imp_scontato_no_iva, tipo_servizio
+                ) VALUES (
+                    :pan_carta, :data, :ora, :prodotto, :targa, :km, :cod_terminale, :cod_impianto,
+                    :indirizzo, :citta, :imp_intero, :imp_intero_no_iva, :volume, :prezzo_eur_l,
+                    :sconto_eur_l, :prezzo_scontato, :imp_scontato, :iva, :imp_scontato_no_iva, :tipo_servizio
+                )
+            """), rifornimenti_to_insert)
+
+        if registro_km_to_insert:
+            conn.execute(text("""
+                INSERT INTO registro_km_automezzi (
+                    automezzo_id, data_registrazione, km, sorgente, user_id, note
+                ) VALUES (
+                    :aid, :dreg, :km, 'Carta Carburante', :uid, :note
+                )
+            """), registro_km_to_insert)
+
+        for aid, new_km in vehicles_to_update.items():
+            conn.execute(text("""
+                UPDATE automezzi SET km_attuali = :new_km WHERE automezzo_id = :aid
+            """), {"new_km": new_km, "aid": aid})
+
+    # Cap discarded list to top 25 items to prevent HTTP Set-Cookie header size exceeding browser limits (ERR_RESPONSE_HEADERS_TOO_BIG)
     r.session["import_rifornimenti_result"] = {
         "imported": imported_count,
         "km_updated_count": len(km_updated_vehicles),
         "discarded_count": len(discarded_list),
-        "discarded": discarded_list
+        "discarded": discarded_list[:25]
     }
 
     return RedirectResponse(url="/admin/automezzi/rifornimenti", status_code=303)

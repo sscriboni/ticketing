@@ -544,6 +544,18 @@ async def lifespan(app: FastAPI):
     except Exception:
         pass
     
+    # Silence Windows Proactor event loop ConnectionResetError when client closes socket during redirect
+    try:
+        loop = asyncio.get_running_loop()
+        def ignore_connection_reset(loop, context):
+            exc = context.get("exception")
+            if isinstance(exc, ConnectionResetError) or "connection_lost" in str(context.get("message", "")).lower():
+                return
+            loop.default_exception_handler(context)
+        loop.set_exception_handler(ignore_connection_reset)
+    except Exception:
+        pass
+
     # Start morning recap scheduler loop
     asyncio.create_task(morning_recap_scheduler())
     yield
