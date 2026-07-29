@@ -3104,7 +3104,11 @@ def delete_rifornimento(id: int, r: Request):
 
 
 @router.post("/admin/automezzi/rifornimenti/importa")
-async def import_rifornimenti(r: Request, file: UploadFile = File(...)):
+async def import_rifornimenti(
+    r: Request,
+    file: UploadFile = File(...),
+    aggiorna_km_auto: bool = Form(False)
+):
     if "user" not in r.session:
         return RedirectResponse(url="/login", status_code=303)
     user = r.session.get("user")
@@ -3210,6 +3214,8 @@ async def import_rifornimenti(r: Request, file: UploadFile = File(...)):
     imported_count = 0
     discarded_list = []
     seen_in_file = set()
+    km_updated_vehicles = set()
+    uid = user.get("id")
 
     with engine.begin() as conn:
         for line_idx, row in enumerate(reader, start=2):
@@ -3248,6 +3254,46 @@ async def import_rifornimenti(r: Request, file: UploadFile = File(...)):
                     "motivo": "Campo 'Data' mancante o formato non riconosciuto"
                 })
                 continue
+
+            row_km = parse_int(mapped_data.get("km"))
+
+            # Optional vehicle KM odometer update logic requested by user
+            # MUST be performed even if the refueling record is a duplicate in DB or in CSV
+            if aggiorna_km_auto and row_km >= 10:
+                car = conn.execute(text("SELECT automezzo_id, km_attuali FROM automezzi WHERE targa = :targa"), {"targa": targa}).mappings().first()
+                if car:
+                    aid = car["automezzo_id"]
+                    curr_km = car["km_attuali"] or 0
+                    last_reg_date = conn.execute(text("SELECT MAX(data_registrazione) FROM registro_km_automezzi WHERE automezzo_id = :aid"), {"aid": aid}).scalar()
+
+                    # Rule: "se la data dei rifornimenti è maggiore della data di aggiornamento nel registro km"
+                    if not last_reg_date or parsed_data > last_reg_date or curr_km == 0:
+                        exists_km_reg = conn.execute(text("""
+                            SELECT COUNT(*) FROM registro_km_automezzi
+                            WHERE automezzo_id = :aid AND data_registrazione = :dreg AND km = :km
+                        """), {"aid": aid, "dreg": parsed_data, "km": row_km}).scalar()
+
+                        if not exists_km_reg or exists_km_reg == 0:
+                            note_km = f"Importato da Rifornimento {mapped_data.get('prodotto') or 'Carburante'}" + (f" (Carta PAN: {mapped_data.get('pan_carta')})" if mapped_data.get("pan_carta") else "")
+                            conn.execute(text("""
+                                INSERT INTO registro_km_automezzi (
+                                    automezzo_id, data_registrazione, km, sorgente, user_id, note
+                                ) VALUES (
+                                    :aid, :dreg, :km, 'Carta Carburante', :uid, :note
+                                )
+                            """), {
+                                "aid": aid,
+                                "dreg": parsed_data,
+                                "km": row_km,
+                                "uid": uid,
+                                "note": note_km
+                            })
+
+                        if row_km > curr_km or curr_km == 0:
+                            conn.execute(text("""
+                                UPDATE automezzi SET km_attuali = :new_km WHERE automezzo_id = :aid
+                            """), {"new_km": row_km, "aid": aid})
+                            km_updated_vehicles.add(aid)
 
             # Duplicate Check 1: Check duplicate within the same CSV file
             dup_key = (targa, parsed_data, ora_val or "")
@@ -3300,7 +3346,7 @@ async def import_rifornimenti(r: Request, file: UploadFile = File(...)):
                     "ora": ora_val,
                     "prodotto": mapped_data.get("prodotto"),
                     "targa": targa,
-                    "km": parse_int(mapped_data.get("km")),
+                    "km": row_km,
                     "cod_terminale": mapped_data.get("cod_terminale"),
                     "cod_impianto": mapped_data.get("cod_impianto"),
                     "indirizzo": mapped_data.get("indirizzo"),
@@ -3327,6 +3373,7 @@ async def import_rifornimenti(r: Request, file: UploadFile = File(...)):
 
     r.session["import_rifornimenti_result"] = {
         "imported": imported_count,
+        "km_updated_count": len(km_updated_vehicles),
         "discarded_count": len(discarded_list),
         "discarded": discarded_list
     }

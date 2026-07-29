@@ -53,7 +53,7 @@
         {% if import_result %}
             {% if import_result.imported > 0 %}
             <div class="alert alert-success alert-dismissible fade show shadow-sm border-0 rounded-3 mb-3" role="alert">
-                <i class="bi bi-check-circle-fill me-2"></i> <strong>Importazione Completata:</strong> Importati con successo {{ import_result.imported }} rifornimenti.
+                <i class="bi bi-check-circle-fill me-2"></i> <strong>Importazione Completata:</strong> Importati con successo {{ import_result.imported }} rifornimenti{% if import_result.km_updated_count and import_result.km_updated_count > 0 %} ed aggiornato il contachilometri di <strong>{{ import_result.km_updated_count }}</strong> autoveicoli nel registro KM{% endif %}.
                 <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
             </div>
             {% endif %}
@@ -430,7 +430,18 @@
                         <div class="mb-3">
                             <label class="form-label fw-bold">Seleziona File CSV</label>
                             <input type="file" name="file" class="form-control" accept=".csv" required>
-                            <div class="form-text mt-2" style="font-size: 0.75rem;">
+                            
+                            <div class="form-check p-3 bg-light rounded-3 border mt-3">
+                                <input class="form-check-input" type="checkbox" name="aggiorna_km_auto" value="1" id="importAggiornaKmAuto" checked>
+                                <label class="form-check-label fw-bold text-dark" for="importAggiornaKmAuto">
+                                    <i class="bi bi-speedometer2 text-primary me-1"></i> Aggiorna contachilometri veicoli
+                                </label>
+                                <div class="form-text mt-1 text-muted" style="font-size: 0.78rem;">
+                                    Se la data del rifornimento è più recente dell'ultima registrazione nel registro KM (o se non presente), aggiorna automaticamente il contachilometri dell'autoveicolo e registra la rilevazione.
+                                </div>
+                            </div>
+
+                            <div class="form-text mt-3" style="font-size: 0.75rem;">
                                 <strong>Tracciato Fornitore Mappato:</strong><br>
                                 Verranno importate automaticamente le colonne: <br>
                                 <code>PAN Carta</code> → <code>pan_carta</code>, <code>Data</code> → <code>data</code>, <code>Ora</code> → <code>ora</code>, <code>Prod.</code> → <code>prodotto</code>, <code>Targa</code> → <code>targa</code>, <code>Km</code> → <code>km</code>, <code>Cod. Term.</code> → <code>cod_terminale</code>, <code>Impianto</code> → <code>cod_impianto</code>, <code>Indirizzo</code> → <code>indirizzo</code>, <code>Città</code> → <code>citta</code>, <code>Imp. intero</code> → <code>imp_intero</code>, <code>Imp. intero no IVA</code> → <code>imp_intero_no_IVA</code>, <code>Volume</code> → <code>volume</code>, <code>Prezzo EUR/l</code> → <code>prezzo_eur_l</code>, <code>Sconto EUR/l</code> → <code>sconto_eur_l</code>, <code>Prezzo Scontato</code> → <code>prezzo_scontato</code>, <code>Imp. Scontato</code> → <code>imp_scontato</code>, <code>IVA</code> → <code>iva</code>, <code>Imp. Scontato no IVA</code> → <code>imp_scontato_no_IVA</code>, <code>Tipo servizio</code> → <code>tipo_servizio</code>.<br>
