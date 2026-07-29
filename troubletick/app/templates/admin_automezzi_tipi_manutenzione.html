@@ -60,7 +60,7 @@
                                 <span class="badge bg-danger custom-badge" title="Scadenza a numero di chilometri">Ogni {{ tm.scadenza_km }} km</span>
                                 {% endif %}
                                 {% if not tm.scadenza_anni and not tm.scadenza_mesi and not tm.scadenza_data_fissa and not tm.scadenza_km %}
-                                <span class="text-muted small">Nessuna scadenza impostata</span>
+                                <span class="badge bg-secondary-subtle text-secondary border px-2 py-1"><i class="bi bi-clock-history me-1"></i>Non Periodica (ad-hoc)</span>
                                 {% endif %}
                             </div>
                         </td>
@@ -104,8 +104,8 @@
                 </div>
 
                 <div class="mb-4">
-                    <label class="form-label fw-bold d-block">Tipi di Scadenza</label>
-                    <div class="form-text mb-3">Seleziona e imposta almeno un tipo di scadenza.</div>
+                    <label class="form-label fw-bold d-block">Tipi di Scadenza Periodica (Opzionali)</label>
+                    <div class="form-text mb-3">Imposta le scadenze se la manutenzione è ricorsiva. Se deselezionate, il tipo sarà <strong>Non Periodico (ad-hoc)</strong>.</div>
 
                     <!-- Anni -->
                     <div class="border rounded p-2 mb-2 bg-light">
@@ -172,8 +172,8 @@
                     </div>
 
                     <div class="mb-4">
-                        <label class="form-label fw-bold d-block">Tipi di Scadenza</label>
-                        <div class="form-text mb-3">Seleziona e imposta almeno un tipo di scadenza.</div>
+                        <label class="form-label fw-bold d-block">Tipi di Scadenza Periodica (Opzionali)</label>
+                        <div class="form-text mb-3">Imposta le scadenze se la manutenzione è ricorsiva. Se deselezionate, il tipo sarà <strong>Non Periodico (ad-hoc)</strong>.</div>
 
                         <!-- Anni -->
                         <div class="border rounded p-2 mb-2 bg-light">
@@ -248,15 +248,7 @@
     }
 
     function validateForm(formPrefix) {
-        const checkAnni = document.getElementById(formPrefix + 'AttivoAnni').checked;
-        const checkMesi = document.getElementById(formPrefix + 'AttivoMesi').checked;
-
-        const checkKm = document.getElementById(formPrefix + 'AttivoKm').checked;
-
-        if (!checkAnni && !checkMesi && !checkKm) {
-            alert('Devi attivare e impostare almeno un tipo di scadenza.');
-            return false;
-        }
+        // Le scadenze periodiche sono opzionali: una manutenzione può essere non periodica (ad-hoc)
         return true;
     }
 
