@@ -304,6 +304,7 @@
                             <div class="col-md-6">
                                 <label class="form-label text-muted">Km Iniziali Registrati *</label>
                                 <input type="number" class="form-control" name="km_registrati" value="0" min="0" required>
+                                <div class="form-text text-muted" style="font-size: 0.75rem;">È possibile inserire qualsiasi valore chilometrico (es. per manutenzioni pregresse o registrate in ritardo).</div>
                             </div>
                             <div class="col-md-6">
                                 <label class="form-label text-muted">Officina / Luogo</label>
@@ -461,7 +462,6 @@
                         const kmInput = document.querySelector('input[name="km_registrati"]');
                         if (kmInput && km) {
                             kmInput.value = km;
-                            kmInput.min = km;
                         }
                     }
                 });
@@ -519,7 +519,6 @@
             document.getElementById('completeVehicleLabel').value = `${nameLabel} [${targa}]`;
             document.getElementById('completeStartKmLabel').textContent = startKm;
             document.getElementById('completeKmFine').value = startKm;
-            document.getElementById('completeKmFine').min = startKm;
             
             const divCosto = document.getElementById('divCompleteCosto');
             const inputCosto = document.getElementById('completeCosto');
