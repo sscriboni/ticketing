@@ -977,7 +977,7 @@ def build_html_resp_status(data):
     return html
 
 def query_ope_status(conn, op_id, op_nome, op_cognome, reparto_id, reparto_nome):
-    """Raccoglie i dati per il report OPE_STATUS di un singolo operatore"""
+    """Raccoglie i dati per il report OPE_STATUS di un singolo operatore (Ticket pendenti dei propri servizi e turni)"""
     data = {
         "op_id": op_id,
         "op_nome": op_nome,
@@ -986,11 +986,59 @@ def query_ope_status(conn, op_id, op_nome, op_cognome, reparto_id, reparto_nome)
         "reparto_nome": reparto_nome
     }
     
-    # 1. Riepilogo ticket del proprio reparto (riutilizziamo la logica di query_resp_status_for_reparto)
-    rep_data = query_resp_status_for_reparto(conn, reparto_id, reparto_nome)
-    data["servizi_stats"] = rep_data["servizi_stats"]
-    data["non_assegnati"] = rep_data["non_assegnati"]
-    
+    # 1. Ticket pendenti nei servizi coperti dall'operatore
+    # (Ricorda: i ticket non sono nominativi ma appartengono al Servizio)
+    pending_tickets_rows = conn.execute(text("""
+        SELECT t.ticket_id, t.codice_ticket, t.descrizione, t.stato, t.priorita, t.creato_il,
+               t.nome, t.cognome, t.riferimento, t.sede,
+               s.descrizione AS servizio_desc
+        FROM tickets t
+        JOIN servizi s ON t.servizio_id = s.servizio_id
+        WHERE t.servizio_id IN (SELECT servizio_id FROM operatori_servizi WHERE user_id = :uid)
+          AND t.stato != 'chiusa'
+        ORDER BY t.creato_il ASC
+    """), {"uid": op_id}).mappings().all()
+
+    now_dt = datetime.now()
+    pending_tickets = []
+    for t in pending_tickets_rows:
+        t_dict = dict(t)
+        creato_str = t_dict.get("creato_il") or ""
+        time_ago_str = "Data non spec."
+        days_old = 0
+        if creato_str:
+            dt = None
+            for fmt in ("%Y-%m-%d %H:%M:%S", "%Y-%m-%d %H:%M", "%Y-%m-%d"):
+                try:
+                    dt = datetime.strptime(str(creato_str)[:19], fmt)
+                    break
+                except ValueError:
+                    pass
+            if dt:
+                delta = now_dt - dt
+                days_old = delta.days
+                hours_old = delta.seconds // 3600
+                minutes_old = (delta.seconds % 3600) // 60
+                if days_old == 0:
+                    if hours_old == 0:
+                        time_ago_str = f"{minutes_old} min fa" if minutes_old > 0 else "Pochi istanti fa"
+                    elif hours_old == 1:
+                        time_ago_str = "1 ora fa"
+                    else:
+                        time_ago_str = f"{hours_old} ore fa"
+                elif days_old == 1:
+                    time_ago_str = f"1 giorno fa ({hours_old}h)" if hours_old > 0 else "1 giorno fa"
+                else:
+                    time_ago_str = f"{days_old} giorni fa"
+            else:
+                time_ago_str = str(creato_str)[:10]
+
+        t_dict["tempo_trascorso"] = time_ago_str
+        t_dict["days_old"] = days_old
+        pending_tickets.append(t_dict)
+
+    data["pending_tickets"] = pending_tickets
+
     # 2. Servizi assegnati a questo operatore
     assigned_services = conn.execute(text("""
         SELECT s.servizio_id, s.descrizione 
@@ -999,7 +1047,6 @@ def query_ope_status(conn, op_id, op_nome, op_cognome, reparto_id, reparto_nome)
         WHERE os.user_id = :uid
     """), {"uid": op_id}).mappings().all()
     
-    # Mappa degli operatori assegnati a ciascuno di questi servizi
     services_ops = {}
     for s in assigned_services:
         sid = s["servizio_id"]
@@ -1018,24 +1065,14 @@ def query_ope_status(conn, op_id, op_nome, op_cognome, reparto_id, reparto_nome)
     next_5_days = get_next_5_working_days(conn)
     schedule = []
     
-    # Carica tutti gli operatori attivi del reparto per poter verificare i dettagli nomi se serve
-    ops_rows = conn.execute(text("""
-        SELECT user_id, username, nome, cognome 
-        FROM users 
-        WHERE user_id IN (SELECT DISTINCT user_id FROM user_roles WHERE ruolo != 'normale') AND attivo = 1 AND user_id != 1 AND reparto_id = :rep_id
-    """), {"rep_id": reparto_id}).mappings().all()
-    operators = {r["user_id"]: dict(r) for r in ops_rows}
-    
     for day in next_5_days:
         date_str = day["date_str"]
         
-        # a. Stato di questo operatore (Assenza)
         absent_row = conn.execute(text("""
             SELECT motivo FROM assenze 
             WHERE user_id = :uid AND data_inizio <= :target AND data_fine >= :target
         """), {"uid": op_id, "target": date_str}).mappings().all()
         
-        # b. Stato di questo operatore (Presenza)
         pres_row = conn.execute(text("""
             SELECT tipo, nota FROM presenze 
             WHERE user_id = :uid AND data_inizio <= :target AND data_fine >= :target
@@ -1051,8 +1088,6 @@ def query_ope_status(conn, op_id, op_nome, op_cognome, reparto_id, reparto_nome)
             op_status = "Presente (Standard)"
             is_op_absent = False
             
-        # c. Scoperture nei servizi a cui è assegnato
-        # Troviamo tutti gli operatori assenti in questa data per controllare la copertura
         assenze_rows = conn.execute(text("""
             SELECT user_id FROM assenze 
             WHERE data_inizio <= :target AND data_fine >= :target
@@ -1076,36 +1111,68 @@ def query_ope_status(conn, op_id, op_nome, op_cognome, reparto_id, reparto_nome)
     return data
 
 def build_html_ope_status(data):
-    """Costruisce il corpo HTML premium per OPE_STATUS"""
-    # 1. Tabella Servizi (Chiusi 5gg, Aperti 5gg, In attesa, In lavorazione)
-    servizi_rows_html = ""
-    if data["servizi_stats"]:
-        for s in data["servizi_stats"]:
-            bg_style = ""
-            badge_da_prendere = f"<span class='badge badge-neutral'>{s['da_prendere']}</span>"
-            if s['da_prendere'] > 5:
-                bg_style = "background-color: #fffbeb;"
-                badge_da_prendere = f"<span class='badge badge-danger'>{s['da_prendere']}</span>"
-            elif s['da_prendere'] > 0:
-                badge_da_prendere = f"<span class='badge badge-warning'>{s['da_prendere']}</span>"
+    """Costruisce il corpo HTML per OPE_STATUS con i ticket pendenti dei Servizi coperti dall'operatore"""
+    pending_tickets_rows_html = ""
+    pending_count = len(data["pending_tickets"])
+
+    if pending_count > 0:
+        for t in data["pending_tickets"]:
+            prio = (t.get("priorita") or "media").lower()
+            if prio == "alta":
+                prio_badge = "<span class='badge badge-danger'>ALTA</span>"
+            elif prio == "media":
+                prio_badge = "<span class='badge badge-warning'>MEDIA</span>"
             else:
-                badge_da_prendere = "<span class='badge badge-success'>0</span>"
+                prio_badge = "<span class='badge badge-neutral'>BASSA</span>"
 
-            badge_in_lavorazione = f"<span class='badge badge-primary'>{s['in_lavorazione']}</span>" if s['in_lavorazione'] > 0 else "<span class='badge badge-neutral'>0</span>"
+            st = (t.get("stato") or "").lower()
+            if st == "nuova":
+                st_badge = "<span class='badge badge-danger'>NUOVA</span>"
+            elif st in ("presa_in_carico", "in_lavorazione", "in_corso"):
+                st_badge = "<span class='badge badge-warning'>IN LAVORAZ.</span>"
+            else:
+                st_badge = f"<span class='badge badge-primary'>{st.upper()}</span>"
 
-            servizi_rows_html += f"""
-            <tr style="{bg_style}">
-                <td style="padding: 10px; border-bottom: 1px solid #e2e8f0; font-weight: bold; color: #334155;">{s['nome']}</td>
-                <td style="padding: 10px; border-bottom: 1px solid #e2e8f0; text-align: center; color: #065f46; font-weight: bold;">✓ {s['chiusi_5gg']}</td>
-                <td style="padding: 10px; border-bottom: 1px solid #e2e8f0; text-align: center; color: #1e40af; font-weight: bold;">+ {s['aperti_5gg']}</td>
-                <td style="padding: 10px; border-bottom: 1px solid #e2e8f0; text-align: center;">{badge_da_prendere}</td>
-                <td style="padding: 10px; border-bottom: 1px solid #e2e8f0; text-align: center;">{badge_in_lavorazione}</td>
+            days_old = t.get("days_old", 0)
+            tempo_str = t.get("tempo_trascorso", "")
+            if days_old >= 5:
+                time_badge = f"<span style='display: inline-block; padding: 4px 8px; font-size: 11px; font-weight: bold; border-radius: 6px; background-color: #fef2f2; border: 1px solid #fca5a5; color: #991b1b;'>🚨 {tempo_str}</span>"
+            elif days_old >= 2:
+                time_badge = f"<span style='display: inline-block; padding: 4px 8px; font-size: 11px; font-weight: bold; border-radius: 6px; background-color: #fffbeb; border: 1px solid #fde68a; color: #92400e;'>⚠️ {tempo_str}</span>"
+            else:
+                time_badge = f"<span style='display: inline-block; padding: 4px 8px; font-size: 11px; font-weight: bold; border-radius: 6px; background-color: #f0fdf4; border: 1px solid #bcf0da; color: #065f46;'>⏱️ {tempo_str}</span>"
+
+            codice = t.get("codice_ticket") or f"#{t.get('ticket_id')}"
+            desc = (t.get("descrizione") or "")[:55]
+            if len(t.get("descrizione") or "") > 55:
+                desc += "..."
+            utente = f"{t.get('nome') or ''} {t.get('cognome') or ''}".strip() or (t.get("riferimento") or "N/D")
+            servizio = t.get("servizio_desc") or "Servizio"
+
+            pending_tickets_rows_html += f"""
+            <tr>
+                <td style="padding: 10px; border-bottom: 1px solid #e2e8f0;">
+                    <strong style="color: #0284c7;">{codice}</strong>
+                    <div style="font-size: 12px; color: #334155; font-weight: 600;">{desc}</div>
+                </td>
+                <td style="padding: 10px; border-bottom: 1px solid #e2e8f0; font-size: 13px; color: #475569;">
+                    <strong>{servizio}</strong>
+                    <div style="font-size: 11px; color: #64748b;">Richiedente: {utente}</div>
+                </td>
+                <td style="padding: 10px; border-bottom: 1px solid #e2e8f0; text-align: center;">{prio_badge}</td>
+                <td style="padding: 10px; border-bottom: 1px solid #e2e8f0; text-align: center;">{st_badge}</td>
+                <td style="padding: 10px; border-bottom: 1px solid #e2e8f0; text-align: center;">{time_badge}</td>
             </tr>
             """
     else:
-        servizi_rows_html = "<tr><td colspan='5' style='padding: 15px; text-align: center; color: #64748b;'>Nessun movimento ticket registrato di recente.</td></tr>"
+        pending_tickets_rows_html = """
+        <tr>
+            <td colspan="5" style="padding: 20px; text-align: center; color: #059669; font-weight: bold; background-color: #f0fdf4;">
+                🎉 Nessun ticket pendente per i servizi di tua competenza.
+            </td>
+        </tr>
+        """
 
-    # 2. Tabella Assenze / Presenze prossimi 5 giorni e scoperture
     schedule_rows_html = ""
     for s in data["schedule"]:
         status_color = "#0f766e" if not s["is_absent"] else "#991b1b"
@@ -1156,26 +1223,29 @@ def build_html_ope_status(data):
                 <h1 style="margin: 0; font-size: 24px; font-weight: 800; letter-spacing: -0.025em;">
                     👋 Ciao {data['op_nome']}!
                 </h1>
-                <p style="margin: 5px 0 0 0; font-size: 14px; color: #e0f2fe;">Riepilogo ticket del reparto <strong>{data['reparto_nome']}</strong> e tuo piano turni</p>
+                <p style="margin: 5px 0 0 0; font-size: 14px; color: #e0f2fe;">Riepilogo ticket pendenti per i tuoi servizi e piano turni</p>
             </div>
             
             <div style="padding: 25px;">
-                <!-- SEZIONE 1: Riepilogo ticket di reparto -->
+                <!-- SEZIONE 1: Ticket pendenti dei Servizi coperti -->
                 <h2 style="font-size: 16px; font-weight: 700; color: #0369a1; margin-top: 0; margin-bottom: 12px; border-bottom: 1px solid #e2e8f0; padding-bottom: 6px;">
-                    📋 Riepilogo Attività Ticket (Ultimi 5 Giorni Lavorativi)
+                    📋 Ticket Pendenti nei Tuoi Servizi ({pending_count})
                 </h2>
+                <p style="font-size: 12px; color: #64748b; margin-top: 0; margin-bottom: 12px;">
+                    Elenco dei ticket non ancora chiusi appartenenti ai Servizi a cui sei assegnato, in ordine dal meno recente:
+                </p>
                 <table style="width: 100%; border-collapse: collapse; margin-bottom: 30px; font-size: 14px;">
                     <thead>
                         <tr style="background-color: #f1f5f9;">
-                            <th style="padding: 10px; text-align: left; border-bottom: 2px solid #cbd5e1; font-weight: bold; color: #475569;">Servizio</th>
-                            <th style="padding: 10px; text-align: center; border-bottom: 2px solid #cbd5e1; font-weight: bold; color: #475569;">Chiusi (5gg lav.)</th>
-                            <th style="padding: 10px; text-align: center; border-bottom: 2px solid #cbd5e1; font-weight: bold; color: #475569;">Aperti (5gg lav.)</th>
-                            <th style="padding: 10px; text-align: center; border-bottom: 2px solid #cbd5e1; font-weight: bold; color: #475569;">In attesa</th>
-                            <th style="padding: 10px; text-align: center; border-bottom: 2px solid #cbd5e1; font-weight: bold; color: #475569;">In lavorazione</th>
+                            <th style="padding: 10px; text-align: left; border-bottom: 2px solid #cbd5e1; font-weight: bold; color: #475569;">Ticket / Oggetto</th>
+                            <th style="padding: 10px; text-align: left; border-bottom: 2px solid #cbd5e1; font-weight: bold; color: #475569;">Servizio / Utente</th>
+                            <th style="padding: 10px; text-align: center; border-bottom: 2px solid #cbd5e1; font-weight: bold; color: #475569;">Priorità</th>
+                            <th style="padding: 10px; text-align: center; border-bottom: 2px solid #cbd5e1; font-weight: bold; color: #475569;">Stato</th>
+                            <th style="padding: 10px; text-align: center; border-bottom: 2px solid #cbd5e1; font-weight: bold; color: #475569;">Aperto da</th>
                         </tr>
                     </thead>
                     <tbody>
-                        {servizi_rows_html}
+                        {pending_tickets_rows_html}
                     </tbody>
                 </table>
 
