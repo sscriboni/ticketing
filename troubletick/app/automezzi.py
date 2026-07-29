@@ -1367,9 +1367,29 @@ def list_manutenzioni(r: Request):
         tipi_manutenzione_mappings = conn.execute(text("SELECT * FROM tipi_manutenzione ORDER BY nome")).mappings().all()
         tipi_manutenzione = [dict(t) for t in tipi_manutenzione_mappings]
         
+        # Map last completed maintenance for each (automezzo_id, tipo_servizio)
+        last_maint_map = {}
+        for row in conn.execute(text("""
+            SELECT m.automezzo_id, m.tipo_servizio, m.data_fine, m.data_inizio, m.km_fine, m.km_registrati
+            FROM manutenzioni_automezzi m
+            INNER JOIN (
+                SELECT automezzo_id, tipo_servizio, MAX(manutenzione_id) as max_id
+                FROM manutenzioni_automezzi
+                WHERE data_fine IS NOT NULL AND data_fine != ''
+                GROUP BY automezzo_id, tipo_servizio
+            ) latest ON m.manutenzione_id = latest.max_id
+        """)).mappings().all():
+            serv_key = (row["tipo_servizio"] or "").strip().lower()
+            key = f"{row['automezzo_id']}_{serv_key}"
+            last_maint_map[key] = {
+                "data": row["data_fine"] or row["data_inizio"],
+                "km": row["km_fine"] or row["km_registrati"] or 0
+            }
+
     return templates.TemplateResponse(r, "admin_automezzi_manutenzioni.html", {
         "request": r, "cfg": CFG, "user": user, "manutenzioni": manutenzioni, "veicoli": veicoli, 
-        "manutenzioni_programmate": manutenzioni_programmate, "tipi_manutenzione": tipi_manutenzione
+        "manutenzioni_programmate": manutenzioni_programmate, "tipi_manutenzione": tipi_manutenzione,
+        "last_maint_map": last_maint_map
     })
 
 @router.post("/admin/automezzi/manutenzioni/nuova")
@@ -1490,6 +1510,28 @@ def programma_manutenzione_automezzo(
         return RedirectResponse(url="/", status_code=303)
 
     with engine.begin() as conn:
+        if not data_inizio_calcolo or km_partenza_calcolo is None:
+            tm = conn.execute(text("SELECT nome FROM tipi_manutenzione WHERE tipo_manutenzione_id = :tid"), {"tid": tipo_manutenzione_id}).mappings().first()
+            if tm:
+                last_m = conn.execute(text("""
+                    SELECT data_fine, data_inizio, km_fine, km_registrati 
+                    FROM manutenzioni_automezzi 
+                    WHERE automezzo_id = :aid AND LOWER(tipo_servizio) = LOWER(:tnome) AND data_fine IS NOT NULL AND data_fine != ''
+                    ORDER BY manutenzione_id DESC LIMIT 1
+                """), {"aid": automezzo_id, "tnome": tm["nome"]}).mappings().first()
+
+                if last_m:
+                    if not data_inizio_calcolo:
+                        data_inizio_calcolo = last_m["data_fine"] or last_m["data_inizio"]
+                    if km_partenza_calcolo is None:
+                        km_partenza_calcolo = last_m["km_fine"] or last_m["km_registrati"] or 0
+                else:
+                    if not data_inizio_calcolo:
+                        data_inizio_calcolo = datetime.date.today().strftime("%Y-%m-%d")
+                    if km_partenza_calcolo is None:
+                        car_km = conn.execute(text("SELECT km_attuali FROM automezzi WHERE automezzo_id = :aid"), {"aid": automezzo_id}).scalar()
+                        km_partenza_calcolo = car_km or 0
+
         existing = conn.execute(text("""
             SELECT 1 FROM automezzi_tipi_manutenzione 
             WHERE automezzo_id = :aid AND tipo_manutenzione_id = :tid
