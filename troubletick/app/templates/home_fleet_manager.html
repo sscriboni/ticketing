@@ -149,7 +149,7 @@
                   <td><span class="fw-bold text-primary">{{ v.km_attuali or 0 }}</span> <small class="text-muted">km</small></td>
                   <td><small class="text-muted">{{ v.sede_attuale_nome or '-' }}</small></td>
                   <td>
-                    <span class="badge bg-{{ 'success' if v.stato == 'Disponibile' else 'warning' if v.stato == 'In Uso' else 'danger' }} text-white">
+                    <span class="badge bg-{{ 'success' if v.stato == 'Disponibile' else 'warning text-dark' if v.stato == 'In Uso' else 'dark' if v.stato == 'Eliminazione' else 'danger' }} text-white">
                       {{ v.stato }}
                     </span>
                   </td>

@@ -209,6 +209,8 @@
                                         <span class="badge bg-success-subtle text-success border border-success-subtle px-2 py-1"><i class="bi bi-check-circle-fill me-1"></i>Disponibile</span>
                                         {% elif v.stato == 'In Uso' %}
                                         <span class="badge bg-warning-subtle text-warning-emphasis border border-warning-subtle px-2 py-1"><i class="bi bi-key-fill me-1"></i>In Uso</span>
+                                        {% elif v.stato == 'Eliminazione' %}
+                                        <span class="badge bg-secondary-subtle text-secondary border border-secondary-subtle px-2 py-1"><i class="bi bi-trash-fill me-1"></i>Eliminazione</span>
                                         {% else %}
                                         <span class="badge bg-danger-subtle text-danger border border-danger-subtle px-2 py-1"><i class="bi bi-wrench me-1"></i>{{ v.stato }}</span>
                                         {% endif %}

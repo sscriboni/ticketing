@@ -995,11 +995,18 @@ def delete_vehicle(id: int, r: Request):
         return RedirectResponse(url="/", status_code=303)
         
     with engine.begin() as conn:
+        car = conn.execute(text("SELECT targa, stato, reparto_assegnato_id FROM automezzi WHERE automezzo_id = :id"), {"id": id}).mappings().first()
+        if not car:
+            return RedirectResponse(url="/admin/automezzi?error=Veicolo+non+trovato", status_code=303)
+
         if user.get("ruolo") == "fleet_manager":
             user_rep_id = conn.execute(text("SELECT reparto_id FROM users WHERE user_id = :uid"), {"uid": user.get("id")}).scalar()
-            target_rep = conn.execute(text("SELECT reparto_assegnato_id FROM automezzi WHERE automezzo_id = :id"), {"id": id}).scalar()
-            if target_rep != user_rep_id:
+            if car["reparto_assegnato_id"] != user_rep_id:
                 return RedirectResponse(url="/admin/automezzi?error=Non+hai+i+permessi+per+eliminare+questo+veicolo", status_code=303)
+
+        if car["stato"] != "Eliminazione":
+            t_str = car["targa"] or ""
+            return RedirectResponse(url=f"/admin/automezzi?error=Impossibile+eliminare+il+veicolo+{t_str}:+per+procedere+alla+cancellazione+deve+essere+prima+impostato+in+stato+'Eliminazione'+nell'anagrafica.", status_code=303)
 
         conn.execute(text("DELETE FROM automezzi_tipi_manutenzione WHERE automezzo_id = :id"), {"id": id})
         conn.execute(text("DELETE FROM manutenzioni_automezzi WHERE automezzo_id = :id"), {"id": id})

@@ -193,7 +193,7 @@
                                 <td><span class="text-muted">{{ v.sede_assegnata_nome or '-' }}</span></td>
                                 <td><span class="badge bg-light text-dark border">{{ v.reparto_assegnato_nome or '-' }}</span></td>
                                 <td>
-                                    <span class="badge bg-{{ 'success' if v.stato == 'Disponibile' else 'warning' if v.stato == 'In Uso' else 'danger' }} text-white">
+                                    <span class="badge bg-{{ 'success' if v.stato == 'Disponibile' else 'warning text-dark' if v.stato == 'In Uso' else 'dark' if v.stato == 'Eliminazione' else 'danger' }} text-white">
                                         {{ v.stato }}
                                     </span>
                                 </td>
@@ -357,6 +357,7 @@
                                     <option value="Disponibile">Disponibile</option>
                                     <option value="In Uso">In Uso</option>
                                     <option value="In Manutenzione">In Manutenzione</option>
+                                    <option value="Eliminazione">Eliminazione</option>
                                 </select>
                             </div>
                         </div>
@@ -541,6 +542,7 @@
                                     <option value="Disponibile">Disponibile</option>
                                     <option value="In Uso">In Uso</option>
                                     <option value="In Manutenzione">In Manutenzione</option>
+                                    <option value="Eliminazione">Eliminazione</option>
                                 </select>
                             </div>
                         </div>
