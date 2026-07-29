@@ -6,6 +6,7 @@ from typing import Optional
 from fastapi import APIRouter, Request, Form, UploadFile, File, Query
 from fastapi.responses import HTMLResponse, RedirectResponse, Response, JSONResponse
 from sqlalchemy import text
+from sqlalchemy.exc import IntegrityError
 from core import CFG, templates, engine, DB_PK, DB_DRIVER, get_last_inserted_id
 
 router = APIRouter()
@@ -612,42 +613,56 @@ async def add_vehicle(
     if user.get("ruolo") not in ("admin", "fleet_manager", "global_fleet_manager"):
         return RedirectResponse(url="/", status_code=303)
         
+    clean_targa = targa.strip().upper()
+    norm_targa = clean_targa.replace(" ", "").replace("-", "")
+
     with engine.begin() as conn:
         if user.get("ruolo") == "fleet_manager":
             user_rep_id = conn.execute(text("SELECT reparto_id FROM users WHERE user_id = :uid"), {"uid": user.get("id")}).scalar()
             if user_rep_id:
                 reparto_assegnato_id = user_rep_id
 
-        conn.execute(text("""
-            INSERT INTO automezzi (
-                targa, marca_id, modello, tipo, note, alimentazione, data_immatricolazione, 
-                proprieta, canone_noleggio, km_attuali, stato, 
-                sede_assegnata_id, sede_attuale_id, reparto_assegnato_id,
-                fornitore, classe_euro
-            ) VALUES (
-                :targa, :marca_id, :modello, :tipo, :note, :alimentazione, :data_immatricolazione, 
-                :proprieta, :canone_noleggio, :km_attuali, :stato, 
-                :sede_assegnata_id, :sede_attuale_id, :reparto_assegnato_id,
-                :fornitore, :classe_euro
-            )
-        """), {
-            "targa": targa.strip().upper(),
-            "marca_id": marca_id,
-            "modello": modello.strip(),
-            "tipo": tipo,
-            "note": note.strip() if note else None,
-            "alimentazione": alimentazione.strip() if alimentazione else None,
-            "data_immatricolazione": data_immatricolazione if data_immatricolazione else None,
-            "proprieta": proprieta,
-            "canone_noleggio": canone_noleggio,
-            "km_attuali": km_attuali,
-            "stato": stato,
-            "sede_assegnata_id": sede_assegnata_id,
-            "sede_attuale_id": sede_attuale_id if sede_attuale_id else sede_assegnata_id,
-            "reparto_assegnato_id": reparto_assegnato_id,
-            "fornitore": fornitore.strip() if fornitore else None,
-            "classe_euro": classe_euro.strip() if classe_euro else None
-        })
+        # Duplicate targa check before inserting
+        dup = conn.execute(text("""
+            SELECT automezzo_id FROM automezzi
+            WHERE UPPER(REPLACE(REPLACE(targa, ' ', ''), '-', '')) = :targa
+        """), {"targa": norm_targa}).scalar()
+        if dup:
+            return RedirectResponse(url=f"/admin/automezzi?error=Impossibile+creare+il+veicolo:+la+targa+{clean_targa}+è+già+presente+in+archivio", status_code=303)
+
+        try:
+            conn.execute(text("""
+                INSERT INTO automezzi (
+                    targa, marca_id, modello, tipo, note, alimentazione, data_immatricolazione, 
+                    proprieta, canone_noleggio, km_attuali, stato, 
+                    sede_assegnata_id, sede_attuale_id, reparto_assegnato_id,
+                    fornitore, classe_euro
+                ) VALUES (
+                    :targa, :marca_id, :modello, :tipo, :note, :alimentazione, :data_immatricolazione, 
+                    :proprieta, :canone_noleggio, :km_attuali, :stato, 
+                    :sede_assegnata_id, :sede_attuale_id, :reparto_assegnato_id,
+                    :fornitore, :classe_euro
+                )
+            """), {
+                "targa": clean_targa,
+                "marca_id": marca_id,
+                "modello": modello.strip(),
+                "tipo": tipo,
+                "note": note.strip() if note else None,
+                "alimentazione": alimentazione.strip() if alimentazione else None,
+                "data_immatricolazione": data_immatricolazione if data_immatricolazione else None,
+                "proprieta": proprieta,
+                "canone_noleggio": canone_noleggio,
+                "km_attuali": km_attuali,
+                "stato": stato,
+                "sede_assegnata_id": sede_assegnata_id,
+                "sede_attuale_id": sede_attuale_id if sede_attuale_id else sede_assegnata_id,
+                "reparto_assegnato_id": reparto_assegnato_id,
+                "fornitore": fornitore.strip() if fornitore else None,
+                "classe_euro": classe_euro.strip() if classe_euro else None
+            })
+        except IntegrityError:
+            return RedirectResponse(url=f"/admin/automezzi?error=Attenzione:+la+targa+{clean_targa}+è+già+presente+in+archivio", status_code=303)
         
         # Save associated maintenance types
         new_id = get_last_inserted_id(conn)
@@ -697,6 +712,9 @@ async def edit_vehicle(
     if user.get("ruolo") not in ("admin", "fleet_manager", "global_fleet_manager"):
         return RedirectResponse(url="/", status_code=303)
         
+    clean_targa = targa.strip().upper()
+    norm_targa = clean_targa.replace(" ", "").replace("-", "")
+
     with engine.begin() as conn:
         if user.get("ruolo") == "fleet_manager":
             user_rep_id = conn.execute(text("SELECT reparto_id FROM users WHERE user_id = :uid"), {"uid": user.get("id")}).scalar()
@@ -706,46 +724,58 @@ async def edit_vehicle(
             if user_rep_id:
                 reparto_assegnato_id = user_rep_id
 
+        # Duplicate targa check before updating
+        dup = conn.execute(text("""
+            SELECT automezzo_id FROM automezzi
+            WHERE UPPER(REPLACE(REPLACE(targa, ' ', ''), '-', '')) = :targa
+              AND automezzo_id != :id
+        """), {"targa": norm_targa, "id": id}).scalar()
+        if dup:
+            return RedirectResponse(url=f"/admin/automezzi?error=Impossibile+salvare:+la+targa+{clean_targa}+appartiene+già+ad+un+altro+veicolo+in+archivio", status_code=303)
+
         old_km = conn.execute(text("SELECT km_attuali FROM automezzi WHERE automezzo_id = :id"), {"id": id}).scalar() or 0
 
-        conn.execute(text("""
-            UPDATE automezzi SET
-                targa = :targa,
-                marca_id = :marca_id,
-                modello = :modello,
-                tipo = :tipo,
-                note = :note,
-                alimentazione = :alimentazione,
-                data_immatricolazione = :data_immatricolazione,
-                proprieta = :proprieta,
-                canone_noleggio = :canone_noleggio,
-                km_attuali = :km_attuali,
-                stato = :stato,
-                sede_assegnata_id = :sede_assegnata_id,
-                sede_attuale_id = :sede_attuale_id,
-                reparto_assegnato_id = :reparto_assegnato_id,
-                fornitore = :fornitore,
-                classe_euro = :classe_euro
-            WHERE automezzo_id = :id
-        """), {
-            "id": id,
-            "targa": targa.strip().upper(),
-            "marca_id": marca_id,
-            "modello": modello.strip(),
-            "tipo": tipo,
-            "note": note.strip() if note else None,
-            "alimentazione": alimentazione.strip() if alimentazione else None,
-            "data_immatricolazione": data_immatricolazione if data_immatricolazione else None,
-            "proprieta": proprieta,
-            "canone_noleggio": canone_noleggio,
-            "km_attuali": km_attuali,
-            "stato": stato,
-            "sede_assegnata_id": sede_assegnata_id,
-            "sede_attuale_id": sede_attuale_id,
-            "reparto_assegnato_id": reparto_assegnato_id,
-            "fornitore": fornitore.strip() if fornitore else None,
-            "classe_euro": classe_euro.strip() if classe_euro else None
-        })
+        try:
+            conn.execute(text("""
+                UPDATE automezzi SET
+                    targa = :targa,
+                    marca_id = :marca_id,
+                    modello = :modello,
+                    tipo = :tipo,
+                    note = :note,
+                    alimentazione = :alimentazione,
+                    data_immatricolazione = :data_immatricolazione,
+                    proprieta = :proprieta,
+                    canone_noleggio = :canone_noleggio,
+                    km_attuali = :km_attuali,
+                    stato = :stato,
+                    sede_assegnata_id = :sede_assegnata_id,
+                    sede_attuale_id = :sede_attuale_id,
+                    reparto_assegnato_id = :reparto_assegnato_id,
+                    fornitore = :fornitore,
+                    classe_euro = :classe_euro
+                WHERE automezzo_id = :id
+            """), {
+                "id": id,
+                "targa": clean_targa,
+                "marca_id": marca_id,
+                "modello": modello.strip(),
+                "tipo": tipo,
+                "note": note.strip() if note else None,
+                "alimentazione": alimentazione.strip() if alimentazione else None,
+                "data_immatricolazione": data_immatricolazione if data_immatricolazione else None,
+                "proprieta": proprieta,
+                "canone_noleggio": canone_noleggio,
+                "km_attuali": km_attuali,
+                "stato": stato,
+                "sede_assegnata_id": sede_assegnata_id,
+                "sede_attuale_id": sede_attuale_id,
+                "reparto_assegnato_id": reparto_assegnato_id,
+                "fornitore": fornitore.strip() if fornitore else None,
+                "classe_euro": classe_euro.strip() if classe_euro else None
+            })
+        except IntegrityError:
+            return RedirectResponse(url=f"/admin/automezzi?error=Impossibile+salvare:+la+targa+{clean_targa}+appartiene+già+ad+un+altro+veicolo+in+archivio", status_code=303)
         
         if km_attuali != old_km:
             registra_storico_km(conn, id, km_attuali, "Manuale", user_id=user.get("id"), note="Aggiornamento manuale in anagrafica")
