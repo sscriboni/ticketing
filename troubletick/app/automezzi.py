@@ -78,10 +78,16 @@ with engine.begin() as conn:
             km_fine INTEGER,
             luogo TEXT NOT NULL,
             bloccante INTEGER DEFAULT 0,
+            costo DECIMAL(10,2),
             note TEXT,
             FOREIGN KEY(automezzo_id) REFERENCES automezzi(automezzo_id) ON DELETE CASCADE
         )
     """))
+    
+    try:
+        conn.execute(text("ALTER TABLE manutenzioni_automezzi ADD COLUMN costo DECIMAL(10,2)"))
+    except Exception:
+        pass
     
     conn.execute(text(f"""
         CREATE TABLE IF NOT EXISTS viaggi_automezzi (
@@ -1272,7 +1278,7 @@ def list_manutenzioni(r: Request):
         
     with engine.connect() as conn:
         manutenzioni = conn.execute(text("""
-            SELECT m.*, a.targa, b.nome as marca, a.modello
+            SELECT m.*, a.targa, b.nome as marca, a.modello, a.proprieta
             FROM manutenzioni_automezzi m
             JOIN automezzi a ON m.automezzo_id = a.automezzo_id
             JOIN marche_automezzi b ON a.marca_id = b.marca_id
@@ -1419,6 +1425,7 @@ def complete_manutenzione(
     data_fine: str = Form(...),
     ora_fine: str = Form(...),
     km_fine: int = Form(...),
+    costo: str = Form(None),
     note_finali: str = Form(None)
 ):
     if "user" not in r.session: 
@@ -1427,15 +1434,22 @@ def complete_manutenzione(
     if user.get("ruolo") not in ("admin", "global_fleet_manager"):
         return RedirectResponse(url="/", status_code=303)
         
+    costo_val = None
+    if costo and str(costo).strip():
+        try:
+            costo_val = float(str(costo).strip().replace("€", "").replace(" ", "").replace(",", "."))
+        except (ValueError, TypeError):
+            costo_val = None
+
     with engine.begin() as conn:
         m = conn.execute(text("SELECT automezzo_id, bloccante, note FROM manutenzioni_automezzi WHERE manutenzione_id = :id"), {"id": id}).first()
         if m:
             note_complete = (m.note or "") + (f" | Resoconto finale: {note_finali}" if note_finali else "")
             conn.execute(text("""
                 UPDATE manutenzioni_automezzi
-                SET data_fine = :data_fine, ora_fine = :ora_fine, km_fine = :km_fine, note = :note
+                SET data_fine = :data_fine, ora_fine = :ora_fine, km_fine = :km_fine, costo = :costo, note = :note
                 WHERE manutenzione_id = :id
-            """), {"id": id, "data_fine": data_fine, "ora_fine": ora_fine, "km_fine": km_fine, "note": note_complete})
+            """), {"id": id, "data_fine": data_fine, "ora_fine": ora_fine, "km_fine": km_fine, "costo": costo_val, "note": note_complete})
             
             conn.execute(text("""
                 UPDATE automezzi
