@@ -43,6 +43,41 @@
             transform: translateY(-2px);
             box-shadow: 0 6px 12px rgba(0,0,0,0.08);
         }
+        /* Styles for pagination buttons and cursors */
+        .pagination .page-link {
+            cursor: pointer !important;
+            transition: all 0.15s ease-in-out;
+            color: #0d6efd;
+            border-radius: 6px;
+            margin: 0 2px;
+            display: inline-flex;
+            align-items: center;
+            gap: 4px;
+        }
+        .pagination .page-link:hover {
+            background-color: #0d6efd;
+            color: #ffffff !important;
+            transform: translateY(-1px);
+            box-shadow: 0 3px 6px rgba(13, 110, 253, 0.25);
+        }
+        .pagination .page-item.active .page-link {
+            background-color: #0d6efd !important;
+            border-color: #0d6efd !important;
+            color: #ffffff !important;
+            font-weight: 700 !important;
+            box-shadow: 0 3px 6px rgba(13, 110, 253, 0.35) !important;
+            cursor: default !important;
+        }
+        .pagination .page-item.disabled .page-link {
+            cursor: not-allowed !important;
+            opacity: 0.45;
+            background-color: #f8f9fa;
+            color: #6c757d !important;
+            border-color: #dee2e6;
+            pointer-events: none;
+            box-shadow: none !important;
+            transform: none !important;
+        }
     </style>
 </head>
 
@@ -111,6 +146,27 @@
             <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
         </div>
         {% endif %}
+
+        <!-- Quick Fleet Navigation Bar -->
+        <div class="d-flex flex-wrap justify-content-between align-items-center mb-3 pb-2 border-bottom">
+            <div class="d-flex flex-wrap gap-2">
+                <a href="/admin/automezzi" class="btn btn-sm btn-outline-secondary">
+                    <i class="bi bi-car-front-fill me-1 text-primary"></i> Elenco Automezzi
+                </a>
+                <a href="/admin/automezzi/dislocazioni" class="btn btn-sm btn-outline-secondary">
+                    <i class="bi bi-geo-alt-fill me-1 text-danger"></i> Dislocazioni
+                </a>
+                <a href="/admin/automezzi/manutenzioni" class="btn btn-sm btn-outline-secondary">
+                    <i class="bi bi-wrench-adjustable me-1 text-warning"></i> Manutenzioni
+                </a>
+                <a href="/admin/automezzi/viaggi" class="btn btn-sm btn-outline-secondary">
+                    <i class="bi bi-journal-text me-1 text-info"></i> Registro Viaggi
+                </a>
+                <a href="/admin/automezzi/rifornimenti" class="btn btn-sm btn-danger fw-bold">
+                    <i class="bi bi-fuel-pump-fill me-1"></i> Rifornimenti Carburante
+                </a>
+            </div>
+        </div>
 
         <!-- Header -->
         <div class="d-flex justify-content-between align-items-center mb-4">
@@ -258,6 +314,69 @@
             </div>
         </div>
 
+        <!-- Paginazione Superiore -->
+        {% if pagination %}
+        <div class="d-flex flex-column flex-md-row justify-content-between align-items-center gap-3 mb-3 px-3 py-2 bg-white rounded shadow-sm border">
+            <div class="text-muted small">
+                Mostrando da <strong>{{ pagination.page_start }}</strong> a <strong>{{ pagination.page_end }}</strong> di <strong>{{ pagination.total_items }}</strong> rifornimenti totali
+                <span class="badge bg-light text-dark border ms-2">Pagina {{ pagination.page }} di {{ pagination.total_pages }}</span>
+            </div>
+            
+            <nav aria-label="Paginazione rifornimenti superiore">
+                <ul class="pagination pagination-sm mb-0 shadow-sm">
+                    <!-- Prima Pagina -->
+                    <li class="page-item {{ 'disabled' if not pagination.has_prev }}">
+                        <a class="page-link" href="{{ pagination.first_url if pagination.has_prev else 'javascript:void(0);' }}" title="Prima Pagina" {% if not pagination.has_prev %}tabindex="-1" aria-disabled="true"{% endif %}>
+                            <i class="bi bi-chevron-double-left"></i> Prima
+                        </a>
+                    </li>
+                    
+                    <!-- Precedente -->
+                    <li class="page-item {{ 'disabled' if not pagination.has_prev }}">
+                        <a class="page-link" href="{{ pagination.prev_url if pagination.has_prev else 'javascript:void(0);' }}" {% if not pagination.has_prev %}tabindex="-1" aria-disabled="true"{% endif %}>
+                            <i class="bi bi-chevron-left"></i> Precedente
+                        </a>
+                    </li>
+                    
+                    <!-- Numeri Pagina -->
+                    {% for p in pagination.pages %}
+                    <li class="page-item {{ 'active' if p.is_active }}">
+                        <a class="page-link fw-semibold" href="{{ p.url if not p.is_active else 'javascript:void(0);' }}" {% if p.is_active %}aria-current="page"{% endif %}>
+                            {{ p.num }}
+                        </a>
+                    </li>
+                    {% endfor %}
+                    
+                    <!-- Successiva -->
+                    <li class="page-item {{ 'disabled' if not pagination.has_next }}">
+                        <a class="page-link" href="{{ pagination.next_url if pagination.has_next else 'javascript:void(0);' }}" {% if not pagination.has_next %}tabindex="-1" aria-disabled="true"{% endif %}>
+                            Successiva <i class="bi bi-chevron-right"></i>
+                        </a>
+                    </li>
+
+                    <!-- Ultima Pagina -->
+                    <li class="page-item {{ 'disabled' if not pagination.has_next }}">
+                        <a class="page-link" href="{{ pagination.last_url if pagination.has_next else 'javascript:void(0);' }}" title="Ultima Pagina" {% if not pagination.has_next %}tabindex="-1" aria-disabled="true"{% endif %}>
+                            Ultima <i class="bi bi-chevron-double-right"></i>
+                        </a>
+                    </li>
+                </ul>
+            </nav>
+
+            <!-- Elementi per pagina -->
+            <div class="d-flex align-items-center gap-2">
+                <span class="text-muted small fw-semibold">Righe per pagina:</span>
+                <select class="form-select form-select-sm fw-bold border-secondary-subtle" style="width: auto;" onchange="location = this.value;">
+                    {% for opt in pagination.per_page_options %}
+                    <option value="{{ opt.url }}" {{ 'selected' if opt.is_selected }}>
+                        {{ opt.count }} righe
+                    </option>
+                    {% endfor %}
+                </select>
+            </div>
+        </div>
+        {% endif %}
+
         <!-- Table Container -->
         <div class="table-container">
             <div class="table-responsive">
@@ -343,6 +462,69 @@
                 </table>
             </div>
         </div>
+
+        <!-- Paginazione Inferiore -->
+        {% if pagination %}
+        <div class="d-flex flex-column flex-md-row justify-content-between align-items-center gap-3 mt-3 mb-5 px-3 py-2 bg-white rounded shadow-sm border">
+            <div class="text-muted small">
+                Mostrando da <strong>{{ pagination.page_start }}</strong> a <strong>{{ pagination.page_end }}</strong> di <strong>{{ pagination.total_items }}</strong> rifornimenti totali
+                <span class="badge bg-light text-dark border ms-2">Pagina {{ pagination.page }} di {{ pagination.total_pages }}</span>
+            </div>
+            
+            <nav aria-label="Paginazione rifornimenti inferiore">
+                <ul class="pagination pagination-sm mb-0 shadow-sm">
+                    <!-- Prima Pagina -->
+                    <li class="page-item {{ 'disabled' if not pagination.has_prev }}">
+                        <a class="page-link" href="{{ pagination.first_url if pagination.has_prev else 'javascript:void(0);' }}" title="Prima Pagina" {% if not pagination.has_prev %}tabindex="-1" aria-disabled="true"{% endif %}>
+                            <i class="bi bi-chevron-double-left"></i> Prima
+                        </a>
+                    </li>
+                    
+                    <!-- Precedente -->
+                    <li class="page-item {{ 'disabled' if not pagination.has_prev }}">
+                        <a class="page-link" href="{{ pagination.prev_url if pagination.has_prev else 'javascript:void(0);' }}" {% if not pagination.has_prev %}tabindex="-1" aria-disabled="true"{% endif %}>
+                            <i class="bi bi-chevron-left"></i> Precedente
+                        </a>
+                    </li>
+                    
+                    <!-- Numeri Pagina -->
+                    {% for p in pagination.pages %}
+                    <li class="page-item {{ 'active' if p.is_active }}">
+                        <a class="page-link fw-semibold" href="{{ p.url if not p.is_active else 'javascript:void(0);' }}" {% if p.is_active %}aria-current="page"{% endif %}>
+                            {{ p.num }}
+                        </a>
+                    </li>
+                    {% endfor %}
+                    
+                    <!-- Successiva -->
+                    <li class="page-item {{ 'disabled' if not pagination.has_next }}">
+                        <a class="page-link" href="{{ pagination.next_url if pagination.has_next else 'javascript:void(0);' }}" {% if not pagination.has_next %}tabindex="-1" aria-disabled="true"{% endif %}>
+                            Successiva <i class="bi bi-chevron-right"></i>
+                        </a>
+                    </li>
+
+                    <!-- Ultima Pagina -->
+                    <li class="page-item {{ 'disabled' if not pagination.has_next }}">
+                        <a class="page-link" href="{{ pagination.last_url if pagination.has_next else 'javascript:void(0);' }}" title="Ultima Pagina" {% if not pagination.has_next %}tabindex="-1" aria-disabled="true"{% endif %}>
+                            Ultima <i class="bi bi-chevron-double-right"></i>
+                        </a>
+                    </li>
+                </ul>
+            </nav>
+
+            <!-- Elementi per pagina -->
+            <div class="d-flex align-items-center gap-2">
+                <span class="text-muted small fw-semibold">Righe per pagina:</span>
+                <select class="form-select form-select-sm fw-bold border-secondary-subtle" style="width: auto;" onchange="location = this.value;">
+                    {% for opt in pagination.per_page_options %}
+                    <option value="{{ opt.url }}" {{ 'selected' if opt.is_selected }}>
+                        {{ opt.count }} righe
+                    </option>
+                    {% endfor %}
+                </select>
+            </div>
+        </div>
+        {% endif %}
     </div>
 
     <!-- Modal Nuovo Rifornimento -->

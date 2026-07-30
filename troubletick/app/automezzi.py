@@ -1,6 +1,7 @@
 import csv
 import io
 import datetime
+import math
 import typing
 from typing import Optional
 from fastapi import APIRouter, Request, Form, UploadFile, File, Query
@@ -3142,6 +3143,8 @@ def delete_tipo_manutenzione(id: int, r: Request):
 @router.get("/admin/automezzi/rifornimenti", response_class=HTMLResponse)
 def list_rifornimenti(
     r: Request,
+    page: typing.Any = Query(1),
+    per_page: typing.Any = Query(50),
     q: str = Query(None),
     targa: str = Query(None),
     prodotto: str = Query(None),
@@ -3156,6 +3159,19 @@ def list_rifornimenti(
     if user.get("ruolo") not in ("admin", "fleet_manager", "global_fleet_manager"):
         return RedirectResponse(url="/", status_code=303)
         
+    # Convert and sanitize pagination parameters safely
+    try:
+        p_val = int(getattr(page, 'default', page))
+    except (ValueError, TypeError):
+        p_val = 1
+    page = max(1, p_val)
+
+    try:
+        pp_val = int(getattr(per_page, 'default', per_page))
+    except (ValueError, TypeError):
+        pp_val = 50
+    per_page = max(1, pp_val)
+
     with engine.connect() as conn:
         user_reparto_id = None
         if user.get("ruolo") == "fleet_manager":
@@ -3164,49 +3180,83 @@ def list_rifornimenti(
         where_clauses = ["1=1"]
         params = {}
 
+        # Sanitize query parameters
+        q_str = str(q).strip() if q and isinstance(q, str) and str(q).strip() else None
+        targa_str = str(targa).strip().upper() if targa and isinstance(targa, str) and str(targa).strip() else None
+        prodotto_str = str(prodotto).strip() if prodotto and isinstance(prodotto, str) and str(prodotto).strip() else None
+        pan_carta_str = str(pan_carta).strip() if pan_carta and isinstance(pan_carta, str) and str(pan_carta).strip() else None
+        citta_str = str(citta).strip() if citta and isinstance(citta, str) and str(citta).strip() else None
+        data_dal_str = str(data_dal).strip() if data_dal and isinstance(data_dal, str) and str(data_dal).strip() else None
+        data_al_str = str(data_al).strip() if data_al and isinstance(data_al, str) and str(data_al).strip() else None
+
         if user.get("ruolo") == "fleet_manager" and user_reparto_id:
             where_clauses.append("r.targa IN (SELECT targa FROM automezzi WHERE reparto_assegnato_id = :rep_id)")
             params["rep_id"] = user_reparto_id
 
-        if q:
+        if q_str:
             where_clauses.append("(LOWER(r.targa) LIKE LOWER(:q) OR LOWER(r.prodotto) LIKE LOWER(:q) OR LOWER(r.cod_impianto) LIKE LOWER(:q) OR LOWER(r.citta) LIKE LOWER(:q) OR LOWER(r.pan_carta) LIKE LOWER(:q))")
-            params["q"] = f"%{q.strip()}%"
-        if targa:
+            params["q"] = f"%{q_str}%"
+        if targa_str:
             where_clauses.append("r.targa = :targa")
-            params["targa"] = targa.strip().upper()
-        if prodotto:
+            params["targa"] = targa_str
+        if prodotto_str:
             where_clauses.append("r.prodotto = :prodotto")
-            params["prodotto"] = prodotto
-        if pan_carta:
+            params["prodotto"] = prodotto_str
+        if pan_carta_str:
             where_clauses.append("r.pan_carta = :pan_carta")
-            params["pan_carta"] = pan_carta
-        if citta:
+            params["pan_carta"] = pan_carta_str
+        if citta_str:
             where_clauses.append("r.citta = :citta")
-            params["citta"] = citta
-        if data_dal:
+            params["citta"] = citta_str
+        if data_dal_str:
             where_clauses.append("r.data >= :data_dal")
-            params["data_dal"] = data_dal
-        if data_al:
+            params["data_dal"] = data_dal_str
+        if data_al_str:
             where_clauses.append("r.data <= :data_al")
-            params["data_al"] = data_al
+            params["data_al"] = data_al_str
 
         where_sql = " AND ".join(where_clauses)
         
-        rifornimenti = conn.execute(text(f"""
+        all_rifornimenti_raw = conn.execute(text(f"""
             SELECT r.*
             FROM rifornimenti r
             WHERE {where_sql}
-            ORDER BY r.data DESC, r.ora DESC, r.rifornimento_id DESC
+            ORDER BY 
+                CASE 
+                    WHEN r.data LIKE '__/__/____' THEN SUBSTR(r.data,7,4)||'-'||SUBSTR(r.data,4,2)||'-'||SUBSTR(r.data,1,2)
+                    WHEN r.data LIKE '__-__-____' THEN SUBSTR(r.data,7,4)||'-'||SUBSTR(r.data,4,2)||'-'||SUBSTR(r.data,1,2)
+                    ELSE r.data 
+                END DESC,
+                CASE 
+                    WHEN LENGTH(COALESCE(r.ora, '')) = 7 THEN '0' || r.ora 
+                    WHEN LENGTH(COALESCE(r.ora, '')) = 4 THEN '0' || r.ora 
+                    ELSE COALESCE(r.ora, '') 
+                END DESC,
+                r.rifornimento_id DESC
         """), params).mappings().all()
 
-        totale_operazioni = len(rifornimenti)
-        totale_volume = sum(row["volume"] or 0 for row in rifornimenti)
-        totale_spesa = sum(row["imp_scontato"] or row["imp_intero"] or 0 for row in rifornimenti)
-        veicoli_unici = len(set(row["targa"] for row in rifornimenti if row["targa"]))
+        def get_sort_key(row):
+            d = str(row.get("data") or "").strip()
+            if len(d) == 10 and d[2] in ('/', '-') and d[5] in ('/', '-'):
+                d = f"{d[6:10]}-{d[3:5]}-{d[0:2]}"
+            o = str(row.get("ora") or "").strip()
+            if len(o) == 7:
+                o = "0" + o
+            elif len(o) == 4:
+                o = "0" + o
+            r_id = int(row.get("rifornimento_id") or 0)
+            return (d, o, r_id)
+
+        all_rifornimenti = sorted(all_rifornimenti_raw, key=get_sort_key, reverse=True)
+
+        totale_operazioni = len(all_rifornimenti)
+        totale_volume = sum(row["volume"] or 0 for row in all_rifornimenti)
+        totale_spesa = sum(row["imp_scontato"] or row["imp_intero"] or 0 for row in all_rifornimenti)
+        veicoli_unici = len(set(row["targa"] for row in all_rifornimenti if row["targa"]))
 
         # Volume breakdown per fuel product type
         volume_per_prodotto = {}
-        for row in rifornimenti:
+        for row in all_rifornimenti:
             prod_key = (row["prodotto"] or "Non specificato").strip()
             vol_val = float(row["volume"] or 0)
             volume_per_prodotto[prod_key] = volume_per_prodotto.get(prod_key, 0.0) + vol_val
@@ -3219,13 +3269,60 @@ def list_rifornimenti(
         opt_citta = [row[0] for row in conn.execute(text("SELECT DISTINCT citta FROM rifornimenti WHERE citta IS NOT NULL AND citta != '' ORDER BY citta")).all()]
         automezzi_list = conn.execute(text("SELECT automezzo_id, targa, modello FROM automezzi ORDER BY targa")).mappings().all()
 
+    # Pagination calculation
+    from urllib.parse import urlencode
+
+    total_items = len(all_rifornimenti)
+    total_pages = max(1, math.ceil(total_items / per_page))
+    if page > total_pages:
+        page = total_pages
+    offset = (page - 1) * per_page
+    rifornimenti_page = all_rifornimenti[offset : offset + per_page]
+
+    start_p = max(1, page - 3)
+    end_p = min(total_pages, start_p + 6)
+    if end_p - start_p < 6:
+        start_p = max(1, end_p - 6)
+    page_numbers = list(range(start_p, end_p + 1))
+
+    def make_url(p_num, size=per_page):
+        p_num = max(1, min(p_num, total_pages))
+        params_dict = {"page": p_num, "per_page": size}
+        if q_str: params_dict["q"] = q_str
+        if targa_str: params_dict["targa"] = targa_str
+        if prodotto_str: params_dict["prodotto"] = prodotto_str
+        if pan_carta_str: params_dict["pan_carta"] = pan_carta_str
+        if citta_str: params_dict["citta"] = citta_str
+        if data_dal_str: params_dict["data_dal"] = data_dal_str
+        if data_al_str: params_dict["data_al"] = data_al_str
+        return f"/admin/automezzi/rifornimenti?{urlencode(params_dict)}"
+
+    pagination = {
+        "page": page,
+        "per_page": per_page,
+        "total_items": total_items,
+        "total_pages": total_pages,
+        "has_prev": page > 1,
+        "has_next": page < total_pages,
+        "prev_page": page - 1,
+        "next_page": page + 1,
+        "first_url": make_url(1),
+        "prev_url": make_url(page - 1),
+        "next_url": make_url(page + 1),
+        "last_url": make_url(total_pages),
+        "pages": [{"num": p, "url": make_url(p), "is_active": p == page} for p in page_numbers],
+        "per_page_options": [{"count": n, "url": make_url(1, n), "is_selected": n == per_page} for n in (25, 50, 100, 200)],
+        "page_start": offset + 1 if total_items > 0 else 0,
+        "page_end": min(offset + per_page, total_items)
+    }
+
     import_result = r.session.pop("import_rifornimenti_result", None)
 
     return templates.TemplateResponse(r, "admin_automezzi_rifornimenti.html", {
         "request": r,
         "cfg": CFG,
         "user": user,
-        "rifornimenti": rifornimenti,
+        "rifornimenti": rifornimenti_page,
         "totale_operazioni": totale_operazioni,
         "totale_volume": round(totale_volume, 2),
         "totale_spesa": round(totale_spesa, 2),
@@ -3237,6 +3334,7 @@ def list_rifornimenti(
         "opt_citta": opt_citta,
         "automezzi_list": automezzi_list,
         "import_result": import_result,
+        "pagination": pagination,
         "filters": {
             "q": q or "",
             "targa": targa or "",
@@ -3309,7 +3407,18 @@ def export_rifornimenti_csv(
                    r.prezzo_scontato, r.imp_scontato, r.iva, r.imp_scontato_no_iva, r.tipo_servizio
             FROM rifornimenti r
             WHERE {where_sql}
-            ORDER BY r.data DESC, r.ora DESC, r.rifornimento_id DESC
+            ORDER BY 
+                CASE 
+                    WHEN r.data LIKE '__/__/____' THEN SUBSTR(r.data,7,4)||'-'||SUBSTR(r.data,4,2)||'-'||SUBSTR(r.data,1,2)
+                    WHEN r.data LIKE '__-__-____' THEN SUBSTR(r.data,7,4)||'-'||SUBSTR(r.data,4,2)||'-'||SUBSTR(r.data,1,2)
+                    ELSE r.data 
+                END DESC,
+                CASE 
+                    WHEN LENGTH(COALESCE(r.ora, '')) = 7 THEN '0' || r.ora 
+                    WHEN LENGTH(COALESCE(r.ora, '')) = 4 THEN '0' || r.ora 
+                    ELSE COALESCE(r.ora, '') 
+                END DESC,
+                r.rifornimento_id DESC
         """), params).all()
 
     output = io.StringIO()

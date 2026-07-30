@@ -1,5 +1,21 @@
 {% include 'base_script.html' %}
 <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css">
+<style>
+  /* Enable hover & click opening for navbar dropdowns */
+  @media (min-width: 992px) {
+    .navbar .nav-item.dropdown:hover > .dropdown-menu {
+      display: block !important;
+      margin-top: 0;
+      opacity: 1;
+      visibility: visible;
+    }
+  }
+  .navbar .dropdown-menu {
+    border-radius: 8px;
+    border: 1px solid rgba(0,0,0,0.1);
+    box-shadow: 0 10px 25px rgba(0,0,0,0.15) !important;
+  }
+</style>
 <nav class="navbar navbar-expand-lg navbar-dark bg-primary shadow-sm mb-4">
   <div class="container-fluid px-4">
     <a class="navbar-brand fw-bold" href="/">{{ cfg.logo_emoji }} {{ cfg.app_title }}</a>
@@ -87,7 +103,7 @@
           <!-- Autopark Dropdown -->
           {% if cfg.get('modulo_autopark', True) %}
           <li class="nav-item dropdown">
-            <a class="nav-link dropdown-toggle {% if request.url.path == '/autopark' or request.url.path == '/admin/automezzi' or request.url.path == '/admin/automezzi/dislocazioni' or request.url.path == '/admin/automezzi/manutenzioni' or request.url.path == '/admin/automezzi/viaggi' or request.url.path == '/admin/automezzi/tipi-manutenzione' %}active fw-bold{% endif %}" href="#" id="autoparkDropdown" role="button" data-bs-toggle="dropdown" aria-expanded="false">
+            <a class="nav-link dropdown-toggle {% if request.url.path == '/autopark' or request.url.path == '/admin/automezzi' or request.url.path == '/admin/automezzi/dislocazioni' or request.url.path == '/admin/automezzi/manutenzioni' or request.url.path == '/admin/automezzi/viaggi' or request.url.path == '/admin/automezzi/rifornimenti' or request.url.path == '/admin/automezzi/tipi-manutenzione' %}active fw-bold{% endif %}" href="#" id="autoparkDropdown" role="button" data-bs-toggle="dropdown" aria-expanded="false">
               <i class="bi bi-car-front-fill me-1"></i> Carpooling
             </a>
             <ul class="dropdown-menu shadow" aria-labelledby="autoparkDropdown">
@@ -334,7 +350,7 @@
 
           {% if cfg.get('modulo_autopark', True) %}
           <li class="nav-item dropdown">
-            <a class="nav-link dropdown-toggle {% if request.url.path == '/autopark' or request.url.path == '/admin/automezzi' or request.url.path == '/admin/automezzi/dislocazioni' or request.url.path == '/admin/automezzi/manutenzioni' or request.url.path == '/admin/automezzi/viaggi' or request.url.path == '/admin/automezzi/tipi-manutenzione' %}active fw-bold{% endif %}" href="#" id="autoparkDropdownFM" role="button" data-bs-toggle="dropdown" aria-expanded="false">
+            <a class="nav-link dropdown-toggle {% if request.url.path == '/autopark' or request.url.path == '/admin/automezzi' or request.url.path == '/admin/automezzi/dislocazioni' or request.url.path == '/admin/automezzi/manutenzioni' or request.url.path == '/admin/automezzi/viaggi' or request.url.path == '/admin/automezzi/rifornimenti' or request.url.path == '/admin/automezzi/tipi-manutenzione' %}active fw-bold{% endif %}" href="#" id="autoparkDropdownFM" role="button" data-bs-toggle="dropdown" aria-expanded="false">
               <i class="bi bi-car-front-fill me-1"></i> Carpooling
             </a>
             <ul class="dropdown-menu shadow" aria-labelledby="autoparkDropdownFM">
@@ -425,4 +441,34 @@
     </div>
   </div>
 </nav>
-<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js" defer></script>
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
+<script>
+  document.addEventListener("DOMContentLoaded", function () {
+    var dropdownToggles = document.querySelectorAll('.navbar .dropdown-toggle');
+    dropdownToggles.forEach(function (toggle) {
+      toggle.addEventListener('click', function (e) {
+        var menu = this.nextElementSibling;
+        if (menu && menu.classList.contains('dropdown-menu')) {
+          e.preventDefault();
+          e.stopPropagation();
+          var isShown = menu.classList.contains('show');
+          document.querySelectorAll('.navbar .dropdown-menu.show').forEach(function(m) {
+            if (m !== menu) m.classList.remove('show');
+          });
+          if (isShown) {
+            menu.classList.remove('show');
+          } else {
+            menu.classList.add('show');
+          }
+        }
+      });
+    });
+    document.addEventListener('click', function (e) {
+      if (!e.target.closest('.navbar .dropdown')) {
+        document.querySelectorAll('.navbar .dropdown-menu.show').forEach(function(m) {
+          m.classList.remove('show');
+        });
+      }
+    });
+  });
+</script>
