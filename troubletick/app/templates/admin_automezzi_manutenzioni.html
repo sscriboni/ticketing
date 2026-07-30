@@ -203,6 +203,13 @@
             </div>
             {% endif %}
 
+            {% if request.query_params.get('msg') == 'targhe_uniformate' %}
+            <div class="alert alert-success alert-dismissible fade show shadow-sm border-0 rounded-3 mb-4" role="alert">
+                <i class="bi bi-check-circle-fill me-2"></i> <strong>Targhe Uniformate:</strong> Rimosse correttamente tutte le spaziatura interne dalle targhe nell'elenco delle manutenzioni.
+                <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+            </div>
+            {% endif %}
+
             <!-- Manutenzioni Attive -->
             <h4 class="mb-3 text-secondary"><i class="bi bi-clock-history me-1 text-warning"></i> Manutenzioni in Corso</h4>
             <div class="table-container mb-5">
@@ -422,6 +429,17 @@
                             {% endif %}
                         </tbody>
                     </table>
+                </div>
+                <!-- Action Footer: Uniforma Targhe -->
+                <div class="d-flex justify-content-between align-items-center mt-3 pt-3 border-top">
+                    <div class="text-muted small">
+                        <i class="bi bi-info-circle me-1 text-primary"></i> Rimuovi eventuali spazi inseriti erroneamente nelle targhe dei veicoli per uniformare l'elenco delle manutenzioni.
+                    </div>
+                    <form action="/admin/automezzi/manutenzioni/uniforma-targhe" method="POST" onsubmit="return confirm('Confermi di voler rimuovere tutti gli spazi dalle targhe dei veicoli nell\'elenco delle manutenzioni?');">
+                        <button type="submit" class="btn btn-sm btn-outline-secondary fw-semibold shadow-sm">
+                            <i class="bi bi-fonts me-1 text-primary"></i> Uniforma Targhe (Rimuovi Spazi)
+                        </button>
+                    </form>
                 </div>
             </div>
 

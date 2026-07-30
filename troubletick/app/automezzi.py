@@ -1581,6 +1581,28 @@ def elimina_programma_manutenzione(
     return RedirectResponse(url="/admin/automezzi/manutenzioni", status_code=303)
 
 
+@router.post("/admin/automezzi/manutenzioni/uniforma-targhe")
+def uniforma_targhe_manutenzioni(r: Request):
+    if "user" not in r.session:
+        return RedirectResponse(url="/login", status_code=303)
+    user = r.session.get("user")
+    if user.get("ruolo") not in ("admin", "global_fleet_manager"):
+        return RedirectResponse(url="/", status_code=303)
+
+    with engine.begin() as conn:
+        conn.execute(text("UPDATE automezzi SET targa = UPPER(REPLACE(targa, ' ', '')) WHERE targa IS NOT NULL AND targa LIKE '% %'"))
+        try:
+            conn.execute(text("UPDATE rifornimenti SET targa = UPPER(REPLACE(targa, ' ', '')) WHERE targa IS NOT NULL AND targa LIKE '% %'"))
+        except Exception:
+            pass
+        try:
+            conn.execute(text("UPDATE viaggi_automezzi SET targa = UPPER(REPLACE(targa, ' ', '')) WHERE targa IS NOT NULL AND targa LIKE '% %'"))
+        except Exception:
+            pass
+
+    return RedirectResponse(url="/admin/automezzi/manutenzioni?msg=targhe_uniformate", status_code=303)
+
+
 def parse_csv_date(date_str: str) -> str:
     if not date_str or not str(date_str).strip():
         return ""
