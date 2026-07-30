@@ -222,7 +222,7 @@
                                     <div class="d-inline-flex gap-1">
                                         {% if user.ruolo in ('admin', 'global_fleet_manager') or (user.ruolo == 'fleet_manager' and v.reparto_assegnato_id == user_reparto_id) %}
                                             <button class="btn btn-sm btn-outline-info text-dark font-monospace" data-id="{{ v.automezzo_id }}" data-title="{{ v.marca_nome }} {{ v.modello }} ({{ v.targa }})" data-km="{{ v.km_attuali or 0 }}" onclick="openRegistroKmModalFromBtn(this)" title="Registro Chilometraggi & Storico KM">
-                                                <i class="bi bi-speedometer2 me-1"></i> Registro KM
+                                                <i class="bi bi-speedometer2 me-1"></i> KM
                                             </button>
                                             <button class="btn btn-sm btn-outline-primary" onclick='openEditModal({{ {
                                                 "automezzo_id": v.automezzo_id,
@@ -466,7 +466,7 @@
                         <div class="row g-3 mb-3">
                             <div class="col-md-4">
                                 <label class="form-label text-muted">Targa *</label>
-                                <input type="text" class="form-control" name="targa" id="editTarga" required>
+                                <input type="text" class="form-control text-uppercase" name="targa" id="editTarga" oninput="this.value = this.value.replace(/\s+/g, '').toUpperCase();" required>
                             </div>
                             <div class="col-md-4">
                                 <label class="form-label text-muted">Marca *</label>
@@ -704,7 +704,8 @@
         }
 
         function openEditModal(v) {
-            document.getElementById('editTarga').value = v.targa;
+            var rawTarga = v.targa || '';
+            document.getElementById('editTarga').value = rawTarga.replace(/\s+/g, '').toUpperCase();
             document.getElementById('editMarcaId').value = v.marca_id;
             document.getElementById('editModello').value = v.modello;
             document.getElementById('editTipo').value = v.tipo;
