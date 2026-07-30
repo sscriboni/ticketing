@@ -1386,10 +1386,12 @@ def list_manutenzioni(r: Request):
                 "km": row["km_fine"] or row["km_registrati"] or 0
             }
 
+    import_result = r.session.pop("import_manutenzioni_result", None)
+
     return templates.TemplateResponse(r, "admin_automezzi_manutenzioni.html", {
         "request": r, "cfg": CFG, "user": user, "manutenzioni": manutenzioni, "veicoli": veicoli, 
         "manutenzioni_programmate": manutenzioni_programmate, "tipi_manutenzione": tipi_manutenzione,
-        "last_maint_map": last_maint_map
+        "last_maint_map": last_maint_map, "import_result": import_result
     })
 
 @router.post("/admin/automezzi/manutenzioni/nuova")
@@ -1573,7 +1575,210 @@ def elimina_programma_manutenzione(
         conn.execute(text("""
             DELETE FROM automezzi_tipi_manutenzione 
             WHERE automezzo_id = :aid AND tipo_manutenzione_id = :tid
-        """), {"aid": automezzo_id, "tid": tipo_manutenzione_id})
+        """), {"aid": automezzo_id, "tipo_manutenzione_id": tipo_manutenzione_id})
+
+    return RedirectResponse(url="/admin/automezzi/manutenzioni", status_code=303)
+
+
+def parse_csv_date(date_str: str) -> str:
+    if not date_str or not str(date_str).strip():
+        return ""
+    s = str(date_str).strip()
+    for fmt in ("%Y-%m-%d", "%d/%m/%Y", "%d-%m-%Y", "%Y/%m/%d", "%d.%m.%Y"):
+        try:
+            dt = datetime.datetime.strptime(s, fmt)
+            return dt.strftime("%Y-%m-%d")
+        except ValueError:
+            continue
+    return s
+
+def parse_csv_float(val) -> float:
+    if val is None:
+        return 0.0
+    s = str(val).strip().replace("€", "").replace(" ", "").replace(",", ".")
+    try:
+        return float(s)
+    except (ValueError, TypeError):
+        return 0.0
+
+def parse_csv_int(val) -> int:
+    if val is None:
+        return 0
+    s = str(val).strip().replace(" ", "").replace(".", "").replace(",", "")
+    try:
+        return int(float(s))
+    except (ValueError, TypeError):
+        return 0
+
+
+@router.post("/admin/automezzi/manutenzioni/importa")
+def import_manutenzioni_csv(
+    r: Request,
+    file: UploadFile = File(...)
+):
+    if "user" not in r.session:
+        return RedirectResponse(url="/login", status_code=303)
+    user = r.session.get("user")
+    if user.get("ruolo") not in ("admin", "fleet_manager", "global_fleet_manager"):
+        return RedirectResponse(url="/", status_code=303)
+
+    content = file.file.read()
+    text_content = content.decode("utf-8-sig", errors="ignore")
+    delimiter = ";" if ";" in text_content else ","
+
+    reader = csv.DictReader(io.StringIO(text_content), delimiter=delimiter)
+
+    imported_count = 0
+    duplicate_count = 0
+    unmapped_count = 0
+    invalid_type_count = 0
+    discarded_records = []
+
+    with engine.begin() as conn:
+        # 0. Map registered tipi_manutenzione by normalized name
+        valid_tipi_dict = {}
+        for tm in conn.execute(text("SELECT LOWER(TRIM(nome)) as nome_norm, nome FROM tipi_manutenzione")).mappings().all():
+            if tm["nome_norm"]:
+                valid_tipi_dict[tm["nome_norm"]] = tm["nome"]
+
+        # 1. Map existing automezzi by normalized targa
+        veh_map = {}
+        for v in conn.execute(text("SELECT automezzo_id, UPPER(REPLACE(REPLACE(targa, ' ', ''), '-', '')) as targa_norm, km_attuali FROM automezzi")).mappings().all():
+            if v["targa_norm"]:
+                veh_map[v["targa_norm"]] = dict(v)
+
+        # 2. Map existing maintenance records by (targa_norm, data_str, costo_round)
+        existing_records = set()
+        for rec in conn.execute(text("""
+            SELECT UPPER(REPLACE(REPLACE(a.targa, ' ', ''), '-', '')) as targa_norm, 
+                   m.data_fine, m.data_inizio, m.costo
+            FROM manutenzioni_automezzi m
+            JOIN automezzi a ON m.automezzo_id = a.automezzo_id
+        """)).mappings().all():
+            t_n = rec["targa_norm"]
+            d_val = rec["data_fine"] or rec["data_inizio"]
+            c_val = round(float(rec["costo"] or 0.0), 2)
+            if t_n and d_val:
+                existing_records.add((t_n, d_val, c_val))
+
+        line_num = 1
+        for row in reader:
+            line_num += 1
+            if not row:
+                continue
+
+            # Normalize keys
+            norm_row = {}
+            for k, v in row.items():
+                if k:
+                    norm_row[k.strip().lower().replace(" ", "_")] = v
+
+            def get_val(aliases):
+                for a in aliases:
+                    if a in norm_row and norm_row[a] is not None:
+                        return str(norm_row[a]).strip()
+                return ""
+
+            raw_tipo = get_val(["tipo_intervento", "tipo_servizio", "tipo", "tipointervento", "servizio"])
+            raw_targa = get_val(["targa", "targa_veicolo", "automezzo"])
+            targa_norm = raw_targa.upper().replace(" ", "").replace("-", "")
+            raw_data = get_val(["data", "data_fine", "data_intervento", "dataintervento", "data_inizio"])
+            data_formatted = parse_csv_date(raw_data)
+            raw_km = get_val(["km", "chilometraggio", "km_fine", "km_registrati"])
+            km_val = parse_csv_int(raw_km)
+            descrizione = get_val(["descrizione", "note", "resoconto", "dettagli"])
+            officina = get_val(["officina", "luogo_officina", "luogo", "fornitore", "struttura"])
+            raw_importo = get_val(["importo", "costo", "costo_intervento", "prezzo", "totale"])
+            importo_val = parse_csv_float(raw_importo)
+
+            # Validation check: tipo_intervento must be registered in tipi_manutenzione
+            tipo_norm = raw_tipo.strip().lower() if raw_tipo else ""
+            if not tipo_norm or tipo_norm not in valid_tipi_dict:
+                invalid_type_count += 1
+                discarded_records.append({
+                    "linea": line_num,
+                    "targa": raw_targa or "NON SPECIFICATA",
+                    "data": data_formatted or raw_data,
+                    "tipo": raw_tipo or "NON SPECIFICATO",
+                    "officina": officina or "N/D",
+                    "importo": importo_val,
+                    "motivo": f"Tipo intervento '{raw_tipo}' non presente nei Tipi Manutenzione registrati",
+                    "is_unmapped": True
+                })
+                continue
+
+            official_tipo_nome = valid_tipi_dict[tipo_norm]
+
+            # Validation check: missing vehicle in DB
+            if not targa_norm or targa_norm not in veh_map:
+                unmapped_count += 1
+                discarded_records.append({
+                    "linea": line_num,
+                    "targa": raw_targa or "NON SPECIFICATA",
+                    "data": data_formatted or raw_data,
+                    "tipo": official_tipo_nome,
+                    "officina": officina or "N/D",
+                    "importo": importo_val,
+                    "motivo": f"Autoveicolo '{raw_targa}' non trovato in anagrafica",
+                    "is_unmapped": True
+                })
+                continue
+
+            # Duplicate check: (targa, data, importo)
+            costo_key = round(importo_val, 2)
+            combo_key = (targa_norm, data_formatted, costo_key)
+            if combo_key in existing_records:
+                duplicate_count += 1
+                discarded_records.append({
+                    "linea": line_num,
+                    "targa": raw_targa,
+                    "data": data_formatted,
+                    "tipo": official_tipo_nome,
+                    "officina": officina or "N/D",
+                    "importo": importo_val,
+                    "motivo": f"Intervento duplicato (stessa targa, data {data_formatted} ed importo € {costo_key:.2f})",
+                    "is_unmapped": False
+                })
+                continue
+
+            # Valid record -> insert into DB
+            automezzo_id = veh_map[targa_norm]["automezzo_id"]
+            conn.execute(text("""
+                INSERT INTO manutenzioni_automezzi (
+                    automezzo_id, tipo_servizio, data_inizio, ora_inizio, data_fine, ora_fine,
+                    km_registrati, km_fine, luogo, bloccante, note, costo
+                ) VALUES (
+                    :aid, :tipo, :data_i, '08:00', :data_f, '18:00',
+                    :km_reg, :km_f, :luogo, 0, :note, :costo
+                )
+            """), {
+                "aid": automezzo_id,
+                "tipo": official_tipo_nome,
+                "data_i": data_formatted or datetime.date.today().strftime("%Y-%m-%d"),
+                "data_f": data_formatted or datetime.date.today().strftime("%Y-%m-%d"),
+                "km_reg": km_val,
+                "km_f": km_val,
+                "luogo": officina or "Officina non specificata",
+                "note": descrizione or None,
+                "costo": importo_val
+            })
+
+            # Update vehicle km_attuali if km_val is greater
+            if km_val > (veh_map[targa_norm]["km_attuali"] or 0):
+                conn.execute(text("UPDATE automezzi SET km_attuali = :km WHERE automezzo_id = :aid"), {"km": km_val, "aid": automezzo_id})
+                veh_map[targa_norm]["km_attuali"] = km_val
+
+            # Register into existing_records to prevent duplicates within same CSV file
+            existing_records.add(combo_key)
+            imported_count += 1
+
+    r.session["import_manutenzioni_result"] = {
+        "imported_count": imported_count,
+        "duplicate_count": duplicate_count,
+        "unmapped_count": unmapped_count,
+        "invalid_type_count": invalid_type_count,
+        "discarded_records": discarded_records
+    }
 
     return RedirectResponse(url="/admin/automezzi/manutenzioni", status_code=303)
 

@@ -39,11 +39,103 @@
             <div class="d-flex justify-content-between align-items-center mb-4">
                 <h2 class="mb-0"><i class="bi bi-wrench-adjustable text-primary me-2"></i> Registro Manutenzioni Automezzi</h2>
                 <div class="d-flex gap-2">
+                    <button class="btn btn-outline-success px-4 py-2 fw-bold" onclick="showImportManutenzioniModal()">
+                        <i class="bi bi-file-earmark-arrow-up me-1"></i> Importa CSV
+                    </button>
                     <button class="btn btn-primary px-4 py-2" onclick="showAddMaintenanceModal()">
                         <i class="bi bi-plus-circle me-1"></i> inizia manutenzione..
                     </button>
                 </div>
             </div>
+
+            {% if import_result %}
+            {% set total_scartati = import_result.discarded_records | length %}
+            <div class="alert alert-{{ 'success' if total_scartati == 0 else 'warning' }} alert-dismissible fade show shadow-sm mb-4 border-2" role="alert">
+                <h5 class="alert-heading fw-bold d-flex align-items-center mb-3">
+                    <i class="bi bi-file-earmark-spreadsheet-fill me-2 fs-4 text-{{ 'success' if total_scartati == 0 else 'warning' }}"></i>
+                    Esito Importazione Manutenzioni CSV
+                </h5>
+                
+                <div class="row g-3 mb-3">
+                    <div class="col-auto">
+                        <div class="p-3 bg-white rounded border shadow-sm text-center" style="min-width: 140px;">
+                            <span class="d-block text-muted small fw-bold text-uppercase">Record Importati</span>
+                            <span class="fs-3 fw-bold text-success">{{ import_result.imported_count }}</span>
+                        </div>
+                    </div>
+                    <div class="col-auto">
+                        <div class="p-3 bg-white rounded border shadow-sm text-center" style="min-width: 140px;">
+                            <span class="d-block text-muted small fw-bold text-uppercase">Record Scartati</span>
+                            <span class="fs-3 fw-bold {{ 'text-danger' if total_scartati > 0 else 'text-muted' }}">{{ total_scartati }}</span>
+                        </div>
+                    </div>
+                    {% if total_scartati > 0 %}
+                    <div class="col d-flex align-items-center">
+                        <div class="small text-secondary">
+                            <strong>Dettaglio Scarti:</strong>
+                            <ul class="mb-0 ps-3">
+                                {% if import_result.unmapped_count > 0 %}
+                                <li>Veicoli non trovati in anagrafica: <strong>{{ import_result.unmapped_count }}</strong></li>
+                                {% endif %}
+                                {% if import_result.invalid_type_count > 0 %}
+                                <li>Tipi intervento non registrati: <strong>{{ import_result.invalid_type_count }}</strong></li>
+                                {% endif %}
+                                {% if import_result.duplicate_count > 0 %}
+                                <li>Interventi duplicati: <strong>{{ import_result.duplicate_count }}</strong></li>
+                                {% endif %}
+                            </ul>
+                        </div>
+                    </div>
+                    {% endif %}
+                </div>
+                
+                {% if import_result.discarded_records %}
+                <hr>
+                <h6 class="fw-bold text-danger mb-2"><i class="bi bi-exclamation-triangle-fill me-1"></i> Record non importati o da verificare:</h6>
+                <div class="table-responsive bg-white rounded border" style="max-height: 250px; overflow-y: auto;">
+                    <table class="table table-sm table-striped table-hover mb-0 align-middle small">
+                        <thead class="table-dark">
+                            <tr>
+                                <th>Riga CSV</th>
+                                <th>Targa</th>
+                                <th>Data</th>
+                                <th>Tipo Intervento</th>
+                                <th>Officina</th>
+                                <th>Importo</th>
+                                <th>Motivo Esclusione</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for d in import_result.discarded_records %}
+                            <tr class="{{ 'table-danger' if d.is_unmapped else 'table-warning' }}">
+                                <td class="fw-bold">#{{ d.linea }}</td>
+                                <td>
+                                    {% if d.is_unmapped %}
+                                        <span class="badge bg-danger text-uppercase">{{ d.targa or 'MANCANTE' }}</span>
+                                    {% else %}
+                                        <strong class="text-uppercase">{{ d.targa }}</strong>
+                                    {% endif %}
+                                </td>
+                                <td>{{ d.data or '-' }}</td>
+                                <td>{{ d.tipo or '-' }}</td>
+                                <td>{{ d.officina or '-' }}</td>
+                                <td>{{ '€ {:.2f}'.format(d.importo) if d.importo else '-' }}</td>
+                                <td>
+                                    {% if d.is_unmapped %}
+                                        <span class="badge bg-danger"><i class="bi bi-x-circle me-1"></i> {{ d.motivo }}</span>
+                                    {% else %}
+                                        <span class="badge bg-warning text-dark"><i class="bi bi-files me-1"></i> {{ d.motivo }}</span>
+                                    {% endif %}
+                                </td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+                {% endif %}
+                <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+            </div>
+            {% endif %}
 
             <!-- Manutenzioni Attive -->
             <h4 class="mb-3 text-secondary"><i class="bi bi-clock-history me-1 text-warning"></i> Manutenzioni in Corso</h4>
@@ -387,6 +479,49 @@
     <!-- Hidden delete form -->
     <form id="deleteMaintenanceForm" method="post" style="display: none;"></form>
 
+    <!-- Modal Importa Manutenzioni CSV -->
+    <div class="modal fade" id="importManutenzioniModal" tabindex="-1" aria-labelledby="importManutenzioniModalLabel" aria-hidden="true">
+        <div class="modal-dialog modal-dialog-centered">
+            <div class="modal-content shadow">
+                <div class="modal-header bg-success text-white">
+                    <h5 class="modal-title fw-bold" id="importManutenzioniModalLabel">
+                        <i class="bi bi-file-earmark-arrow-up me-2"></i> Importa Manutenzioni da CSV
+                    </h5>
+                    <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Chiudi"></button>
+                </div>
+                <form action="/admin/automezzi/manutenzioni/importa" method="post" enctype="multipart/form-data">
+                    <div class="modal-body">
+                        <div class="mb-3">
+                            <label class="form-label fw-bold">Seleziona File CSV *</label>
+                            <input type="file" name="file" class="form-control" accept=".csv" required>
+                        </div>
+
+                        <div class="card bg-light border-0 p-3 mb-3 small">
+                            <h6 class="fw-bold text-dark mb-2"><i class="bi bi-info-circle text-primary me-1"></i> Campi Obbligatori File CSV:</h6>
+                            <ul class="mb-0 ps-3 text-secondary">
+                                <li><code>tipo_intervento</code>: Tipo servizio (es. Tagliando, Revisione, Freni)</li>
+                                <li><code>targa</code>: Targa autoveicolo (es. AA123BB)</li>
+                                <li><code>data</code>: Data intervento (es. 2026-05-15 o 15/05/2026)</li>
+                                <li><code>km</code>: Chilometraggio (es. 45000)</li>
+                                <li><code>descrizione</code>: Note o dettagli lavoro eseguito</li>
+                                <li><code>officina</code>: Nome officina / luogo esecuzione</li>
+                                <li><code>importo</code>: Costo in Euro (es. 250.00)</li>
+                            </ul>
+                        </div>
+
+                        <div class="alert alert-secondary py-2 small mb-0">
+                            <i class="bi bi-shield-check me-1 text-success"></i> <strong>Controlli Automatici:</strong> Il sistema evidenzierà i record senza autoveicolo in anagrafica ed escluderà le righe duplicate (stessa targa, data ed importo).
+                        </div>
+                    </div>
+                    <div class="modal-footer bg-light">
+                        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Annulla</button>
+                        <button type="submit" class="btn btn-success fw-bold px-4">Importa Ora</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+
     <script>
         const LAST_MAINT_MAP = {{ last_maint_map | tojson | safe }};
         let addMaintenanceModalEl;
@@ -514,6 +649,13 @@
 
         function showAddMaintenanceModal() {
             addMaintenanceModalEl.show();
+        }
+
+        function showImportManutenzioniModal() {
+            const modalEl = document.getElementById('importManutenzioniModal');
+            if (!modalEl) return;
+            const modal = new bootstrap.Modal(modalEl);
+            modal.show();
         }
 
         function openCompleteModal(id, targa, nameLabel, startKm, proprieta) {
