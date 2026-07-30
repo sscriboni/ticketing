@@ -3705,3 +3705,251 @@ def import_rifornimenti(
     return RedirectResponse(url="/admin/automezzi/rifornimenti", status_code=303)
 
 
+@router.post("/admin/automezzi/rifornimenti/importa-sogedi")
+def import_rifornimenti_sogedi(
+    r: Request,
+    file: UploadFile = File(...),
+    aggiorna_km_auto: bool = Form(False)
+):
+    if "user" not in r.session:
+        return RedirectResponse(url="/login", status_code=303)
+    user = r.session.get("user")
+    if user.get("ruolo") not in ("admin", "fleet_manager", "global_fleet_manager"):
+        return RedirectResponse(url="/", status_code=303)
+
+    content = file.file.read()
+    text_content = content.decode("utf-8-sig", errors="ignore")
+    delimiter = ";" if ";" in text_content else ","
+
+    reader = csv.DictReader(io.StringIO(text_content), delimiter=delimiter)
+
+    HEADER_MAP_SOGEDI = {
+        "stazione": "stazione",
+        "data": "data",
+        "ora": "ora",
+        "numero": "numero",
+        "cliente_bus": "cliente_bus",
+        "ragsoc": "ragsoc",
+        "note": "targa",        # il campo note contiene la targa dell'automezzo
+        "tipo_ragg": "tipo_ragg",
+        "prodotti_bus": "prodotti_bus",
+        "descr": "prodotto",    # il campo descr è il tipo di carburante
+        "um": "um",
+        "quantita": "volume",   # quantita -> volume
+        "prezzo": "prezzo",     # prezzo
+        "importo": "importo",   # importo
+        "pagamento": "pagamento",
+        "km": "km"              # km
+    }
+
+    def parse_date(d_val):
+        if not d_val:
+            return None
+        s = str(d_val).strip()
+        for fmt in ("%d/%m/%Y", "%d-%m-%Y", "%Y-%m-%d", "%d/%m/%y", "%d-%m-%y", "%Y/%m/%d"):
+            try:
+                return datetime.datetime.strptime(s, fmt).strftime("%Y-%m-%d")
+            except ValueError:
+                pass
+        return s
+
+    def parse_float(val):
+        if val is None or str(val).strip() == "":
+            return 0.0
+        s = str(val).strip().replace("€", "").replace(" ", "")
+        if "," in s:
+            s = s.replace(".", "").replace(",", ".")
+        try:
+            return float(s)
+        except (ValueError, TypeError):
+            return 0.0
+
+    def parse_int(val):
+        if val is None or str(val).strip() == "":
+            return 0
+        s = str(val).strip().replace(".", "").replace(",", "").replace(" ", "")
+        try:
+            return int(float(s))
+        except (ValueError, TypeError):
+            return 0
+
+    imported_count = 0
+    discarded_list = []
+    seen_in_file = set()
+    km_updated_vehicles = set()
+    uid = user.get("id")
+
+    rifornimenti_to_insert = []
+    registro_km_to_insert = []
+    vehicles_to_update = {}
+
+    with engine.begin() as conn:
+        automezzi_map = {}
+        for row in conn.execute(text("SELECT automezzo_id, targa, km_attuali FROM automezzi")).mappings().all():
+            t_norm = row["targa"].upper().replace(" ", "").replace("-", "") if row["targa"] else ""
+            automezzi_map[t_norm] = {"automezzo_id": row["automezzo_id"], "km_attuali": row["km_attuali"] or 0}
+
+        max_km_dates = {}
+        for row in conn.execute(text("SELECT automezzo_id, MAX(data_registrazione) as max_d FROM registro_km_automezzi GROUP BY automezzo_id")).mappings().all():
+            max_km_dates[row["automezzo_id"]] = row["max_d"]
+
+        km_reg_set = set()
+        for row in conn.execute(text("SELECT automezzo_id, data_registrazione, km FROM registro_km_automezzi")).all():
+            km_reg_set.add((row[0], row[1], row[2]))
+
+        for line_idx, row in enumerate(reader, start=2):
+            mapped_data = {}
+            for col_name, col_val in row.items():
+                if not col_name:
+                    continue
+                norm_key = col_name.strip().lower().replace(" ", "_")
+                if norm_key in HEADER_MAP_SOGEDI:
+                    mapped_field = HEADER_MAP_SOGEDI[norm_key]
+                    mapped_data[mapped_field] = col_val.strip() if col_val else None
+
+            # Targa is in NOTE field
+            targa_raw = mapped_data.get("targa")
+            targa = targa_raw.upper().replace(" ", "").replace("-", "") if targa_raw else ""
+
+            raw_data = mapped_data.get("data")
+            parsed_data = parse_date(raw_data)
+            ora_val = mapped_data.get("ora")
+            if ora_val:
+                ora_val = ora_val.strip()
+
+            row_km = parse_int(mapped_data.get("km"))
+            vol_val = parse_float(mapped_data.get("volume"))
+            prezzo_val = parse_float(mapped_data.get("prezzo"))
+            importo_val = parse_float(mapped_data.get("importo"))
+            prodotto_val = mapped_data.get("prodotto") or "Carburante"
+            stazione_val = mapped_data.get("stazione") or ""
+
+            # KM = 1 rule
+            is_km_1 = (row_km == 1)
+            targa_effettiva = "" if is_km_1 else targa
+
+            if not is_km_1 and not targa:
+                discarded_list.append({
+                    "linea": line_idx,
+                    "targa": "-",
+                    "data": raw_data or "-",
+                    "motivo": "Campo 'NOTE' (Targa) mancante o vuoto"
+                })
+                continue
+
+            if not parsed_data:
+                discarded_list.append({
+                    "linea": line_idx,
+                    "targa": targa or "-",
+                    "data": raw_data or "-",
+                    "motivo": "Campo 'DATA' mancante o formato non riconosciuto"
+                })
+                continue
+
+            # Optional vehicle KM odometer update
+            if aggiorna_km_auto and row_km >= 10 and targa:
+                car = automezzi_map.get(targa)
+                if car:
+                    aid = car["automezzo_id"]
+                    curr_km = vehicles_to_update.get(aid, car["km_attuali"])
+                    last_reg_date = max_km_dates.get(aid)
+
+                    if not last_reg_date or parsed_data > last_reg_date or curr_km == 0:
+                        if (aid, parsed_data, row_km) not in km_reg_set:
+                            note_km = f"Importato da Rifornimento Sogedi ({prodotto_val})"
+                            registro_km_to_insert.append({
+                                "aid": aid,
+                                "dreg": parsed_data,
+                                "km": row_km,
+                                "uid": uid,
+                                "note": note_km
+                            })
+                            km_reg_set.add((aid, parsed_data, row_km))
+                        
+                        if parsed_data > (last_reg_date or ""):
+                            max_km_dates[aid] = parsed_data
+
+                        if row_km > curr_km or curr_km == 0:
+                            vehicles_to_update[aid] = row_km
+                            automezzi_map[targa]["km_attuali"] = row_km
+                            km_updated_vehicles.add(aid)
+
+            # Duplicate Check logic
+            dup_targa_key = targa if targa else "KM1"
+            dup_key = (dup_targa_key, parsed_data, ora_val or "", importo_val)
+            if dup_key in seen_in_file:
+                discarded_list.append({
+                    "linea": line_idx,
+                    "targa": targa or "-",
+                    "data": parsed_data or raw_data or "-",
+                    "motivo": f"Record duplicato all'interno del file CSV Sogedi (targa: {targa or '-'}, data: {parsed_data}, ora: {ora_val or '-'})"
+                })
+                continue
+
+            seen_in_file.add(dup_key)
+
+            imp_no_iva = round(importo_val / 1.22, 2) if importo_val else 0.0
+            iva_val = round(importo_val - imp_no_iva, 2) if importo_val else 0.0
+
+            rifornimenti_to_insert.append({
+                "pan_carta": None,
+                "data": parsed_data,
+                "ora": ora_val,
+                "prodotto": prodotto_val,
+                "targa": targa_effettiva,
+                "km": row_km,
+                "cod_terminale": None,
+                "cod_impianto": None,
+                "indirizzo": stazione_val,
+                "citta": stazione_val,
+                "imp_intero": importo_val,
+                "imp_intero_no_iva": imp_no_iva,
+                "volume": vol_val,
+                "prezzo_eur_l": prezzo_val,
+                "sconto_eur_l": 0.0,
+                "prezzo_scontato": prezzo_val if prezzo_val else (importo_val / vol_val if vol_val > 0 else 0.0),
+                "imp_scontato": importo_val,
+                "iva": iva_val,
+                "imp_scontato_no_iva": imp_no_iva,
+                "tipo_servizio": "Sogedi"
+            })
+            imported_count += 1
+
+        # Bulk Database Writes
+        if rifornimenti_to_insert:
+            conn.execute(text("""
+                INSERT INTO rifornimenti (
+                    pan_carta, data, ora, prodotto, targa, km, cod_terminale, cod_impianto,
+                    indirizzo, citta, imp_intero, imp_intero_no_iva, volume, prezzo_eur_l,
+                    sconto_eur_l, prezzo_scontato, imp_scontato, iva, imp_scontato_no_iva, tipo_servizio
+                ) VALUES (
+                    :pan_carta, :data, :ora, :prodotto, :targa, :km, :cod_terminale, :cod_impianto,
+                    :indirizzo, :citta, :imp_intero, :imp_intero_no_iva, :volume, :prezzo_eur_l,
+                    :sconto_eur_l, :prezzo_scontato, :imp_scontato, :iva, :imp_scontato_no_iva, :tipo_servizio
+                )
+            """), rifornimenti_to_insert)
+
+        if registro_km_to_insert:
+            conn.execute(text("""
+                INSERT INTO registro_km_automezzi (
+                    automezzo_id, data_registrazione, km, sorgente, user_id, note
+                ) VALUES (
+                    :aid, :dreg, :km, 'Carta Carburante', :uid, :note
+                )
+            """), registro_km_to_insert)
+
+        for aid, new_km in vehicles_to_update.items():
+            conn.execute(text("""
+                UPDATE automezzi SET km_attuali = :new_km WHERE automezzo_id = :aid
+            """), {"new_km": new_km, "aid": aid})
+
+    r.session["import_rifornimenti_result"] = {
+        "imported": imported_count,
+        "km_updated_count": len(km_updated_vehicles),
+        "discarded_count": len(discarded_list),
+        "discarded": discarded_list[:25]
+    }
+
+    return RedirectResponse(url="/admin/automezzi/rifornimenti", status_code=303)
+
+

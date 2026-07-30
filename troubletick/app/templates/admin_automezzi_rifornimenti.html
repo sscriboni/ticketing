@@ -125,6 +125,9 @@
                 <button class="btn btn-outline-primary px-3 py-2 fw-semibold" data-bs-toggle="modal" data-bs-target="#importRifornimentiModal">
                     <i class="bi bi-file-earmark-arrow-up me-1"></i> Importa Q8 (CSV)
                 </button>
+                <button class="btn btn-outline-warning text-dark px-3 py-2 fw-semibold" data-bs-toggle="modal" data-bs-target="#importSogediModal">
+                    <i class="bi bi-file-earmark-arrow-up me-1"></i> Importa Sogedi (CSV)
+                </button>
                 <a href="/admin/automezzi/rifornimenti/esporta/csv?q={{ filters.q }}&targa={{ filters.targa }}&prodotto={{ filters.prodotto }}&pan_carta={{ filters.pan_carta }}&citta={{ filters.citta }}&data_dal={{ filters.data_dal }}&data_al={{ filters.data_al }}" class="btn btn-outline-success px-3 py-2 fw-semibold" title="Esporta dati filtrati in CSV">
                     <i class="bi bi-file-earmark-excel me-1"></i> Esporta CSV
                 </a>
@@ -467,6 +470,52 @@
                     <div class="modal-footer">
                         <button type="button" class="btn btn-light border" data-bs-dismiss="modal">Annulla</button>
                         <button type="submit" class="btn btn-primary fw-bold"><i class="bi bi-upload me-1"></i> Importa Ora</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+    <!-- Modal Importa Sogedi CSV -->
+    <div class="modal fade" id="importSogediModal" tabindex="-1" aria-labelledby="importSogediModalLabel" aria-hidden="true">
+        <div class="modal-dialog modal-dialog-centered">
+            <div class="modal-content">
+                <div class="modal-header bg-warning text-dark">
+                    <h5 class="modal-title fw-bold" id="importSogediModalLabel"><i class="bi bi-file-earmark-arrow-up me-2"></i> Importa Rifornimenti Sogedi (CSV)</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <form action="/admin/automezzi/rifornimenti/importa-sogedi" method="POST" enctype="multipart/form-data">
+                    <div class="modal-body">
+                        <div class="mb-3">
+                            <div class="alert alert-warning py-2 px-3 mb-3 border-0 rounded-3 text-dark small">
+                                <i class="bi bi-fuel-pump-fill me-1 text-dark fw-bold"></i> <strong>Tracciato Fornitore Sogedi (CSV):</strong><br>
+                                Il sistema acquisisce ed elabora il file CSV generato da Sogedi per i rifornimenti aziendali.
+                            </div>
+
+                            <label class="form-label fw-bold">Seleziona File CSV Sogedi</label>
+                            <input type="file" name="file" class="form-control" accept=".csv" required>
+                            
+                            <div class="form-check p-3 bg-light rounded-3 border mt-3">
+                                <input class="form-check-input" type="checkbox" name="aggiorna_km_auto" value="1" id="importSogediAggiornaKmAuto" checked>
+                                <label class="form-check-label fw-bold text-dark" for="importSogediAggiornaKmAuto">
+                                    <i class="bi bi-speedometer2 text-primary me-1"></i> Aggiorna contachilometri veicoli
+                                </label>
+                                <div class="form-text mt-1 text-muted" style="font-size: 0.78rem;">
+                                    Se la data del rifornimento è più recente dell'ultima registrazione nel registro KM (o se non presente), aggiorna automaticamente il contachilometri dell'autoveicolo e registra la rilevazione.
+                                </div>
+                            </div>
+
+                            <div class="form-text mt-3" style="font-size: 0.75rem;">
+                                <strong>Tracciato Sogedi Mappato:</strong><br>
+                                Verranno importate le colonne del tracciato Sogedi:<br>
+                                <code>NOTE</code> → <code>Targa</code>, <code>DESCR</code> → <code>Prodotto (Carburante)</code>, <code>DATA</code> → <code>Data</code>, <code>ORA</code> → <code>Ora</code>, <code>QUANTITA</code> → <code>Volume (Litri)</code>, <code>PREZZO</code> → <code>Prezzo/L</code>, <code>importo</code> → <code>Importo Totale</code>, <code>KM</code> → <code>Km</code>, <code>STAZIONE</code> → <code>Stazione/Luogo</code>.<br>
+                                <span class="text-danger mt-1 d-block"><i class="bi bi-info-circle me-1"></i> I record sprovvisti di Targa o Data valida verranno scartati ed evidenziati al termine dell'importazione.</span>
+                                <span class="text-primary mt-1 d-block"><i class="bi bi-credit-card-2-front me-1"></i> <strong>Regola Scheda Altra Auto (KM = 1):</strong> I rifornimenti con <code>Km = 1</code> verranno regolarmente caricati a sistema ma con <strong>targa vuota</strong>.</span>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="modal-footer">
+                        <button type="button" class="btn btn-light border" data-bs-dismiss="modal">Annulla</button>
+                        <button type="submit" class="btn btn-warning fw-bold text-dark"><i class="bi bi-upload me-1"></i> Importa Ora</button>
                     </div>
                 </form>
             </div>
