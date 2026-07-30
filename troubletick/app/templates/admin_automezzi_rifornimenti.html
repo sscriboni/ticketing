@@ -145,6 +145,11 @@
             <i class="bi bi-trash-fill me-2"></i> Rifornimento eliminato con successo.
             <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
         </div>
+        {% elif request.query_params.get('msg') == 'updated' %}
+        <div class="alert alert-success alert-dismissible fade show shadow-sm border-0 rounded-3 mb-4" role="alert">
+            <i class="bi bi-check-circle-fill me-2"></i> Rifornimento modificato con successo.
+            <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+        </div>
         {% endif %}
 
         <!-- Quick Fleet Navigation Bar -->
@@ -238,8 +243,28 @@
             </div>
         </div>
 
-        <!-- Dettaglio Litri per Tipo Carburante -->
-        {% if volume_per_prodotto %}
+        <!-- Dettaglio Litri ed Importo Spesa per Tipologia Carburante -->
+        {% if riepilogo_per_prodotto %}
+        <div class="card border-0 shadow-sm rounded-3 mb-4 bg-white">
+            <div class="card-body p-3">
+                <div class="d-flex align-items-center gap-2 mb-2">
+                    <i class="bi bi-fuel-pump text-danger fs-5"></i>
+                    <strong class="text-dark small text-uppercase">Riepilogo Erogazioni e Spesa per Tipologia Carburante:</strong>
+                </div>
+                <div class="d-flex flex-wrap gap-2">
+                    {% for prod, info in riepilogo_per_prodotto.items() %}
+                    <div class="p-2 px-3 rounded-3 border bg-light d-flex align-items-center gap-2">
+                        <span class="badge bg-danger me-1">{{ loop.index }}</span>
+                        <span class="fw-semibold text-secondary me-1">{{ prod }}:</span>
+                        <span class="fw-bold text-danger fs-6">{{ "{:,.2f}".format(info.volume) }} L</span>
+                        <span class="text-muted mx-1">|</span>
+                        <span class="fw-bold text-success fs-6">€ {{ "{:,.2f}".format(info.spesa) }}</span>
+                    </div>
+                    {% endfor %}
+                </div>
+            </div>
+        </div>
+        {% elif volume_per_prodotto %}
         <div class="card border-0 shadow-sm rounded-3 mb-4 bg-white">
             <div class="card-body p-3">
                 <div class="d-flex align-items-center gap-2 mb-2">
@@ -444,6 +469,27 @@
                                 <span class="badge bg-light text-dark border">{{ r.tipo_servizio or 'Standard' }}</span>
                             </td>
                             <td class="text-end text-nowrap">
+                                {% if user.ruolo in ('admin', 'fleet_manager', 'global_fleet_manager') %}
+                                <button type="button" 
+                                        class="btn btn-sm btn-outline-primary py-0 px-2 rounded me-1" 
+                                        title="Modifica Rifornimento"
+                                        data-id="{{ r.rifornimento_id }}"
+                                        data-targa="{{ r.targa or '' }}"
+                                        data-data="{{ r.data or '' }}"
+                                        data-ora="{{ r.ora or '' }}"
+                                        data-prodotto="{{ r.prodotto or '' }}"
+                                        data-volume="{{ r.volume or 0 }}"
+                                        data-imp_scontato="{{ r.imp_scontato or r.imp_intero or 0 }}"
+                                        data-km="{{ r.km or 0 }}"
+                                        data-pan_carta="{{ r.pan_carta or '' }}"
+                                        data-prezzo_scontato="{{ r.prezzo_scontato or r.prezzo_eur_l or 0 }}"
+                                        data-citta="{{ r.citta or '' }}"
+                                        data-cod_impianto="{{ r.cod_impianto or '' }}"
+                                        data-tipo_servizio="{{ r.tipo_servizio or '' }}"
+                                        onclick="openEditRifornimentoModal(this)">
+                                    <i class="bi bi-pencil"></i>
+                                </button>
+                                {% endif %}
                                 {% if user.ruolo in ('admin', 'global_fleet_manager') %}
                                 <form action="/admin/automezzi/rifornimenti/elimina/{{ r.rifornimento_id }}" method="POST" class="d-inline" onsubmit="return confirm('Confermi l\'eliminazione di questo rifornimento?');">
                                     <button type="submit" class="btn btn-sm btn-outline-danger py-0 px-2 rounded" title="Elimina Rifornimento">
@@ -703,6 +749,114 @@
             </div>
         </div>
     </div>
+
+    <!-- Modal Modifica Rifornimento -->
+    <div class="modal fade" id="editRifornimentoModal" tabindex="-1" aria-labelledby="editRifornimentoModalLabel" aria-hidden="true">
+        <div class="modal-dialog modal-dialog-centered modal-lg">
+            <div class="modal-content">
+                <div class="modal-header bg-primary text-white">
+                    <h5 class="modal-title fw-bold" id="editRifornimentoModalLabel"><i class="bi bi-pencil-square me-2"></i> Modifica Rifornimento</h5>
+                    <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <form id="editRifornimentoForm" action="" method="POST">
+                    <div class="modal-body">
+                        <div class="row g-3 mb-3">
+                            <div class="col-md-4">
+                                <label class="form-label text-muted fw-semibold">Targa *</label>
+                                <select class="form-select" name="targa" id="edit_targa" required>
+                                    <option value="" disabled>-- Seleziona Veicolo --</option>
+                                    {% for a in automezzi_list %}
+                                    <option value="{{ a.targa }}">{{ a.targa }} - {{ a.modello }}</option>
+                                    {% endfor %}
+                                </select>
+                            </div>
+                            <div class="col-md-4">
+                                <label class="form-label text-muted fw-semibold">Data *</label>
+                                <input type="date" class="form-control" name="data" id="edit_data" required>
+                            </div>
+                            <div class="col-md-4">
+                                <label class="form-label text-muted fw-semibold">Ora</label>
+                                <input type="time" class="form-control" name="ora" id="edit_ora">
+                            </div>
+                        </div>
+
+                        <div class="row g-3 mb-3">
+                            <div class="col-md-4">
+                                <label class="form-label text-muted fw-semibold">Prodotto</label>
+                                <input type="text" class="form-control" name="prodotto" id="edit_prodotto" placeholder="Es. Diesel, Benzina...">
+                            </div>
+                            <div class="col-md-4">
+                                <label class="form-label text-muted fw-semibold">Volume (Litri) *</label>
+                                <input type="number" step="0.01" class="form-control" name="volume" id="edit_volume" placeholder="Es. 45.50" required>
+                            </div>
+                            <div class="col-md-4">
+                                <label class="form-label text-muted fw-semibold">Importo Scontato (€) *</label>
+                                <input type="number" step="0.01" class="form-control" name="imp_scontato" id="edit_imp_scontato" placeholder="Es. 78.50" required>
+                            </div>
+                        </div>
+
+                        <div class="row g-3 mb-3">
+                            <div class="col-md-4">
+                                <label class="form-label text-muted fw-semibold">Km Attuali</label>
+                                <input type="number" class="form-control" name="km" id="edit_km" placeholder="Es. 125000">
+                            </div>
+                            <div class="col-md-4">
+                                <label class="form-label text-muted fw-semibold">Carta PAN</label>
+                                <input type="text" class="form-control" name="pan_carta" id="edit_pan_carta" placeholder="Es. 70001234...">
+                            </div>
+                            <div class="col-md-4">
+                                <label class="form-label text-muted fw-semibold">Prezzo (€/L)</label>
+                                <input type="number" step="0.001" class="form-control" name="prezzo_scontato" id="edit_prezzo_scontato" placeholder="Es. 1.725">
+                            </div>
+                        </div>
+
+                        <div class="row g-3">
+                            <div class="col-md-4">
+                                <label class="form-label text-muted fw-semibold">Città</label>
+                                <input type="text" class="form-control" name="citta" id="edit_citta" placeholder="Es. Milano">
+                            </div>
+                            <div class="col-md-4">
+                                <label class="form-label text-muted fw-semibold">Codice Impianto</label>
+                                <input type="text" class="form-control" name="cod_impianto" id="edit_cod_impianto" placeholder="Es. Q8-1234">
+                            </div>
+                            <div class="col-md-4">
+                                <label class="form-label text-muted fw-semibold">Tipo Servizio</label>
+                                <input type="text" class="form-control" name="tipo_servizio" id="edit_tipo_servizio" placeholder="Es. Self / Servito">
+                            </div>
+                        </div>
+                    </div>
+                    <div class="modal-footer">
+                        <button type="button" class="btn btn-light border" data-bs-dismiss="modal">Annulla</button>
+                        <button type="submit" class="btn btn-primary fw-bold"><i class="bi bi-check-lg me-1"></i> Salva Modifiche</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        function openEditRifornimentoModal(btn) {
+            var id = btn.getAttribute('data-id');
+            var form = document.getElementById('editRifornimentoForm');
+            form.action = '/admin/automezzi/rifornimenti/modifica/' + id;
+
+            document.getElementById('edit_targa').value = btn.getAttribute('data-targa') || '';
+            document.getElementById('edit_data').value = btn.getAttribute('data-data') || '';
+            document.getElementById('edit_ora').value = btn.getAttribute('data-ora') || '';
+            document.getElementById('edit_prodotto').value = btn.getAttribute('data-prodotto') || '';
+            document.getElementById('edit_volume').value = btn.getAttribute('data-volume') || '0';
+            document.getElementById('edit_imp_scontato').value = btn.getAttribute('data-imp_scontato') || '0';
+            document.getElementById('edit_km').value = btn.getAttribute('data-km') || '0';
+            document.getElementById('edit_pan_carta').value = btn.getAttribute('data-pan_carta') || '';
+            document.getElementById('edit_prezzo_scontato').value = btn.getAttribute('data-prezzo_scontato') || '0';
+            document.getElementById('edit_citta').value = btn.getAttribute('data-citta') || '';
+            document.getElementById('edit_cod_impianto').value = btn.getAttribute('data-cod_impianto') || '';
+            document.getElementById('edit_tipo_servizio').value = btn.getAttribute('data-tipo_servizio') || '';
+
+            var modal = new bootstrap.Modal(document.getElementById('editRifornimentoModal'));
+            modal.show();
+        }
+    </script>
 </body>
 
 </html>

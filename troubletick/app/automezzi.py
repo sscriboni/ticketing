@@ -3254,13 +3254,24 @@ def list_rifornimenti(
         totale_spesa = sum(row["imp_scontato"] or row["imp_intero"] or 0 for row in all_rifornimenti)
         veicoli_unici = len(set(row["targa"] for row in all_rifornimenti if row["targa"]))
 
-        # Volume breakdown per fuel product type
+        # Volume & Spesa breakdown per fuel product type
+        riepilogo_per_prodotto = {}
         volume_per_prodotto = {}
         for row in all_rifornimenti:
             prod_key = (row["prodotto"] or "Non specificato").strip()
             vol_val = float(row["volume"] or 0)
+            spesa_val = float(row["imp_scontato"] or row["imp_intero"] or 0)
+
+            if prod_key not in riepilogo_per_prodotto:
+                riepilogo_per_prodotto[prod_key] = {"volume": 0.0, "spesa": 0.0}
+            riepilogo_per_prodotto[prod_key]["volume"] += vol_val
+            riepilogo_per_prodotto[prod_key]["spesa"] += spesa_val
             volume_per_prodotto[prod_key] = volume_per_prodotto.get(prod_key, 0.0) + vol_val
 
+        riepilogo_per_prodotto = {
+            k: {"volume": round(v["volume"], 2), "spesa": round(v["spesa"], 2)}
+            for k, v in sorted(riepilogo_per_prodotto.items(), key=lambda x: x[1]["volume"], reverse=True)
+        }
         volume_per_prodotto = {k: round(v, 2) for k, v in sorted(volume_per_prodotto.items(), key=lambda x: x[1], reverse=True)}
 
         opt_targhe = [row[0] for row in conn.execute(text("SELECT DISTINCT targa FROM rifornimenti WHERE targa IS NOT NULL AND targa != '' ORDER BY targa")).all()]
@@ -3328,6 +3339,7 @@ def list_rifornimenti(
         "totale_spesa": round(totale_spesa, 2),
         "veicoli_unici": veicoli_unici,
         "volume_per_prodotto": volume_per_prodotto,
+        "riepilogo_per_prodotto": riepilogo_per_prodotto,
         "opt_targhe": opt_targhe,
         "opt_prodotti": opt_prodotti,
         "opt_carte": opt_carte,
@@ -3507,6 +3519,109 @@ def add_rifornimento(
         })
 
     return RedirectResponse(url="/admin/automezzi/rifornimenti", status_code=303)
+
+
+@router.post("/admin/automezzi/rifornimenti/modifica/{id}")
+def edit_rifornimento(
+    id: int,
+    r: Request,
+    pan_carta: typing.Any = Form(None),
+    data: typing.Any = Form(...),
+    ora: typing.Any = Form(None),
+    prodotto: typing.Any = Form(None),
+    targa: typing.Any = Form(...),
+    km: typing.Any = Form(0),
+    cod_terminale: typing.Any = Form(None),
+    cod_impianto: typing.Any = Form(None),
+    indirizzo: typing.Any = Form(None),
+    citta: typing.Any = Form(None),
+    imp_intero: typing.Any = Form(0.0),
+    imp_intero_no_iva: typing.Any = Form(0.0),
+    volume: typing.Any = Form(0.0),
+    prezzo_eur_l: typing.Any = Form(0.0),
+    sconto_eur_l: typing.Any = Form(0.0),
+    prezzo_scontato: typing.Any = Form(0.0),
+    imp_scontato: typing.Any = Form(0.0),
+    iva: typing.Any = Form(0.0),
+    imp_scontato_no_iva: typing.Any = Form(0.0),
+    tipo_servizio: typing.Any = Form(None)
+):
+    if "user" not in r.session:
+        return RedirectResponse(url="/login", status_code=303)
+    user = r.session.get("user")
+    if user.get("ruolo") not in ("admin", "fleet_manager", "global_fleet_manager"):
+        return RedirectResponse(url="/", status_code=303)
+
+    def _to_float(v):
+        try:
+            return float(getattr(v, 'default', v) or 0.0)
+        except Exception:
+            return 0.0
+
+    def _to_int(v):
+        try:
+            return int(getattr(v, 'default', v) or 0)
+        except Exception:
+            return 0
+
+    def _to_str(v):
+        val = str(getattr(v, 'default', v) or '').strip()
+        return val if val else None
+
+    v_volume = _to_float(volume)
+    v_imp_scontato = _to_float(imp_scontato)
+    v_prezzo_scontato = _to_float(prezzo_scontato)
+    calc_prezzo = v_prezzo_scontato if v_prezzo_scontato > 0 else (v_imp_scontato / v_volume if v_volume > 0 else 0.0)
+
+    with engine.begin() as conn:
+        conn.execute(text("""
+            UPDATE rifornimenti SET
+                pan_carta = :pan_carta,
+                data = :data,
+                ora = :ora,
+                prodotto = :prodotto,
+                targa = :targa,
+                km = :km,
+                cod_terminale = :cod_terminale,
+                cod_impianto = :cod_impianto,
+                indirizzo = :indirizzo,
+                citta = :citta,
+                imp_intero = :imp_intero,
+                imp_intero_no_iva = :imp_intero_no_iva,
+                volume = :volume,
+                prezzo_eur_l = :prezzo_eur_l,
+                sconto_eur_l = :sconto_eur_l,
+                prezzo_scontato = :prezzo_scontato,
+                imp_scontato = :imp_scontato,
+                iva = :iva,
+                imp_scontato_no_iva = :imp_scontato_no_iva,
+                tipo_servizio = :tipo_servizio
+            WHERE rifornimento_id = :id
+        """), {
+            "id": id,
+            "pan_carta": _to_str(pan_carta),
+            "data": _to_str(data) or "",
+            "ora": _to_str(ora),
+            "prodotto": _to_str(prodotto),
+            "targa": (_to_str(targa) or "").upper(),
+            "km": _to_int(km),
+            "cod_terminale": _to_str(cod_terminale),
+            "cod_impianto": _to_str(cod_impianto),
+            "indirizzo": _to_str(indirizzo),
+            "citta": _to_str(citta),
+            "imp_intero": _to_float(imp_intero),
+            "imp_intero_no_iva": _to_float(imp_intero_no_iva),
+            "volume": v_volume,
+            "prezzo_eur_l": _to_float(prezzo_eur_l),
+            "sconto_eur_l": _to_float(sconto_eur_l),
+            "prezzo_scontato": calc_prezzo,
+            "imp_scontato": v_imp_scontato,
+            "iva": _to_float(iva),
+            "imp_scontato_no_iva": _to_float(imp_scontato_no_iva),
+            "tipo_servizio": _to_str(tipo_servizio)
+        })
+
+    return RedirectResponse(url="/admin/automezzi/rifornimenti?msg=updated", status_code=303)
 
 
 @router.post("/admin/automezzi/rifornimenti/elimina/{id}")
