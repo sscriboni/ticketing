@@ -1,0 +1,644 @@
+<!doctype html>
+<html lang="it">
+
+<head>
+    <meta charset="utf-8">
+    <title>Storico Manutenzioni Completate — {{ cfg.app_title }}</title>
+    <!-- Bootstrap CSS -->
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
+    <!-- Bootstrap Icons -->
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css">
+    <style>
+        .table-container {
+            background: white;
+            border-radius: 8px;
+            padding: 1rem;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.05);
+            border: 1px solid #dee2e6;
+        }
+        .custom-table {
+            font-size: 0.85rem;
+        }
+        .custom-table th {
+            font-weight: 600;
+            color: #495057;
+            text-transform: uppercase;
+            font-size: 0.75rem;
+            letter-spacing: 0.3px;
+            border-bottom: 2px solid #dee2e6;
+            padding: 0.55rem 0.6rem;
+            white-space: nowrap;
+        }
+        .custom-table td {
+            vertical-align: middle;
+            padding: 0.45rem 0.6rem;
+        }
+        .kpi-card {
+            border: 1px solid #e9ecef;
+            border-radius: 10px;
+            background: #ffffff;
+            transition: transform 0.2s ease, box-shadow 0.2s ease;
+        }
+        .kpi-card:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 6px 12px rgba(0,0,0,0.08);
+        }
+        /* Pagination styling */
+        .pagination .page-link {
+            cursor: pointer !important;
+            transition: all 0.15s ease-in-out;
+            color: #0d6efd;
+            border-radius: 6px;
+            margin: 0 2px;
+            display: inline-flex;
+            align-items: center;
+            gap: 4px;
+        }
+        .pagination .page-link:hover {
+            background-color: #0d6efd;
+            color: #ffffff !important;
+            transform: translateY(-1px);
+            box-shadow: 0 3px 6px rgba(13, 110, 253, 0.25);
+        }
+        .pagination .page-item.active .page-link {
+            background-color: #0d6efd !important;
+            border-color: #0d6efd !important;
+            color: #ffffff !important;
+            font-weight: 700 !important;
+            box-shadow: 0 3px 6px rgba(13, 110, 253, 0.35) !important;
+            cursor: default !important;
+        }
+        .pagination .page-item.disabled .page-link {
+            cursor: not-allowed !important;
+            opacity: 0.45;
+            background-color: #f8f9fa;
+            color: #6c757d !important;
+            border-color: #dee2e6;
+            pointer-events: none;
+            box-shadow: none !important;
+            transform: none !important;
+        }
+    </style>
+</head>
+
+<body class="bg-light">
+    {% include 'navbar.html' %}
+
+    <div class="container-fluid px-4 py-4">
+        <!-- Header Page Title -->
+        <div class="d-flex justify-content-between align-items-center mb-4">
+            <div>
+                <h2 class="mb-1 text-dark fw-bold">
+                    <i class="bi bi-check2-all text-success me-2"></i> Storico Manutenzioni Completate
+                </h2>
+                <p class="text-muted mb-0 small">Archivio storico degli interventi di manutenzione eseguiti sui veicoli aziendali.</p>
+            </div>
+            <div class="d-flex gap-2">
+                {% if user.ruolo in ('admin', 'fleet_manager', 'global_fleet_manager') %}
+                <button class="btn btn-outline-success btn-sm fw-bold shadow-sm" onclick="showImportManutenzioniModal()">
+                    <i class="bi bi-file-earmark-arrow-up me-1"></i> Importa CSV
+                </button>
+                {% endif %}
+                <a href="/admin/automezzi/manutenzioni" class="btn btn-outline-secondary btn-sm fw-bold">
+                    <i class="bi bi-arrow-left me-1"></i> Torna a Manutenzioni In Corso
+                </a>
+            </div>
+        </div>
+
+        {% if import_result %}
+        {% set total_scartati = import_result.discarded_records|length %}
+        <div class="alert alert-info alert-dismissible fade show shadow-sm border-0 rounded-3 mb-4" role="alert">
+            <h5 class="fw-bold alert-heading mb-2"><i class="bi bi-file-earmark-check-fill me-2 text-success"></i> Esito Importazione CSV Manutenzioni:</h5>
+            <div class="row g-3 my-1">
+                <div class="col-auto">
+                    <div class="p-3 bg-white rounded border shadow-sm text-center" style="min-width: 140px;">
+                        <span class="d-block text-muted small fw-bold text-uppercase">Importati Ora</span>
+                        <span class="fs-3 fw-bold text-success">{{ import_result.imported_count }}</span>
+                    </div>
+                </div>
+                <div class="col-auto">
+                    <div class="p-3 bg-white rounded border shadow-sm text-center" style="min-width: 140px;">
+                        <span class="d-block text-muted small fw-bold text-uppercase">Record Scartati</span>
+                        <span class="fs-3 fw-bold {{ 'text-danger' if total_scartati > 0 else 'text-muted' }}">{{ total_scartati }}</span>
+                    </div>
+                </div>
+                {% if total_scartati > 0 %}
+                <div class="col d-flex align-items-center">
+                    <div class="small text-secondary">
+                        <strong>Dettaglio Scarti:</strong>
+                        <ul class="mb-0 ps-3">
+                            {% if import_result.unmapped_count > 0 %}
+                            <li>Veicoli non trovati in anagrafica: <strong>{{ import_result.unmapped_count }}</strong></li>
+                            {% endif %}
+                            {% if import_result.invalid_type_count > 0 %}
+                            <li>Tipi intervento non registrati: <strong>{{ import_result.invalid_type_count }}</strong></li>
+                            {% endif %}
+                            {% if import_result.duplicate_count > 0 %}
+                            <li>Interventi duplicati: <strong>{{ import_result.duplicate_count }}</strong></li>
+                            {% endif %}
+                        </ul>
+                    </div>
+                </div>
+                {% endif %}
+            </div>
+            
+            {% if import_result.discarded_records %}
+            <hr>
+            <h6 class="fw-bold text-danger mb-2"><i class="bi bi-exclamation-triangle-fill me-1"></i> Record non importati o da verificare:</h6>
+            <div class="table-responsive bg-white rounded border" style="max-height: 250px; overflow-y: auto;">
+                <table class="table table-sm table-striped table-hover mb-0 align-middle small">
+                    <thead class="table-dark">
+                        <tr>
+                            <th>Riga CSV</th>
+                            <th>Targa</th>
+                            <th>Data</th>
+                            <th>Tipo Intervento</th>
+                            <th>Officina</th>
+                            <th>Importo</th>
+                            <th>Motivo Esclusione</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for d in import_result.discarded_records %}
+                        <tr class="{{ 'table-danger' if d.is_unmapped else 'table-warning' }}">
+                            <td class="fw-bold">#{{ d.linea }}</td>
+                            <td>
+                                {% if d.is_unmapped %}
+                                    <span class="badge bg-danger text-uppercase">{{ d.targa or 'MANCANTE' }}</span>
+                                {% else %}
+                                    <strong class="text-uppercase">{{ d.targa }}</strong>
+                                {% endif %}
+                            </td>
+                            <td>{{ d.data or '-' }}</td>
+                            <td>{{ d.tipo or '-' }}</td>
+                            <td>{{ d.officina or '-' }}</td>
+                            <td>{{ '€ {:.2f}'.format(d.importo) if d.importo else '-' }}</td>
+                            <td>
+                                {% if d.is_unmapped %}
+                                    <span class="badge bg-danger"><i class="bi bi-x-circle me-1"></i> {{ d.motivo }}</span>
+                                {% else %}
+                                    <span class="badge bg-warning text-dark"><i class="bi bi-files me-1"></i> {{ d.motivo }}</span>
+                                {% endif %}
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+            {% endif %}
+            <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+        </div>
+        {% endif %}
+
+        {% if request.query_params.get('msg') == 'updated' %}
+        <div class="alert alert-success alert-dismissible fade show shadow-sm border-0 rounded-3 mb-4" role="alert">
+            <i class="bi bi-check-circle-fill me-2"></i> <strong>Modifica Completata:</strong> I dati della manutenzione (km, importo, officina e note) sono stati aggiornati con successo.
+            <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+        </div>
+        {% elif request.query_params.get('msg') == 'deleted' %}
+        <div class="alert alert-warning alert-dismissible fade show shadow-sm border-0 rounded-3 mb-4" role="alert">
+            <i class="bi bi-trash-fill me-2"></i> Manutenzione eliminata con successo dallo storico.
+            <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+        </div>
+        {% elif request.query_params.get('msg') == 'targhe_uniformate' %}
+        <div class="alert alert-success alert-dismissible fade show shadow-sm border-0 rounded-3 mb-4" role="alert">
+            <i class="bi bi-check-circle-fill me-2"></i> <strong>Targhe Uniformate:</strong> Rimosse correttamente tutte le spaziatura interne dalle targhe nell'elenco delle manutenzioni.
+            <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+        </div>
+        {% endif %}
+
+        <!-- KPI Cards -->
+        <div class="row g-3 mb-4">
+            <div class="col-md-4">
+                <div class="p-3 kpi-card shadow-sm h-100">
+                    <div class="d-flex justify-content-between align-items-center mb-1">
+                        <span class="text-muted small fw-bold text-uppercase">Manutenzioni Eseguite</span>
+                        <div class="bg-success-subtle text-success p-2 rounded-circle"><i class="bi bi-check-circle-fill"></i></div>
+                    </div>
+                    <div class="fs-3 fw-bold text-dark">{{ totale_completate }}</div>
+                    <small class="text-muted">Interventi registrati e completati</small>
+                </div>
+            </div>
+            <div class="col-md-4">
+                <div class="p-3 kpi-card shadow-sm h-100">
+                    <div class="d-flex justify-content-between align-items-center mb-1">
+                        <span class="text-muted small fw-bold text-uppercase">Costo Totale Interventi</span>
+                        <div class="bg-primary-subtle text-primary p-2 rounded-circle"><i class="bi bi-currency-euro"></i></div>
+                    </div>
+                    <div class="fs-3 fw-bold text-primary">€ {{ "{:,.2f}".format(totale_costo).replace(",", "X").replace(".", ",").replace("X", ".") }}</div>
+                    <small class="text-muted">Spesa complessiva registrata</small>
+                </div>
+            </div>
+            <div class="col-md-4">
+                <div class="p-3 kpi-card shadow-sm h-100">
+                    <div class="d-flex justify-content-between align-items-center mb-1">
+                        <span class="text-muted small fw-bold text-uppercase">Veicoli Interessati</span>
+                        <div class="bg-info-subtle text-info p-2 rounded-circle"><i class="bi bi-car-front-fill"></i></div>
+                    </div>
+                    <div class="fs-3 fw-bold text-dark">{{ veicoli_coinvolti }}</div>
+                    <small class="text-muted">Automezzi oggetto di manutenzione</small>
+                </div>
+            </div>
+        </div>
+
+        <!-- Form Filtri -->
+        <div class="card border-0 shadow-sm rounded-3 mb-4">
+            <div class="card-body p-3">
+                <form method="GET" action="/admin/automezzi/manutenzioni/storico" class="row g-2 align-items-end">
+                    <div class="col-md-3">
+                        <label class="form-label text-muted small fw-semibold mb-1">Cerca Testo</label>
+                        <input type="text" name="q" class="form-control form-control-sm" placeholder="Targa, officina, note, servizio..." value="{{ filters.q or '' }}">
+                    </div>
+                    <div class="col-md-2">
+                        <label class="form-label text-muted small fw-semibold mb-1">Targa Veicolo</label>
+                        <select name="targa" class="form-select form-select-sm">
+                            <option value="">Tutti i veicoli</option>
+                            {% for t in opt_targhe %}
+                            <option value="{{ t }}" {% if filters.targa == t %}selected{% endif %}>{{ t }}</option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                    <div class="col-md-2">
+                        <label class="form-label text-muted small fw-semibold mb-1">Data Dal</label>
+                        <input type="date" name="data_dal" class="form-control form-control-sm" value="{{ filters.data_dal or '' }}">
+                    </div>
+                    <div class="col-md-2">
+                        <label class="form-label text-muted small fw-semibold mb-1">Data Al</label>
+                        <input type="date" name="data_al" class="form-control form-control-sm" value="{{ filters.data_al or '' }}">
+                    </div>
+                    <div class="col-md-3 d-flex gap-2">
+                        <button type="submit" class="btn btn-sm btn-primary w-100 fw-bold">
+                            <i class="bi bi-search me-1"></i> Filtra
+                        </button>
+                        <a href="/admin/automezzi/manutenzioni/storico" class="btn btn-sm btn-outline-secondary">
+                            <i class="bi bi-arrow-counterclockwise"></i> Reset
+                        </a>
+                    </div>
+                </form>
+            </div>
+        </div>
+
+        <!-- Paginazione Superiore -->
+        {% if pagination %}
+        <div class="d-flex flex-column flex-md-row justify-content-between align-items-center gap-3 mb-3 px-3 py-2 bg-white rounded shadow-sm border">
+            <div class="text-muted small">
+                Mostrando da <strong>{{ pagination.page_start }}</strong> a <strong>{{ pagination.page_end }}</strong> di <strong>{{ pagination.total_items }}</strong> manutenzioni completate
+                <span class="badge bg-light text-dark border ms-2">Pagina {{ pagination.page }} di {{ pagination.total_pages }}</span>
+            </div>
+            
+            <nav aria-label="Paginazione superiore">
+                <ul class="pagination pagination-sm mb-0 shadow-sm">
+                    <li class="page-item {{ 'disabled' if not pagination.has_prev }}">
+                        <a class="page-link" href="{{ pagination.first_url if pagination.has_prev else 'javascript:void(0);' }}" title="Prima Pagina" {% if not pagination.has_prev %}tabindex="-1" aria-disabled="true"{% endif %}>
+                            <i class="bi bi-chevron-double-left"></i> Prima
+                        </a>
+                    </li>
+                    <li class="page-item {{ 'disabled' if not pagination.has_prev }}">
+                        <a class="page-link" href="{{ pagination.prev_url if pagination.has_prev else 'javascript:void(0);' }}" {% if not pagination.has_prev %}tabindex="-1" aria-disabled="true"{% endif %}>
+                            <i class="bi bi-chevron-left"></i> Precedente
+                        </a>
+                    </li>
+                    {% for p in pagination.pages %}
+                    <li class="page-item {{ 'active' if p.is_active }}">
+                        <a class="page-link fw-semibold" href="{{ p.url if not p.is_active else 'javascript:void(0);' }}" {% if p.is_active %}aria-current="page"{% endif %}>
+                            {{ p.num }}
+                        </a>
+                    </li>
+                    {% endfor %}
+                    <li class="page-item {{ 'disabled' if not pagination.has_next }}">
+                        <a class="page-link" href="{{ pagination.next_url if pagination.has_next else 'javascript:void(0);' }}" {% if not pagination.has_next %}tabindex="-1" aria-disabled="true"{% endif %}>
+                            Successiva <i class="bi bi-chevron-right"></i>
+                        </a>
+                    </li>
+                    <li class="page-item {{ 'disabled' if not pagination.has_next }}">
+                        <a class="page-link" href="{{ pagination.last_url if pagination.has_next else 'javascript:void(0);' }}" title="Ultima Pagina" {% if not pagination.has_next %}tabindex="-1" aria-disabled="true"{% endif %}>
+                            Ultima <i class="bi bi-chevron-double-right"></i>
+                        </a>
+                    </li>
+                </ul>
+            </nav>
+
+            <div class="d-flex align-items-center gap-2">
+                <span class="text-muted small fw-semibold">Righe:</span>
+                <select class="form-select form-select-sm fw-bold border-secondary-subtle" style="width: auto;" onchange="location = this.value;">
+                    {% for opt in pagination.per_page_options %}
+                    <option value="{{ opt.url }}" {{ 'selected' if opt.is_selected }}>
+                        {{ opt.count }}
+                    </option>
+                    {% endfor %}
+                </select>
+            </div>
+        </div>
+        {% endif %}
+
+        <!-- Tabella Storico Manutenzioni Completate -->
+        <div class="table-container mb-4">
+            <div class="table-responsive">
+                <table class="table table-hover custom-table align-middle mb-0">
+                    <thead>
+                        <tr>
+                            <th>Veicolo</th>
+                            <th>Targa</th>
+                            <th>Servizio / Tipo</th>
+                            <th>Luogo Officina</th>
+                            <th>Inizio</th>
+                            <th>Fine</th>
+                            <th>Chilometraggio</th>
+                            <th>Stato Blocco</th>
+                            <th>Costo Intervento</th>
+                            <th>Note</th>
+                            <th class="text-end text-nowrap">Azioni</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for m in manutenzioni_storico %}
+                        <tr>
+                            <td><strong>{{ m.marca }} {{ m.modello }}</strong></td>
+                            <td><strong class="font-monospace text-dark fs-6 text-uppercase" style="letter-spacing: 1.2px; font-weight: 800;">{{ m.targa }}</strong></td>
+                            <td><span class="badge bg-light text-dark border">{{ m.tipo_servizio }}</span></td>
+                            <td>{{ m.luogo or '-' }}</td>
+                            <td>
+                                {% set d_str_i = m.data_inizio|string if m.data_inizio else '' %}
+                                {% if d_str_i|length >= 10 and d_str_i[4] in ('-', '/') %}
+                                    {{ d_str_i[8:10] }}/{{ d_str_i[5:7] }}/{{ d_str_i[0:4] }}
+                                {% else %}
+                                    {{ d_str_i or '-' }}
+                                {% endif %}
+                            </td>
+                            <td>
+                                {% set d_str_f = m.data_fine|string if m.data_fine else '' %}
+                                {% if d_str_f|length >= 10 and d_str_f[4] in ('-', '/') %}
+                                    {{ d_str_f[8:10] }}/{{ d_str_f[5:7] }}/{{ d_str_f[0:4] }}
+                                {% else %}
+                                    {{ d_str_f or '-' }}
+                                {% endif %}
+                                {% if m.ora_fine %} <small class="text-muted">alle {{ m.ora_fine }}</small>{% endif %}
+                            </td>
+                            <td>
+                                {{ m.km_registrati }} km
+                                {% if m.km_fine %}
+                                <i class="bi bi-arrow-right mx-1 text-muted"></i> {{ m.km_fine }} km
+                                {% endif %}
+                            </td>
+                            <td>
+                                {% if m.bloccante == 1 %}
+                                <span class="badge bg-light text-muted border">Risolto (Sbloccato)</span>
+                                {% else %}
+                                <span class="badge bg-light text-muted border">Nessuno</span>
+                                {% endif %}
+                            </td>
+                            <td>
+                                {% if m.costo is not none and m.costo != '' %}
+                                    <strong class="text-dark font-monospace">€ {{ "{:,.2f}".format(m.costo).replace(",", "X").replace(".", ",").replace("X", ".") }}</strong>
+                                {% else %}
+                                    <span class="text-muted small">-</span>
+                                {% endif %}
+                            </td>
+                            <td><small class="text-muted">{{ m.note or '-' }}</small></td>
+                            <td class="text-end text-nowrap">
+                                {% if user.ruolo in ('admin', 'fleet_manager', 'global_fleet_manager') %}
+                                <button type="button" class="btn btn-sm btn-outline-primary me-1" 
+                                        data-id="{{ m.manutenzione_id }}"
+                                        data-targa="{{ m.targa }}"
+                                        data-veicolo="{{ m.marca }} {{ m.modello }}"
+                                        data-servizio="{{ m.tipo_servizio or '' }}"
+                                        data-data_fine="{{ m.data_fine or '' }}"
+                                        data-km="{{ m.km_fine or m.km_registrati or 0 }}"
+                                        data-costo="{{ m.costo or '' }}"
+                                        data-luogo="{{ m.luogo or '' }}"
+                                        data-note="{{ m.note or '' }}"
+                                        onclick="openEditCompletedModal(this)" 
+                                        title="Modifica Manutenzione">
+                                    <i class="bi bi-pencil-fill"></i>
+                                </button>
+                                {% endif %}
+                                {% if user.ruolo in ('admin', 'global_fleet_manager') %}
+                                <button class="btn btn-sm btn-outline-danger" onclick="confirmDeleteMaintenance({{ m.manutenzione_id }})" title="Elimina Manutenzione">
+                                    <i class="bi bi-trash"></i>
+                                </button>
+                                {% endif %}
+                            </td>
+                        </tr>
+                        {% else %}
+                        <tr>
+                            <td colspan="11" class="text-center text-muted py-4">Nessuna manutenzione completata trovata con i filtri selezionati.</td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+
+            <!-- Action Footer: Uniforma Targhe -->
+            <div class="d-flex flex-column flex-md-row justify-content-between align-items-center gap-2 mt-3 pt-3 border-top">
+                <div class="text-muted small">
+                    <i class="bi bi-info-circle me-1 text-primary"></i> Rimuovi eventuali spazi inseriti erroneamente nelle targhe dei veicoli per uniformare l'elenco delle manutenzioni.
+                </div>
+                <form action="/admin/automezzi/manutenzioni/uniforma-targhe" method="POST" onsubmit="return confirm('Confermi di voler rimuovere tutti gli spazi dalle targhe dei veicoli nell\'elenco delle manutenzioni?');">
+                    <button type="submit" class="btn btn-sm btn-outline-secondary fw-semibold shadow-sm">
+                        <i class="bi bi-fonts me-1 text-primary"></i> Uniforma Targhe (Rimuovi Spazi)
+                    </button>
+                </form>
+            </div>
+        </div>
+
+        <!-- Paginazione Inferiore -->
+        {% if pagination %}
+        <div class="d-flex flex-column flex-md-row justify-content-between align-items-center gap-3 mb-4 px-3 py-2 bg-white rounded shadow-sm border">
+            <div class="text-muted small">
+                Mostrando da <strong>{{ pagination.page_start }}</strong> a <strong>{{ pagination.page_end }}</strong> di <strong>{{ pagination.total_items }}</strong> manutenzioni completate
+                <span class="badge bg-light text-dark border ms-2">Pagina {{ pagination.page }} di {{ pagination.total_pages }}</span>
+            </div>
+            
+            <nav aria-label="Paginazione inferiore">
+                <ul class="pagination pagination-sm mb-0 shadow-sm">
+                    <li class="page-item {{ 'disabled' if not pagination.has_prev }}">
+                        <a class="page-link" href="{{ pagination.first_url if pagination.has_prev else 'javascript:void(0);' }}" title="Prima Pagina" {% if not pagination.has_prev %}tabindex="-1" aria-disabled="true"{% endif %}>
+                            <i class="bi bi-chevron-double-left"></i> Prima
+                        </a>
+                    </li>
+                    <li class="page-item {{ 'disabled' if not pagination.has_prev }}">
+                        <a class="page-link" href="{{ pagination.prev_url if pagination.has_prev else 'javascript:void(0);' }}" {% if not pagination.has_prev %}tabindex="-1" aria-disabled="true"{% endif %}>
+                            <i class="bi bi-chevron-left"></i> Precedente
+                        </a>
+                    </li>
+                    {% for p in pagination.pages %}
+                    <li class="page-item {{ 'active' if p.is_active }}">
+                        <a class="page-link fw-semibold" href="{{ p.url if not p.is_active else 'javascript:void(0);' }}" {% if p.is_active %}aria-current="page"{% endif %}>
+                            {{ p.num }}
+                        </a>
+                    </li>
+                    {% endfor %}
+                    <li class="page-item {{ 'disabled' if not pagination.has_next }}">
+                        <a class="page-link" href="{{ pagination.next_url if pagination.has_next else 'javascript:void(0);' }}" {% if not pagination.has_next %}tabindex="-1" aria-disabled="true"{% endif %}>
+                            Successiva <i class="bi bi-chevron-right"></i>
+                        </a>
+                    </li>
+                    <li class="page-item {{ 'disabled' if not pagination.has_next }}">
+                        <a class="page-link" href="{{ pagination.last_url if pagination.has_next else 'javascript:void(0);' }}" title="Ultima Pagina" {% if not pagination.has_next %}tabindex="-1" aria-disabled="true"{% endif %}>
+                            Ultima <i class="bi bi-chevron-double-right"></i>
+                        </a>
+                    </li>
+                </ul>
+            </nav>
+
+            <div class="d-flex align-items-center gap-2">
+                <span class="text-muted small fw-semibold">Righe per pagina:</span>
+                <select class="form-select form-select-sm fw-bold border-secondary-subtle" style="width: auto;" onchange="location = this.value;">
+                    {% for opt in pagination.per_page_options %}
+                    <option value="{{ opt.url }}" {{ 'selected' if opt.is_selected }}>
+                        {{ opt.count }}
+                    </option>
+                    {% endfor %}
+                </select>
+            </div>
+        </div>
+        {% endif %}
+
+    </div>
+
+    <!-- Confirm Delete Modal Form -->
+    <form id="deleteMaintenanceForm" method="POST" action="">
+    </form>
+
+    <!-- Modal Importa Manutenzioni CSV -->
+    <div class="modal fade" id="importManutenzioniModal" tabindex="-1" aria-labelledby="importManutenzioniModalLabel" aria-hidden="true">
+        <div class="modal-dialog modal-dialog-centered">
+            <div class="modal-content shadow">
+                <div class="modal-header bg-success text-white">
+                    <h5 class="modal-title fw-bold" id="importManutenzioniModalLabel">
+                        <i class="bi bi-file-earmark-arrow-up me-2"></i> Importa Manutenzioni da CSV
+                    </h5>
+                    <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Chiudi"></button>
+                </div>
+                <form action="/admin/automezzi/manutenzioni/importa" method="post" enctype="multipart/form-data">
+                    <div class="modal-body">
+                        <div class="mb-3">
+                            <label class="form-label fw-bold">Seleziona File CSV *</label>
+                            <input type="file" name="file" class="form-control" accept=".csv" required>
+                        </div>
+
+                        <div class="card bg-light border-0 p-3 mb-3 small">
+                            <h6 class="fw-bold text-dark mb-2"><i class="bi bi-info-circle text-primary me-1"></i> Campi Obbligatori File CSV:</h6>
+                            <ul class="mb-0 ps-3 text-secondary">
+                                <li><code>tipo_intervento</code>: Tipo servizio (es. Tagliando, Revisione, Freni)</li>
+                                <li><code>targa</code>: Targa autoveicolo (es. AA123BB)</li>
+                                <li><code>data</code>: Data intervento (es. 2026-05-15 o 15/05/2026)</li>
+                                <li><code>km</code>: Chilometraggio (es. 45000)</li>
+                                <li><code>descrizione</code>: Note o dettagli lavoro eseguito</li>
+                                <li><code>officina</code>: Nome officina / luogo esecuzione</li>
+                                <li><code>importo</code>: Costo in Euro (es. 250.00)</li>
+                            </ul>
+                        </div>
+
+                        <div class="alert alert-secondary py-2 small mb-0">
+                            <i class="bi bi-shield-check me-1 text-success"></i> <strong>Controlli Automatici:</strong> Il sistema evidenzierà i record senza autoveicolo in anagrafica ed escluderà le righe duplicate (stessa targa, data ed importo).
+                        </div>
+                    </div>
+                    <div class="modal-footer bg-light">
+                        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Annulla</button>
+                        <button type="submit" class="btn btn-success fw-bold px-4">Importa Ora</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+
+    <!-- Modal Modifica Manutenzione Completata -->
+    <div class="modal fade" id="editCompletedModal" tabindex="-1" aria-labelledby="editCompletedModalLabel" aria-hidden="true">
+        <div class="modal-dialog modal-dialog-centered">
+            <div class="modal-content shadow">
+                <div class="modal-header bg-primary text-white">
+                    <h5 class="modal-title fw-bold" id="editCompletedModalLabel">
+                        <i class="bi bi-pencil-square me-2"></i> Modifica Manutenzione Completata
+                    </h5>
+                    <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Chiudi"></button>
+                </div>
+                <form id="editCompletedForm" method="POST" action="">
+                    <div class="modal-body">
+                        <div class="alert alert-light border py-2 px-3 mb-3 small">
+                            <strong id="editCompletedVehicleInfo" class="text-primary d-block"></strong>
+                            <span id="editCompletedServiceInfo" class="text-muted"></span>
+                        </div>
+
+                        <div class="row g-3">
+                            <div class="col-md-4">
+                                <label class="form-label fw-bold small text-dark">Data Fine Intervento</label>
+                                <input type="date" name="data_fine" id="editDataFineInput" class="form-control form-control-sm">
+                            </div>
+                            <div class="col-md-4">
+                                <label class="form-label fw-bold small text-dark">Chilometraggio (Km)</label>
+                                <div class="input-group input-group-sm">
+                                    <input type="number" name="km_fine" id="editKmInput" class="form-control" placeholder="Es. 125000" min="0">
+                                    <span class="input-group-text bg-light text-muted">km</span>
+                                </div>
+                            </div>
+                            <div class="col-md-4">
+                                <label class="form-label fw-bold small text-dark">Importo Costo (€)</label>
+                                <div class="input-group input-group-sm">
+                                    <span class="input-group-text bg-light text-muted">€</span>
+                                    <input type="number" step="0.01" name="costo" id="editCostoInput" class="form-control" placeholder="Es. 150.00" min="0">
+                                </div>
+                            </div>
+                            <div class="col-12">
+                                <label class="form-label fw-bold small text-dark">Officina / Luogo Intervento</label>
+                                <input type="text" name="luogo" id="editLuogoInput" class="form-control form-control-sm" placeholder="Es. Officina Rossi srl">
+                            </div>
+                            <div class="col-12">
+                                <label class="form-label fw-bold small text-dark">Note / Descrizione Lavori</label>
+                                <textarea name="note" id="editNoteInput" class="form-control form-control-sm" rows="3" placeholder="Note aggiuntive sui lavori eseguiti..."></textarea>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="modal-footer bg-light py-2">
+                        <button type="button" class="btn btn-secondary btn-sm" data-bs-dismiss="modal">Annulla</button>
+                        <button type="submit" class="btn btn-primary btn-sm fw-bold px-4">Salva Modifiche</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        function openEditCompletedModal(btn) {
+            const id = btn.getAttribute('data-id');
+            const targa = btn.getAttribute('data-targa') || '';
+            const veicolo = btn.getAttribute('data-veicolo') || '';
+            const servizio = btn.getAttribute('data-servizio') || '';
+            const dataFine = btn.getAttribute('data-data_fine') || '';
+            const km = btn.getAttribute('data-km') || '';
+            const costo = btn.getAttribute('data-costo') || '';
+            const luogo = btn.getAttribute('data-luogo') || '';
+            const note = btn.getAttribute('data-note') || '';
+
+            document.getElementById('editCompletedForm').action = '/admin/automezzi/manutenzioni/modifica/' + id;
+            document.getElementById('editCompletedVehicleInfo').innerText = veicolo + ' (' + targa + ')';
+            document.getElementById('editCompletedServiceInfo').innerText = 'Intervento: ' + servizio;
+            document.getElementById('editDataFineInput').value = dataFine;
+            document.getElementById('editKmInput').value = km;
+            document.getElementById('editCostoInput').value = costo;
+            document.getElementById('editLuogoInput').value = luogo;
+            document.getElementById('editNoteInput').value = note;
+            
+            const modalEl = document.getElementById('editCompletedModal');
+            const modal = new bootstrap.Modal(modalEl);
+            modal.show();
+        }
+
+        function showImportManutenzioniModal() {
+            const modalEl = document.getElementById('importManutenzioniModal');
+            if (!modalEl) return;
+            const modal = new bootstrap.Modal(modalEl);
+            modal.show();
+        }
+
+        function confirmDeleteMaintenance(id) {
+            if (confirm("Sei sicuro di voler eliminare definitivamente questa registrazione di manutenzione dallo storico?")) {
+                const form = document.getElementById('deleteMaintenanceForm');
+                form.action = '/admin/automezzi/manutenzioni/elimina/' + id;
+                form.submit();
+            }
+        }
+    </script>
+</body>
+
+</html>

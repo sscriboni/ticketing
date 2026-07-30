@@ -40,36 +40,13 @@
     {% include 'navbar.html' %}
 
     <div class="container-fluid px-4 py-4">
-        <!-- Quick Fleet Navigation Bar -->
-        <div class="d-flex flex-wrap justify-content-between align-items-center mb-3 pb-2 border-bottom">
-            <div class="d-flex flex-wrap gap-2">
-                <a href="/admin/automezzi" class="btn btn-sm btn-outline-secondary">
-                    <i class="bi bi-car-front-fill me-1 text-primary"></i> Elenco Automezzi
-                </a>
-                <a href="/admin/automezzi/dislocazioni" class="btn btn-sm btn-outline-secondary">
-                    <i class="bi bi-geo-alt-fill me-1 text-danger"></i> Dislocazioni
-                </a>
-                <a href="/admin/automezzi/manutenzioni" class="btn btn-sm btn-warning text-dark fw-bold">
-                    <i class="bi bi-wrench-adjustable me-1"></i> Manutenzioni
-                </a>
-                <a href="/admin/automezzi/viaggi" class="btn btn-sm btn-outline-secondary">
-                    <i class="bi bi-journal-text me-1 text-info"></i> Registro Viaggi
-                </a>
-                <a href="/admin/automezzi/rifornimenti" class="btn btn-sm btn-outline-secondary">
-                    <i class="bi bi-fuel-pump-fill me-1 text-danger"></i> Rifornimenti Carburante
-                </a>
-            </div>
-        </div>
         <!-- Gestione Manutenzioni -->
         <div class="mb-5">
             <div class="d-flex justify-content-between align-items-center mb-4">
                 <h2 class="mb-0"><i class="bi bi-wrench-adjustable text-primary me-2"></i> Registro Manutenzioni Automezzi</h2>
                 <div class="d-flex gap-2">
-                    <button class="btn btn-outline-success px-4 py-2 fw-bold" onclick="showImportManutenzioniModal()">
-                        <i class="bi bi-file-earmark-arrow-up me-1"></i> Importa CSV
-                    </button>
                     <button class="btn btn-primary px-4 py-2" onclick="showAddMaintenanceModal()">
-                        <i class="bi bi-plus-circle me-1"></i> inizia manutenzione..
+                        <i class="bi bi-plus-circle me-1"></i> Inizia manutenzione..
                     </button>
                 </div>
             </div>
@@ -279,178 +256,6 @@
                 </div>
             </div>
 
-
-            <!-- Manutenzioni Programmate -->
-            <div class="d-flex justify-content-between align-items-center mb-3">
-                <h4 class="mb-0 text-secondary"><i class="bi bi-calendar-event me-1 text-primary"></i> Manutenzioni Programmate</h4>
-                <button type="button" class="btn btn-sm btn-outline-primary fw-bold px-3 py-1" onclick="openProgrammaManutenzioneModal()">
-                    <i class="bi bi-plus-lg me-1"></i> Programma manutenzione..
-                </button>
-            </div>
-            <div class="table-container mb-5">
-                <div class="table-responsive">
-                    <table class="table table-hover custom-table align-middle">
-                        <thead>
-                            <tr>
-                                <th>Veicolo</th>
-                                <th>Targa</th>
-                                <th>Tipo Manutenzione</th>
-                                <th>Km Attuali</th>
-                                <th>Scadenza Temporale</th>
-                                <th>Scadenza Chilometrica</th>
-                                <th>Stato</th>
-                                <th class="text-end text-nowrap">Azioni</th>
-                            </tr>
-                        </thead>
-                        <tbody id="bodyProgrammate">
-                            {% for p in manutenzioni_programmate %}
-                            <tr class="maint-row-programmata" data-targa="{{ p.targa }}" data-data="{{ p.scadenza_stimata_data or p.data_inizio_calcolo or '' }}" data-officina="">
-                                <td><strong>{{ p.marca }} {{ p.modello }}</strong></td>
-                                <td><strong class="font-monospace text-dark fs-6 text-uppercase" style="letter-spacing: 1.2px; font-weight: 800;">{{ p.targa }}</strong></td>
-                                <td><span class="badge bg-info text-dark">{{ p.tipo_nome }}</span></td>
-                                <td class="font-monospace text-nowrap">
-                                    <strong class="text-dark">{{ "{:,}".format(p.km_attuali or 0).replace(",", ".") }}</strong> km
-                                </td>
-                                
-                                <td>
-                                    {% if p.scadenza_stimata_data %}
-                                        {% set dt_str = p.scadenza_stimata_data|string %}
-                                        Prevista: <strong>{% if dt_str|length >= 10 and dt_str[4] in ('-', '/') %}{{ dt_str[8:10] }}/{{ dt_str[5:7] }}/{{ dt_str[0:4] }}{% else %}{{ dt_str }}{% endif %}</strong>
-                                        <br><small class="text-muted">Mancano {{ p.giorni_rimanenti }} giorni</small>
-                                    {% else %}
-                                        <span class="text-muted">-</span>
-                                    {% endif %}
-                                </td>
-                                
-                                <td>
-                                    {% if p.scadenza_km %}
-                                        Prevista a: <strong>{{ "{:,}".format(p.scadenza_stimata_km or 0).replace(",", ".") }} km</strong>
-                                        <br><small class="text-muted">Mancano {{ "{:,}".format(p.km_rimanenti or 0).replace(",", ".") }} km</small>
-                                    {% else %}
-                                        <span class="text-muted">-</span>
-                                    {% endif %}
-                                </td>
-                                
-                                <td>
-                                    <span class="badge bg-{{ p.alert_class }}">{{ p.stato_scadenza }}</span>
-                                </td>
-                                
-                                <td class="text-end text-nowrap">
-                                    <form action="/admin/automezzi/manutenzioni/programma/elimina" method="POST" class="d-inline" onsubmit="return confirm('Sei sicuro di voler rimuovere questa manutenzione programmata dal veicolo?');">
-                                        <input type="hidden" name="automezzo_id" value="{{ p.automezzo_id }}">
-                                        <input type="hidden" name="tipo_manutenzione_id" value="{{ p.tipo_manutenzione_id }}">
-                                        <button type="submit" class="btn btn-xs btn-outline-danger py-0 px-2 rounded" title="Rimuovi Programmazione">
-                                            <i class="bi bi-trash"></i>
-                                        </button>
-                                    </form>
-                                </td>
-                            </tr>
-                            {% else %}
-                            <tr>
-                                <td colspan="8" class="text-center text-muted py-4">Nessuna manutenzione programmata trovata.</td>
-                            </tr>
-                            {% endfor %}
-                        </tbody>
-                    </table>
-                </div>
-            </div>
-            <!-- Manutenzioni Completate / Storico -->
-            <h4 class="mb-3 text-secondary"><i class="bi bi-check2-all me-1 text-success"></i> Storico Manutenzioni Completate</h4>
-            <div class="table-container">
-                <div class="table-responsive">
-                    <table class="table table-hover custom-table align-middle">
-                        <thead>
-                            <tr>
-                                <th>Veicolo</th>
-                                <th>Targa</th>
-                                <th>Servizio / Tipo</th>
-                                <th>Luogo Officina</th>
-                                <th>Inizio</th>
-                                <th>Fine</th>
-                                <th>Chilometraggio</th>
-                                <th>Stato Blocco</th>
-                                <th>Costo Intervento</th>
-                                <th>Note</th>
-                                <th class="text-end text-nowrap">Azioni</th>
-                            </tr>
-                        </thead>
-                        <tbody id="bodyCompletate">
-                            {% set history_count = namespace(value=0) %}
-                            {% for m in manutenzioni %}
-                                {% if m.data_fine %}
-                                {% set history_count.value = history_count.value + 1 %}
-                                <tr class="maint-row-completata" data-targa="{{ m.targa }}" data-data="{{ m.data_fine or m.data_inizio }}" data-officina="{{ m.luogo or '' }}">
-                                    <td>{{ m.marca }} {{ m.modello }}</td>
-                                    <td><strong class="font-monospace text-dark fs-6 text-uppercase" style="letter-spacing: 1.2px; font-weight: 800;">{{ m.targa }}</strong></td>
-                                    <td><span class="badge bg-light text-dark border">{{ m.tipo_servizio }}</span></td>
-                                    <td>{{ m.luogo or '-' }}</td>
-                                    <td>
-                                        {% set d_str_i = m.data_inizio|string if m.data_inizio else '' %}
-                                        {% if d_str_i|length >= 10 and d_str_i[4] in ('-', '/') %}
-                                            {{ d_str_i[8:10] }}/{{ d_str_i[5:7] }}/{{ d_str_i[0:4] }}
-                                        {% else %}
-                                            {{ d_str_i or '-' }}
-                                        {% endif %}
-                                    </td>
-                                    <td>
-                                        {% set d_str_f = m.data_fine|string if m.data_fine else '' %}
-                                        {% if d_str_f|length >= 10 and d_str_f[4] in ('-', '/') %}
-                                            {{ d_str_f[8:10] }}/{{ d_str_f[5:7] }}/{{ d_str_f[0:4] }}
-                                        {% else %}
-                                            {{ d_str_f or '-' }}
-                                        {% endif %}
-                                        {% if m.ora_fine %} <small class="text-muted">alle {{ m.ora_fine }}</small>{% endif %}
-                                    </td>
-                                    <td>
-                                        {{ m.km_registrati }} km
-                                        {% if m.km_fine %}
-                                        <i class="bi bi-arrow-right mx-1 text-muted"></i> {{ m.km_fine }} km
-                                        {% endif %}
-                                    </td>
-                                    <td>
-                                        {% if m.bloccante == 1 %}
-                                        <span class="badge bg-light text-muted border">Risolto (Sbloccato)</span>
-                                        {% else %}
-                                        <span class="badge bg-light text-muted border">Nessuno</span>
-                                        {% endif %}
-                                    </td>
-                                    <td>
-                                        {% if m.costo is not none and m.costo != '' %}
-                                            <strong class="text-dark font-monospace">€ {{ "{:,.2f}".format(m.costo).replace(",", "X").replace(".", ",").replace("X", ".") }}</strong>
-                                        {% else %}
-                                            <span class="text-muted small">-</span>
-                                        {% endif %}
-                                    </td>
-                                    <td><small class="text-muted">{{ m.note or '-' }}</small></td>
-                                    <td class="text-end text-nowrap">
-                                        <button class="btn btn-sm btn-outline-danger" onclick="confirmDeleteMaintenance({{ m.manutenzione_id }})">
-                                            <i class="bi bi-trash"></i>
-                                        </button>
-                                    </td>
-                                </tr>
-                                {% endif %}
-                            {% endfor %}
-                            {% if history_count.value == 0 %}
-                            <tr>
-                                <td colspan="10" class="text-center text-muted py-4">Nessuna manutenzione completata presente in archivio.</td>
-                            </tr>
-                            {% endif %}
-                        </tbody>
-                    </table>
-                </div>
-                <!-- Action Footer: Uniforma Targhe -->
-                <div class="d-flex justify-content-between align-items-center mt-3 pt-3 border-top">
-                    <div class="text-muted small">
-                        <i class="bi bi-info-circle me-1 text-primary"></i> Rimuovi eventuali spazi inseriti erroneamente nelle targhe dei veicoli per uniformare l'elenco delle manutenzioni.
-                    </div>
-                    <form action="/admin/automezzi/manutenzioni/uniforma-targhe" method="POST" onsubmit="return confirm('Confermi di voler rimuovere tutti gli spazi dalle targhe dei veicoli nell\'elenco delle manutenzioni?');">
-                        <button type="submit" class="btn btn-sm btn-outline-secondary fw-semibold shadow-sm">
-                            <i class="bi bi-fonts me-1 text-primary"></i> Uniforma Targhe (Rimuovi Spazi)
-                        </button>
-                    </form>
-                </div>
-            </div>
-
         </div>
     </div>
 
@@ -590,49 +395,6 @@
 
     <!-- Hidden delete form -->
     <form id="deleteMaintenanceForm" method="post" style="display: none;"></form>
-
-    <!-- Modal Importa Manutenzioni CSV -->
-    <div class="modal fade" id="importManutenzioniModal" tabindex="-1" aria-labelledby="importManutenzioniModalLabel" aria-hidden="true">
-        <div class="modal-dialog modal-dialog-centered">
-            <div class="modal-content shadow">
-                <div class="modal-header bg-success text-white">
-                    <h5 class="modal-title fw-bold" id="importManutenzioniModalLabel">
-                        <i class="bi bi-file-earmark-arrow-up me-2"></i> Importa Manutenzioni da CSV
-                    </h5>
-                    <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Chiudi"></button>
-                </div>
-                <form action="/admin/automezzi/manutenzioni/importa" method="post" enctype="multipart/form-data">
-                    <div class="modal-body">
-                        <div class="mb-3">
-                            <label class="form-label fw-bold">Seleziona File CSV *</label>
-                            <input type="file" name="file" class="form-control" accept=".csv" required>
-                        </div>
-
-                        <div class="card bg-light border-0 p-3 mb-3 small">
-                            <h6 class="fw-bold text-dark mb-2"><i class="bi bi-info-circle text-primary me-1"></i> Campi Obbligatori File CSV:</h6>
-                            <ul class="mb-0 ps-3 text-secondary">
-                                <li><code>tipo_intervento</code>: Tipo servizio (es. Tagliando, Revisione, Freni)</li>
-                                <li><code>targa</code>: Targa autoveicolo (es. AA123BB)</li>
-                                <li><code>data</code>: Data intervento (es. 2026-05-15 o 15/05/2026)</li>
-                                <li><code>km</code>: Chilometraggio (es. 45000)</li>
-                                <li><code>descrizione</code>: Note o dettagli lavoro eseguito</li>
-                                <li><code>officina</code>: Nome officina / luogo esecuzione</li>
-                                <li><code>importo</code>: Costo in Euro (es. 250.00)</li>
-                            </ul>
-                        </div>
-
-                        <div class="alert alert-secondary py-2 small mb-0">
-                            <i class="bi bi-shield-check me-1 text-success"></i> <strong>Controlli Automatici:</strong> Il sistema evidenzierà i record senza autoveicolo in anagrafica ed escluderà le righe duplicate (stessa targa, data ed importo).
-                        </div>
-                    </div>
-                    <div class="modal-footer bg-light">
-                        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Annulla</button>
-                        <button type="submit" class="btn btn-success fw-bold px-4">Importa Ora</button>
-                    </div>
-                </form>
-            </div>
-        </div>
-    </div>
 
     <script>
         const LAST_MAINT_MAP = {{ last_maint_map | tojson | safe }};

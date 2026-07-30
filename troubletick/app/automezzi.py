@@ -1269,13 +1269,87 @@ def empty_automezzi(r: Request):
         
     return RedirectResponse(url="/admin/automezzi/gestione?msg=clear_ok", status_code=303)
 
+def _get_manutenzioni_programmate(conn):
+    programmate_query = conn.execute(text("""
+        SELECT 
+            a.automezzo_id, a.targa, b.nome as marca, a.modello, a.km_attuali,
+            tm.tipo_manutenzione_id, tm.nome as tipo_nome, tm.scadenza_mesi, tm.scadenza_anni, tm.scadenza_km,
+            atm.data_inizio_calcolo, atm.km_partenza_calcolo
+        FROM automezzi a
+        JOIN marche_automezzi b ON a.marca_id = b.marca_id
+        JOIN automezzi_tipi_manutenzione atm ON a.automezzo_id = atm.automezzo_id
+        JOIN tipi_manutenzione tm ON atm.tipo_manutenzione_id = tm.tipo_manutenzione_id
+        ORDER BY b.nome, a.modello, tm.nome
+    """)).mappings().all()
+
+    def add_months(sourcedate, months):
+        month = sourcedate.month - 1 + months
+        year = sourcedate.year + month // 12
+        month = month % 12 + 1
+        day = min(sourcedate.day, [31, 29 if year%4==0 and (not year%100==0 or year%400==0) else 28, 31,30,31,30,31,31,30,31,30,31][month-1])
+        return datetime.date(year, month, day)
+
+    manutenzioni_programmate = []
+    oggi = datetime.date.today()
+
+    for row in programmate_query:
+        prog = dict(row)
+        prog['scadenza_stimata_data'] = None
+        prog['giorni_rimanenti'] = None
+        tot_mesi = (prog.get('scadenza_mesi') or 0) + (prog.get('scadenza_anni') or 0) * 12
+        if tot_mesi > 0 and prog['data_inizio_calcolo']:
+            try:
+                d_inizio = datetime.datetime.strptime(prog['data_inizio_calcolo'], "%Y-%m-%d").date()
+                d_scadenza = add_months(d_inizio, tot_mesi)
+                prog['scadenza_stimata_data'] = d_scadenza
+                prog['giorni_rimanenti'] = (d_scadenza - oggi).days
+            except Exception:
+                pass
+        
+        prog['scadenza_stimata_km'] = None
+        prog['km_rimanenti'] = None
+        if prog['scadenza_km'] and prog['km_partenza_calcolo'] is not None:
+            prog['scadenza_stimata_km'] = prog['km_partenza_calcolo'] + prog['scadenza_km']
+            if prog['km_attuali'] is not None:
+                prog['km_rimanenti'] = prog['scadenza_stimata_km'] - prog['km_attuali']
+        
+        prog['stato_scadenza'] = "Regolare"
+        prog['alert_class'] = "success"
+        
+        is_scaduta = False
+        is_warning = False
+        
+        if prog['giorni_rimanenti'] is not None:
+            if prog['giorni_rimanenti'] < 0:
+                is_scaduta = True
+            elif prog['giorni_rimanenti'] <= 30:
+                is_warning = True
+                
+        if prog['km_rimanenti'] is not None:
+            if prog['km_rimanenti'] < 0:
+                is_scaduta = True
+            elif prog['km_rimanenti'] <= 1000:
+                is_warning = True
+                
+        if is_scaduta:
+            prog['stato_scadenza'] = "Scaduta"
+            prog['alert_class'] = "danger"
+        elif is_warning:
+            prog['stato_scadenza'] = "In Scadenza"
+            prog['alert_class'] = "warning"
+            
+        manutenzioni_programmate.append(prog)
+
+    return manutenzioni_programmate
+
+
 @router.get("/admin/automezzi/manutenzioni", response_class=HTMLResponse)
 def list_manutenzioni(r: Request):
     if "user" not in r.session: 
         return RedirectResponse(url="/login")
     user = r.session.get("user")
-    if user.get("ruolo") not in ("admin", "global_fleet_manager"):
-        return RedirectResponse(url="/")
+    if user.get("ruolo") not in ("admin", "fleet_manager", "global_fleet_manager"):
+        return RedirectResponse(url="/", status_code=303)
         
     with engine.connect() as conn:
         manutenzioni = conn.execute(text("""
@@ -1293,76 +1367,7 @@ def list_manutenzioni(r: Request):
             ORDER BY b.nome, a.modello
         """)).all()
         
-        programmate_query = conn.execute(text("""
-            SELECT 
-                a.automezzo_id, a.targa, b.nome as marca, a.modello, a.km_attuali,
-                tm.tipo_manutenzione_id, tm.nome as tipo_nome, tm.scadenza_mesi, tm.scadenza_anni, tm.scadenza_km,
-                atm.data_inizio_calcolo, atm.km_partenza_calcolo
-            FROM automezzi a
-            JOIN marche_automezzi b ON a.marca_id = b.marca_id
-            JOIN automezzi_tipi_manutenzione atm ON a.automezzo_id = atm.automezzo_id
-            JOIN tipi_manutenzione tm ON atm.tipo_manutenzione_id = tm.tipo_manutenzione_id
-            ORDER BY b.nome, a.modello, tm.nome
-        """)).mappings().all()
-
-        def add_months(sourcedate, months):
-            month = sourcedate.month - 1 + months
-            year = sourcedate.year + month // 12
-            month = month % 12 + 1
-            day = min(sourcedate.day, [31, 29 if year%4==0 and (not year%100==0 or year%400==0) else 28, 31,30,31,30,31,31,30,31,30,31][month-1])
-            return datetime.date(year, month, day)
-
-        manutenzioni_programmate = []
-        oggi = datetime.date.today()
-
-        for row in programmate_query:
-            prog = dict(row)
-            
-            prog['scadenza_stimata_data'] = None
-            prog['giorni_rimanenti'] = None
-            tot_mesi = (prog.get('scadenza_mesi') or 0) + (prog.get('scadenza_anni') or 0) * 12
-            if tot_mesi > 0 and prog['data_inizio_calcolo']:
-                try:
-                    d_inizio = datetime.datetime.strptime(prog['data_inizio_calcolo'], "%Y-%m-%d").date()
-                    d_scadenza = add_months(d_inizio, tot_mesi)
-                    prog['scadenza_stimata_data'] = d_scadenza
-                    prog['giorni_rimanenti'] = (d_scadenza - oggi).days
-                except:
-                    pass
-            
-            prog['scadenza_stimata_km'] = None
-            prog['km_rimanenti'] = None
-            if prog['scadenza_km'] and prog['km_partenza_calcolo'] is not None:
-                prog['scadenza_stimata_km'] = prog['km_partenza_calcolo'] + prog['scadenza_km']
-                if prog['km_attuali'] is not None:
-                    prog['km_rimanenti'] = prog['scadenza_stimata_km'] - prog['km_attuali']
-            
-            prog['stato_scadenza'] = "Regolare"
-            prog['alert_class'] = "success"
-            
-            is_scaduta = False
-            is_warning = False
-            
-            if prog['giorni_rimanenti'] is not None:
-                if prog['giorni_rimanenti'] < 0:
-                    is_scaduta = True
-                elif prog['giorni_rimanenti'] <= 30:
-                    is_warning = True
-                    
-            if prog['km_rimanenti'] is not None:
-                if prog['km_rimanenti'] < 0:
-                    is_scaduta = True
-                elif prog['km_rimanenti'] <= 1000:
-                    is_warning = True
-                    
-            if is_scaduta:
-                prog['stato_scadenza'] = "Scaduta"
-                prog['alert_class'] = "danger"
-            elif is_warning:
-                prog['stato_scadenza'] = "In Scadenza"
-                prog['alert_class'] = "warning"
-                
-            manutenzioni_programmate.append(prog)
+        manutenzioni_programmate = _get_manutenzioni_programmate(conn)
             
         # Fetch tipi_manutenzione for the add modal
         tipi_manutenzione_mappings = conn.execute(text("SELECT * FROM tipi_manutenzione ORDER BY nome")).mappings().all()
@@ -1395,6 +1400,299 @@ def list_manutenzioni(r: Request):
         "last_maint_map": last_maint_map, "import_result": import_result
     })
 
+
+@router.get("/admin/automezzi/manutenzioni/programmate", response_class=HTMLResponse)
+def list_manutenzioni_programmate(
+    r: Request,
+    page: typing.Any = Query(1),
+    per_page: typing.Any = Query(50),
+    q: str = Query(None),
+    targa: str = Query(None),
+    stato: str = Query(None)
+):
+    if "user" not in r.session:
+        return RedirectResponse(url="/login")
+    user = r.session.get("user")
+    if user.get("ruolo") not in ("admin", "fleet_manager", "global_fleet_manager"):
+        return RedirectResponse(url="/", status_code=303)
+
+    def _to_int(val, default_val):
+        try:
+            return max(1, int(getattr(val, 'default', val)))
+        except (ValueError, TypeError):
+            return default_val
+
+    def _to_str(val):
+        if val is None:
+            return ""
+        v = getattr(val, 'default', val)
+        if v is None or isinstance(v, type(Ellipsis)):
+            return ""
+        return str(v).strip()
+
+    page = _to_int(page, 1)
+    per_page = _to_int(per_page, 50)
+    if per_page not in (25, 50, 100, 200):
+        per_page = 50
+
+    q_str = _to_str(q)
+    targa_str = _to_str(targa).upper()
+    stato_str = _to_str(stato)
+
+    with engine.connect() as conn:
+        all_programmate = _get_manutenzioni_programmate(conn)
+
+        veicoli = conn.execute(text("""
+            SELECT a.automezzo_id, a.targa, b.nome as marca, a.modello, a.km_attuali 
+            FROM automezzi a 
+            JOIN marche_automezzi b ON a.marca_id = b.marca_id 
+            ORDER BY b.nome, a.modello
+        """)).all()
+
+        tipi_manutenzione_mappings = conn.execute(text("SELECT * FROM tipi_manutenzione ORDER BY nome")).mappings().all()
+        tipi_manutenzione = [dict(t) for t in tipi_manutenzione_mappings]
+
+        last_maint_map = {}
+        for row in conn.execute(text("""
+            SELECT m.automezzo_id, m.tipo_servizio, m.data_fine, m.data_inizio, m.km_fine, m.km_registrati
+            FROM manutenzioni_automezzi m
+            INNER JOIN (
+                SELECT automezzo_id, tipo_servizio, MAX(manutenzione_id) as max_id
+                FROM manutenzioni_automezzi
+                WHERE data_fine IS NOT NULL AND data_fine != ''
+                GROUP BY automezzo_id, tipo_servizio
+            ) latest ON m.manutenzione_id = latest.max_id
+        """)).mappings().all():
+            serv_key = (row["tipo_servizio"] or "").strip().lower()
+            key = f"{row['automezzo_id']}_{serv_key}"
+            last_maint_map[key] = {
+                "data": row["data_fine"] or row["data_inizio"],
+                "km": row["km_fine"] or row["km_registrati"] or 0
+            }
+
+        opt_targhe = [row[0] for row in conn.execute(text("SELECT DISTINCT targa FROM automezzi WHERE targa IS NOT NULL AND targa != '' ORDER BY targa")).all()]
+
+    filtered = []
+    totale_scadute = 0
+    totale_in_scadenza = 0
+    totale_regolari = 0
+
+    for prog in all_programmate:
+        if prog["stato_scadenza"] == "Scaduta":
+            totale_scadute += 1
+        elif prog["stato_scadenza"] == "In Scadenza":
+            totale_in_scadenza += 1
+        else:
+            totale_regolari += 1
+
+        t_clean = (prog.get("targa") or "").strip().upper()
+        if targa_str and t_clean != targa_str:
+            continue
+
+        if stato_str and prog.get("stato_scadenza") != stato_str:
+            continue
+
+        if q_str:
+            needle = q_str.lower()
+            haystack = f"{t_clean} {prog.get('marca') or ''} {prog.get('modello') or ''} {prog.get('tipo_nome') or ''}".lower()
+            if needle not in haystack:
+                continue
+
+        filtered.append(prog)
+
+    totale_programmate = len(all_programmate)
+    total_items = len(filtered)
+    total_pages = max(1, math.ceil(total_items / per_page))
+    if page > total_pages:
+        page = total_pages
+    offset = (page - 1) * per_page
+    programmate_page = filtered[offset : offset + per_page]
+
+    start_p = max(1, page - 3)
+    end_p = min(total_pages, start_p + 6)
+    if end_p - start_p < 6:
+        start_p = max(1, end_p - 6)
+    page_numbers = list(range(start_p, end_p + 1))
+
+    from urllib.parse import urlencode
+
+    def make_url(p_num, size=per_page):
+        p_num = max(1, min(p_num, total_pages))
+        params_dict = {"page": p_num, "per_page": size}
+        if q_str: params_dict["q"] = q_str
+        if targa_str: params_dict["targa"] = targa_str
+        if stato_str: params_dict["stato"] = stato_str
+        return f"/admin/automezzi/manutenzioni/programmate?{urlencode(params_dict)}"
+
+    pagination = {
+        "page": page,
+        "per_page": per_page,
+        "total_items": total_items,
+        "total_pages": total_pages,
+        "has_prev": page > 1,
+        "has_next": page < total_pages,
+        "prev_page": page - 1,
+        "next_page": page + 1,
+        "first_url": make_url(1),
+        "prev_url": make_url(page - 1),
+        "next_url": make_url(page + 1),
+        "last_url": make_url(total_pages),
+        "pages": [{"num": p, "url": make_url(p), "is_active": p == page} for p in page_numbers],
+        "per_page_options": [{"count": n, "url": make_url(1, n), "is_selected": n == per_page} for n in (25, 50, 100, 200)],
+        "page_start": offset + 1 if total_items > 0 else 0,
+        "page_end": min(offset + per_page, total_items)
+    }
+
+    return templates.TemplateResponse(r, "admin_automezzi_manutenzioni_programmate.html", {
+        "request": r, "cfg": CFG, "user": user,
+        "manutenzioni_programmate": programmate_page,
+        "veicoli": veicoli,
+        "tipi_manutenzione": tipi_manutenzione,
+        "last_maint_map": last_maint_map,
+        "totale_programmate": totale_programmate,
+        "totale_scadute": totale_scadute,
+        "totale_in_scadenza": totale_in_scadenza,
+        "totale_regolari": totale_regolari,
+        "opt_targhe": opt_targhe,
+        "pagination": pagination,
+        "filters": {"q": q_str, "targa": targa_str, "stato": stato_str}
+    })
+
+
+@router.get("/admin/automezzi/manutenzioni/storico", response_class=HTMLResponse)
+def list_manutenzioni_storico(
+    r: Request,
+    page: typing.Any = Query(1),
+    per_page: typing.Any = Query(50),
+    q: str = Query(None),
+    targa: str = Query(None),
+    data_dal: str = Query(None),
+    data_al: str = Query(None)
+):
+    if "user" not in r.session:
+        return RedirectResponse(url="/login")
+    user = r.session.get("user")
+    if user.get("ruolo") not in ("admin", "fleet_manager", "global_fleet_manager"):
+        return RedirectResponse(url="/", status_code=303)
+
+    def _to_int(val, default_val):
+        try:
+            return max(1, int(getattr(val, 'default', val)))
+        except (ValueError, TypeError):
+            return default_val
+
+    page = _to_int(page, 1)
+    per_page = _to_int(per_page, 50)
+    if per_page not in (25, 50, 100, 200):
+        per_page = 50
+
+    def _to_str(val):
+        if val is None:
+            return ""
+        v = getattr(val, 'default', val)
+        if v is None or isinstance(v, type(Ellipsis)):
+            return ""
+        return str(v).strip()
+
+    q_str = _to_str(q)
+    targa_str = _to_str(targa).upper()
+    data_dal_str = _to_str(data_dal)
+    data_al_str = _to_str(data_al)
+
+    with engine.connect() as conn:
+        all_completed = conn.execute(text("""
+            SELECT m.*, a.targa, b.nome as marca, a.modello, a.proprieta
+            FROM manutenzioni_automezzi m
+            JOIN automezzi a ON m.automezzo_id = a.automezzo_id
+            JOIN marche_automezzi b ON a.marca_id = b.marca_id
+            WHERE m.data_fine IS NOT NULL AND m.data_fine != ''
+            ORDER BY m.manutenzione_id DESC
+        """)).mappings().all()
+
+        opt_targhe = [row[0] for row in conn.execute(text("SELECT DISTINCT targa FROM automezzi WHERE targa IS NOT NULL AND targa != '' ORDER BY targa")).all()]
+
+    filtered = []
+    for m in all_completed:
+        m_dict = dict(m)
+        t_clean = str(m_dict.get("targa") or "").strip().upper()
+        if targa_str and t_clean != targa_str:
+            continue
+
+        d_fine = str(m_dict.get("data_fine") or m_dict.get("data_inizio") or "").strip()
+        if data_dal_str and d_fine < data_dal_str:
+            continue
+        if data_al_str and d_fine > data_al_str:
+            continue
+
+        if q_str:
+            needle = q_str.lower()
+            haystack = f"{t_clean} {m_dict.get('marca') or ''} {m_dict.get('modello') or ''} {m_dict.get('luogo') or ''} {m_dict.get('tipo_servizio') or ''} {m_dict.get('note') or ''}".lower()
+            if needle not in haystack:
+                continue
+
+        filtered.append(m_dict)
+
+    totale_completate = len(filtered)
+    totale_costo = sum(float(m.get("costo") or 0) for m in filtered)
+    veicoli_coinvolti = len(set(m.get("targa") for m in filtered if m.get("targa")))
+
+    total_items = len(filtered)
+    total_pages = max(1, math.ceil(total_items / per_page))
+    if page > total_pages:
+        page = total_pages
+    offset = (page - 1) * per_page
+    storico_page = filtered[offset : offset + per_page]
+
+    start_p = max(1, page - 3)
+    end_p = min(total_pages, start_p + 6)
+    if end_p - start_p < 6:
+        start_p = max(1, end_p - 6)
+    page_numbers = list(range(start_p, end_p + 1))
+
+    from urllib.parse import urlencode
+
+    def make_url(p_num, size=per_page):
+        p_num = max(1, min(p_num, total_pages))
+        params_dict = {"page": p_num, "per_page": size}
+        if q_str: params_dict["q"] = q_str
+        if targa_str: params_dict["targa"] = targa_str
+        if data_dal_str: params_dict["data_dal"] = data_dal_str
+        if data_al_str: params_dict["data_al"] = data_al_str
+        return f"/admin/automezzi/manutenzioni/storico?{urlencode(params_dict)}"
+
+    pagination = {
+        "page": page,
+        "per_page": per_page,
+        "total_items": total_items,
+        "total_pages": total_pages,
+        "has_prev": page > 1,
+        "has_next": page < total_pages,
+        "prev_page": page - 1,
+        "next_page": page + 1,
+        "first_url": make_url(1),
+        "prev_url": make_url(page - 1),
+        "next_url": make_url(page + 1),
+        "last_url": make_url(total_pages),
+        "pages": [{"num": p, "url": make_url(p), "is_active": p == page} for p in page_numbers],
+        "per_page_options": [{"count": n, "url": make_url(1, n), "is_selected": n == per_page} for n in (25, 50, 100, 200)],
+        "page_start": offset + 1 if total_items > 0 else 0,
+        "page_end": min(offset + per_page, total_items)
+    }
+
+    import_result = r.session.pop("import_manutenzioni_result", None)
+
+    return templates.TemplateResponse(r, "admin_automezzi_manutenzioni_storico.html", {
+        "request": r, "cfg": CFG, "user": user,
+        "manutenzioni_storico": storico_page,
+        "totale_completate": totale_completate,
+        "totale_costo": round(totale_costo, 2),
+        "veicoli_coinvolti": veicoli_coinvolti,
+        "opt_targhe": opt_targhe,
+        "pagination": pagination,
+        "import_result": import_result,
+        "filters": {"q": q_str, "targa": targa_str, "data_dal": data_dal_str, "data_al": data_al_str}
+    })
+
 @router.post("/admin/automezzi/manutenzioni/nuova")
 def add_manutenzione(
     r: Request,
@@ -1410,7 +1708,7 @@ def add_manutenzione(
     if "user" not in r.session: 
         return RedirectResponse(url="/login", status_code=303)
     user = r.session.get("user")
-    if user.get("ruolo") not in ("admin", "global_fleet_manager"):
+    if user.get("ruolo") not in ("admin", "fleet_manager", "global_fleet_manager"):
         return RedirectResponse(url="/", status_code=303)
         
     with engine.begin() as conn:
@@ -1482,6 +1780,53 @@ def complete_manutenzione(
             
     return RedirectResponse(url="/admin/automezzi/manutenzioni", status_code=303)
 
+@router.post("/admin/automezzi/manutenzioni/modifica/{id}")
+def edit_manutenzione_completata(
+    id: int,
+    r: Request,
+    data_fine: typing.Optional[str] = Form(None),
+    km_fine: typing.Optional[int] = Form(None),
+    costo: typing.Optional[float] = Form(None),
+    luogo: typing.Optional[str] = Form(None),
+    note: typing.Optional[str] = Form(None)
+):
+    if "user" not in r.session:
+        return RedirectResponse(url="/login", status_code=303)
+    user = r.session.get("user")
+    if user.get("ruolo") not in ("admin", "fleet_manager", "global_fleet_manager"):
+        return RedirectResponse(url="/", status_code=303)
+
+    with engine.begin() as conn:
+        m = conn.execute(text("SELECT automezzo_id FROM manutenzioni_automezzi WHERE manutenzione_id = :id"), {"id": id}).mappings().first()
+        if m:
+            conn.execute(text("""
+                UPDATE manutenzioni_automezzi
+                SET data_fine = :data_fine,
+                    km_fine = :km_fine,
+                    km_registrati = COALESCE(:km_fine, km_registrati),
+                    costo = :costo,
+                    luogo = :luogo,
+                    note = :note
+                WHERE manutenzione_id = :id
+            """), {
+                "id": id,
+                "data_fine": data_fine.strip() if data_fine else None,
+                "km_fine": km_fine,
+                "costo": costo,
+                "luogo": luogo.strip() if luogo else None,
+                "note": note.strip() if note else None
+            })
+            if km_fine and km_fine > 0:
+                conn.execute(text("""
+                    UPDATE automezzi
+                    SET km_attuali = CASE WHEN :km_fine > COALESCE(km_attuali, 0) THEN :km_fine ELSE km_attuali END
+                    WHERE automezzo_id = :aid
+                """), {"aid": m["automezzo_id"], "km_fine": km_fine})
+
+    referer = r.headers.get("referer", "")
+    target = "/admin/automezzi/manutenzioni/storico" if "/storico" in referer else "/admin/automezzi/manutenzioni"
+    return RedirectResponse(url=f"{target}?msg=updated", status_code=303)
+
 @router.post("/admin/automezzi/manutenzioni/elimina/{id}")
 def delete_manutenzione(id: int, r: Request):
     if "user" not in r.session: 
@@ -1496,7 +1841,9 @@ def delete_manutenzione(id: int, r: Request):
             conn.execute(text("UPDATE automezzi SET stato = 'Disponibile' WHERE automezzo_id = :automezzo_id"), {"automezzo_id": m.automezzo_id})
         conn.execute(text("DELETE FROM manutenzioni_automezzi WHERE manutenzione_id = :id"), {"id": id})
         
-    return RedirectResponse(url="/admin/automezzi/manutenzioni", status_code=303)
+    referer = r.headers.get("referer", "")
+    target = "/admin/automezzi/manutenzioni/storico" if "/storico" in referer else "/admin/automezzi/manutenzioni"
+    return RedirectResponse(url=f"{target}?msg=deleted", status_code=303)
 
 @router.post("/admin/automezzi/manutenzioni/programma")
 def programma_manutenzione_automezzo(
@@ -1558,7 +1905,9 @@ def programma_manutenzione_automezzo(
                 "data_i": data_inizio_calcolo, "km_p": km_partenza_calcolo
             })
 
-    return RedirectResponse(url="/admin/automezzi/manutenzioni", status_code=303)
+    referer = r.headers.get("referer", "")
+    target_url = "/admin/automezzi/manutenzioni/programmate?msg=prog_added" if "programmate" in referer else "/admin/automezzi/manutenzioni?msg=prog_added"
+    return RedirectResponse(url=target_url, status_code=303)
 
 @router.post("/admin/automezzi/manutenzioni/programma/elimina")
 def elimina_programma_manutenzione(
@@ -1578,7 +1927,9 @@ def elimina_programma_manutenzione(
             WHERE automezzo_id = :aid AND tipo_manutenzione_id = :tid
         """), {"aid": automezzo_id, "tipo_manutenzione_id": tipo_manutenzione_id})
 
-    return RedirectResponse(url="/admin/automezzi/manutenzioni", status_code=303)
+    referer = r.headers.get("referer", "")
+    target_url = "/admin/automezzi/manutenzioni/programmate?msg=prog_deleted" if "programmate" in referer else "/admin/automezzi/manutenzioni?msg=prog_deleted"
+    return RedirectResponse(url=target_url, status_code=303)
 
 
 @router.post("/admin/automezzi/manutenzioni/uniforma-targhe")
@@ -1803,7 +2154,7 @@ def import_manutenzioni_csv(
         "discarded_records": discarded_records
     }
 
-    return RedirectResponse(url="/admin/automezzi/manutenzioni", status_code=303)
+    return RedirectResponse(url="/admin/automezzi/manutenzioni/storico", status_code=303)
 
 @router.get("/admin/automezzi/marche", response_class=HTMLResponse)
 def list_marche(r: Request):
