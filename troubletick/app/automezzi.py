@@ -1270,6 +1270,16 @@ def empty_automezzi(r: Request):
     return RedirectResponse(url="/admin/automezzi/gestione?msg=clear_ok", status_code=303)
 
 def _get_manutenzioni_programmate(conn):
+    active_maint_set = set()
+    active_rows = conn.execute(text("""
+        SELECT automezzo_id, LOWER(TRIM(tipo_servizio)) as tipo_norm
+        FROM manutenzioni_automezzi
+        WHERE (data_fine IS NULL OR data_fine = '')
+    """)).mappings().all()
+    for am in active_rows:
+        if am["tipo_norm"]:
+            active_maint_set.add((am["automezzo_id"], am["tipo_norm"]))
+
     programmate_query = conn.execute(text("""
         SELECT 
             a.automezzo_id, a.targa, b.nome as marca, a.modello, a.km_attuali,
@@ -1294,6 +1304,8 @@ def _get_manutenzioni_programmate(conn):
 
     for row in programmate_query:
         prog = dict(row)
+        t_norm = (prog.get('tipo_nome') or '').strip().lower()
+
         prog['scadenza_stimata_data'] = None
         prog['giorni_rimanenti'] = None
         tot_mesi = (prog.get('scadenza_mesi') or 0) + (prog.get('scadenza_anni') or 0) * 12
@@ -1313,9 +1325,6 @@ def _get_manutenzioni_programmate(conn):
             if prog['km_attuali'] is not None:
                 prog['km_rimanenti'] = prog['scadenza_stimata_km'] - prog['km_attuali']
         
-        prog['stato_scadenza'] = "Regolare"
-        prog['alert_class'] = "success"
-        
         is_scaduta = False
         is_warning = False
         
@@ -1331,12 +1340,22 @@ def _get_manutenzioni_programmate(conn):
             elif prog['km_rimanenti'] <= 1000:
                 is_warning = True
                 
-        if is_scaduta:
+        if (prog['automezzo_id'], t_norm) in active_maint_set:
+            prog['stato_scadenza'] = "In Corso"
+            prog['alert_class'] = "info text-dark"
+            prog['is_in_corso'] = True
+        elif is_scaduta:
             prog['stato_scadenza'] = "Scaduta"
             prog['alert_class'] = "danger"
+            prog['is_in_corso'] = False
         elif is_warning:
             prog['stato_scadenza'] = "In Scadenza"
-            prog['alert_class'] = "warning"
+            prog['alert_class'] = "warning text-dark"
+            prog['is_in_corso'] = False
+        else:
+            prog['stato_scadenza'] = "Regolare"
+            prog['alert_class'] = "success"
+            prog['is_in_corso'] = False
             
         manutenzioni_programmate.append(prog)
 
@@ -1473,12 +1492,15 @@ def list_manutenzioni_programmate(
         opt_targhe = [row[0] for row in conn.execute(text("SELECT DISTINCT targa FROM automezzi WHERE targa IS NOT NULL AND targa != '' ORDER BY targa")).all()]
 
     filtered = []
+    totale_in_corso = 0
     totale_scadute = 0
     totale_in_scadenza = 0
     totale_regolari = 0
 
     for prog in all_programmate:
-        if prog["stato_scadenza"] == "Scaduta":
+        if prog["stato_scadenza"] == "In Corso":
+            totale_in_corso += 1
+        elif prog["stato_scadenza"] == "Scaduta":
             totale_scadute += 1
         elif prog["stato_scadenza"] == "In Scadenza":
             totale_in_scadenza += 1
@@ -1550,6 +1572,7 @@ def list_manutenzioni_programmate(
         "tipi_manutenzione": tipi_manutenzione,
         "last_maint_map": last_maint_map,
         "totale_programmate": totale_programmate,
+        "totale_in_corso": totale_in_corso,
         "totale_scadute": totale_scadute,
         "totale_in_scadenza": totale_in_scadenza,
         "totale_regolari": totale_regolari,
@@ -1720,7 +1743,9 @@ def add_manutenzione(
             )
         """), {
             "automezzo_id": automezzo_id, "tipo_servizio": tipo_servizio, "data_inizio": data_inizio,
-            "ora_inizio": ora_inizio, "km_registrati": km_registrati, "luogo": luogo, "bloccante": bloccante,
+            "ora_inizio": ora_inizio, "km_registrati": km_registrati,
+            "luogo": (luogo or "").strip() or "Officina non specificata",
+            "bloccante": bloccante,
             "note": note
         })
         
@@ -1813,7 +1838,7 @@ def edit_manutenzione_completata(
                 "data_fine": data_fine.strip() if data_fine else None,
                 "km_fine": km_fine,
                 "costo": costo,
-                "luogo": luogo.strip() if luogo else None,
+                "luogo": (luogo or "").strip() or "Officina non specificata",
                 "note": note.strip() if note else None
             })
             if km_fine and km_fine > 0:

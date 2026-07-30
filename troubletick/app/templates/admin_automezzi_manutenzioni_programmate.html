@@ -112,28 +112,38 @@
         {% endif %}
 
         <!-- KPI Cards -->
-        <div class="row g-3 mb-4">
-            <div class="col-md-3">
+        <div class="row row-cols-1 row-cols-md-5 g-2 mb-4">
+            <div>
                 <div class="p-3 kpi-card shadow-sm h-100">
                     <div class="d-flex justify-content-between align-items-center mb-1">
-                        <span class="text-muted small fw-bold text-uppercase">Totale Pianificate</span>
+                        <span class="text-muted small fw-bold text-uppercase">Totale Piani</span>
                         <div class="bg-primary-subtle text-primary p-2 rounded-circle"><i class="bi bi-calendar-check"></i></div>
                     </div>
                     <div class="fs-3 fw-bold text-dark">{{ totale_programmate }}</div>
-                    <small class="text-muted">Piani manutenzione attivi</small>
+                    <small class="text-muted">Piani attivi</small>
                 </div>
             </div>
-            <div class="col-md-3">
+            <div>
+                <div class="p-3 kpi-card shadow-sm h-100">
+                    <div class="d-flex justify-content-between align-items-center mb-1">
+                        <span class="text-muted small fw-bold text-uppercase">In Corso</span>
+                        <div class="bg-info-subtle text-info p-2 rounded-circle"><i class="bi bi-wrench"></i></div>
+                    </div>
+                    <div class="fs-3 fw-bold text-info">{{ totale_in_corso }}</div>
+                    <small class="text-muted">Lavori aperti</small>
+                </div>
+            </div>
+            <div>
                 <div class="p-3 kpi-card shadow-sm h-100">
                     <div class="d-flex justify-content-between align-items-center mb-1">
                         <span class="text-muted small fw-bold text-uppercase">Scadute</span>
                         <div class="bg-danger-subtle text-danger p-2 rounded-circle"><i class="bi bi-exclamation-triangle-fill"></i></div>
                     </div>
                     <div class="fs-3 fw-bold text-danger">{{ totale_scadute }}</div>
-                    <small class="text-muted">Interventi oltre il limite</small>
+                    <small class="text-muted">Oltre il limite</small>
                 </div>
             </div>
-            <div class="col-md-3">
+            <div>
                 <div class="p-3 kpi-card shadow-sm h-100">
                     <div class="d-flex justify-content-between align-items-center mb-1">
                         <span class="text-muted small fw-bold text-uppercase">In Scadenza</span>
@@ -143,14 +153,14 @@
                     <small class="text-muted">Scadono a breve</small>
                 </div>
             </div>
-            <div class="col-md-3">
+            <div>
                 <div class="p-3 kpi-card shadow-sm h-100">
                     <div class="d-flex justify-content-between align-items-center mb-1">
                         <span class="text-muted small fw-bold text-uppercase">Regolari</span>
                         <div class="bg-success-subtle text-success p-2 rounded-circle"><i class="bi bi-shield-check"></i></div>
                     </div>
                     <div class="fs-3 fw-bold text-success">{{ totale_regolari }}</div>
-                    <small class="text-muted">Nei limiti stabiliti</small>
+                    <small class="text-muted">Nei limiti</small>
                 </div>
             </div>
         </div>
@@ -176,6 +186,7 @@
                         <label class="form-label text-muted small fw-semibold mb-1">Stato Scadenza</label>
                         <select name="stato" class="form-select form-select-sm">
                             <option value="">Tutti gli stati</option>
+                            <option value="In Corso" {% if filters.stato == 'In Corso' %}selected{% endif %}>In Corso</option>
                             <option value="Scaduta" {% if filters.stato == 'Scaduta' %}selected{% endif %}>Scaduta</option>
                             <option value="In Scadenza" {% if filters.stato == 'In Scadenza' %}selected{% endif %}>In Scadenza</option>
                             <option value="Regolare" {% if filters.stato == 'Regolare' %}selected{% endif %}>Regolare</option>
@@ -308,6 +319,11 @@
                             </td>
                             
                             <td class="text-end text-nowrap">
+                                {% if p.is_in_corso %}
+                                <a href="/admin/automezzi/manutenzioni" class="btn btn-sm btn-outline-info fw-bold py-1 px-2 rounded me-1" title="Manutenzione attualmente in corso. Clicca per gestire.">
+                                    <i class="bi bi-wrench me-1"></i> In Corso
+                                </a>
+                                {% else %}
                                 <button type="button" class="btn btn-sm btn-success fw-bold py-1 px-2 rounded me-1"
                                         data-automezzo-id="{{ p.automezzo_id }}"
                                         data-targa="{{ p.targa }}"
@@ -317,6 +333,7 @@
                                         title="Inizia Manutenzione Ora per questo veicolo">
                                     <i class="bi bi-play-fill me-1"></i> Inizia
                                 </button>
+                                {% endif %}
                                 <form action="/admin/automezzi/manutenzioni/programma/elimina" method="POST" class="d-inline" onsubmit="return confirm('Sei sicuro di voler rimuovere questa manutenzione programmata dal veicolo?');">
                                     <input type="hidden" name="automezzo_id" value="{{ p.automezzo_id }}">
                                     <input type="hidden" name="tipo_manutenzione_id" value="{{ p.tipo_manutenzione_id }}">
