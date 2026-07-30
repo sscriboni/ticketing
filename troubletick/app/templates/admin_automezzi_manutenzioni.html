@@ -230,8 +230,15 @@
                                     <td><strong>{{ m.marca }} {{ m.modello }}</strong></td>
                                     <td><strong class="font-monospace text-dark fs-6 text-uppercase" style="letter-spacing: 1.2px; font-weight: 800;">{{ m.targa }}</strong></td>
                                     <td><span class="badge bg-info text-dark">{{ m.tipo_servizio }}</span></td>
-                                    <td>{{ m.luogo }}</td>
-                                    <td>{{ m.data_inizio }} alle {{ m.ora_inizio }}</td>
+                                    <td>{{ m.luogo or '-' }}</td>
+                                    <td>
+                                        {% if m.data_inizio and m.data_inizio|length >= 10 and m.data_inizio[4] in ('-', '/') %}
+                                            {{ m.data_inizio[8:10] }}/{{ m.data_inizio[5:7] }}/{{ m.data_inizio[0:4] }}
+                                        {% else %}
+                                            {{ m.data_inizio or '-' }}
+                                        {% endif %}
+                                        {% if m.ora_inizio %} <small class="text-muted">alle {{ m.ora_inizio }}</small>{% endif %}
+                                    </td>
                                     <td>{{ m.km_registrati }} km</td>
                                     <td>
                                         {% if m.bloccante == 1 %}
@@ -363,9 +370,22 @@
                                     <td>{{ m.marca }} {{ m.modello }}</td>
                                     <td><strong class="font-monospace text-dark fs-6 text-uppercase" style="letter-spacing: 1.2px; font-weight: 800;">{{ m.targa }}</strong></td>
                                     <td><span class="badge bg-light text-dark border">{{ m.tipo_servizio }}</span></td>
-                                    <td>{{ m.luogo }}</td>
-                                    <td>{{ m.data_inizio }}</td>
-                                    <td>{{ m.data_fine }} alle {{ m.ora_fine }}</td>
+                                    <td>{{ m.luogo or '-' }}</td>
+                                    <td>
+                                        {% if m.data_inizio and m.data_inizio|length >= 10 and m.data_inizio[4] in ('-', '/') %}
+                                            {{ m.data_inizio[8:10] }}/{{ m.data_inizio[5:7] }}/{{ m.data_inizio[0:4] }}
+                                        {% else %}
+                                            {{ m.data_inizio or '-' }}
+                                        {% endif %}
+                                    </td>
+                                    <td>
+                                        {% if m.data_fine and m.data_fine|length >= 10 and m.data_fine[4] in ('-', '/') %}
+                                            {{ m.data_fine[8:10] }}/{{ m.data_fine[5:7] }}/{{ m.data_fine[0:4] }}
+                                        {% else %}
+                                            {{ m.data_fine or '-' }}
+                                        {% endif %}
+                                        {% if m.ora_fine %} <small class="text-muted">alle {{ m.ora_fine }}</small>{% endif %}
+                                    </td>
                                     <td>
                                         {{ m.km_registrati }} km
                                         {% if m.km_fine %}
