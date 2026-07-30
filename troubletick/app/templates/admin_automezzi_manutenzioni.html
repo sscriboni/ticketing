@@ -12,20 +12,26 @@
         .table-container {
             background: white;
             border-radius: 8px;
-            padding: 1.5rem;
+            padding: 1rem;
             box-shadow: 0 4px 6px rgba(0,0,0,0.05);
             border: 1px solid #dee2e6;
+        }
+        .custom-table {
+            font-size: 0.85rem;
         }
         .custom-table th {
             font-weight: 600;
             color: #495057;
             text-transform: uppercase;
-            font-size: 0.8rem;
-            letter-spacing: 0.5px;
+            font-size: 0.75rem;
+            letter-spacing: 0.3px;
             border-bottom: 2px solid #dee2e6;
+            padding: 0.55rem 0.6rem;
+            white-space: nowrap;
         }
         .custom-table td {
             vertical-align: middle;
+            padding: 0.45rem 0.6rem;
         }
     </style>
 </head>
@@ -33,7 +39,27 @@
 <body class="bg-light">
     {% include 'navbar.html' %}
 
-    <div class="container py-4">
+    <div class="container-fluid px-4 py-4">
+        <!-- Quick Fleet Navigation Bar -->
+        <div class="d-flex flex-wrap justify-content-between align-items-center mb-3 pb-2 border-bottom">
+            <div class="d-flex flex-wrap gap-2">
+                <a href="/admin/automezzi" class="btn btn-sm btn-outline-secondary">
+                    <i class="bi bi-car-front-fill me-1 text-primary"></i> Elenco Automezzi
+                </a>
+                <a href="/admin/automezzi/dislocazioni" class="btn btn-sm btn-outline-secondary">
+                    <i class="bi bi-geo-alt-fill me-1 text-danger"></i> Dislocazioni
+                </a>
+                <a href="/admin/automezzi/manutenzioni" class="btn btn-sm btn-warning text-dark fw-bold">
+                    <i class="bi bi-wrench-adjustable me-1"></i> Manutenzioni
+                </a>
+                <a href="/admin/automezzi/viaggi" class="btn btn-sm btn-outline-secondary">
+                    <i class="bi bi-journal-text me-1 text-info"></i> Registro Viaggi
+                </a>
+                <a href="/admin/automezzi/rifornimenti" class="btn btn-sm btn-outline-secondary">
+                    <i class="bi bi-fuel-pump-fill me-1 text-danger"></i> Rifornimenti Carburante
+                </a>
+            </div>
+        </div>
         <!-- Gestione Manutenzioni -->
         <div class="mb-5">
             <div class="d-flex justify-content-between align-items-center mb-4">
@@ -192,7 +218,7 @@
                                 <th>Km Registrati</th>
                                 <th>Bloccante</th>
                                 <th>Note</th>
-                                <th class="text-end">Azioni</th>
+                                <th class="text-end text-nowrap">Azioni</th>
                             </tr>
                         </thead>
                         <tbody id="bodyInCorso">
@@ -215,7 +241,7 @@
                                         {% endif %}
                                     </td>
                                     <td><small class="text-muted">{{ m.note or '-' }}</small></td>
-                                    <td class="text-end">
+                                    <td class="text-end text-nowrap">
                                         <div class="d-inline-flex gap-2">
                                             <button class="btn btn-sm btn-success" onclick="openCompleteModal({{ m.manutenzione_id }}, '{{ m.targa }}', '{{ m.marca }} {{ m.modello }}', {{ m.km_registrati }}, '{{ m.proprieta or '' }}')">
                                                 <i class="bi bi-check-circle me-1"></i> Completa
@@ -257,7 +283,7 @@
                                 <th>Scadenza Temporale</th>
                                 <th>Scadenza Chilometrica</th>
                                 <th>Stato</th>
-                                <th class="text-end">Azioni</th>
+                                <th class="text-end text-nowrap">Azioni</th>
                             </tr>
                         </thead>
                         <tbody id="bodyProgrammate">
@@ -289,7 +315,7 @@
                                     <span class="badge bg-{{ p.alert_class }}">{{ p.stato_scadenza }}</span>
                                 </td>
                                 
-                                <td class="text-end">
+                                <td class="text-end text-nowrap">
                                     <form action="/admin/automezzi/manutenzioni/programma/elimina" method="POST" class="d-inline" onsubmit="return confirm('Sei sicuro di voler rimuovere questa manutenzione programmata dal veicolo?');">
                                         <input type="hidden" name="automezzo_id" value="{{ p.automezzo_id }}">
                                         <input type="hidden" name="tipo_manutenzione_id" value="{{ p.tipo_manutenzione_id }}">
@@ -325,7 +351,7 @@
                                 <th>Stato Blocco</th>
                                 <th>Costo Intervento</th>
                                 <th>Note</th>
-                                <th class="text-end">Azioni</th>
+                                <th class="text-end text-nowrap">Azioni</th>
                             </tr>
                         </thead>
                         <tbody id="bodyCompletate">
@@ -361,7 +387,7 @@
                                         {% endif %}
                                     </td>
                                     <td><small class="text-muted">{{ m.note or '-' }}</small></td>
-                                    <td class="text-end">
+                                    <td class="text-end text-nowrap">
                                         <button class="btn btn-sm btn-outline-danger" onclick="confirmDeleteMaintenance({{ m.manutenzione_id }})">
                                             <i class="bi bi-trash"></i>
                                         </button>
