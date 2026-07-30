@@ -394,7 +394,7 @@
                     <div class="row g-3 mb-3">
                         <div class="col-md-4">
                             <label class="form-label text-muted fw-bold">Targa *</label>
-                            <input type="text" class="form-control font-monospace fw-bold text-uppercase" name="targa" id="editTarga" required>
+                            <input type="text" class="form-control font-monospace fw-bold text-uppercase" name="targa" id="editTarga" oninput="this.value = this.value.replace(/\s+/g, '').toUpperCase();" required>
                         </div>
                         <div class="col-md-4">
                             <label class="form-label text-muted fw-bold">Marca *</label>
@@ -562,9 +562,10 @@
             form.action = '/veicolo/modifica/' + id;
         }
 
-        const targa = btn.getAttribute('data-targa') || '';
-        document.getElementById('editTargaHeader').textContent = targa;
-        document.getElementById('editTarga').value = targa;
+        const rawTarga = btn.getAttribute('data-targa') || '';
+        const cleanTarga = rawTarga.replace(/\s+/g, '').toUpperCase();
+        document.getElementById('editTargaHeader').textContent = cleanTarga;
+        document.getElementById('editTarga').value = cleanTarga;
         document.getElementById('editMarcaId').value = btn.getAttribute('data-marca-id') || '';
         document.getElementById('editModello').value = btn.getAttribute('data-modello') || '';
         document.getElementById('editTipo').value = btn.getAttribute('data-tipo') || 'auto';
