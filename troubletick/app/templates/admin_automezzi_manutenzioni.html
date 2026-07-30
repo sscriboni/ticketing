@@ -239,10 +239,11 @@
                                     <td><span class="badge bg-info text-dark">{{ m.tipo_servizio }}</span></td>
                                     <td>{{ m.luogo or '-' }}</td>
                                     <td>
-                                        {% if m.data_inizio and m.data_inizio|length >= 10 and m.data_inizio[4] in ('-', '/') %}
-                                            {{ m.data_inizio[8:10] }}/{{ m.data_inizio[5:7] }}/{{ m.data_inizio[0:4] }}
+                                        {% set d_str = m.data_inizio|string if m.data_inizio else '' %}
+                                        {% if d_str|length >= 10 and d_str[4] in ('-', '/') %}
+                                            {{ d_str[8:10] }}/{{ d_str[5:7] }}/{{ d_str[0:4] }}
                                         {% else %}
-                                            {{ m.data_inizio or '-' }}
+                                            {{ d_str or '-' }}
                                         {% endif %}
                                         {% if m.ora_inizio %} <small class="text-muted">alle {{ m.ora_inizio }}</small>{% endif %}
                                     </td>
@@ -313,7 +314,8 @@
                                 
                                 <td>
                                     {% if p.scadenza_stimata_data %}
-                                        Prevista: <strong>{% if p.scadenza_stimata_data|length >= 10 and p.scadenza_stimata_data[4] in ('-', '/') %}{{ p.scadenza_stimata_data[8:10] }}/{{ p.scadenza_stimata_data[5:7] }}/{{ p.scadenza_stimata_data[0:4] }}{% else %}{{ p.scadenza_stimata_data }}{% endif %}</strong>
+                                        {% set dt_str = p.scadenza_stimata_data|string %}
+                                        Prevista: <strong>{% if dt_str|length >= 10 and dt_str[4] in ('-', '/') %}{{ dt_str[8:10] }}/{{ dt_str[5:7] }}/{{ dt_str[0:4] }}{% else %}{{ dt_str }}{% endif %}</strong>
                                         <br><small class="text-muted">Mancano {{ p.giorni_rimanenti }} giorni</small>
                                     {% else %}
                                         <span class="text-muted">-</span>
@@ -383,17 +385,19 @@
                                     <td><span class="badge bg-light text-dark border">{{ m.tipo_servizio }}</span></td>
                                     <td>{{ m.luogo or '-' }}</td>
                                     <td>
-                                        {% if m.data_inizio and m.data_inizio|length >= 10 and m.data_inizio[4] in ('-', '/') %}
-                                            {{ m.data_inizio[8:10] }}/{{ m.data_inizio[5:7] }}/{{ m.data_inizio[0:4] }}
+                                        {% set d_str_i = m.data_inizio|string if m.data_inizio else '' %}
+                                        {% if d_str_i|length >= 10 and d_str_i[4] in ('-', '/') %}
+                                            {{ d_str_i[8:10] }}/{{ d_str_i[5:7] }}/{{ d_str_i[0:4] }}
                                         {% else %}
-                                            {{ m.data_inizio or '-' }}
+                                            {{ d_str_i or '-' }}
                                         {% endif %}
                                     </td>
                                     <td>
-                                        {% if m.data_fine and m.data_fine|length >= 10 and m.data_fine[4] in ('-', '/') %}
-                                            {{ m.data_fine[8:10] }}/{{ m.data_fine[5:7] }}/{{ m.data_fine[0:4] }}
+                                        {% set d_str_f = m.data_fine|string if m.data_fine else '' %}
+                                        {% if d_str_f|length >= 10 and d_str_f[4] in ('-', '/') %}
+                                            {{ d_str_f[8:10] }}/{{ d_str_f[5:7] }}/{{ d_str_f[0:4] }}
                                         {% else %}
-                                            {{ m.data_fine or '-' }}
+                                            {{ d_str_f or '-' }}
                                         {% endif %}
                                         {% if m.ora_fine %} <small class="text-muted">alle {{ m.ora_fine }}</small>{% endif %}
                                     </td>
