@@ -433,15 +433,23 @@
             <i class="bi bi-book"></i> Info
           </a>
           <ul class="dropdown-menu shadow" aria-labelledby="docDropdown">
-            <li><a class="dropdown-item" href="/documentazione">Guida Generale</a></li>
-            {% if user.ruolo != 'normale' %}
-            <li><a class="dropdown-item" href="/documentazione/magazzino">Guida Magazzino</a></li>
+            {% if user.ruolo == 'normale' %}
+            <li><a class="dropdown-item" href="/documentazione/guida-utente"><i class="bi bi-journal-text me-2"></i>Guida Utente</a></li>
+            <li><hr class="dropdown-divider"></li>
+            <li><a class="dropdown-item" href="/static/PRIVACY.md" target="_blank"><i class="bi bi-shield-check me-2"></i>Privacy Policy</a></li>
+            {% else %}
+            <li><a class="dropdown-item" href="/documentazione"><i class="bi bi-journal-richtext me-2"></i>Guida Generale</a></li>
+            <li><a class="dropdown-item" href="/documentazione/guida-utente"><i class="bi bi-journal-text me-2"></i>Guida Utente</a></li>
+            <li><a class="dropdown-item" href="/documentazione/magazzino"><i class="bi bi-boxes me-2"></i>Guida Magazzino</a></li>
+            {% if cfg.get('modulo_autopark', True) %}
+            <li><a class="dropdown-item" href="/documentazione/carpooling"><i class="bi bi-car-front-fill me-2"></i>Guida Carpooling</a></li>
             {% endif %}
-            {% if cfg.get('modulo_presenze', True) and user.ruolo != 'normale' %}
-            <li><a class="dropdown-item" href="/documentazione/presenze">Guida Presenze/Assenze</a></li>
+            {% if cfg.get('modulo_presenze', True) %}
+            <li><a class="dropdown-item" href="/documentazione/presenze"><i class="bi bi-calendar-check me-2"></i>Guida Presenze/Assenze</a></li>
             {% endif %}
             <li><hr class="dropdown-divider"></li>
-            <li><a class="dropdown-item" href="/static/PRIVACY.md" target="_blank">Privacy Policy</a></li>
+            <li><a class="dropdown-item" href="/static/PRIVACY.md" target="_blank"><i class="bi bi-shield-check me-2"></i>Privacy Policy</a></li>
+            {% endif %}
           </ul>
         </li>
 

@@ -1,158 +1,151 @@
-# Documentazione Troubletick (v7.4)
+# Documentazione Troubletick — Guida Generale
 
-**Troubletick** è un portale di helpdesk e ticketing aziendale stand-alone progettato per centralizzare, tracciare e risolvere le richieste di supporto interno (IT, Manutenzione, Amministrazione, ecc.) e per gestire le richieste di materiali a magazzino.
+**Troubletick** è un portale di helpdesk, ticketing e gestione risorse aziendali stand-alone, progettato per centralizzare, tracciare e gestire le richieste di supporto interno (IT, Manutenzione, Amministrazione, ecc.), la logistica di magazzino, la copertura del personale e il carpooling aziendale.
 
-## 👥 Ruoli Utente e Interfacce Dedicate
+L'applicazione è sviluppata su stack moderno (FastAPI, Python 3.9+, Bootstrap 5, Jinja2) e supporta nativamente sia database locali **SQLite** che server di database relazionali **MySQL / MariaDB** e **PostgreSQL**.
 
-Il sistema prevede un controllo degli accessi basato su **6 livelli di ruolo**, ciascuno con permessi, visibilità, barra di navigazione e homepage dedicate:
+---
+
+## 👥 Ruoli Utente e Controllo Accessi (RBAC)
+
+Il sistema implementa un controllo degli accessi basato sui ruoli (**Role-Based Access Control - RBAC**) articolato su **6 livelli di autorizzazione**, ciascuno dotato di dashboard, barra di navigazione e permessi specifici:
 
 ### 1. Amministratore (`admin`)
-* **Visibilità:** Globale.
+* **Visibilità:** Globale su tutti i moduli, sedi, reparti e dati aziendali.
 * **Barra di Navigazione (Navbar):**
   - **Ticket**: Elenco Ticket, Nuovo Ticket.
   - **Magazzino**: Inventario Magazzini, Richieste Materiale, Trasferimenti tra Magazzini, Log Magazzini.
   - **Avvisi**: Gestione Avvisi.
-  - **Presenze**: Calendario Assenze, Calendario Presenze, Verifica copertura Servizi, Report Copertura Reparto, Calendario di Reparto, Servizi assegnati.
-  - **Carpooling**: Prenotazioni, Elenco Automezzi, Manutenzioni, Registro Viaggi.
+  - **Presenze**: Calendario Assenze, Calendario Presenze, Verifica Copertura Servizi, Report Copertura Reparto, Calendario di Reparto, Servizi Assegnati.
+  - **Carpooling**: Prenotazioni, Elenco Automezzi, Manutenzioni, Rifornimenti, Registro Viaggi.
   - **Configurazione**: Anagrafica Sedi, Reparti, Servizi, Categorie Materiali, Anagrafica Materiali, Gestione Autopark, Gestione Marche Automezzi, Import / Export JSON, Impostazioni Globali.
-* **Homepage/Dashboard Dedicata:**
-  - Mostra i contatori complessivi di sistema: *Ticket Aperti*, *Richieste Materiale*, *Materiali Sotto Soglia*, *Operatori da Approvare*, *Utenti da Approvare*, e *Veicoli*.
-  - Bacheca avvisi e collegamenti rapidi a tutte le funzioni amministrative.
-* **Permessi/Funzionalità:** Accesso completo e incondizionato a tutte le risorse aziendali, gestione utenti e log di sicurezza. Abilita o esclude qualunque auto della flotta aziendale dalla prenotazione.
+* **Homepage / Dashboard Dedicata:**
+  - Contatori globali in tempo reale: *Ticket Aperti*, *Richieste Materiale*, *Materiali Sotto Soglia*, *Operatori da Approvare*, *Utenti da Approvare*, *Veicoli*.
+  - Bacheca avvisi attivi e collegamenti rapidi a tutte le funzioni di configurazione e amministrazione.
+* **Permessi e Funzionalità:** Accesso completo e incondizionato, approvazione e gestione utenti, modifica ruoli, reset password, configurazione server SMTP, log di sicurezza, backup/restore JSON, pulizia massiva ticket (GDPR) e gestione esclusioni flotta carpooling su scala globale.
 
 ### 2. Responsabile di Reparto (`responsabile`)
-* **Visibilità:** Limitata al proprio Reparto di appartenenza.
+* **Visibilità:** Limitata alle informazioni e al personale del proprio Reparto di appartenenza.
 * **Barra di Navigazione (Navbar):**
   - **Ticket**: Elenco Ticket Reparto, Nuovo Ticket.
   - **Magazzino**: Inventario Reparto, Richieste Materiale, Trasferimenti tra Magazzini, Log Magazzini.
   - **Avvisi**: Bacheca.
-  - **Presenze**: Calendario Assenze, Calendario Presenze, Verifica copertura Servizi, Report Copertura Reparto, Calendario di Reparto, Servizi assegnati.
+  - **Presenze**: Calendario Assenze, Calendario Presenze, Verifica Copertura Servizi, Report Copertura Reparto, Calendario di Reparto, Servizi Assegnati.
   - **Carpooling**: Prenotazioni.
   - **Report**: Copertura Personale, Stato Magazzini.
-* **Homepage/Dashboard Dedicata:**
-  - Cruscotto riassuntivo specifico per il reparto assegnato, contenente i contatori dei ticket aperti del reparto, delle richieste di materiale del magazzino di reparto, e degli operatori locali in attesa di approvazione.
-* **Permessi/Funzionalità:** Gestione del personale e dei turni del reparto, approvazione ticket, monitoraggio dei report di copertura e delle giacenze del magazzino di reparto.
+* **Homepage / Dashboard Dedicata:**
+  - Cruscotto riassuntivo del reparto con i contatori dei ticket aperti del reparto, delle richieste di materiale per il magazzino di reparto e degli operatori locali in attesa di approvazione.
+* **Permessi e Funzionalità:** Gestione del personale e delle presenze/assenze di reparto, approvazione nuovi operatori locali, monitoraggio dei report di copertura servizi e supervisione delle giacenze del magazzino di reparto.
 
 ### 3. Operatore di Assistenza (`assistenza`)
-* **Visibilità:** Limitata ai ticket e servizi del reparto o specifici per i servizi a lui assegnati.
+* **Visibilità:** Limitata ai ticket e ai servizi di competenza diretta o del proprio reparto.
 * **Barra di Navigazione (Navbar):**
   - **Ticket**: Elenco Ticket Servizi, Nuovo Ticket.
   - **Magazzino**: Inventario Magazzini, Richieste Materiale, Trasferimenti tra Magazzini, Log Magazzini.
   - **Avvisi**: Bacheca.
-  - **Presenze**: Calendario Assenze, Calendario Presenze, Verifica copertura Servizi, Calendario di Reparto, Servizi assegnati.
+  - **Presenze**: Calendario Assenze, Calendario Presenze, Verifica Copertura Servizi, Calendario di Reparto, Servizi Assegnati.
   - **Carpooling**: Prenotazioni.
-* **Homepage/Dashboard Dedicata:**
-  - Cruscotto focalizzato sul carico di lavoro dell'operatore, con i contatori dei propri ticket in carico, nuovi ticket del servizio e richieste merce.
-  - Mostra la tabella dei **5 ticket più urgenti** da gestire in coda.
-* **Permessi/Funzionalità:** Presa in carico ed evasione dei ticket di supporto, inserimento note operative (anche interne/nascoste), scarichi merce, carichi a scaffale e spedizioni.
+* **Homepage / Dashboard Dedicata:**
+  - Cruscotto operativo focalizzato sul carico di lavoro individuale, con contatori dei ticket in carico, nuovi ticket del servizio e richieste merce pendenti.
+  - Tabella prioritaria dei **5 ticket più urgenti** da gestire in coda.
+* **Permessi e Funzionalità:** Presa in carico, gestione ed evasione dei ticket di supporto; inserimento note operative pubbliche e note interne riservate al team; esecuzione carichi a magazzino, scarichi merce (singoli o multipli) ed evasione richieste materiale.
 
-### 4. Fleet Manager (`fleet_manager`)
-* **Visibilità:** Limitata alla gestione del parco auto del proprio reparto (in anagrafica automezzi vede solo i veicoli assegnati al proprio reparto).
+### 4. Fleet Manager di Reparto (`fleet_manager`)
+* **Visibilità:** Limitata al parco automezzi assegnato al proprio reparto.
 * **Barra di Navigazione (Navbar):**
   - **Ticket**: Elenco Ticket, Nuovo Ticket.
   - **Carpooling**: Prenotazioni, Elenco Automezzi, Registro Viaggi.
-* **Homepage/Dashboard Dedicata:**
-  - Cruscotto riassuntivo specifico per la gestione della flotta del proprio reparto, contenente i contatori dei veicoli (*Disponibili*, *In Uso*, *In Manutenzione*) del reparto e il registro degli ultimi viaggi effettuati.
-* **Permessi/Funzionalità:** Visualizzazione dello stato delle prenotazioni e cancellazione delle prenotazioni per veicoli appartenenti al proprio reparto.
-  - **Gestione Esclusioni:** Può abilitare o escludere i veicoli aziendali dalle prenotazioni normali, ma **esclusivamente** per i mezzi appartenenti al proprio reparto di affiliazione.
-  - **Anagrafica e Manutenzione:** Non ha permessi per inserire o modificare l'anagrafica dei veicoli, né per effettuare manutenzioni.
+* **Homepage / Dashboard Dedicata:**
+  - Cruscotto di reparto con i contatori dei veicoli (*Disponibili*, *In Uso*, *In Manutenzione*) del proprio reparto e il registro degli ultimi viaggi effettuati.
+* **Permessi e Funzionalità:** Monitoraggio dello stato dei veicoli del reparto, annullamento delle prenotazioni per i mezzi di competenza e abilitazione/esclusione dei veicoli aziendali dalle prenotazioni normali (esclusivamente per i mezzi del proprio reparto). Non possiede permessi per modificare l'anagrafica dei veicoli o inserire manutenzioni fisiche.
 
 ### 5. Global Fleet Manager (`global_fleet_manager`)
-* **Visibilità:** Globale su tutti gli automezzi.
+* **Visibilità:** Globale su tutti gli automezzi della flotta aziendale.
 * **Barra di Navigazione (Navbar):**
   - **Ticket**: Elenco Ticket, Nuovo Ticket.
-  - **Carpooling**: Prenotazioni, Elenco Automezzi, Manutenzioni, Registro Viaggi.
-* **Homepage/Dashboard Dedicata:**
-  - Cruscotto riassuntivo globale per la flotta aziendale, con i contatori complessivi di tutti i veicoli (*Disponibili*, *In Uso*, *In Manutenzione*) e l'elenco degli ultimi viaggi a livello globale.
-* **Permessi/Funzionalità:** Gestione completa delle anagrafiche dei veicoli (inserimento nuovi mezzi, modifiche) ed esecuzione delle manutenzioni/tagliandi.
-  - **Gestione Esclusioni:** Può abilitare o escludere i veicoli dalle prenotazioni a livello globale, anche se i veicoli non sono assegnati ad alcun reparto.
+  - **Carpooling**: Prenotazioni, Elenco Automezzi, Manutenzioni, Rifornimenti, Registro Viaggi.
+* **Homepage / Dashboard Dedicata:**
+  - Cruscotto globale della flotta aziendale con contatori complessivi (*Disponibili*, *In Uso*, *In Manutenzione*), registro viaggi completo e stato manutenzioni.
+* **Permessi e Funzionalità:** Gestione completa delle anagrafiche dei veicoli (inserimento nuovi mezzi, modifiche schede), inserimento e tracciamento delle manutenzioni e tagliandi, registro dei rifornimenti carburante e gestione delle esclusioni veicoli dalle prenotazioni a livello globale.
 
-### 6. Operatore Normale (`normale`)
-* **Visibilità:** Nessuna sui ticket altrui o pannelli gestionali.
+### 6. Utente / Operatore Normale (`normale`)
+* **Visibilità:** Circoscritta esclusivamente ai propri ticket aperti e alle proprie prenotazioni di veicoli.
 * **Barra di Navigazione (Navbar):**
   - **I Miei Ticket**: Le Mie Segnalazioni, Invia Nuova Richiesta.
   - **Carpooling**: Prenotazioni.
-* **Homepage/Dashboard Dedicata:**
-  - Landing page pulita contenente due pulsanti per la creazione rapida di ticket (*Invia Nuova Richiesta*) o per l'elenco delle proprie segnalazioni (*Le Mie Richieste*), oltre allo storico dei ticket aperti dall'utente e la bacheca avvisi attiva.
-* **Permessi/Funzionalità:** Apertura ticket, pianificazione delle proprie ferie/assenze in calendario e prenotazione/cancellazione autonoma di auto disponibili nel modulo Autopark.
+  - **Info**: Guida Utente, Privacy Policy.
+* **Homepage / Dashboard Dedicata:**
+  - Interfaccia essenziale e pulita con pulsanti per la creazione rapida di segnalazioni (*Invia Nuova Richiesta*), elenco delle proprie segnalazioni (*Le Mie Richieste*), storico dei ticket personali e bacheca avvisi attivi.
+* **Permessi e Funzionalità:** Apertura di nuove segnalazioni di supporto, consultazione avanzamento dei propri ticket, registrazione delle proprie assenze/ferie a calendario e prenotazione/gestione autonoma dei veicoli della flotta carpooling.
 
 ---
 
-## 🧩 Moduli Funzionali
+## 🧩 Moduli Funzionali e Funzionalità Disponibili
 
-L'applicativo è strutturato in diversi moduli che coprono l'intero ciclo di vita dell'assistenza tecnica e dell'organizzazione aziendale.
+### 1. Comunicazioni e Bacheca Avvisi Integrata
+* **Bacheca Avvisi in Homepage:** Sistema centralizzato di messaggistica visibile a tutti gli utenti direttamente nella pagina principale o nelle dashboard dedicate.
+* **Livelli di Gravità:** Classificazione cromatica dell'avviso in Informativo (*Info*), Avvertimento (*Warning*) o Critico (*Danger*), per garantire immediata visibilità.
+* **Targetizzazione e Programmazione Temporale:** Gli amministratori possono pubblicare avvisi a livello globale. Gli operatori di assistenza possono pubblicare avvisi targetizzati e visibili solo quando un utente seleziona lo specifico servizio di competenza. Gli avvisi supportano una programmazione temporale con data di inizio e fine validità.
 
-### 1. Comunicazioni e Avvisi (Bacheca Integrata)
-* **Avvisi in Home Page:** Sistema di messaggistica visibile a tutti gli utenti direttamente nella pagina principale. 
-* **Livelli di Gravità:** Gli avvisi possono essere impostati come Informativi (Info), Avvertimenti (Warning) o Critici (Danger), per catturare immediatamente l'attenzione.
-* **Targetizzazione:** Gli admin possono pubblicare avvisi globali. Gli operatori di assistenza possono pubblicare avvisi targetizzati e visibili solo se l'utente seleziona il servizio di loro competenza. Gli avvisi supportano una programmazione con data di inizio e fine validità.
+### 2. Modello di Segnalazione Self-Service e Ticketing Helpdesk
+* **Apertura Ticket (Self-Service e Autenticata):** Possibilità per qualsiasi utente dipendente di inviare una richiesta sia tramite form pubblica (senza login) che dal proprio profilo autenticato.
+* **Classificazione Strutturata:** Selezione obbligatoria della Sede aziendale, del Reparto di destinazione e del Servizio specifico di supporto.
+* **Gestione Allegati Sicura:** Caricamento di allegati (immagini, PDF, documenti) con limite massimo di 10MB per file e blocco automatico preventivo dei file eseguibili ed estensioni potenzialmente pericolose.
+* **Console Operativa Helpdesk:** Elenco interattivo con filtri rapidi e contatori in tempo reale (*Nuovi*, *Presi in carico*, *I Miei Ticket*, *I Miei Servizi*).
+* **Filtri Avanzati e Ricerca:** Filtro per testo libero, codice ticket, stato, priorità, reparto, servizio o presenza di *Richieste Materiale*.
+* **Ciclo di Vita e Transizioni di Stato:** Transizioni di stato tracciate (*Nuova* ➔ *Presa in carico* ➔ *Risolta* ➔ *Chiusa* / *Annullata* / *Sospesa*).
+* **Vincolo Integrale di Chiusura Ticket:** Un ticket non può essere chiuso finché vi sono richieste di materiale collegate in stato sospeso (*Nuova* o *Pronta per Scarico*). Il sistema disabilita il pulsante di chiusura e mostra un avviso vincolante che richiede l'evasione o l'annullamento delle richieste pendenti.
+* **Note Operative e Note Interne Reservate:** Registro degli interventi per ciascun ticket con timestamp e operatore. Supporto per **note interne** (visibili solo al personale di assistenza) per coordinamento tecnico riservato.
+* **Riassegnazione e Trasferimento:** Facoltà di trasferire un ticket ad altro reparto o servizio con notifica automatica via email ai nuovi operatori incaricati.
 
-### 1. Modello di Segnalazione (Self-Service)
-* **Apertura Ticket Pubblica:** Qualsiasi dipendente può aprire un ticket dalla home page senza necessità di login.
-* **Classificazione:** Selezione del Reparto di destinazione (tra quelli abilitati a ricevere ticket) e del Servizio specifico.
-* **Allegati:** Possibilità di allegare file (fino a 10MB, con blocco automatico di file eseguibili pericolosi).
-* **Notifiche Email:** Invio asincrono di email transazionali all'apertura del ticket, sia all'utente (conferma con numero ticket) che agli operatori di competenza per avvisarli del nuovo carico di lavoro.
+### 3. Logistica, Magazzino e Movimentazione Merce
+* **Catalogo Materiali e Categorie:** Classificazione degli articoli per categorie merceologiche (es. *Materiale Informatico*, *Materiale Elettrico*, *Consumabili*).
+* **Inventario Magazzini Unificato:** Monitoraggio in tempo reale delle giacenze con segregazione dei permessi in base ai magazzini assegnati.
+* **Integrazione Ticket-Magazzino (Richieste Materiale):** Creazione rapida di una richiesta merce direttamente dalla scheda del ticket. Il sistema verifica la giacenza attuale e imposta automaticamente lo stato in *Pronta per Scarico* (se il bene è presente) o *In Attesa* (se la giacenza è zero o insufficiente).
+* **Evasione e Scarico Materiale:** Maschera di scarico pre-compilata con indicazione obbligatoria della posizione fisica (scaffale, lotto, vano). L'evasione aggiorna la giacenza a magazzino, varia lo stato della richiesta in *Evasa* e inserisce una nota automatica di riscontro nel ticket.
+* **Scarico Multiplo e Buono di Movimento (PDF):** Interfaccia per scarichi simultanei di più prodotti da magazzini e ubicazioni diverse. Supporta controlli di disponibilità dinamici e consente la generazione e la stampa in formato **PDF A4** del **Buono di Movimento** (con date in formato italiano, note operative e spazi per la firma di consegna/ricevuta).
+* **Scarico Singolo e Documento di Consegna (PDF):** Possibilità di stampare una ricevuta di scarico immediata per la sottoscrizione autografa del richiedente.
+* **Carico Merci e Documenti di Trasporto (DDT):** Registrazione delle entrate merci con quantità, lotto, posizione di stoccaggio e possibilità di allegare la scansione del DDT o la fotografia del bene.
+* **Trasferimenti tra Magazzini:** Flusso inter-magazzino guidato con stato *In Consegna* e presa in carico da parte del magazziniere ricevente tramite funzione *Segna Arrivato*, garantendo la perfetta quadratura delle giacenze.
+* **Log Magazzini (Registro Immutabile):** Log storico di tutte le operazioni di carico, scarico, rettifica e trasferimento, filtrabile per intervallo di date, operatore, materiale o ricerca testuale (es. numero di matricola/serial number).
+* **Monitoraggio Scorte Minime e Report Stato Magazzini:** Avvisi visivi automatici per i prodotti con giacenza inferiore alla soglia minima. Generazione del report mensile e annuale dei movimenti di carico, scarico e giacenza residua.
 
-### 2. Gestione Operativa Ticket (Helpdesk)
-* **Dashboard Ticket:** Elenco interattivo con contatori in tempo reale ("Nuovi", "Presi in carico", "I Miei Ticket", "I Miei Servizi").
-* **Filtri Avanzati:** Ricerca per testo, stato, priorità, reparto, servizio o per ticket che includono richieste di materiali.
-* **Ciclo di vita:** Transizioni di stato tracciate (Nuova ➔ Presa in carico ➔ Chiusa). **Vincolo di chiusura:** un ticket non può essere chiuso se vi sono richieste di materiale associate ancora da evadere (ovvero non ancora nello stato "evasa" o "annullata"). In tal caso, il pulsante di chiusura del ticket viene disabilitato e viene mostrato un avviso che invita ad evadere o annullare le richieste pendenti prima di procedere.
-* **Gestione Note e Allegati:** Log testuale per ogni ticket con indicazione dell'autore e orario. Supporto per **note interne** (visibili solo agli operatori) e possibilità di allegare file in corso d'opera.
-* **Trasferimento e Riassegnazione:** Riassegnazione di un ticket a un altro reparto/servizio con notifica automatica via email ai nuovi operatori incaricati.
+### 4. Presenze, Assenze e Verifica Copertura Servizi
+* **Calendario Assenze e Ferie:** Modulo per la registrazione e il tracciamento delle assenze (ferie, permessi, malattie) di tutto il personale aziendale.
+* **Indicatore di Assenza Operatore sul Ticket:** Qualora l'ultimo operatore che ha gestito un ticket sia assente nella giornata corrente, il sistema mostra automaticamente un badge "Assente" per informare il team della sua irreperibilità temporanea.
+* **Gestione Festività Nazionali ed Aziendali:** Configurazione da parte degli amministratori delle giornate festive a calendario.
+* **Matrice Copertura Servizi e Report Reparto:** Strumento di analisi che incrocia le assenze con le competenze e i servizi assegnati a ciascun operatore, producendo un report mensile che evidenzia la forza lavoro disponibile giorno per giorno per ciascun servizio.
 
-### 3. Logistica e Magazzino
-Il modulo Magazzino permette di gestire in modo centralizzato e tracciabile tutte le scorte e le movimentazioni aziendali. Di seguito il flusso tipico di gestione:
+### 5. Parco Automezzi, Carpooling e Rifornimenti (Autopark)
+* **Anagrafica Flotta e Marche Automezzi:** Scheda dettagliata dei veicoli con targa, marca, modello, tipo di alimentazione, sede di stazionamento, reparto proprietario, chilometraggio cumulativo e stato (*Disponibile*, *In Uso*, *In Manutenzione*, *Escluso*).
+* **Prenotazione Autonoma Self-Service:** Tabellone interattivo delle disponibilità dove gli utenti autenticati possono prenotare un veicolo per specifiche date e orari.
+* **Gestione Flusso Viaggio (Check-in / Check-out):**
+  - **Partenza:** Il sistema preleva i km iniziali dalla scheda dell'auto.
+  - **Rientro:** L'utente inserisce i km finali, l'orario effettivo di riconsegna e la sede di stazionamento. Il chilometraggio dell'auto viene aggiornato automaticamente.
+* **Registro Rifornimenti Carburante:** Modulo per la tracciabilità delle schede carburante e delle uscite per rifornimento. Permette di registrare data, veicolo, km al momento del rifornimento, litri erogati, importo complessivo (€), tipo di carburante e metodo di pagamento utilizzato.
+* **Gestione Manutenzioni e Tagliandi:** Registro delle riparazioni ordinarie e straordinarie con indicazione di costi, officina esecutrice e descrizione degli interventi svolti.
+* **Registro Viaggi e Percorrenze:** Storico analitico di tutte le prenotazioni e dei chilometri percorsi da ciascun dipendente.
+* **Esclusioni Flotta dalla Prenotazione:** Funzione per escludere temporaneamente o permanentemente un mezzo dalle prenotazioni pubbliche (es. per guasti, manutenzione o uso esclusivo). I Fleet Manager di reparto possono operare sui mezzi del proprio reparto, mentre i Global Fleet Manager e gli Admin su tutta la flotta aziendale.
 
-* **Catalogo Materiali:** Classificazione degli articoli per **Categorie** (es. *Materiale informatico*, *Materiale elettrico*).
-* **Inventario Magazzini Unificato:** Visualizzazione in tempo reale di tutte le giacenze. Solo gli operatori assegnati a specifici magazzini (o gli Amministratori) possono visualizzare e operare sulle giacenze di competenza.
+### 6. Sistema di Email Transazionali e Scheduler (Morning Recap)
+* **Email Transazionali Automatiche:** Invio asincrono di notifiche email per l'apertura di nuovi ticket, la presa in carico, il trasferimento ad altri reparti, l'attivazione di nuovi account utenti e l'invio di link temporizzati per il reset della password.
+* **Scheduler Riepilogo Mattutino (Morning Recap):** Servizio in background che invia automaticamente ogni mattina un'email di sintesi ai responsabili e agli operatori con l'elenco dei ticket aperti, in carico o in attesa di risoluzione.
 
-#### Flusso Operativo: Dal Ticket alla Consegna
-1. **Apertura Ticket:** Un utente segnala un problema o una necessità (es. "Toner esaurito"). L'operatore prende in carico la segnalazione.
-2. **Richiesta di Materiale:** L'operatore constata la necessità di un articolo hardware. Direttamente dal dettaglio del ticket, clicca su "Crea Nuova Richiesta".
-   * Seleziona la Categoria, il Prodotto desiderato, la Quantità e la Sede di destinazione.
-   * Il sistema analizza le giacenze e imposta la richiesta in stato "In Attesa" (se non c'è giacenza) o "Pronta per Scarico" (se disponibile).
-3. **Evasione della Richiesta (Scarico):** L'operatore incaricato visualizza la coda delle "Richieste Materiale". Trovando la richiesta "Pronta per Scarico", clicca su **Esegui Scarico**. 
-   * Si apre la maschera di scarico pre-compilata. Il magazziniere deve solo specificare la posizione fisica (es. lo scaffale o il lotto) da cui preleva il bene.
-   * Confermando, i pezzi vengono sottratti, la richiesta diventa "Evasa" e nel ticket viene inserita automaticamente una nota di sistema per avvisare dell'avvenuta fornitura.
-
-#### Gestione Carichi, Scarichi e Trasferimenti
-* **Carico Manuale:** Per registrare l'arrivo di nuova merce (es. da fornitore), l'operatore cerca il prodotto nell'Inventario Magazzini e clicca su **Carico**. Specifica la data, la quantità e soprattutto la posizione fisica (scaffale/lotto). Può anche allegare un DDT PDF o una foto dell'articolo.
-* **Scarico Manuale e Documento PDF:** Per prelievi rapidi slegati dai ticket, basta usare il bottone **Scarico**. Attivando l'opzione "Genera PDF", al termine dell'operazione viene fornito un **Documento di Consegna** stampabile per l'acquisizione della firma da parte di chi ritira il materiale.
-* **Scarico Multiplo:** Per prelievi simultanei di più materiali da magazzini e posizioni differenti, gli operatori possono cliccare su **Scarico Multiplo** nella pagina Inventario. La form consente di aggiungere/rimuovere righe dinamicamente con controlli di stock integrati. È possibile generare e stampare un **Buono di Movimento** cumulativo su singolo foglio A4, che include note uniche, pre-seleziona l'opzione *Trasferimento* (con date in formato italiano e campi *Centro di Costo* / *Codice di Reparto* vuoti per la compilazione manuale da parte dell'operatore).
-* **Log Movimenti (Scatola Nera):** Ogni carico, scarico o aggiornamento fotografico genera un log immutabile. La pagina "Log Magazzini" permette di filtrare l'intero storico aziendale per data, operatore, materiale o ricerca testuale (es. matricola).
-* **Trasferimenti Tra Magazzini:** Se in fase di "Scarico" si seleziona come destinazione un altro magazzino anziché una sede, il sistema genera un trasferimento "In Consegna". L'operatore del magazzino destinatario visualizzerà un avviso e dovrà confermare fisicamente la ricezione cliccando su "Segna Arrivato", allineando le due giacenze in modo sicuro e tracciato.
-
-### 4. Gestione Organizzativa (HR / Struttura)
-* **Sedi:** Anagrafica delle sedi aziendali (es. filiali, uffici, smart working).
-* **Reparti & Servizi:** Struttura ad albero. Ogni Reparto (es. *IT*) contiene N Servizi (es. *Assistenza PC*, *Credenziali*).
-* **Calendario Assenze e Festività:** Modulo integrato per registrare ferie, malattie e permessi. Il sistema incrocia le date per mostrare a video un badge "Assente" qualora l'ultimo operatore che ha gestito il ticket fosse irreperibile quel giorno. Gli amministratori possono inoltre configurare festività globali a calendario.
-
-### 5. Gestione Parco Automezzi (Carpooling)
-Il modulo Carpooling consente una gestione centralizzata e autosufficiente dei veicoli aziendali, sia per il monitoraggio della flotta che per la prenotazione da parte degli impiegati.
-* **Prenotazione Autonoma (Self-Service)**: Qualsiasi utente autenticato può accedere al cruscotto prenotazioni per richiedere un'auto disponibile, visualizzando in tempo reale il chilometraggio del veicolo e la sua sede attuale.
-* **Registrazione Chilometri e Rientri**: All'avvio del viaggio, il sistema logga il chilometraggio di partenza (`km_iniziali`) prelevato automaticamente dalla scheda auto. Al rientro, l'utente chiude il viaggio inserendo i km finali (che aggiornano il chilometraggio cumulativo dell'auto), l'ora di rientro e la sede di consegna.
-* **Cancellazione delle Prenotazioni**: Gli utenti possono annullare autonomamente le prenotazioni programmate, liberando istantaneamente il veicolo per altre richieste.
-* **Gestione Manutenzioni e Registro Viaggi**: Gli amministratori, i Fleet Manager e i Global Fleet Manager possono registrare lo storico delle riparazioni o dei tagliandi in officina e monitorare il registro completo delle percorrenze.
-* **Esclusione dalla Prenotazione (Gestione Flotta)**: Possibilità di escludere un veicolo dalla flotta prenotabile (es. per manutenzione straordinaria o assegnazione fissa). I standard Fleet Manager possono effettuare questa operazione esclusivamente per i mezzi appartenenti al proprio reparto di competenza, mentre i Global Fleet Manager (così come gli Amministratori) hanno visibilità e operatività globale su tutti i veicoli indipendentemente dal reparto assegnato.
-
-### 6. Reportistica e Statistiche
-* **Cruscotto Globale:** Grafico a torta degli stati di tutti i ticket (aperti, chiusi, ecc.).
-* **Report di Copertura:** Matrice mensile generata automaticamente che incrocia le competenze degli operatori (servizi assegnati) con il calendario assenze, fornendo per ogni giorno del mese il numero di operatori attivi in ogni singolo servizio.
-* **Report Stato Magazzini:** Consente ad amministratori e responsabili di reparto di monitorare lo stato delle scorte, incluse la disponibilità attuale, le consegne effettuate nel mese (scarichi) e i carichi effettuati nel mese. Permette la selezione dell'anno e del mese ed è protetto per escludere l'accesso agli operatori regolari o di assistenza.
-
-### 7. Sicurezza e Amministrazione
-* **Export / Import JSON Completo:** Funzionalità a 1-click per esportare l'intera anagrafica aziendale (comuni, sedi, reparti, servizi, magazzini, categorie, materiali, operatori) in un file JSON. Permette backup, migrazioni veloci o il popolamento istantaneo in caso di prima installazione. Include l'opzione per svuotare preventivamente il database.
-* **Eliminazione Massiva Ticket:** Utilità GDPR-compliant per la pulizia selettiva dei database. L'amministratore può selezionare un intervallo di date ed eliminare in blocco tutti i ticket, le note e gli allegati ad essi associati.
-* **Impostazioni Globali:** Modifica del nome dell'azienda e dell'email di supporto (salvati in modo persistente su file JSON).
-* **Sicurezza Login ed Elenco Operatori:** Supporto login tramite *Username* o *Email*. Implementazione di un Log testuale automatico (`failed_logins.log`) per tracciare i tentativi falliti. L'elenco operatori (`/operatori` o `/admin/operatori`) è riservato esclusivamente all'amministratore e traccia per ciascun operatore il timestamp del suo ultimo login (formato italiano) e l'indirizzo IP del client (`ultimo_ip`).
-* **Recupero Password ed Email Transazionali:** Sistema sicuro per la rigenerazione di password dimenticate tramite link temporizzato via email (scadenza 1 ora) e crittografia password (Bcrypt). Notifica asincrona via email anche in caso di abilitazione di un nuovo account da parte dell'Admin.
+### 7. Amministrazione, Backup e Sicurezza
+* **Import / Export JSON Integrale:** Esportazione e importazione a 1-click dell'intero assetto aziendale (sedi, reparti, servizi, magazzini, categorie materiali, materiali, automezzi e account operatori). Include un'opzione di sicurezza per svuotare il database prima del ripristino.
+* **Eliminazione Massiva Ticket (GDPR Compliance):** Strumento per la pulizia periodica e selettiva del database che consente all'amministratore di rimuovere massivamente i ticket e le note collegate compresi in un determinato intervallo di date.
+* **Gestione Utenti ed Registro Accessi:** Gestione completa delle credenziali e dei ruoli. Tracciamento automatico del timestamp dell'ultimo login (formato italiano) e dell'indirizzo IP del client (`ultimo_ip`).
+* **Configurazione Server SMTP ed Impostazioni Globali:** Modulo amministrativo per personalizzare il titolo dell'applicazione, il testo del footer, l'email di supporto e i parametri della connessione SMTP (Host, Porta, TLS/SSL, Utente, Password e Mittente).
+* **Recupero Password Sicuro:** Generazione di token temporizzati univoci inviati via email con validità di 1 ora e hashing delle password tramite algoritmo crittografico sicuro (Bcrypt).
+* **Log di Sicurezza e Audit:** Registro dei tentativi di accesso falliti (`failed_logins.log`) e log degli eventi di sistema (`app_events.log`).
 
 ---
 
 ## ⚖️ Licenza d'Uso (EULA)
 
-Il software è distribuito in modalità **Freeware Proprietario** regolato dal contratto di licenza presente nel file [LICENSE.txt](file:///g:/Il%20mio%20Drive/Progetti/ticketing/troubletick_standalone_windows_v7_4_sqlite/LICENSE.txt):
-* **Gratuito:** Libero download e utilizzo per fini personali o interni aziendali.
-* **Proprietario:** Sono vietate la ridistribuzione a fini commerciali, la modifica e la decompilazione del software.
-* **Senza Responsabilità:** Fornito "così com'è" (AS IS) senza alcuna garanzia o responsabilità per danni diretti o indiretti.
-* **Supporto:** Non è incluso alcun servizio di assistenza gratuita. L'autore si riserva il diritto di offrire pacchetti di supporto tecnico o servizi professionali a pagamento in futuro.
+Il software è distribuito secondo il modello **Freeware Proprietario**, disciplinato dalle condizioni contenute nel file di licenza incluso ([LICENSE.txt](file:///g:/Il%20mio%20Drive/Progetti/ticketing/troubletick/static/LICENSE.txt)):
+
+* **Gratuità d'Uso:** Download ed utilizzo gratuiti per finalità personali o per uso interno aziendale.
+* **Proprietà Riservata:** Sono vietate la ridistribuzione a fini commerciali, la rivendita, la modifica non autorizzata e la decompilazione del codice sorgente.
+* **Esclusione di Garanzia:** Il software viene fornito "così com'è" (*AS IS*), senza alcuna garanzia esplicita o implicita ed escludendo qualsiasi responsabilità per danni diretti o indiretti.
+* **Supporto Tecnico:** Non è incluso alcun servizio di assistenza tecnica gratuita garantita. L'autore si riserva la facoltà di erogare eventuali servizi di supporto professionale o personalizzazioni su richiesta.

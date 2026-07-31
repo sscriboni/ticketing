@@ -524,7 +524,7 @@ async def lifespan(app: FastAPI):
     log_file = os.path.join(BASE_DIR, "app_events.log")
     try:
         with open(log_file, "a", encoding="utf-8") as f:
-            f.write(f"[{now}] Server AVVIATO - Troubletick v7.4 ({DB_TYPE})\n")
+            f.write(f"[{now}] Server AVVIATO - Troubletick ({DB_TYPE})\n")
             
             try:
                 with engine.connect() as conn:
@@ -567,7 +567,7 @@ async def lifespan(app: FastAPI):
     except Exception:
         pass
 
-app = FastAPI(title=f"{CFG.get('app_title','Troubletick')} v7.4 ({DB_TYPE})", lifespan=lifespan)
+app = FastAPI(title=f"{CFG.get('app_title','Troubletick')} ({DB_TYPE})", lifespan=lifespan)
 app.add_middleware(SessionMiddleware, secret_key="supersecretkey")
 
 @app.middleware("http")
@@ -2631,8 +2631,12 @@ def documentazione(r: Request, page: str = None):
     user = r.session.get("user")
     
     doc_filename = "DOCUMENTAZIONE.md"
-    if page == "magazzino":
+    if page in ("guida-utente", "utente") or (user and isinstance(user, dict) and user.get("ruolo") == "normale" and not page):
+        doc_filename = "GUIDA_UTENTE.md"
+    elif page == "magazzino":
         doc_filename = "DOCUMENTAZIONE_MAGAZZINO.md"
+    elif page == "carpooling":
+        doc_filename = "DOCUMENTAZIONE_CARPOOLING.md"
     elif page == "presenze":
         doc_filename = "DOCUMENTAZIONE_PRESENZE.md"
     elif page == "privacy":

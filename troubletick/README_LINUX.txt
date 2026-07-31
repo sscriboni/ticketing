@@ -1,4 +1,4 @@
-Troubletick v7.4 (SQLite) — Stand-alone, persistente
+Troubletick (SQLite) — Stand-alone, persistente
 
 1) Installazione dipendenze
    Rendi eseguibili gli script:

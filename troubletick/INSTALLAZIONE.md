@@ -1,6 +1,6 @@
 # Guida all'Installazione e Configurazione Iniziale
 
-Benvenuto in **Troubletick** (v7.4)! Questa guida ti accompagnerà passo dopo passo nell'installazione dell'applicativo sul tuo server o computer locale e nella configurazione iniziale del sistema.
+Benvenuto in **Troubletick**! Questa guida ti accompagnerà passo dopo passo nell'installazione dell'applicativo sul tuo server o computer locale e nella configurazione iniziale del sistema.
 
 ## 1. Requisiti di Sistema
 * **Sistema Operativo**: Windows (consigliato per l'uso dello script `.bat` incluso), Linux o macOS.
