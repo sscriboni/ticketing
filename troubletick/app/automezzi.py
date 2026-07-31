@@ -914,6 +914,13 @@ async def edit_vehicle(
             registra_storico_km(conn, id, km_attuali, "Manuale", user_id=user.get("id"), note="Aggiornamento manuale in anagrafica")
 
         # Sync associated maintenance types
+        old_assoc = {
+            row["tipo_manutenzione_id"]: dict(row)
+            for row in conn.execute(text(
+                "SELECT * FROM automezzi_tipi_manutenzione WHERE automezzo_id = :id"
+            ), {"id": id}).mappings().all()
+        }
+
         conn.execute(text("DELETE FROM automezzi_tipi_manutenzione WHERE automezzo_id = :id"), {"id": id})
         if tipi_manutenzione_ids:
             form_data = await r.form()
@@ -921,8 +928,23 @@ async def edit_vehicle(
                 d_inizio = form_data.get(f"data_inizio_{tid}")
                 km_part = form_data.get(f"km_partenza_{tid}")
                 
-                din = d_inizio if d_inizio else None
-                kmp = int(km_part) if km_part else None
+                existing = old_assoc.get(int(tid), {})
+                
+                din = d_inizio.strip() if (d_inizio and str(d_inizio).strip()) else existing.get("data_inizio_calcolo")
+                if not din and (data_immatricolazione and str(data_immatricolazione).strip()):
+                    din = str(data_immatricolazione).strip()
+
+                kmp = None
+                if km_part is not None and str(km_part).strip():
+                    try:
+                        kmp = int(km_part)
+                    except ValueError:
+                        kmp = existing.get("km_partenza_calcolo")
+                else:
+                    kmp = existing.get("km_partenza_calcolo")
+
+                if kmp is None:
+                    kmp = km_attuali or 0
 
                 conn.execute(text("""
                     INSERT INTO automezzi_tipi_manutenzione (automezzo_id, tipo_manutenzione_id, data_inizio_calcolo, km_partenza_calcolo)
@@ -1730,8 +1752,11 @@ def list_manutenzioni_programmate(
                     v_dict['data_aggiornamento_km_formatted'] = str(d_agg)
 
             t_clean = (v_dict.get("targa") or "").strip().upper()
-            if targa_str and t_clean != targa_str:
-                continue
+            if targa_str:
+                norm_search = targa_str.replace(" ", "").replace("-", "")
+                norm_targa = t_clean.replace(" ", "").replace("-", "")
+                if norm_search not in norm_targa:
+                    continue
             if tag_id_val and tag_id_val not in v_dict.get("tag_ids", []):
                 continue
             if mesi_da_val is not None or mesi_a_val is not None:
@@ -1756,8 +1781,11 @@ def list_manutenzioni_programmate(
             totale_regolari += 1
 
         t_clean = (prog.get("targa") or "").strip().upper()
-        if targa_str and t_clean != targa_str:
-            continue
+        if targa_str:
+            norm_search = targa_str.replace(" ", "").replace("-", "")
+            norm_targa = t_clean.replace(" ", "").replace("-", "")
+            if norm_search not in norm_targa:
+                continue
 
         if stato_str and prog.get("stato_scadenza") != stato_str:
             continue
@@ -2211,7 +2239,7 @@ def elimina_programma_manutenzione(
         conn.execute(text("""
             DELETE FROM automezzi_tipi_manutenzione 
             WHERE automezzo_id = :aid AND tipo_manutenzione_id = :tid
-        """), {"aid": automezzo_id, "tipo_manutenzione_id": tipo_manutenzione_id})
+        """), {"aid": automezzo_id, "tid": tipo_manutenzione_id})
 
     referer = r.headers.get("referer", "")
     target_url = "/admin/automezzi/manutenzioni/programmate?msg=prog_deleted" if "programmate" in referer else "/admin/automezzi/manutenzioni?msg=prog_deleted"

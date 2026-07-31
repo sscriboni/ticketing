@@ -462,7 +462,7 @@
                                             {{ tm.nome }} ({{ tm.categoria }})
                                         </label>
                                         <div class="mt-2 d-none" id="add_tm_params_{{ tm.tipo_manutenzione_id }}">
-                                            {% if tm.scadenza_mesi %}
+                                            {% if tm.scadenza_mesi or tm.scadenza_anni %}
                                             <div class="mb-1">
                                                 <label class="form-label mb-0" style="font-size: 0.75rem;">Data Inizio</label>
                                                 <input type="date" class="form-control form-control-sm add-tm-data-inizio" name="data_inizio_{{ tm.tipo_manutenzione_id }}" id="add_tm_data_{{ tm.tipo_manutenzione_id }}">
@@ -666,7 +666,7 @@
                                             {{ tm.nome }} ({{ tm.categoria }})
                                         </label>
                                         <div class="mt-2 d-none" id="edit_tm_params_{{ tm.tipo_manutenzione_id }}">
-                                            {% if tm.scadenza_mesi %}
+                                            {% if tm.scadenza_mesi or tm.scadenza_anni %}
                                             <div class="mb-1">
                                                 <label class="form-label mb-0" style="font-size: 0.75rem;">Data Inizio</label>
                                                 <input type="date" class="form-control form-control-sm" name="data_inizio_{{ tm.tipo_manutenzione_id }}" id="edit_tm_data_{{ tm.tipo_manutenzione_id }}">
