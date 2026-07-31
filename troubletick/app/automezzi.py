@@ -1284,7 +1284,8 @@ def _get_manutenzioni_programmate(conn):
         SELECT 
             a.automezzo_id, a.targa, b.nome as marca, a.modello, a.km_attuali,
             tm.tipo_manutenzione_id, tm.nome as tipo_nome, tm.scadenza_mesi, tm.scadenza_anni, tm.scadenza_km,
-            atm.data_inizio_calcolo, atm.km_partenza_calcolo
+            atm.data_inizio_calcolo, atm.km_partenza_calcolo,
+            (SELECT MAX(r.data_registrazione) FROM registro_km_automezzi r WHERE r.automezzo_id = a.automezzo_id) as data_aggiornamento_km
         FROM automezzi a
         JOIN marche_automezzi b ON a.marca_id = b.marca_id
         JOIN automezzi_tipi_manutenzione atm ON a.automezzo_id = atm.automezzo_id
@@ -1305,6 +1306,23 @@ def _get_manutenzioni_programmate(conn):
     for row in programmate_query:
         prog = dict(row)
         t_norm = (prog.get('tipo_nome') or '').strip().lower()
+
+        d_agg = prog.get('data_aggiornamento_km')
+        prog['data_aggiornamento_km_formatted'] = None
+        if d_agg:
+            try:
+                d_str = str(d_agg).strip()
+                if len(d_str) >= 10 and d_str[4] in ('-', '/'):
+                    parts = d_str[:10].split(d_str[4])
+                    if len(parts) == 3:
+                        if len(parts[0]) == 4:
+                            prog['data_aggiornamento_km_formatted'] = f"{parts[2]}/{parts[1]}/{parts[0]}"
+                        else:
+                            prog['data_aggiornamento_km_formatted'] = d_str[:10]
+                else:
+                    prog['data_aggiornamento_km_formatted'] = d_str
+            except Exception:
+                prog['data_aggiornamento_km_formatted'] = str(d_agg)
 
         prog['scadenza_stimata_data'] = None
         prog['giorni_rimanenti'] = None
@@ -1491,6 +1509,49 @@ def list_manutenzioni_programmate(
 
         opt_targhe = [row[0] for row in conn.execute(text("SELECT DISTINCT targa FROM automezzi WHERE targa IS NOT NULL AND targa != '' ORDER BY targa")).all()]
 
+        veicoli_senza_prog_raw = conn.execute(text("""
+            SELECT 
+                a.automezzo_id, a.targa, b.nome as marca, a.modello, a.km_attuali, a.stato,
+                (SELECT MAX(r.data_registrazione) FROM registro_km_automezzi r WHERE r.automezzo_id = a.automezzo_id) as data_aggiornamento_km
+            FROM automezzi a
+            JOIN marche_automezzi b ON a.marca_id = b.marca_id
+            WHERE a.automezzo_id NOT IN (
+                SELECT DISTINCT automezzo_id FROM automezzi_tipi_manutenzione
+            )
+            ORDER BY b.nome, a.modello
+        """)).mappings().all()
+
+        veicoli_senza_programmazione = []
+        for v in veicoli_senza_prog_raw:
+            v_dict = dict(v)
+            d_agg = v_dict.get('data_aggiornamento_km')
+            v_dict['data_aggiornamento_km_formatted'] = None
+            if d_agg:
+                try:
+                    d_str = str(d_agg).strip()
+                    if len(d_str) >= 10 and d_str[4] in ('-', '/'):
+                        parts = d_str[:10].split(d_str[4])
+                        if len(parts) == 3:
+                            if len(parts[0]) == 4:
+                                v_dict['data_aggiornamento_km_formatted'] = f"{parts[2]}/{parts[1]}/{parts[0]}"
+                            else:
+                                v_dict['data_aggiornamento_km_formatted'] = d_str[:10]
+                    else:
+                        v_dict['data_aggiornamento_km_formatted'] = d_str
+                except Exception:
+                    v_dict['data_aggiornamento_km_formatted'] = str(d_agg)
+
+            t_clean = (v_dict.get("targa") or "").strip().upper()
+            if targa_str and t_clean != targa_str:
+                continue
+            if q_str:
+                needle = q_str.lower()
+                haystack = f"{t_clean} {v_dict.get('marca') or ''} {v_dict.get('modello') or ''}".lower()
+                if needle not in haystack:
+                    continue
+
+            veicoli_senza_programmazione.append(v_dict)
+
     filtered = []
     totale_in_corso = 0
     totale_scadute = 0
@@ -1569,6 +1630,7 @@ def list_manutenzioni_programmate(
         "request": r, "cfg": CFG, "user": user,
         "manutenzioni_programmate": programmate_page,
         "veicoli": veicoli,
+        "veicoli_senza_programmazione": veicoli_senza_programmazione,
         "tipi_manutenzione": tipi_manutenzione,
         "last_maint_map": last_maint_map,
         "totale_programmate": totale_programmate,

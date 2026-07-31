@@ -281,6 +281,15 @@
                             <td><span class="badge bg-info text-dark">{{ p.tipo_nome }}</span></td>
                             <td class="font-monospace text-nowrap">
                                 <strong class="text-dark">{{ "{:,}".format(p.km_attuali or 0).replace(",", ".") }}</strong> km
+                                {% if p.data_aggiornamento_km_formatted %}
+                                    <br><small class="text-muted" style="font-size: 0.78rem;" title="Data dell'ultimo aggiornamento dei chilometri">
+                                        <i class="bi bi-clock-history me-1"></i>Agg. del {{ p.data_aggiornamento_km_formatted }}
+                                    </small>
+                                {% else %}
+                                    <br><small class="text-muted" style="font-size: 0.78rem;" title="Data dell'ultimo aggiornamento dei chilometri non disponibile">
+                                        <i class="bi bi-clock-history me-1"></i>Agg. non disp.
+                                    </small>
+                                {% endif %}
                             </td>
                             
                             <td>
@@ -406,6 +415,80 @@
         </div>
         {% endif %}
 
+        <!-- Section: Automezzi Senza Manutenzione Programmata -->
+        <div class="card border-0 shadow-sm rounded-3 mt-4 mb-4">
+            <div class="card-header bg-light border-bottom py-3 d-flex flex-column flex-md-row justify-content-between align-items-md-center gap-2">
+                <div class="d-flex align-items-center gap-2">
+                    <i class="bi bi-exclamation-triangle-fill text-warning fs-5"></i>
+                    <h5 class="mb-0 fw-bold text-dark">Automezzi Senza Alcuna Manutenzione Programmata</h5>
+                    <span class="badge bg-secondary rounded-pill ms-1">{{ veicoli_senza_programmazione|length if veicoli_senza_programmazione else 0 }}</span>
+                </div>
+                <small class="text-muted">Elenco dei veicoli in anagrafica a cui non è ancora associato un piano di manutenzione</small>
+            </div>
+            <div class="card-body p-0">
+                {% if veicoli_senza_programmazione %}
+                <div class="table-responsive">
+                    <table class="table table-hover align-middle mb-0 custom-table">
+                        <thead class="table-light">
+                            <tr>
+                                <th>Veicolo</th>
+                                <th>Targa</th>
+                                <th>Km Attuali</th>
+                                <th>Stato Veicolo</th>
+                                <th class="text-end text-nowrap">Azioni</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for v in veicoli_senza_programmazione %}
+                            <tr>
+                                <td><strong>{{ v.marca }} {{ v.modello }}</strong></td>
+                                <td>
+                                    <strong class="font-monospace text-dark fs-6 text-uppercase" style="letter-spacing: 1.2px; font-weight: 800;">
+                                        {{ v.targa }}
+                                    </strong>
+                                </td>
+                                <td class="font-monospace text-nowrap">
+                                    <strong class="text-dark">{{ "{:,}".format(v.km_attuali or 0).replace(",", ".") }}</strong> km
+                                    {% if v.data_aggiornamento_km_formatted %}
+                                        <br><small class="text-muted" style="font-size: 0.78rem;" title="Data dell'ultimo aggiornamento dei chilometri">
+                                            <i class="bi bi-clock-history me-1"></i>Agg. del {{ v.data_aggiornamento_km_formatted }}
+                                        </small>
+                                    {% else %}
+                                        <br><small class="text-muted" style="font-size: 0.78rem;" title="Data dell'ultimo aggiornamento dei chilometri non disponibile">
+                                            <i class="bi bi-clock-history me-1"></i>Agg. non disp.
+                                        </small>
+                                    {% endif %}
+                                </td>
+                                <td>
+                                    {% if v.stato == 'Disponibile' %}
+                                        <span class="badge bg-success"><i class="bi bi-check-circle me-1"></i>{{ v.stato }}</span>
+                                    {% elif v.stato == 'In Manutenzione' %}
+                                        <span class="badge bg-warning text-dark"><i class="bi bi-wrench me-1"></i>{{ v.stato }}</span>
+                                    {% else %}
+                                        <span class="badge bg-secondary">{{ v.stato or 'N.D.' }}</span>
+                                    {% endif %}
+                                </td>
+                                <td class="text-end text-nowrap">
+                                    <button type="button" class="btn btn-sm btn-primary fw-bold px-3 py-1.5 rounded shadow-sm" onclick="openProgrammaManutenzioneModal({{ v.automezzo_id }})">
+                                        <i class="bi bi-plus-lg me-1"></i> Programma Manutenzione
+                                    </button>
+                                </td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+                {% else %}
+                <div class="p-4 text-center">
+                    <div class="alert alert-success d-inline-flex align-items-center gap-2 mb-0 shadow-sm">
+                        <i class="bi bi-check-circle-fill fs-5"></i>
+                        <span>Tutti gli automezzi in anagrafica hanno almeno una manutenzione programmata impostata.</span>
+                    </div>
+                </div>
+                {% endif %}
+            </div>
+        </div>
+
     </div>
 
     <!-- Modal Programma Manutenzione -->
@@ -510,9 +593,13 @@
     <script>
         const LAST_MAINT_MAP = {{ last_maint_map | tojson | safe if last_maint_map else '{}' }};
 
-        function openProgrammaManutenzioneModal() {
+        function openProgrammaManutenzioneModal(automezzoId = null) {
             const modalEl = document.getElementById('modalProgrammaManutenzione');
             if (!modalEl) return;
+            const vehSelect = document.getElementById('progAutomezzoId');
+            if (vehSelect && automezzoId) {
+                vehSelect.value = automezzoId;
+            }
             const modal = new bootstrap.Modal(modalEl);
             modal.show();
             onProgVehOrTypeChange();
@@ -705,13 +792,7 @@
         </div>
     </div>
 
-    <script>
-        function openProgrammaManutenzioneModal() {
-            const modalEl = document.getElementById('modalProgrammaManutenzione');
-            if (!modalEl) return;
-            const modal = new bootstrap.Modal(modalEl);
-            modal.show();
-        }
+        // openProgrammaManutenzioneModal function declared above with automezzoId support
 
         function startMaintenanceFromProg(btn) {
             const aid = btn.getAttribute('data-automezzo-id');
