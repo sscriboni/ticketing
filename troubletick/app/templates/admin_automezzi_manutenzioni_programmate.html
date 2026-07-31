@@ -394,6 +394,17 @@
                             </td>
                             
                             <td class="text-end text-nowrap">
+                                <button type="button" class="btn btn-sm btn-outline-primary fw-bold py-1 px-2 rounded me-1"
+                                        data-automezzo-id="{{ p.automezzo_id }}"
+                                        data-tipo-id="{{ p.tipo_manutenzione_id }}"
+                                        data-veh-name="{{ p.marca }} {{ p.modello }} ({{ p.targa }})"
+                                        data-type-name="{{ p.tipo_nome }}"
+                                        data-inizio="{{ p.data_inizio_calcolo or '' }}"
+                                        data-km-partenza="{{ p.km_partenza_calcolo or 0 }}"
+                                        onclick="openEditProgrammaModal(this)"
+                                        title="Modifica data e chilometri di partenza per questa programmazione">
+                                    <i class="bi bi-pencil"></i> Modifica
+                                </button>
                                 {% if p.is_in_corso %}
                                 <a href="/admin/automezzi/manutenzioni" class="btn btn-sm btn-outline-info fw-bold py-1 px-2 rounded me-1" title="Manutenzione attualmente in corso. Clicca per gestire.">
                                     <i class="bi bi-wrench me-1"></i> In Corso
@@ -683,8 +694,85 @@
         </div>
     </div>
 
+    <!-- Modal Modifica Programmazione Manutenzione -->
+    <div class="modal fade" id="modalModificaProgrammazione" tabindex="-1" aria-hidden="true">
+        <div class="modal-dialog modal-dialog-centered">
+            <div class="modal-content shadow-lg border-0">
+                <div class="modal-header bg-primary text-white">
+                    <h5 class="modal-title fw-bold">
+                        <i class="bi bi-pencil-square me-2"></i> Modifica Programmazione Manutenzione
+                    </h5>
+                    <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Chiudi"></button>
+                </div>
+                <form action="/admin/automezzi/manutenzioni/programma" method="POST">
+                    <input type="hidden" name="automezzo_id" id="editProgAutomezzoId">
+                    <input type="hidden" name="tipo_manutenzione_id" id="editProgTipoManutenzioneId">
+                    <div class="modal-body p-4">
+                        
+                        <div class="alert alert-light border mb-3 shadow-sm">
+                            <div class="fw-bold text-dark fs-6" id="editProgVehTitle">Veicolo</div>
+                            <div class="text-primary fw-semibold" id="editProgTypeTitle">Tipo Manutenzione</div>
+                        </div>
+
+                        <!-- Data Inizio Calcolo -->
+                        <div class="mb-3">
+                            <label class="form-label fw-bold text-dark">
+                                <i class="bi bi-calendar3 me-1"></i> Data di Inizio Calcolo
+                            </label>
+                            <input type="date" name="data_inizio_calcolo" id="editProgDataInizioInput" class="form-control">
+                            <small class="text-muted d-block mt-1">
+                                <i class="bi bi-info-circle me-1"></i> Data di partenza per il calcolo della scadenza temporale.
+                            </small>
+                        </div>
+
+                        <!-- Km Partenza Calcolo -->
+                        <div class="mb-3">
+                            <label class="form-label fw-bold text-dark">
+                                <i class="bi bi-speedometer2 me-1"></i> Chilometri Partenza Calcolo
+                            </label>
+                            <div class="input-group">
+                                <input type="number" name="km_partenza_calcolo" id="editProgKmPartenzaInput" class="form-control" placeholder="es. 15000" min="0">
+                                <span class="input-group-text">km</span>
+                            </div>
+                            <small class="text-muted d-block mt-1">
+                                <i class="bi bi-info-circle me-1"></i> Chilometraggio di partenza per il calcolo della scadenza chilometrica.
+                            </small>
+                        </div>
+
+                    </div>
+                    <div class="modal-footer bg-light">
+                        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Annulla</button>
+                        <button type="submit" class="btn btn-primary fw-bold px-4">Salva Modifiche</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+
     <script>
         const LAST_MAINT_MAP = {{ last_maint_map | tojson | safe if last_maint_map else '{}' }};
+
+        function openEditProgrammaModal(btn) {
+            const aid = btn.getAttribute('data-automezzo-id');
+            const tid = btn.getAttribute('data-tipo-id');
+            const vehName = btn.getAttribute('data-veh-name') || '';
+            const typeName = btn.getAttribute('data-type-name') || '';
+            const dataInizio = btn.getAttribute('data-inizio') || '';
+            const kmPartenza = btn.getAttribute('data-km-partenza') || '';
+
+            document.getElementById('editProgAutomezzoId').value = aid;
+            document.getElementById('editProgTipoManutenzioneId').value = tid;
+            document.getElementById('editProgVehTitle').textContent = vehName;
+            document.getElementById('editProgTypeTitle').textContent = typeName;
+            document.getElementById('editProgDataInizioInput').value = dataInizio;
+            document.getElementById('editProgKmPartenzaInput').value = kmPartenza;
+
+            const modalEl = document.getElementById('modalModificaProgrammazione');
+            if (modalEl) {
+                const modal = new bootstrap.Modal(modalEl);
+                modal.show();
+            }
+        }
 
         function openProgrammaManutenzioneModal(automezzoId = null) {
             const modalEl = document.getElementById('modalProgrammaManutenzione');
