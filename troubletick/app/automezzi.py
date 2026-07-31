@@ -1407,7 +1407,7 @@ def _get_manutenzioni_programmate(conn):
 
     programmate_query = conn.execute(text("""
         SELECT 
-            a.automezzo_id, a.targa, b.nome as marca, a.modello, a.km_attuali,
+            a.automezzo_id, a.targa, b.nome as marca, a.modello, a.km_attuali, a.data_immatricolazione,
             tm.tipo_manutenzione_id, tm.nome as tipo_nome, tm.scadenza_mesi, tm.scadenza_anni, tm.scadenza_km,
             atm.data_inizio_calcolo, atm.km_partenza_calcolo,
             (SELECT MAX(r.data_registrazione) FROM registro_km_automezzi r WHERE r.automezzo_id = a.automezzo_id) as data_aggiornamento_km
@@ -1435,6 +1435,22 @@ def _get_manutenzioni_programmate(conn):
         prog['tag_ids'] = [t['tag_id'] for t in prog['tags']]
         t_norm = (prog.get('tipo_nome') or '').strip().lower()
 
+        d_imm = prog.get('data_immatricolazione')
+        prog['data_immatricolazione_formatted'] = None
+        if d_imm:
+            try:
+                d_str = str(d_imm).strip()
+                if len(d_str) >= 10 and d_str[4] in ('-', '/'):
+                    parts = d_str[:10].split(d_str[4])
+                    if len(parts) == 3 and len(parts[0]) == 4:
+                        prog['data_immatricolazione_formatted'] = f"{parts[2]}/{parts[1]}/{parts[0]}"
+                    else:
+                        prog['data_immatricolazione_formatted'] = d_str[:10]
+                else:
+                    prog['data_immatricolazione_formatted'] = d_str
+            except Exception:
+                prog['data_immatricolazione_formatted'] = str(d_imm)
+
         d_agg = prog.get('data_aggiornamento_km')
         prog['data_aggiornamento_km_formatted'] = None
         if d_agg:
@@ -1454,6 +1470,7 @@ def _get_manutenzioni_programmate(conn):
 
         prog['scadenza_stimata_data'] = None
         prog['giorni_rimanenti'] = None
+        prog['mesi_rimanenti'] = None
         tot_mesi = (prog.get('scadenza_mesi') or 0) + (prog.get('scadenza_anni') or 0) * 12
         if tot_mesi > 0 and prog['data_inizio_calcolo']:
             try:
@@ -1461,15 +1478,18 @@ def _get_manutenzioni_programmate(conn):
                 d_scadenza = add_months(d_inizio, tot_mesi)
                 prog['scadenza_stimata_data'] = d_scadenza
                 prog['giorni_rimanenti'] = (d_scadenza - oggi).days
+                prog['mesi_rimanenti'] = int(math.floor(prog['giorni_rimanenti'] / 30.4375))
             except Exception:
                 pass
         
         prog['scadenza_stimata_km'] = None
         prog['km_rimanenti'] = None
+        prog['km_migliaia_rimanenti'] = None
         if prog['scadenza_km'] and prog['km_partenza_calcolo'] is not None:
             prog['scadenza_stimata_km'] = prog['km_partenza_calcolo'] + prog['scadenza_km']
             if prog['km_attuali'] is not None:
                 prog['km_rimanenti'] = prog['scadenza_stimata_km'] - prog['km_attuali']
+                prog['km_migliaia_rimanenti'] = int(math.floor(prog['km_rimanenti'] / 1000.0))
         
         is_scaduta = False
         is_warning = False
@@ -1581,10 +1601,11 @@ def list_manutenzioni_programmate(
     r: Request,
     page: typing.Any = Query(1),
     per_page: typing.Any = Query(50),
-    q: str = Query(None),
     targa: str = Query(None),
     stato: str = Query(None),
-    tag_id: typing.Any = Query(None)
+    tag_id: typing.Any = Query(None),
+    mesi_da: typing.Any = Query(None),
+    mesi_a: typing.Any = Query(None)
 ):
     if "user" not in r.session:
         return RedirectResponse(url="/login")
@@ -1611,11 +1632,16 @@ def list_manutenzioni_programmate(
     if per_page not in (25, 50, 100, 200):
         per_page = 50
 
-    q_str = _to_str(q)
     targa_str = _to_str(targa).upper()
     stato_str = _to_str(stato)
     tag_id_str = _to_str(tag_id)
     tag_id_val = int(tag_id_str) if tag_id_str.isdigit() else None
+
+    mesi_da_str = _to_str(mesi_da)
+    mesi_da_val = int(mesi_da_str) if mesi_da_str.isdigit() or (mesi_da_str.startswith('-') and mesi_da_str[1:].isdigit()) else None
+
+    mesi_a_str = _to_str(mesi_a)
+    mesi_a_val = int(mesi_a_str) if mesi_a_str.isdigit() or (mesi_a_str.startswith('-') and mesi_a_str[1:].isdigit()) else None
 
     with engine.connect() as conn:
         all_tags = [dict(t) for t in conn.execute(text("SELECT * FROM tag_automezzi ORDER BY nome")).mappings().all()]
@@ -1708,11 +1734,8 @@ def list_manutenzioni_programmate(
                 continue
             if tag_id_val and tag_id_val not in v_dict.get("tag_ids", []):
                 continue
-            if q_str:
-                needle = q_str.lower()
-                haystack = f"{t_clean} {v_dict.get('marca') or ''} {v_dict.get('modello') or ''}".lower()
-                if needle not in haystack:
-                    continue
+            if mesi_da_val is not None or mesi_a_val is not None:
+                continue
 
             veicoli_senza_programmazione.append(v_dict)
 
@@ -1742,10 +1765,12 @@ def list_manutenzioni_programmate(
         if tag_id_val and tag_id_val not in prog.get("tag_ids", []):
             continue
 
-        if q_str:
-            needle = q_str.lower()
-            haystack = f"{t_clean} {prog.get('marca') or ''} {prog.get('modello') or ''} {prog.get('tipo_nome') or ''}".lower()
-            if needle not in haystack:
+        m_rim = prog.get("mesi_rimanenti")
+        if mesi_da_val is not None:
+            if m_rim is None or m_rim < mesi_da_val:
+                continue
+        if mesi_a_val is not None:
+            if m_rim is None or m_rim > mesi_a_val:
                 continue
 
         filtered.append(prog)
@@ -1769,10 +1794,11 @@ def list_manutenzioni_programmate(
     def make_url(p_num, size=per_page):
         p_num = max(1, min(p_num, total_pages))
         params_dict = {"page": p_num, "per_page": size}
-        if q_str: params_dict["q"] = q_str
         if targa_str: params_dict["targa"] = targa_str
         if stato_str: params_dict["stato"] = stato_str
         if tag_id_val: params_dict["tag_id"] = tag_id_val
+        if mesi_da_val is not None: params_dict["mesi_da"] = mesi_da_val
+        if mesi_a_val is not None: params_dict["mesi_a"] = mesi_a_val
         return f"/admin/automezzi/manutenzioni/programmate?{urlencode(params_dict)}"
 
     pagination = {
@@ -1809,7 +1835,7 @@ def list_manutenzioni_programmate(
         "opt_targhe": opt_targhe,
         "all_tags": all_tags,
         "pagination": pagination,
-        "filters": {"q": q_str, "targa": targa_str, "stato": stato_str, "tag_id": tag_id_val}
+        "filters": {"targa": targa_str, "stato": stato_str, "tag_id": tag_id_val, "mesi_da": mesi_da_val, "mesi_a": mesi_a_val}
     })
 
 
@@ -2190,6 +2216,162 @@ def elimina_programma_manutenzione(
     referer = r.headers.get("referer", "")
     target_url = "/admin/automezzi/manutenzioni/programmate?msg=prog_deleted" if "programmate" in referer else "/admin/automezzi/manutenzioni?msg=prog_deleted"
     return RedirectResponse(url=target_url, status_code=303)
+
+
+@router.post("/admin/automezzi/manutenzioni/genera-revisioni")
+def genera_revisioni_automatiche(r: Request):
+    if "user" not in r.session:
+        return RedirectResponse(url="/login", status_code=303)
+    user = r.session.get("user")
+    if user.get("ruolo") not in ("admin", "global_fleet_manager"):
+        return RedirectResponse(url="/", status_code=303)
+
+    count_created = 0
+    oggi = datetime.date.today()
+
+    def add_months_local(sourcedate, months):
+        month = sourcedate.month - 1 + months
+        year = sourcedate.year + month // 12
+        month = month % 12 + 1
+        day = min(sourcedate.day, [31, 29 if year % 4 == 0 and (not year % 100 == 0 or year % 400 == 0) else 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31][month - 1])
+        return datetime.date(year, month, day)
+
+    def add_years_local(d, years):
+        return add_months_local(d, years * 12)
+
+    with engine.begin() as conn:
+        def _get_or_create_tipo(nome: str, anni: int):
+            row = conn.execute(text("SELECT tipo_manutenzione_id FROM tipi_manutenzione WHERE LOWER(TRIM(nome)) = LOWER(TRIM(:n))"), {"n": nome}).scalar()
+            if row:
+                return row
+            conn.execute(text("""
+                INSERT INTO tipi_manutenzione (nome, categoria, scadenza_anni, scadenza_mesi, scadenza_km)
+                VALUES (:n, 'Revisione', :anni, 0, 0)
+            """), {"n": nome, "anni": anni})
+            return conn.execute(text("SELECT tipo_manutenzione_id FROM tipi_manutenzione WHERE LOWER(TRIM(nome)) = LOWER(TRIM(:n))"), {"n": nome}).scalar()
+
+        id_rev_4 = _get_or_create_tipo("Revisione 4 anni", 4)
+        id_rev_2 = _get_or_create_tipo("Revisione 2 anni", 2)
+
+        veicoli = conn.execute(text("""
+            SELECT automezzo_id, targa, km_attuali, data_immatricolazione 
+            FROM automezzi 
+            WHERE data_immatricolazione IS NOT NULL AND TRIM(data_immatricolazione) != ''
+        """)).mappings().all()
+
+        for v in veicoli:
+            aid = v["automezzo_id"]
+            d_imm_str = str(v["data_immatricolazione"]).strip()[:10]
+
+            imm_date = None
+            try:
+                parts = d_imm_str.replace('/', '-').split('-')
+                if len(parts) == 3:
+                    if len(parts[0]) == 4:
+                        imm_date = datetime.date(int(parts[0]), int(parts[1]), int(parts[2]))
+                    elif len(parts[2]) == 4:
+                        imm_date = datetime.date(int(parts[2]), int(parts[1]), int(parts[0]))
+            except Exception:
+                imm_date = None
+
+            if not imm_date:
+                continue
+
+            # Check if vehicle ALREADY has a revision with a FUTURE expiration date
+            has_future_rev = False
+
+            # 1. Active (in-progress) revision in manutenzioni_automezzi
+            in_prog = conn.execute(text("""
+                SELECT 1 FROM manutenzioni_automezzi
+                WHERE automezzo_id = :aid 
+                  AND LOWER(tipo_servizio) LIKE '%revisione%'
+                  AND (data_fine IS NULL OR data_fine = '')
+            """), {"aid": aid}).first()
+            if in_prog:
+                has_future_rev = True
+
+            # 2. Scheduled revision in automezzi_tipi_manutenzione with future expiration date
+            if not has_future_rev:
+                progs = conn.execute(text("""
+                    SELECT atm.data_inizio_calcolo, tm.scadenza_anni, tm.scadenza_mesi
+                    FROM automezzi_tipi_manutenzione atm
+                    JOIN tipi_manutenzione tm ON atm.tipo_manutenzione_id = tm.tipo_manutenzione_id
+                    WHERE atm.automezzo_id = :aid AND LOWER(tm.nome) LIKE '%revisione%'
+                """), {"aid": aid}).mappings().all()
+
+                for p in progs:
+                    d_i_str = p.get("data_inizio_calcolo")
+                    if not d_i_str:
+                        continue
+                    try:
+                        d_i = datetime.datetime.strptime(str(d_i_str).strip()[:10], "%Y-%m-%d").date()
+                        tot_mesi = (p.get("scadenza_mesi") or 0) + (p.get("scadenza_anni") or 0) * 12
+                        if tot_mesi > 0:
+                            scad = add_months_local(d_i, tot_mesi)
+                            if scad >= oggi:
+                                has_future_rev = True
+                                break
+                    except Exception:
+                        pass
+
+            # 3. Completed revision in manutenzioni_automezzi with future expiration (data_fine + 24 months >= oggi)
+            if not has_future_rev:
+                completed = conn.execute(text("""
+                    SELECT data_fine FROM manutenzioni_automezzi
+                    WHERE automezzo_id = :aid 
+                      AND LOWER(tipo_servizio) LIKE '%revisione%'
+                      AND data_fine IS NOT NULL AND data_fine != ''
+                    ORDER BY manutenzione_id DESC LIMIT 1
+                """), {"aid": aid}).mappings().first()
+
+                if completed and completed.get("data_fine"):
+                    try:
+                        d_f = datetime.datetime.strptime(str(completed["data_fine"]).strip()[:10], "%Y-%m-%d").date()
+                        scad = add_months_local(d_f, 24)
+                        if scad >= oggi:
+                            has_future_rev = True
+                    except Exception:
+                        pass
+
+            if has_future_rev:
+                continue
+
+            # Calculate next future revision date as a multiple of 2 years starting from data_immatricolazione
+            first_rev_date = add_years_local(imm_date, 4)
+
+            if oggi < first_rev_date:
+                # Vehicle registered less than 4 years ago
+                target_tipo_id = id_rev_4
+                data_inizio_calcolo = imm_date
+            else:
+                # Vehicle 4 years old or more: 2-year interval cycle
+                target_tipo_id = id_rev_2
+                next_rev_date = first_rev_date
+                while next_rev_date < oggi:
+                    next_rev_date = add_years_local(next_rev_date, 2)
+                data_inizio_calcolo = add_years_local(next_rev_date, -2)
+
+            # Delete any stale/expired scheduled revisions for this vehicle before inserting the updated active schedule
+            conn.execute(text("""
+                DELETE FROM automezzi_tipi_manutenzione 
+                WHERE automezzo_id = :aid 
+                  AND tipo_manutenzione_id IN (
+                      SELECT tipo_manutenzione_id FROM tipi_manutenzione WHERE LOWER(nome) LIKE '%revisione%'
+                  )
+            """), {"aid": aid})
+
+            conn.execute(text("""
+                INSERT INTO automezzi_tipi_manutenzione (automezzo_id, tipo_manutenzione_id, data_inizio_calcolo, km_partenza_calcolo)
+                VALUES (:aid, :tid, :data_i, :km_p)
+            """), {
+                "aid": aid,
+                "tid": target_tipo_id,
+                "data_i": data_inizio_calcolo.strftime("%Y-%m-%d"),
+                "km_p": v["km_attuali"] or 0
+            })
+            count_created += 1
+
+    return RedirectResponse(url=f"/admin/automezzi/manutenzioni/programmate?msg=revisioni_generate&count={count_created}", status_code=303)
 
 
 @router.post("/admin/automezzi/manutenzioni/uniforma-targhe")
