@@ -1536,7 +1536,7 @@ def list_manutenzioni(r: Request):
             manutenzioni.append(m_dict)
         
         veicoli = conn.execute(text("""
-            SELECT a.automezzo_id, a.targa, b.nome as marca, a.modello, a.km_attuali 
+            SELECT a.automezzo_id, a.targa, b.nome as marca, a.modello, a.km_attuali, a.data_immatricolazione 
             FROM automezzi a 
             JOIN marche_automezzi b ON a.marca_id = b.marca_id 
             ORDER BY b.nome, a.modello
@@ -1623,7 +1623,7 @@ def list_manutenzioni_programmate(
         all_programmate = _get_manutenzioni_programmate(conn)
 
         veicoli = conn.execute(text("""
-            SELECT a.automezzo_id, a.targa, b.nome as marca, a.modello, a.km_attuali 
+            SELECT a.automezzo_id, a.targa, b.nome as marca, a.modello, a.km_attuali, a.data_immatricolazione 
             FROM automezzi a 
             JOIN marche_automezzi b ON a.marca_id = b.marca_id 
             ORDER BY b.nome, a.modello
@@ -1654,7 +1654,7 @@ def list_manutenzioni_programmate(
 
         veicoli_senza_prog_raw = conn.execute(text("""
             SELECT 
-                a.automezzo_id, a.targa, b.nome as marca, a.modello, a.km_attuali, a.stato,
+                a.automezzo_id, a.targa, b.nome as marca, a.modello, a.km_attuali, a.stato, a.data_immatricolazione,
                 (SELECT MAX(r.data_registrazione) FROM registro_km_automezzi r WHERE r.automezzo_id = a.automezzo_id) as data_aggiornamento_km
             FROM automezzi a
             JOIN marche_automezzi b ON a.marca_id = b.marca_id
@@ -1669,6 +1669,22 @@ def list_manutenzioni_programmate(
             v_dict = dict(v)
             v_dict["tags"] = tags_map.get(v_dict["automezzo_id"], [])
             v_dict["tag_ids"] = [t["tag_id"] for t in v_dict["tags"]]
+
+            d_imm = v_dict.get('data_immatricolazione')
+            v_dict['data_immatricolazione_formatted'] = None
+            if d_imm:
+                try:
+                    d_str = str(d_imm).strip()
+                    if len(d_str) >= 10 and d_str[4] in ('-', '/'):
+                        parts = d_str[:10].split(d_str[4])
+                        if len(parts) == 3 and len(parts[0]) == 4:
+                            v_dict['data_immatricolazione_formatted'] = f"{parts[2]}/{parts[1]}/{parts[0]}"
+                        else:
+                            v_dict['data_immatricolazione_formatted'] = d_str[:10]
+                    else:
+                        v_dict['data_immatricolazione_formatted'] = d_str
+                except Exception:
+                    v_dict['data_immatricolazione_formatted'] = str(d_imm)
 
             d_agg = v_dict.get('data_aggiornamento_km')
             v_dict['data_aggiornamento_km_formatted'] = None
@@ -2117,7 +2133,11 @@ def programma_manutenzione_automezzo(
                         km_partenza_calcolo = last_m["km_fine"] or last_m["km_registrati"] or 0
                 else:
                     if not data_inizio_calcolo:
-                        data_inizio_calcolo = datetime.date.today().strftime("%Y-%m-%d")
+                        car_imm = conn.execute(text("SELECT data_immatricolazione FROM automezzi WHERE automezzo_id = :aid"), {"aid": automezzo_id}).scalar()
+                        if car_imm and str(car_imm).strip():
+                            data_inizio_calcolo = str(car_imm).strip()
+                        else:
+                            data_inizio_calcolo = datetime.date.today().strftime("%Y-%m-%d")
                     if km_partenza_calcolo is None:
                         car_km = conn.execute(text("SELECT km_attuali FROM automezzi WHERE automezzo_id = :aid"), {"aid": automezzo_id}).scalar()
                         km_partenza_calcolo = car_km or 0

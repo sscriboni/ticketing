@@ -589,6 +589,7 @@
                         targa: opt.getAttribute('data-targa') || '',
                         desc: opt.getAttribute('data-desc') || '',
                         km: opt.getAttribute('data-km') || '0',
+                        imm: opt.getAttribute('data-immatricolazione') || '',
                         text: opt.text
                     });
                 }
@@ -608,6 +609,7 @@
                         opt.setAttribute('data-targa', v.targa);
                         opt.setAttribute('data-desc', v.desc);
                         opt.setAttribute('data-km', v.km);
+                        opt.setAttribute('data-immatricolazione', v.imm);
                         opt.textContent = v.text;
                         progSelect.appendChild(opt);
                     });
@@ -703,6 +705,7 @@
 
             const selectedVehOpt = vehSelect.options[vehSelect.selectedIndex];
             const currentVehKm = selectedVehOpt.getAttribute('data-km') || '0';
+            const vehImm = selectedVehOpt.getAttribute('data-immatricolazione') || '';
             const vehId = vehSelect.value;
 
             const mapKey = vehId + '_' + typeName.trim().toLowerCase();
@@ -711,11 +714,15 @@
             let defaultStartData = new Date().toISOString().split('T')[0];
             let defaultStartKm = currentVehKm;
             let isFromLastMaint = false;
+            let isFromImm = false;
 
             if (lastMaint) {
-                defaultStartData = lastMaint.data;
-                defaultStartKm = lastMaint.km;
+                if (lastMaint.data) defaultStartData = lastMaint.data;
+                if (lastMaint.km !== undefined && lastMaint.km !== null) defaultStartKm = lastMaint.km;
                 isFromLastMaint = true;
+            } else if (vehImm) {
+                defaultStartData = vehImm;
+                isFromImm = true;
             }
 
             const currentComboKey = mapKey;
@@ -751,8 +758,15 @@
                     inputData.dataset.lastCombo = currentComboKey;
                 }
                 if (noteDataHelper) {
+                    let dFormatted = defaultStartData;
+                    if (defaultStartData.length >= 10 && defaultStartData.includes('-')) {
+                        const parts = defaultStartData.split('-');
+                        dFormatted = parts[2] + '/' + parts[1] + '/' + parts[0];
+                    }
                     if (isFromLastMaint) {
-                        noteDataHelper.innerHTML = `<i class="bi bi-clock-history text-success me-1"></i> Rilevata data (<strong>${defaultStartData}</strong>) dall'ultima manutenzione "${typeName}" completata.`;
+                        noteDataHelper.innerHTML = `<i class="bi bi-clock-history text-success me-1"></i> Rilevata data (<strong>${dFormatted}</strong>) dall'ultima manutenzione "${typeName}" completata.`;
+                    } else if (isFromImm) {
+                        noteDataHelper.innerHTML = `<i class="bi bi-calendar-check text-primary me-1"></i> Nessuna manutenzione "${typeName}" precedente: proposta di default la data di immatricolazione (<strong>${dFormatted}</strong>).`;
                     } else {
                         noteDataHelper.innerHTML = `<i class="bi bi-info-circle text-primary me-1"></i> Nessuna manutenzione "${typeName}" precedente: proposta di default la data odierna.`;
                     }
@@ -799,7 +813,8 @@
                                     <option value="{{ v.automezzo_id }}" 
                                             data-targa="{{ v.targa }}" 
                                             data-desc="{{ v.marca }} {{ v.modello }}" 
-                                            data-km="{{ v.km_attuali or 0 }}">
+                                            data-km="{{ v.km_attuali or 0 }}"
+                                            data-immatricolazione="{{ v.data_immatricolazione or '' }}">
                                         {{ v.marca }} {{ v.modello }} ({{ v.targa }}) — {{ v.km_attuali or 0 }} km
                                     </option>
                                 {% endfor %}

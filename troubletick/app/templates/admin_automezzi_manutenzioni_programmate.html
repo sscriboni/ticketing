@@ -453,6 +453,7 @@
                             <tr>
                                 <th>Veicolo</th>
                                 <th>Targa</th>
+                                <th>Immatricolazione</th>
                                 <th>Km Attuali</th>
                                 <th>Stato Veicolo</th>
                                 <th class="text-end text-nowrap">Azioni</th>
@@ -477,6 +478,13 @@
                                     <strong class="font-monospace text-dark fs-6 text-uppercase" style="letter-spacing: 1.2px; font-weight: 800;">
                                         {{ v.targa }}
                                     </strong>
+                                </td>
+                                <td>
+                                    {% if v.data_immatricolazione_formatted %}
+                                        <span class="fw-semibold text-dark">{{ v.data_immatricolazione_formatted }}</span>
+                                    {% else %}
+                                        <span class="text-muted">-</span>
+                                    {% endif %}
                                 </td>
                                 <td class="font-monospace text-nowrap">
                                     <strong class="text-dark">{{ "{:,}".format(v.km_attuali or 0).replace(",", ".") }}</strong> km
@@ -548,7 +556,8 @@
                                     <option value="{{ v.automezzo_id }}" 
                                             data-targa="{{ v.targa }}" 
                                             data-desc="{{ v.marca }} {{ v.modello }}" 
-                                            data-km="{{ v.km_attuali or 0 }}">
+                                            data-km="{{ v.km_attuali or 0 }}"
+                                            data-immatricolazione="{{ v.data_immatricolazione or '' }}">
                                         {{ v.marca }} {{ v.modello }} ({{ v.targa }}) — {{ v.km_attuali or 0 }} km
                                     </option>
                                 {% endfor %}
@@ -665,6 +674,7 @@
 
             const selectedVehOpt = vehSelect.options[vehSelect.selectedIndex];
             const currentVehKm = selectedVehOpt.getAttribute('data-km') || '0';
+            const vehImm = selectedVehOpt.getAttribute('data-immatricolazione') || '';
             const vehId = vehSelect.value;
 
             const mapKey = vehId + '_' + typeName.trim().toLowerCase();
@@ -673,11 +683,15 @@
             let defaultStartData = new Date().toISOString().split('T')[0];
             let defaultStartKm = currentVehKm;
             let isFromLastMaint = false;
+            let isFromImm = false;
 
             if (lastMaint) {
                 if (lastMaint.data) defaultStartData = lastMaint.data;
                 if (lastMaint.km !== undefined && lastMaint.km !== null) defaultStartKm = lastMaint.km;
                 isFromLastMaint = true;
+            } else if (vehImm) {
+                defaultStartData = vehImm;
+                isFromImm = true;
             }
 
             const comboKey = vehId + '_' + selectedTypeOpt.value;
@@ -714,13 +728,15 @@
                     }
                 }
                 if (noteDataHelper) {
+                    let dFormatted = defaultStartData;
+                    if (defaultStartData.length >= 10 && defaultStartData.includes('-')) {
+                        const parts = defaultStartData.split('-');
+                        dFormatted = parts[2] + '/' + parts[1] + '/' + parts[0];
+                    }
                     if (isFromLastMaint) {
-                        let dFormatted = defaultStartData;
-                        if (defaultStartData.length >= 10 && defaultStartData.includes('-')) {
-                            const parts = defaultStartData.split('-');
-                            dFormatted = parts[2] + '/' + parts[1] + '/' + parts[0];
-                        }
                         noteDataHelper.innerHTML = '<i class="bi bi-check-circle-fill text-success me-1"></i> Proposta automaticamente la data dell\'ultima manutenzione eseguita (' + dFormatted + ').';
+                    } else if (isFromImm) {
+                        noteDataHelper.innerHTML = '<i class="bi bi-calendar-check-fill text-primary me-1"></i> Nessuna manutenzione "' + typeName + '" precedente: proposta la data di immatricolazione (' + dFormatted + ').';
                     } else {
                         noteDataHelper.innerHTML = '<i class="bi bi-info-circle me-1"></i> Proposta di default la data odierna.';
                     }
@@ -882,6 +898,7 @@
                         targa: opt.getAttribute('data-targa') || '',
                         desc: opt.getAttribute('data-desc') || '',
                         km: opt.getAttribute('data-km') || '0',
+                        imm: opt.getAttribute('data-immatricolazione') || '',
                         text: opt.text
                     });
                 }
@@ -903,6 +920,7 @@
                         optEl.setAttribute('data-targa', o.targa);
                         optEl.setAttribute('data-desc', o.desc);
                         optEl.setAttribute('data-km', o.km);
+                        optEl.setAttribute('data-immatricolazione', o.imm);
                         optEl.textContent = o.text;
                         vehSelect.appendChild(optEl);
                     });
