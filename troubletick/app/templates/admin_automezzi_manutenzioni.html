@@ -188,7 +188,21 @@
             {% endif %}
 
             <!-- Manutenzioni Attive -->
-            <h4 class="mb-3 text-secondary"><i class="bi bi-clock-history me-1 text-warning"></i> Manutenzioni in Corso</h4>
+            <div class="d-flex flex-wrap justify-content-between align-items-center mb-3 gap-2">
+                <h4 class="mb-0 text-secondary"><i class="bi bi-clock-history me-1 text-warning"></i> Manutenzioni in Corso</h4>
+                <div class="d-flex align-items-center gap-2">
+                    <div class="input-group input-group-sm" style="width: 230px;">
+                        <span class="input-group-text bg-white"><i class="bi bi-search text-muted"></i></span>
+                        <input type="text" id="filterInCorsoText" class="form-control form-control-sm" placeholder="Cerca targa, veicolo, officina..." onkeyup="filterInCorsoTable()">
+                    </div>
+                    <select id="filterInCorsoTag" class="form-select form-select-sm" style="width: 180px;" onchange="filterInCorsoTable()">
+                        <option value="">Tutti i tag</option>
+                        {% for tag in all_tags %}
+                        <option value="{{ tag.tag_id }}">{{ tag.nome }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+            </div>
             <div class="table-container mb-5">
                 <div class="table-responsive">
                     <table class="table table-hover custom-table align-middle">
@@ -210,8 +224,19 @@
                             {% for m in manutenzioni %}
                                 {% if not m.data_fine %}
                                 {% set active_count.value = active_count.value + 1 %}
-                                <tr class="maint-row-corso" data-targa="{{ m.targa }}" data-data="{{ m.data_inizio }}" data-officina="{{ m.luogo or '' }}">
-                                    <td><strong>{{ m.marca }} {{ m.modello }}</strong></td>
+                                <tr class="maint-row-corso" data-targa="{{ m.targa }}" data-data="{{ m.data_inizio }}" data-officina="{{ m.luogo or '' }}" data-tag-ids="{{ m.tag_ids | tojson if m.tag_ids else '[]' }}">
+                                    <td>
+                                        <strong>{{ m.marca }} {{ m.modello }}</strong>
+                                        {% if m.tags %}
+                                            <div class="d-flex flex-wrap gap-1 mt-1">
+                                                {% for tag in m.tags %}
+                                                    <span class="badge shadow-sm" style="background-color: {{ tag.colore or '#0d6efd' }}; color: #ffffff; font-size: 0.72rem;">
+                                                        <i class="bi bi-tag-fill me-1"></i>{{ tag.nome }}
+                                                    </span>
+                                                {% endfor %}
+                                            </div>
+                                        {% endif %}
+                                    </td>
                                     <td><strong class="font-monospace text-dark fs-6 text-uppercase" style="letter-spacing: 1.2px; font-weight: 800;">{{ m.targa }}</strong></td>
                                     <td><span class="badge bg-info text-dark">{{ m.tipo_servizio }}</span></td>
                                     <td>{{ m.luogo or '-' }}</td>
@@ -846,6 +871,31 @@
             </div>
         </div>
     </div>
+    <script>
+        function filterInCorsoTable() {
+            const textVal = (document.getElementById('filterInCorsoText')?.value || '').toLowerCase().trim();
+            const tagVal = document.getElementById('filterInCorsoTag')?.value || '';
+            
+            const rows = document.querySelectorAll('.maint-row-corso');
+            rows.forEach(row => {
+                let show = true;
+                if (textVal) {
+                    const rowText = row.textContent.toLowerCase();
+                    if (!rowText.includes(textVal)) show = false;
+                }
+                if (tagVal && show) {
+                    const tagIdsAttr = row.getAttribute('data-tag-ids') || '[]';
+                    try {
+                        const tagIds = JSON.parse(tagIdsAttr);
+                        if (!tagIds.includes(parseInt(tagVal))) show = false;
+                    } catch(e) {
+                        show = false;
+                    }
+                }
+                row.style.display = show ? '' : 'none';
+            });
+        }
+    </script>
 </body>
 
 </html>

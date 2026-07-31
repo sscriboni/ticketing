@@ -1425,11 +1425,14 @@ def _get_manutenzioni_programmate(conn):
         day = min(sourcedate.day, [31, 29 if year%4==0 and (not year%100==0 or year%400==0) else 28, 31,30,31,30,31,31,30,31,30,31][month-1])
         return datetime.date(year, month, day)
 
+    tags_map = _get_tags_map_for_automezzi(conn)
     manutenzioni_programmate = []
     oggi = datetime.date.today()
 
     for row in programmate_query:
         prog = dict(row)
+        prog['tags'] = tags_map.get(prog['automezzo_id'], [])
+        prog['tag_ids'] = [t['tag_id'] for t in prog['tags']]
         t_norm = (prog.get('tipo_nome') or '').strip().lower()
 
         d_agg = prog.get('data_aggiornamento_km')
@@ -1514,13 +1517,23 @@ def list_manutenzioni(r: Request):
         return RedirectResponse(url="/", status_code=303)
         
     with engine.connect() as conn:
-        manutenzioni = conn.execute(text("""
+        all_tags = [dict(t) for t in conn.execute(text("SELECT * FROM tag_automezzi ORDER BY nome")).mappings().all()]
+        tags_map = _get_tags_map_for_automezzi(conn)
+
+        maint_rows = conn.execute(text("""
             SELECT m.*, a.targa, b.nome as marca, a.modello, a.proprieta
             FROM manutenzioni_automezzi m
             JOIN automezzi a ON m.automezzo_id = a.automezzo_id
             JOIN marche_automezzi b ON a.marca_id = b.marca_id
             ORDER BY m.manutenzione_id DESC
-        """)).all()
+        """)).mappings().all()
+
+        manutenzioni = []
+        for m_raw in maint_rows:
+            m_dict = dict(m_raw)
+            m_dict["tags"] = tags_map.get(m_dict["automezzo_id"], [])
+            m_dict["tag_ids"] = [t["tag_id"] for t in m_dict["tags"]]
+            manutenzioni.append(m_dict)
         
         veicoli = conn.execute(text("""
             SELECT a.automezzo_id, a.targa, b.nome as marca, a.modello, a.km_attuali 
@@ -1559,7 +1572,7 @@ def list_manutenzioni(r: Request):
     return templates.TemplateResponse(r, "admin_automezzi_manutenzioni.html", {
         "request": r, "cfg": CFG, "user": user, "manutenzioni": manutenzioni, "veicoli": veicoli, 
         "manutenzioni_programmate": manutenzioni_programmate, "tipi_manutenzione": tipi_manutenzione,
-        "last_maint_map": last_maint_map, "import_result": import_result
+        "last_maint_map": last_maint_map, "import_result": import_result, "all_tags": all_tags
     })
 
 
@@ -1570,7 +1583,8 @@ def list_manutenzioni_programmate(
     per_page: typing.Any = Query(50),
     q: str = Query(None),
     targa: str = Query(None),
-    stato: str = Query(None)
+    stato: str = Query(None),
+    tag_id: typing.Any = Query(None)
 ):
     if "user" not in r.session:
         return RedirectResponse(url="/login")
@@ -1600,8 +1614,12 @@ def list_manutenzioni_programmate(
     q_str = _to_str(q)
     targa_str = _to_str(targa).upper()
     stato_str = _to_str(stato)
+    tag_id_str = _to_str(tag_id)
+    tag_id_val = int(tag_id_str) if tag_id_str.isdigit() else None
 
     with engine.connect() as conn:
+        all_tags = [dict(t) for t in conn.execute(text("SELECT * FROM tag_automezzi ORDER BY nome")).mappings().all()]
+        tags_map = _get_tags_map_for_automezzi(conn)
         all_programmate = _get_manutenzioni_programmate(conn)
 
         veicoli = conn.execute(text("""
@@ -1649,6 +1667,9 @@ def list_manutenzioni_programmate(
         veicoli_senza_programmazione = []
         for v in veicoli_senza_prog_raw:
             v_dict = dict(v)
+            v_dict["tags"] = tags_map.get(v_dict["automezzo_id"], [])
+            v_dict["tag_ids"] = [t["tag_id"] for t in v_dict["tags"]]
+
             d_agg = v_dict.get('data_aggiornamento_km')
             v_dict['data_aggiornamento_km_formatted'] = None
             if d_agg:
@@ -1668,6 +1689,8 @@ def list_manutenzioni_programmate(
 
             t_clean = (v_dict.get("targa") or "").strip().upper()
             if targa_str and t_clean != targa_str:
+                continue
+            if tag_id_val and tag_id_val not in v_dict.get("tag_ids", []):
                 continue
             if q_str:
                 needle = q_str.lower()
@@ -1700,6 +1723,9 @@ def list_manutenzioni_programmate(
         if stato_str and prog.get("stato_scadenza") != stato_str:
             continue
 
+        if tag_id_val and tag_id_val not in prog.get("tag_ids", []):
+            continue
+
         if q_str:
             needle = q_str.lower()
             haystack = f"{t_clean} {prog.get('marca') or ''} {prog.get('modello') or ''} {prog.get('tipo_nome') or ''}".lower()
@@ -1730,6 +1756,7 @@ def list_manutenzioni_programmate(
         if q_str: params_dict["q"] = q_str
         if targa_str: params_dict["targa"] = targa_str
         if stato_str: params_dict["stato"] = stato_str
+        if tag_id_val: params_dict["tag_id"] = tag_id_val
         return f"/admin/automezzi/manutenzioni/programmate?{urlencode(params_dict)}"
 
     pagination = {
@@ -1764,8 +1791,9 @@ def list_manutenzioni_programmate(
         "totale_in_scadenza": totale_in_scadenza,
         "totale_regolari": totale_regolari,
         "opt_targhe": opt_targhe,
+        "all_tags": all_tags,
         "pagination": pagination,
-        "filters": {"q": q_str, "targa": targa_str, "stato": stato_str}
+        "filters": {"q": q_str, "targa": targa_str, "stato": stato_str, "tag_id": tag_id_val}
     })
 
 

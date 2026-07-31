@@ -75,10 +75,10 @@
                 {% endif %}
             </div>
             <div class="row mb-3 g-2">
-                <div class="col-md-2">
+                <div class="col-6 col-md-2">
                     <input type="text" id="searchTargaInput" class="form-control" placeholder="Targa o modello...">
                 </div>
-                <div class="col-md-2">
+                <div class="col-6 col-md-2">
                     <select id="searchMarcaInput" class="form-select">
                         <option value="">Tutte le marche</option>
                         {% for m in marche %}
@@ -86,7 +86,7 @@
                         {% endfor %}
                     </select>
                 </div>
-                <div class="col-md-2">
+                <div class="col-6 col-md-2">
                     <select id="searchSedeInput" class="form-select">
                         <option value="">Tutte le sedi</option>
                         {% for s in sedi %}
@@ -94,7 +94,7 @@
                         {% endfor %}
                     </select>
                 </div>
-                <div class="col-md-2">
+                <div class="col-6 col-md-2">
                     <select id="searchRepartoInput" class="form-select">
                         <option value="">Tutti i reparti</option>
                         {% for r in reparti %}
@@ -102,7 +102,7 @@
                         {% endfor %}
                     </select>
                 </div>
-                <div class="col-md-2">
+                <div class="col-6 col-md-2">
                     <select id="searchStatoInput" class="form-select">
                         <option value="">Tutti gli stati</option>
                         <option value="Disponibile">Disponibile</option>
@@ -110,8 +110,16 @@
                         <option value="In Manutenzione">In Manutenzione</option>
                     </select>
                 </div>
-                <div class="col-md-2">
-                    <button class="btn btn-outline-secondary w-100" onclick="resetFilters()"><i class="bi bi-x-circle me-1"></i> Azzera</button>
+                <div class="col-6 col-md-1">
+                    <select id="searchTagInput" class="form-select" title="Filtra per Tag Automezzo">
+                        <option value="">Tutti i tag</option>
+                        {% for t in all_tags %}
+                        <option value="{{ t.nome }}">{{ t.nome }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+                <div class="col-12 col-md-1">
+                    <button class="btn btn-outline-secondary w-100 px-1" onclick="resetFilters()"><i class="bi bi-x-circle me-1"></i> Reset</button>
                 </div>
             </div>
             
@@ -966,6 +974,7 @@
             const sedeVal = document.getElementById('searchSedeInput').value.toLowerCase();
             const repartoVal = document.getElementById('searchRepartoInput').value.toLowerCase();
             const statoVal = document.getElementById('searchStatoInput').value.toLowerCase();
+            const tagVal = document.getElementById('searchTagInput').value.toLowerCase();
             
             const rows = document.querySelectorAll('#automezziTable tbody tr');
             rows.forEach(row => {
@@ -975,6 +984,7 @@
                 const sede = row.children[6].textContent.toLowerCase();
                 const reparto = row.children[7].textContent.toLowerCase();
                 const stato = row.children[8].textContent.toLowerCase();
+                const tagsText = row.children[0].textContent.toLowerCase();
                 
                 let show = true;
                 if(targaVal && !targaModello.includes(targaVal)) show = false;
@@ -982,6 +992,7 @@
                 if(sedeVal && !sede.includes(sedeVal)) show = false;
                 if(repartoVal && !reparto.includes(repartoVal)) show = false;
                 if(statoVal && !stato.includes(statoVal)) show = false;
+                if(tagVal && !tagsText.includes(tagVal)) show = false;
                 
                 row.style.display = show ? '' : 'none';
             });
@@ -993,6 +1004,7 @@
         document.getElementById('searchSedeInput').addEventListener('change', filterTable);
         document.getElementById('searchRepartoInput').addEventListener('change', filterTable);
         document.getElementById('searchStatoInput').addEventListener('change', filterTable);
+        document.getElementById('searchTagInput').addEventListener('change', filterTable);
         
         function resetFilters() {
             document.getElementById('searchTargaInput').value = '';
@@ -1000,6 +1012,7 @@
             document.getElementById('searchSedeInput').value = '';
             document.getElementById('searchRepartoInput').value = '';
             document.getElementById('searchStatoInput').value = '';
+            document.getElementById('searchTagInput').value = '';
             filterTable();
         }
     </script>
