@@ -205,6 +205,7 @@
                                                 data-reparto-id="{{ v.reparto_assegnato_id or '' }}"
                                                 data-fornitore="{{ v.fornitore or '' }}"
                                                 data-euro="{{ v.classe_euro or '' }}"
+                                                data-tag-ids="{{ v.tag_ids | tojson if v.tag_ids else '[]' }}"
                                                 onclick="openSchedaAnagraficaFromBtn(this)"
                                                 title="Clicca per modificare la Scheda Anagrafica di {{ v.targa }}">
                                             <i class="bi bi-pencil-square me-1 text-primary"></i> {{ v.targa }}
@@ -213,6 +214,15 @@
                                     <td>
                                         <strong>{{ v.marca_nome }} {{ v.modello }}</strong>
                                         {% if v.note %}<span class="text-muted small">({{ v.note }})</span>{% endif %}
+                                        {% if v.tags %}
+                                            <div class="d-flex flex-wrap gap-1 mt-1">
+                                                {% for tag in v.tags %}
+                                                    <span class="badge shadow-sm" style="background-color: {{ tag.colore or '#0d6efd' }}; color: #ffffff; font-size: 0.72rem;">
+                                                        <i class="bi bi-tag-fill me-1"></i>{{ tag.nome }}
+                                                    </span>
+                                                {% endfor %}
+                                            </div>
+                                        {% endif %}
                                     </td>
                                     <td>
                                         {% if v.tipo == 'furgone' %}
@@ -321,6 +331,7 @@
                                                 data-reparto-id="{{ v.reparto_assegnato_id or '' }}"
                                                 data-fornitore="{{ v.fornitore or '' }}"
                                                 data-euro="{{ v.classe_euro or '' }}"
+                                                data-tag-ids="{{ v.tag_ids | tojson if v.tag_ids else '[]' }}"
                                                 onclick="openSchedaAnagraficaFromBtn(this)"
                                                 title="Clicca per modificare la Scheda Anagrafica di {{ v.targa }}">
                                             <i class="bi bi-pencil-square me-1 text-primary"></i> {{ v.targa }}
@@ -329,6 +340,15 @@
                                     <td>
                                         <strong>{{ v.marca_nome }} {{ v.modello }}</strong>
                                         {% if v.note %}<span class="text-muted small">({{ v.note }})</span>{% endif %}
+                                        {% if v.tags %}
+                                            <div class="d-flex flex-wrap gap-1 mt-1">
+                                                {% for tag in v.tags %}
+                                                    <span class="badge shadow-sm" style="background-color: {{ tag.colore or '#0d6efd' }}; color: #ffffff; font-size: 0.72rem;">
+                                                        <i class="bi bi-tag-fill me-1"></i>{{ tag.nome }}
+                                                    </span>
+                                                {% endfor %}
+                                            </div>
+                                        {% endif %}
                                     </td>
                                     <td>
                                         {% if v.tipo == 'furgone' %}
@@ -525,6 +545,23 @@
                                 <option value="Elettrico">Elettrico (Esente)</option>
                             </select>
                         </div>
+                    <!-- Tag Automezzo Associati -->
+                    <div class="row g-3 mb-3">
+                        <div class="col-12">
+                            <label class="form-label text-muted fw-bold"><i class="bi bi-tags-fill me-1 text-primary"></i> Tag Automezzo Associati</label>
+                            <div class="d-flex flex-wrap gap-2 px-1">
+                                {% for tag in all_tags %}
+                                <div class="form-check form-check-inline border rounded px-3 py-1.5 bg-light mb-1 me-1">
+                                    <input class="form-check-input edit-tag-checkbox" type="checkbox" name="tag_ids" value="{{ tag.tag_id }}" id="edit_tag_{{ tag.tag_id }}">
+                                    <label class="form-check-label fw-bold" for="edit_tag_{{ tag.tag_id }}" style="color: {{ tag.colore or '#0d6efd' }}; font-size: 0.85rem;">
+                                        <i class="bi bi-tag-fill me-1"></i>{{ tag.nome }}
+                                    </label>
+                                </div>
+                                {% else %}
+                                <div class="col-12 text-muted small">Nessun tag registrato a sistema.</div>
+                                {% endfor %}
+                            </div>
+                        </div>
                     </div>
                 </div>
                 <div class="modal-footer bg-light rounded-bottom-4 py-2.5 px-4">
@@ -581,6 +618,19 @@
         document.getElementById('editRepartoAssegnatoId').value = btn.getAttribute('data-reparto-id') || '';
         document.getElementById('editFornitore').value = btn.getAttribute('data-fornitore') || '';
         document.getElementById('editClasseEuro').value = btn.getAttribute('data-euro') || '';
+
+        // Check associated tags
+        const tagIdsAttr = btn.getAttribute('data-tag-ids');
+        document.querySelectorAll('.edit-tag-checkbox').forEach(cb => cb.checked = false);
+        if (tagIdsAttr) {
+            try {
+                const tagIds = JSON.parse(tagIdsAttr);
+                tagIds.forEach(tid => {
+                    const cb = document.getElementById(`edit_tag_${tid}`);
+                    if (cb) cb.checked = true;
+                });
+            } catch(e) {}
+        }
 
         // Reset lock KM checkbox to locked by default
         const lockCb = document.getElementById('editLockKm');

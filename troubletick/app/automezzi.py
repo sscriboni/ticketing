@@ -235,6 +235,40 @@ def registra_storico_km(conn, automezzo_id: int, km: int, sorgente: str, data_re
             FOREIGN KEY(tipo_manutenzione_id) REFERENCES tipi_manutenzione(tipo_manutenzione_id) ON DELETE CASCADE
         )
     """))
+
+    conn.execute(text(f"""
+        CREATE TABLE IF NOT EXISTS tag_automezzi (
+            tag_id {DB_PK},
+            nome TEXT UNIQUE NOT NULL,
+            colore TEXT DEFAULT '#0d6efd',
+            descrizione TEXT
+        )
+    """))
+
+    conn.execute(text(f"""
+        CREATE TABLE IF NOT EXISTS automezzi_tag (
+            automezzo_id INTEGER NOT NULL,
+            tag_id INTEGER NOT NULL,
+            PRIMARY KEY(automezzo_id, tag_id),
+            FOREIGN KEY(automezzo_id) REFERENCES automezzi(automezzo_id) ON DELETE CASCADE,
+            FOREIGN KEY(tag_id) REFERENCES tag_automezzi(tag_id) ON DELETE CASCADE
+        )
+    """))
+
+    count_tag = conn.execute(text("SELECT COUNT(*) FROM tag_automezzi")).scalar() or 0
+    if count_tag == 0:
+        default_tags = [
+            ("Pool", "#0d6efd", "Veicolo a disposizione del personale per trasferte ed uso comune"),
+            ("Sostitutiva", "#ffc107", "Veicolo di cortesia o sostitutivo"),
+            ("Uso Esclusivo", "#198754", "Veicolo assegnato in via esclusiva ad una figura specifica"),
+            ("Dirigenziale", "#6f42c1", "Veicolo ad uso direzionale/management"),
+            ("Elettrico", "#20c997", "Veicolo con alimentazione 100% elettrica")
+        ]
+        for t_nome, t_col, t_desc in default_tags:
+            conn.execute(text("""
+                INSERT INTO tag_automezzi (nome, colore, descrizione)
+                VALUES (:nome, :colore, :desc)
+            """), {"nome": t_nome, "colore": t_col, "desc": t_desc})
     
     # Check if empty to seed initial data for marche
     count_marche = conn.execute(text("SELECT COUNT(*) FROM marche_automezzi")).scalar() or 0
@@ -283,6 +317,64 @@ def registra_storico_km(conn, automezzo_id: int, km: int, sorgente: str, data_re
             "s1": s1, "s2": s2, "s3": s3, "rep1": rep1, "rep2": rep2, "rep3": rep3
         })
 
+
+def _ensure_tag_tables(conn):
+    try:
+        conn.execute(text(f"""
+            CREATE TABLE IF NOT EXISTS tag_automezzi (
+                tag_id {DB_PK},
+                nome TEXT UNIQUE NOT NULL,
+                colore TEXT DEFAULT '#0d6efd',
+                descrizione TEXT
+            )
+        """))
+        conn.execute(text(f"""
+            CREATE TABLE IF NOT EXISTS automezzi_tag (
+                automezzo_id INTEGER NOT NULL,
+                tag_id INTEGER NOT NULL,
+                PRIMARY KEY(automezzo_id, tag_id),
+                FOREIGN KEY(automezzo_id) REFERENCES automezzi(automezzo_id) ON DELETE CASCADE,
+                FOREIGN KEY(tag_id) REFERENCES tag_automezzi(tag_id) ON DELETE CASCADE
+            )
+        """))
+        count_tag = conn.execute(text("SELECT COUNT(*) FROM tag_automezzi")).scalar() or 0
+        if count_tag == 0:
+            default_tags = [
+                ("Pool", "#0d6efd", "Veicolo a disposizione del personale per trasferte ed uso comune"),
+                ("Sostitutiva", "#ffc107", "Veicolo di cortesia o sostitutivo"),
+                ("Uso Esclusivo", "#198754", "Veicolo assegnato in via esclusiva ad una figura specifica"),
+                ("Dirigenziale", "#6f42c1", "Veicolo ad uso direzionale/management"),
+                ("Elettrico", "#20c997", "Veicolo con alimentazione 100% elettrica")
+            ]
+            for t_nome, t_col, t_desc in default_tags:
+                conn.execute(text("""
+                    INSERT INTO tag_automezzi (nome, colore, descrizione)
+                    VALUES (:nome, :colore, :desc)
+                """), {"nome": t_nome, "colore": t_col, "desc": t_desc})
+    except Exception as e:
+        print(f"Error in _ensure_tag_tables: {e}")
+
+
+def _get_tags_map_for_automezzi(conn):
+    try:
+        _ensure_tag_tables(conn)
+        rows = conn.execute(text("""
+            SELECT at.automezzo_id, t.tag_id, t.nome, t.colore, t.descrizione
+            FROM automezzi_tag at
+            JOIN tag_automezzi t ON at.tag_id = t.tag_id
+            ORDER BY t.nome
+        """)).mappings().all()
+        tags_map = {}
+        for r in rows:
+            aid = r["automezzo_id"]
+            if aid not in tags_map:
+                tags_map[aid] = []
+            tags_map[aid].append(dict(r))
+        return tags_map
+    except Exception as e:
+        print(f"Error in _get_tags_map_for_automezzi: {e}")
+        return {}
+
 @router.get("/admin/automezzi/dislocazioni", response_class=HTMLResponse)
 def page_dislocazioni(r: Request):
     if "user" not in r.session: 
@@ -330,6 +422,8 @@ def page_dislocazioni(r: Request):
         sedi = conn.execute(text("SELECT * FROM sedi ORDER BY nome")).mappings().all()
         reparti = conn.execute(text("SELECT * FROM reparti ORDER BY nome")).mappings().all()
         tipi_manutenzione = conn.execute(text("SELECT * FROM tipi_manutenzione ORDER BY nome")).mappings().all()
+        all_tags = [dict(t) for t in conn.execute(text("SELECT * FROM tag_automezzi ORDER BY nome")).mappings().all()]
+        tags_map = _get_tags_map_for_automezzi(conn)
 
     sedi_map = {}
     servizi_map = {}
@@ -339,7 +433,11 @@ def page_dislocazioni(r: Request):
     totale_in_uso = 0
     totale_in_manutenzione = 0
 
-    for a in automezzi:
+    for a_raw in automezzi:
+        a = dict(a_raw)
+        a["tags"] = tags_map.get(a["automezzo_id"], [])
+        a["tag_ids"] = [t["tag_id"] for t in a["tags"]]
+
         stato = (a.get("stato") or "").strip().lower()
         if stato == "disponibile":
             totale_disponibili += 1
@@ -407,6 +505,7 @@ def page_dislocazioni(r: Request):
         "sedi": sedi,
         "reparti": reparti,
         "tipi_manutenzione": tipi_manutenzione,
+        "all_tags": all_tags,
         "user_reparto_id": user_reparto_id
     })
 
@@ -483,13 +582,19 @@ def list_automezzi(r: Request):
                 "km_partenza": row["km_partenza_calcolo"]
             }
 
-        # Convert automezzi to dicts and attach types
+        # Fetch tag_automezzi
+        all_tags = [dict(t) for t in conn.execute(text("SELECT * FROM tag_automezzi ORDER BY nome")).mappings().all()]
+        tags_map = _get_tags_map_for_automezzi(conn)
+
+        # Convert automezzi to dicts and attach types and tags
         veicoli_list = []
         oggi = datetime.date.today()
         for row in automezzi:
             v_dict = dict(row)
             v_dict["tipi_manutenzione_ids"] = veicolo_tipi.get(v_dict["automezzo_id"], [])
             v_dict["tipi_manutenzione_dati"] = veicolo_tipi_dati.get(v_dict["automezzo_id"], {})
+            v_dict["tags"] = tags_map.get(v_dict["automezzo_id"], [])
+            v_dict["tag_ids"] = [t["tag_id"] for t in v_dict["tags"]]
             
             v_dict["anzianita_anni"] = None
             if v_dict.get("data_immatricolazione"):
@@ -511,6 +616,7 @@ def list_automezzi(r: Request):
         "reparti": reparti,
         "marche": marche,
         "tipi_manutenzione": tipi_manutenzione,
+        "all_tags": all_tags,
         "user_reparto_id": user_reparto_id
     })
 
@@ -622,7 +728,8 @@ async def add_vehicle(
     reparto_assegnato_id: int = Form(None),
     fornitore: str = Form(None),
     classe_euro: str = Form(None),
-    tipi_manutenzione_ids: list[int] = Form(None)
+    tipi_manutenzione_ids: list[int] = Form(None),
+    tag_ids: list[int] = Form(None)
 ):
     if "user" not in r.session:
         return RedirectResponse(url="/login", status_code=303)
@@ -698,6 +805,14 @@ async def add_vehicle(
                     INSERT INTO automezzi_tipi_manutenzione (automezzo_id, tipo_manutenzione_id, data_inizio_calcolo, km_partenza_calcolo)
                     VALUES (:aid, :tid, :din, :kmp)
                 """), {"aid": new_id, "tid": int(tid), "din": din, "kmp": kmp})
+
+        # Save associated tags
+        if tag_ids:
+            for tid in tag_ids:
+                try:
+                    conn.execute(text("INSERT INTO automezzi_tag (automezzo_id, tag_id) VALUES (:aid, :tid)"), {"aid": new_id, "tid": int(tid)})
+                except Exception:
+                    pass
                 
     return RedirectResponse(url="/admin/automezzi", status_code=303)
 
@@ -721,7 +836,8 @@ async def edit_vehicle(
     reparto_assegnato_id: int = Form(None),
     fornitore: str = Form(None),
     classe_euro: str = Form(None),
-    tipi_manutenzione_ids: list[int] = Form(None)
+    tipi_manutenzione_ids: list[int] = Form(None),
+    tag_ids: list[int] = Form(None)
 ):
     if "user" not in r.session:
         return RedirectResponse(url="/login", status_code=303)
@@ -812,6 +928,15 @@ async def edit_vehicle(
                     INSERT INTO automezzi_tipi_manutenzione (automezzo_id, tipo_manutenzione_id, data_inizio_calcolo, km_partenza_calcolo)
                     VALUES (:aid, :tid, :din, :kmp)
                 """), {"aid": id, "tid": int(tid), "din": din, "kmp": kmp})
+
+        # Sync associated tags
+        conn.execute(text("DELETE FROM automezzi_tag WHERE automezzo_id = :id"), {"id": id})
+        if tag_ids:
+            for tid in tag_ids:
+                try:
+                    conn.execute(text("INSERT INTO automezzi_tag (automezzo_id, tag_id) VALUES (:aid, :tid)"), {"aid": id, "tid": int(tid)})
+                except Exception:
+                    pass
                 
     referer = r.headers.get("referer") or ""
     if "dislocazioni" in referer:
@@ -2299,6 +2424,85 @@ def delete_marca(id: int, r: Request):
         conn.execute(text("DELETE FROM marche_automezzi WHERE marca_id = :id"), {"id": id})
         
     return RedirectResponse(url="/admin/automezzi/marche", status_code=303)
+
+# Tag Automezzi CRUD
+@router.get("/admin/automezzi/tag", response_class=HTMLResponse)
+def list_tags(r: Request):
+    if "user" not in r.session: 
+        return RedirectResponse(url="/login")
+    user = r.session.get("user")
+    if user.get("ruolo") not in ("admin", "global_fleet_manager"):
+        return RedirectResponse(url="/")
+        
+    with engine.begin() as conn:
+        _ensure_tag_tables(conn)
+        tags_rows = conn.execute(text("""
+            SELECT t.tag_id, t.nome, t.colore, t.descrizione,
+                   (SELECT COUNT(*) FROM automezzi_tag at WHERE at.tag_id = t.tag_id) as count_veicoli
+            FROM tag_automezzi t
+            ORDER BY t.nome
+        """)).mappings().all()
+        tags = [dict(t) for t in tags_rows]
+        
+    return templates.TemplateResponse(r, "admin_automezzi_tag.html", {
+        "request": r, "cfg": CFG, "user": user, "tags": tags
+    })
+
+@router.post("/admin/automezzi/tag/nuovo")
+def add_tag(r: Request, nome: str = Form(...), colore: str = Form("#0d6efd"), descrizione: str = Form(None)):
+    if "user" not in r.session: 
+        return RedirectResponse(url="/login", status_code=303)
+    user = r.session.get("user")
+    if user.get("ruolo") not in ("admin", "global_fleet_manager"):
+        return RedirectResponse(url="/", status_code=303)
+        
+    nome_clean = nome.strip()
+    colore_clean = colore.strip() if colore else "#0d6efd"
+    desc_clean = descrizione.strip() if descrizione else None
+    
+    with engine.begin() as conn:
+        exists = conn.execute(text("SELECT COUNT(*) FROM tag_automezzi WHERE LOWER(nome) = LOWER(:nome)"), {"nome": nome_clean}).scalar()
+        if not exists:
+            conn.execute(text("""
+                INSERT INTO tag_automezzi (nome, colore, descrizione)
+                VALUES (:nome, :colore, :desc)
+            """), {"nome": nome_clean, "colore": colore_clean, "desc": desc_clean})
+        
+    return RedirectResponse(url="/admin/automezzi/tag", status_code=303)
+
+@router.post("/admin/automezzi/tag/modifica/{id}")
+def edit_tag(id: int, r: Request, nome: str = Form(...), colore: str = Form("#0d6efd"), descrizione: str = Form(None)):
+    if "user" not in r.session: 
+        return RedirectResponse(url="/login", status_code=303)
+    user = r.session.get("user")
+    if user.get("ruolo") not in ("admin", "global_fleet_manager"):
+        return RedirectResponse(url="/", status_code=303)
+        
+    nome_clean = nome.strip()
+    colore_clean = colore.strip() if colore else "#0d6efd"
+    desc_clean = descrizione.strip() if descrizione else None
+    
+    with engine.begin() as conn:
+        conn.execute(text("""
+            UPDATE tag_automezzi
+            SET nome = :nome, colore = :colore, descrizione = :desc
+            WHERE tag_id = :id
+        """), {"id": id, "nome": nome_clean, "colore": colore_clean, "desc": desc_clean})
+        
+    return RedirectResponse(url="/admin/automezzi/tag", status_code=303)
+
+@router.post("/admin/automezzi/tag/elimina/{id}")
+def delete_tag(id: int, r: Request):
+    if "user" not in r.session: 
+        return RedirectResponse(url="/login", status_code=303)
+    user = r.session.get("user")
+    if user.get("ruolo") not in ("admin", "global_fleet_manager"):
+        return RedirectResponse(url="/", status_code=303)
+        
+    with engine.begin() as conn:
+        conn.execute(text("DELETE FROM tag_automezzi WHERE tag_id = :id"), {"id": id})
+        
+    return RedirectResponse(url="/admin/automezzi/tag", status_code=303)
 
 @router.get("/admin/automezzi/viaggi", response_class=HTMLResponse)
 def list_viaggi(r: Request):

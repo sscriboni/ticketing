@@ -158,6 +158,15 @@
                             <tr data-marca="{{ v.marca_nome }}" data-modello="{{ v.modello }}" data-targa="{{ v.targa }}" data-tipo="{{ v.tipo }}" data-km="{{ v.km_attuali or 0 }}" data-imm="{{ v.data_immatricolazione or '' }}" data-canone="{{ v.canone_noleggio or 0 }}" data-sede-ass="{{ v.sede_assegnata_nome or '' }}" data-sede-att="{{ v.sede_attuale_nome or '' }}" data-reparto="{{ v.reparto_assegnato_nome or '' }}" data-stato="{{ v.stato }}" data-escluso="{{ v.escluso_prenotazione }}">
                                 <td>
                                     <div class="fw-bold">{{ v.marca_nome }} {{ v.modello }}</div>
+                                    {% if v.tags %}
+                                        <div class="d-flex flex-wrap gap-1 mt-1">
+                                            {% for tag in v.tags %}
+                                                <span class="badge shadow-sm" style="background-color: {{ tag.colore or '#0d6efd' }}; color: #ffffff; font-size: 0.72rem;">
+                                                    <i class="bi bi-tag-fill me-1"></i>{{ tag.nome }}
+                                                </span>
+                                            {% endfor %}
+                                        </div>
+                                    {% endif %}
                                 </td>
                                 <td>
                                     <strong class="font-monospace text-dark fs-5 text-uppercase" style="letter-spacing: 1.5px; font-weight: 800;">{{ v.targa }}</strong>
@@ -414,7 +423,26 @@
                             </div>
                         </div>
                         
-                                                <div class="row g-3 mb-4">
+                                                <!-- Tag Automezzo Associati -->
+                        <div class="row g-3 mb-4">
+                            <div class="col-12">
+                                <label class="form-label fw-bold text-dark"><i class="bi bi-tags-fill me-1 text-primary"></i> Tag Automezzo Associati</label>
+                                <div class="d-flex flex-wrap gap-2 px-1">
+                                    {% for tag in all_tags %}
+                                    <div class="form-check form-check-inline border rounded px-3 py-1.5 bg-light mb-1 me-1">
+                                        <input class="form-check-input me-2" type="checkbox" name="tag_ids" value="{{ tag.tag_id }}" id="add_tag_{{ tag.tag_id }}">
+                                        <label class="form-check-label fw-bold" for="add_tag_{{ tag.tag_id }}" style="color: {{ tag.colore or '#0d6efd' }}; font-size: 0.85rem;">
+                                            <i class="bi bi-tag-fill me-1"></i>{{ tag.nome }}
+                                        </label>
+                                    </div>
+                                    {% else %}
+                                    <div class="col-12 text-muted small">Nessun tag registrato a sistema.</div>
+                                    {% endfor %}
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="row g-3 mb-4">
                             <div class="col-12">
                                 <label class="form-label fw-bold text-dark">Tipi Manutenzione Associati</label>
                                 <div class="row px-2">
@@ -599,7 +627,26 @@
                             </div>
                         </div>
                         
-                                                <div class="row g-3 mb-4">
+                                                <!-- Tag Automezzo Associati -->
+                        <div class="row g-3 mb-4">
+                            <div class="col-12">
+                                <label class="form-label fw-bold text-dark"><i class="bi bi-tags-fill me-1 text-primary"></i> Tag Automezzo Associati</label>
+                                <div class="d-flex flex-wrap gap-2 px-1">
+                                    {% for tag in all_tags %}
+                                    <div class="form-check form-check-inline border rounded px-3 py-1.5 bg-light mb-1 me-1">
+                                        <input class="form-check-input edit-tag-checkbox" type="checkbox" name="tag_ids" value="{{ tag.tag_id }}" id="edit_tag_{{ tag.tag_id }}">
+                                        <label class="form-check-label fw-bold" for="edit_tag_{{ tag.tag_id }}" style="color: {{ tag.colore or '#0d6efd' }}; font-size: 0.85rem;">
+                                            <i class="bi bi-tag-fill me-1"></i>{{ tag.nome }}
+                                        </label>
+                                    </div>
+                                    {% else %}
+                                    <div class="col-12 text-muted small">Nessun tag registrato a sistema.</div>
+                                    {% endfor %}
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="row g-3 mb-4">
                             <div class="col-12">
                                 <label class="form-label fw-bold text-dark">Tipi Manutenzione Associati</label>
                                 <div class="row px-2">
@@ -729,6 +776,15 @@
 
             toggleEditCanone();
             
+            // Check associated tags
+            document.querySelectorAll('.edit-tag-checkbox').forEach(cb => cb.checked = false);
+            if (v.tag_ids) {
+                v.tag_ids.forEach(tid => {
+                    const cb = document.getElementById(`edit_tag_${tid}`);
+                    if (cb) cb.checked = true;
+                });
+            }
+
             // Check associated maintenance types
             document.querySelectorAll('.edit-tm-checkbox').forEach(cb => cb.checked = false);
             if (v.tipi_manutenzione_ids) {
