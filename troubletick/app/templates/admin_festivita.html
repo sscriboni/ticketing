@@ -49,21 +49,49 @@
                 <div class="mb-3"><label class="form-label">Descrizione</label><input name="descrizione" class="form-control" required placeholder="Es. Natale, Santo Patrono"></div>
                 <div class="mb-3">
                     <label class="form-label">Comune (opzionale)</label>
-                    <select name="comune_id" class="form-select">
+                    {% if comuni %}
+                    <div class="input-group mb-2">
+                        <span class="input-group-text"><i class="bi bi-search"></i></span>
+                        <input type="text" id="cercaComuneFestivitaInput" class="form-control form-control-sm" placeholder="Cerca comune per nome..." oninput="filterComuniFestivita(this.value)">
+                    </div>
+                    {% endif %}
+                    <select name="comune_id" id="comuneFestivitaSelect" class="form-select">
                         <option value="">-- Nazionale / Tutti i Comuni --</option>
                         {% for c in comuni %}
-                        <option value="{{ c.comune_id }}">{{ c.nome }}</option>
+                        <option value="{{ c.comune_id }}" data-nome="{{ c.nome }}">{{ c.nome }}</option>
                         {% endfor %}
                     </select>
-                    <small class="text-muted d-block mt-1">Seleziona un comune per le festività locali o patronali.</small>
+                    {% if not comuni %}
+                    <small class="text-danger d-block mt-1"><i class="bi bi-exclamation-triangle-fill me-1"></i> Nessun comune salvato nel database. <a href="/admin/comuni" target="_blank" class="fw-bold text-danger text-decoration-underline">Clicca qui per gestire o importare i Comuni</a>.</small>
+                    {% else %}
+                    <small class="text-muted d-block mt-1">Seleziona un comune per le festività locali o patronali. Non trovi il comune? <a href="/admin/comuni" target="_blank">Gestisci Comuni</a>.</small>
+                    {% endif %}
                 </div>
                 <button type="submit" class="btn btn-primary w-100">Salva Festività</button>
             </form>
         </div>
     </div>
     <div class="alert alert-info mt-4 small shadow-sm">
-        <i class="bi bi-info-circle-fill me-1"></i> <strong>Guida rapida:</strong> Aggiungi qui le festività nazionali o aziendali. Queste date verranno visualizzate nel calendario assenze e possono essere usate per calcolare i report di copertura del personale.
+        <i class="bi bi-info-circle-fill me-1"></i> <strong>Guida rapida:</strong> Aggiungi qui le festività nazionali o aziendali. Le festività collegate a un comune saranno visualizzate nei calendari solo per gli operatori delle sedi di quel comune.
     </div>
 </div>
+
+<script>
+function filterComuniFestivita(query) {
+    const norm = (query || '').toLowerCase().trim();
+    const select = document.getElementById('comuneFestivitaSelect');
+    if (!select) return;
+    for (let i = 0; i < select.options.length; i++) {
+        const opt = select.options[i];
+        if (!opt.value) continue;
+        const nome = (opt.getAttribute('data-nome') || opt.text || '').toLowerCase();
+        if (!norm || nome.includes(norm)) {
+            opt.style.display = '';
+        } else {
+            opt.style.display = 'none';
+        }
+    }
+}
+</script>
 </body>
 </html>

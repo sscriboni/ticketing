@@ -2416,7 +2416,9 @@ def admin_festivita(r: Request):
         """)).mappings().all()
         comuni = c.execute(text("SELECT comune_id, nome FROM comuni ORDER BY nome")).mappings().all()
     return templates.TemplateResponse(r, "admin_festivita.html", {
-        "request": r, "cfg": CFG, "user": user, "festivita": festivita, "comuni": comuni
+        "request": r, "cfg": CFG, "user": user, 
+        "festivita": [dict(x) for x in festivita], 
+        "comuni": [dict(x) for x in comuni]
     })
 
 @app.post("/admin/festivita")
