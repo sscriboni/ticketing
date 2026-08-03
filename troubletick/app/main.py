@@ -1,4 +1,5 @@
-import os, json, csv, io, shutil, uuid, traceback, random, asyncio
+import os, json, csv, io, shutil, uuid, traceback, random, asyncio, typing
+from typing import Optional
 from contextlib import asynccontextmanager
 from datetime import datetime, timedelta
 from fastapi import FastAPI, Request, Form, UploadFile, File, BackgroundTasks
@@ -281,7 +282,7 @@ try:
         )"""))
         
         c.execute(text("""CREATE TABLE IF NOT EXISTS cron_history (
-            cron_key TEXT PRIMARY KEY,
+            cron_key VARCHAR(191) PRIMARY KEY,
             last_run TEXT NOT NULL
         )"""))
 
@@ -449,7 +450,7 @@ async def check_and_send_morning_recaps():
                 return
             
             conn.execute(text("""
-                INSERT OR REPLACE INTO cron_history (cron_key, last_run) 
+                REPLACE INTO cron_history (cron_key, last_run) 
                 VALUES ('morning_recap', :today)
             """), {"today": today_str})
     except Exception as e:
