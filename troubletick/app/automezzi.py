@@ -102,7 +102,7 @@ with engine.begin() as conn:
             km_finali INTEGER,
             sede_partenza_id INTEGER NOT NULL,
             sede_arrivo_id INTEGER,
-            user_id INTEGER NOT NULL,
+            user_id INTEGER,
             note TEXT,
             FOREIGN KEY(automezzo_id) REFERENCES automezzi(automezzo_id) ON DELETE CASCADE,
             FOREIGN KEY(sede_partenza_id) REFERENCES sedi(sede_id),
@@ -110,6 +110,14 @@ with engine.begin() as conn:
             FOREIGN KEY(user_id) REFERENCES users(user_id)
         )
     """))
+
+    try:
+        conn.execute(text("ALTER TABLE viaggi_automezzi MODIFY user_id INT NULL"))
+    except Exception:
+        try:
+            conn.execute(text("ALTER TABLE viaggi_automezzi MODIFY COLUMN user_id INT NULL"))
+        except Exception:
+            pass
     
     conn.execute(text(f"""
         CREATE TABLE IF NOT EXISTS registro_km_automezzi (
