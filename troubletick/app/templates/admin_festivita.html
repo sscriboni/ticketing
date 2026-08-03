@@ -17,12 +17,19 @@
             <h4>Elenco Festività</h4>
             <div class="table-responsive">
                 <table class="table table-sm table-striped mt-3">
-                    <thead><tr><th>Data</th><th>Descrizione</th><th>Azioni</th></tr></thead>
+                    <thead><tr><th>Data</th><th>Descrizione</th><th>Comune</th><th>Azioni</th></tr></thead>
                     <tbody>
                     {% for f in festivita %}
                     <tr>
                         <td><strong>{{ f.data }}</strong></td>
                         <td>{{ f.descrizione }}</td>
+                        <td>
+                            {% if f.comune_nome %}
+                            <span class="badge bg-secondary"><i class="bi bi-geo-alt me-1"></i>{{ f.comune_nome }}</span>
+                            {% else %}
+                            <span class="text-muted small">Nazionale (Tutti)</span>
+                            {% endif %}
+                        </td>
                         <td>
                             <form method="post" action="/admin/festivita/delete" class="d-inline">
                                 <input type="hidden" name="festivita_id" value="{{ f.festivita_id }}">
@@ -39,7 +46,17 @@
             <h5>Nuova Festività</h5>
             <form method="post" action="/admin/festivita" class="mt-3">
                 <div class="mb-3"><label class="form-label">Data</label><input type="date" name="data" class="form-control" required></div>
-                <div class="mb-3"><label class="form-label">Descrizione</label><input name="descrizione" class="form-control" required placeholder="Es. Natale, Pasqua"></div>
+                <div class="mb-3"><label class="form-label">Descrizione</label><input name="descrizione" class="form-control" required placeholder="Es. Natale, Santo Patrono"></div>
+                <div class="mb-3">
+                    <label class="form-label">Comune (opzionale)</label>
+                    <select name="comune_id" class="form-select">
+                        <option value="">-- Nazionale / Tutti i Comuni --</option>
+                        {% for c in comuni %}
+                        <option value="{{ c.comune_id }}">{{ c.nome }}</option>
+                        {% endfor %}
+                    </select>
+                    <small class="text-muted d-block mt-1">Seleziona un comune per le festività locali o patronali.</small>
+                </div>
                 <button type="submit" class="btn btn-primary w-100">Salva Festività</button>
             </form>
         </div>

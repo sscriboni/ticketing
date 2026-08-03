@@ -186,7 +186,7 @@ document.addEventListener('DOMContentLoaded', function() {
 
     {% for f in festivita %}
     eventsList.push({
-        title: '🎉 {{ f.descrizione|replace("'", "\\'") }}',
+        title: '🎉 {{ f.descrizione|replace("'", "\\'") }}{% if f.comune_nome %} ({{ f.comune_nome|replace("'", "\\'") }}){% endif %}',
         start: '{{ f.data }}',
         allDay: true,
         color: '#dc3545'

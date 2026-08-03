@@ -27,7 +27,10 @@ def calendario(r: Request, copertura_alert: str = None, servizi_scoperti: str = 
         """), {"uid": uid}).mappings().all()
             
         festivita = c.execute(text("""
-            SELECT * FROM festivita ORDER BY data DESC
+            SELECT f.*, c.nome as comune_nome 
+            FROM festivita f 
+            LEFT JOIN comuni c ON f.comune_id = c.comune_id 
+            ORDER BY f.data DESC
         """)).mappings().all()
             
     return templates.TemplateResponse(r, "calendario.html", {
@@ -54,7 +57,10 @@ def calendario_presenze(r: Request):
         """), {"uid": uid}).mappings().all()
         
         festivita = c.execute(text("""
-            SELECT * FROM festivita ORDER BY data DESC
+            SELECT f.*, c.nome as comune_nome 
+            FROM festivita f 
+            LEFT JOIN comuni c ON f.comune_id = c.comune_id 
+            ORDER BY f.data DESC
         """)).mappings().all()
         
     return templates.TemplateResponse(r, "calendario_presenze.html", {
@@ -414,7 +420,7 @@ def assenze_mese(r: Request, mese: int = None, anno: int = None, reparto_id: int
             op_params["sid"] = sede_id
 
         operators = c.execute(text(f"""
-            SELECT u.user_id, u.nome, u.cognome, u.username, u.ruolo, u.sede_id, s.nome AS sede_nome
+            SELECT u.user_id, u.nome, u.cognome, u.username, u.ruolo, u.sede_id, s.nome AS sede_nome, s.comune_id AS op_comune_id
             FROM users u
             LEFT JOIN sedi s ON u.sede_id = s.sede_id
             WHERE {op_where}
@@ -426,10 +432,11 @@ def assenze_mese(r: Request, mese: int = None, anno: int = None, reparto_id: int
         last_day_of_month = date(anno, mese, num_days)
         
         festivita_list = c.execute(text("""
-            SELECT data, descrizione FROM festivita 
-            WHERE data >= :start AND data <= :end
+            SELECT f.data, f.descrizione, f.comune_id, c.nome as comune_nome 
+            FROM festivita f
+            LEFT JOIN comuni c ON f.comune_id = c.comune_id
+            WHERE f.data >= :start AND f.data <= :end
         """), {"start": first_day_of_month.isoformat(), "end": last_day_of_month.isoformat()}).mappings().all()
-        festivita_map = {f["data"]: f["descrizione"] for f in festivita_list}
         
         assenze_list = c.execute(text("""
             SELECT a.user_id, a.data_inizio, a.data_fine, a.motivo
@@ -451,11 +458,20 @@ def assenze_mese(r: Request, mese: int = None, anno: int = None, reparto_id: int
             d = date(anno, mese, day_num)
             d_str = d.isoformat()
             is_weekend = d.weekday() in (5, 6)
-            holiday = festivita_map.get(d_str)
+            
+            header_holiday = None
+            for f in festivita_list:
+                if f["data"] == d_str:
+                    if f["comune_id"] is None:
+                        header_holiday = f["descrizione"]
+                        break
+                    elif not header_holiday:
+                        header_holiday = f"{f['descrizione']} ({f['comune_nome']})"
+                        
             giorni.append({
                 "day_num": day_num,
                 "is_weekend": is_weekend,
-                "holiday": holiday,
+                "holiday": header_holiday,
                 "weekday_name": wd_names[d.weekday()]
             })
             
@@ -463,6 +479,8 @@ def assenze_mese(r: Request, mese: int = None, anno: int = None, reparto_id: int
         for op in operators:
             giorni_stato = []
             op_id = op["user_id"]
+            op_comune_id = op["op_comune_id"]
+            
             for day_num in range(1, num_days + 1):
                 d = date(anno, mese, day_num)
                 d_str = d.isoformat()
@@ -489,7 +507,13 @@ def assenze_mese(r: Request, mese: int = None, anno: int = None, reparto_id: int
                 presenza_nota = presence_record["nota"] if is_present else None
 
                 is_weekend = d.weekday() in (5, 6)
-                holiday = festivita_map.get(d_str)
+                
+                holiday = None
+                for f in festivita_list:
+                    if f["data"] == d_str:
+                        if f["comune_id"] is None or (op_comune_id is not None and f["comune_id"] == op_comune_id):
+                            holiday = f"{f['descrizione']} ({f['comune_nome']})" if f["comune_nome"] else f["descrizione"]
+                            break
                 
                 giorni_stato.append({
                     "absent": is_absent,

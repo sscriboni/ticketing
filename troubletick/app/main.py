@@ -136,8 +136,14 @@ try:
         c.execute(text(f"""CREATE TABLE IF NOT EXISTS festivita (
             festivita_id {DB_PK},
             data TEXT NOT NULL,
-            descrizione TEXT NOT NULL
+            descrizione TEXT NOT NULL,
+            comune_id INTEGER,
+            FOREIGN KEY(comune_id) REFERENCES comuni(comune_id)
         )"""))
+        try:
+            c.execute(text("ALTER TABLE festivita ADD COLUMN comune_id INTEGER"))
+        except Exception:
+            pass
         c.execute(text(f"""CREATE TABLE IF NOT EXISTS sedi (
             sede_id {DB_PK},
             nome TEXT NOT NULL
@@ -2402,16 +2408,32 @@ def admin_festivita(r: Request):
     if isinstance(user, RedirectResponse):
         return user
     with engine.connect() as c:
-        festivita = c.execute(text("SELECT * FROM festivita ORDER BY data DESC")).mappings().all()
-    return templates.TemplateResponse(r, "admin_festivita.html", {"request": r, "cfg": CFG, "user": user, "festivita": festivita})
+        festivita = c.execute(text("""
+            SELECT f.*, c.nome as comune_nome 
+            FROM festivita f 
+            LEFT JOIN comuni c ON f.comune_id = c.comune_id 
+            ORDER BY f.data DESC
+        """)).mappings().all()
+        comuni = c.execute(text("SELECT comune_id, nome FROM comuni ORDER BY nome")).mappings().all()
+    return templates.TemplateResponse(r, "admin_festivita.html", {
+        "request": r, "cfg": CFG, "user": user, "festivita": festivita, "comuni": comuni
+    })
 
 @app.post("/admin/festivita")
-def add_festivita(r: Request, data: str = Form(...), descrizione: str = Form(...)):
+def add_festivita(
+    r: Request, 
+    data: str = Form(...), 
+    descrizione: str = Form(...),
+    comune_id: typing.Optional[int] = Form(None)
+):
     user = require_superuser(r)
     if isinstance(user, RedirectResponse): return user
+    comune_id_val = comune_id if comune_id else None
     with engine.begin() as c:
-        c.execute(text("""INSERT INTO festivita (data, descrizione) VALUES (:d, :desc)"""), 
-                  {"d": data, "desc": descrizione})
+        c.execute(text("""
+            INSERT INTO festivita (data, descrizione, comune_id) 
+            VALUES (:d, :desc, :cid)
+        """), {"d": data, "desc": descrizione, "cid": comune_id_val})
     return RedirectResponse(url="/admin/festivita", status_code=303)
 
 @app.post("/admin/festivita/delete")
