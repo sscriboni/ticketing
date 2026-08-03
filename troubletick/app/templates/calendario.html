@@ -120,6 +120,79 @@
 <script>
 document.addEventListener('DOMContentLoaded', function() {
     var calendarEl = document.getElementById('calendar');
+
+    var festivitaSet = new Set([
+        {% for f in festivita %}
+        '{{ f.data }}',
+        {% endfor %}
+    ]);
+
+    var eventsList = [];
+
+    {% for a in assenze %}
+    (function() {
+        var title = '{{ a.nome|replace("'", "\\'") }} {{ a.cognome|replace("'", "\\'") }}{% if a.motivo %} ({{ a.motivo|replace("'", "\\'") }}){% endif %}';
+        var color = '{% if user.id == a.user_id %}#198754{% else %}#0d6efd{% endif %}';
+        
+        var curStart = null;
+        var curEnd = null;
+        
+        var startDate = new Date('{{ a.data_inizio }}T00:00:00');
+        var endDate = new Date('{{ a.data_fine }}T00:00:00');
+        
+        for (var d = new Date(startDate); d <= endDate; d.setDate(d.getDate() + 1)) {
+            var yyyy = d.getFullYear();
+            var mm = String(d.getMonth() + 1).padStart(2, '0');
+            var dd = String(d.getDate()).padStart(2, '0');
+            var dateStr = yyyy + '-' + mm + '-' + dd;
+            
+            if (festivitaSet.has(dateStr)) {
+                if (curStart) {
+                    var endD = new Date(curEnd + 'T12:00:00');
+                    endD.setDate(endD.getDate() + 1);
+                    var endStr = endD.getFullYear() + '-' + String(endD.getMonth() + 1).padStart(2, '0') + '-' + String(endD.getDate()).padStart(2, '0');
+                    eventsList.push({
+                        title: title,
+                        start: curStart,
+                        end: endStr,
+                        allDay: true,
+                        color: color
+                    });
+                    curStart = null;
+                    curEnd = null;
+                }
+            } else {
+                if (!curStart) {
+                    curStart = dateStr;
+                }
+                curEnd = dateStr;
+            }
+        }
+        
+        if (curStart) {
+            var endD2 = new Date(curEnd + 'T12:00:00');
+            endD2.setDate(endD2.getDate() + 1);
+            var endStr2 = endD2.getFullYear() + '-' + String(endD2.getMonth() + 1).padStart(2, '0') + '-' + String(endD2.getDate()).padStart(2, '0');
+            eventsList.push({
+                title: title,
+                start: curStart,
+                end: endStr2,
+                allDay: true,
+                color: color
+            });
+        }
+    })();
+    {% endfor %}
+
+    {% for f in festivita %}
+    eventsList.push({
+        title: '🎉 {{ f.descrizione|replace("'", "\\'") }}',
+        start: '{{ f.data }}',
+        allDay: true,
+        color: '#dc3545'
+    });
+    {% endfor %}
+
     var calendar = new FullCalendar.Calendar(calendarEl, {
         initialView: 'dayGridMonth',
         locale: 'it',
@@ -129,29 +202,7 @@ document.addEventListener('DOMContentLoaded', function() {
             center: 'title',
             right: 'dayGridMonth,dayGridWeek'
         },
-        events: [
-            {% for a in assenze %}
-            {
-                title: '{{ a.nome|replace("'", "\\'") }} {{ a.cognome|replace("'", "\\'") }}{% if a.motivo %} ({{ a.motivo|replace("'", "\\'") }}){% endif %}',
-                start: '{{ a.data_inizio }}',
-                end: (function(){ 
-                    var d = new Date('{{ a.data_fine }}T12:00:00'); 
-                    d.setDate(d.getDate() + 1); // FullCalendar ha la data di fine "esclusiva", aggiungiamo 1 giorno
-                    return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0');
-                })(),
-                allDay: true,
-                color: '{% if user.id == a.user_id %}#198754{% else %}#0d6efd{% endif %}'
-            },
-            {% endfor %}
-            {% for f in festivita %}
-            {
-                title: '🎉 {{ f.descrizione|replace("'", "\\'") }}',
-                start: '{{ f.data }}',
-                allDay: true,
-                color: '#dc3545'
-            }{% if not loop.last %},{% endif %}
-            {% endfor %}
-        ]
+        events: eventsList
     });
     
     var toggleCalendar = document.getElementById('toggleCalendar');
