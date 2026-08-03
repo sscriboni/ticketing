@@ -2782,7 +2782,7 @@ def list_viaggi(r: Request):
                 JOIN automezzi a ON v.automezzo_id = a.automezzo_id
                 JOIN marche_automezzi b ON a.marca_id = b.marca_id
                 JOIN sedi s_part ON v.sede_partenza_id = s_part.sede_id
-                JOIN users u ON v.user_id = u.user_id
+                LEFT JOIN users u ON v.user_id = u.user_id
                 WHERE a.reparto_assegnato_id = :rep 
                   AND v.ora_partenza_effettiva IS NOT NULL 
                   AND (v.ora_arrivo IS NULL OR v.km_finali IS NULL)
@@ -2797,7 +2797,7 @@ def list_viaggi(r: Request):
                 JOIN automezzi a ON v.automezzo_id = a.automezzo_id
                 JOIN marche_automezzi b ON a.marca_id = b.marca_id
                 JOIN sedi s_part ON v.sede_partenza_id = s_part.sede_id
-                JOIN users u ON v.user_id = u.user_id
+                LEFT JOIN users u ON v.user_id = u.user_id
                 WHERE a.reparto_assegnato_id = :rep 
                   AND v.ora_partenza_effettiva IS NULL 
                   AND (v.ora_arrivo IS NULL OR v.km_finali IS NULL)
@@ -2814,7 +2814,7 @@ def list_viaggi(r: Request):
                 JOIN marche_automezzi b ON a.marca_id = b.marca_id
                 JOIN sedi s_part ON v.sede_partenza_id = s_part.sede_id
                 JOIN sedi s_arr ON v.sede_arrivo_id = s_arr.sede_id
-                JOIN users u ON v.user_id = u.user_id
+                LEFT JOIN users u ON v.user_id = u.user_id
                 WHERE a.reparto_assegnato_id = :rep AND v.ora_arrivo IS NOT NULL AND v.km_finali IS NOT NULL
                 ORDER BY v.data_viaggio DESC, v.ora_arrivo DESC
             """), {"rep": user_reparto_id}).mappings().all()
@@ -2836,7 +2836,7 @@ def list_viaggi(r: Request):
                 JOIN automezzi a ON v.automezzo_id = a.automezzo_id
                 JOIN marche_automezzi b ON a.marca_id = b.marca_id
                 JOIN sedi s_part ON v.sede_partenza_id = s_part.sede_id
-                JOIN users u ON v.user_id = u.user_id
+                LEFT JOIN users u ON v.user_id = u.user_id
                 WHERE v.ora_partenza_effettiva IS NOT NULL 
                   AND (v.ora_arrivo IS NULL OR v.km_finali IS NULL)
                 ORDER BY v.data_viaggio DESC, v.ora_partenza DESC
@@ -2850,7 +2850,7 @@ def list_viaggi(r: Request):
                 JOIN automezzi a ON v.automezzo_id = a.automezzo_id
                 JOIN marche_automezzi b ON a.marca_id = b.marca_id
                 JOIN sedi s_part ON v.sede_partenza_id = s_part.sede_id
-                JOIN users u ON v.user_id = u.user_id
+                LEFT JOIN users u ON v.user_id = u.user_id
                 WHERE v.ora_partenza_effettiva IS NULL 
                   AND (v.ora_arrivo IS NULL OR v.km_finali IS NULL)
                 ORDER BY v.data_viaggio DESC, v.ora_partenza DESC
@@ -2866,7 +2866,7 @@ def list_viaggi(r: Request):
                 JOIN marche_automezzi b ON a.marca_id = b.marca_id
                 JOIN sedi s_part ON v.sede_partenza_id = s_part.sede_id
                 JOIN sedi s_arr ON v.sede_arrivo_id = s_arr.sede_id
-                JOIN users u ON v.user_id = u.user_id
+                LEFT JOIN users u ON v.user_id = u.user_id
                 WHERE v.ora_arrivo IS NOT NULL AND v.km_finali IS NOT NULL
                 ORDER BY v.data_viaggio DESC, v.ora_arrivo DESC
             """)).mappings().all()
@@ -2880,18 +2880,19 @@ def list_viaggi(r: Request):
             """)).mappings().all()
             
         operatori = conn.execute(text("""
-            SELECT user_id, nome, cognome, ruolo 
+            SELECT user_id, nome, cognome, ruolo, reparto_id 
             FROM users 
             WHERE attivo = 1 
             ORDER BY cognome, nome
         """)).mappings().all()
         
         sedi = conn.execute(text("SELECT sede_id, nome FROM sedi ORDER BY nome")).mappings().all()
+        reparti = conn.execute(text("SELECT reparto_id, nome FROM reparti ORDER BY nome")).mappings().all()
         
     return templates.TemplateResponse(r, "admin_automezzi_viaggi.html", {
         "request": r, "cfg": CFG, "user": user, "today_str": datetime.date.today().isoformat(),
         "viaggi_in_corso": viaggi_in_corso, "prenotazioni": prenotazioni, "viaggi_completati": viaggi_completati,
-        "veicoli": veicoli, "operatori": operatori, "sedi": sedi
+        "veicoli": veicoli, "operatori": operatori, "sedi": sedi, "reparti": reparti
     })
 
 @router.post("/admin/automezzi/viaggi/nuovo")
@@ -2905,7 +2906,7 @@ def add_viaggio(
     km_finali: int = Form(None),
     sede_partenza_id: int = Form(...),
     sede_arrivo_id: int = Form(None),
-    user_id: int = Form(...),
+    user_id: typing.Optional[int] = Form(None),
     note: str = Form(None)
 ):
     if "user" not in r.session: 
@@ -2925,6 +2926,7 @@ def add_viaggio(
     ora_arrivo = ora_arrivo.strip() if ora_arrivo and ora_arrivo.strip() else None
     km_finali_val = km_finali if km_finali is not None else None
     sede_arrivo_id_val = sede_arrivo_id if sede_arrivo_id else None
+    user_id_val = user_id if user_id else None
     
     with engine.begin() as conn:
         conn.execute(text("""
@@ -2939,7 +2941,7 @@ def add_viaggio(
             "automezzo_id": automezzo_id, "data_viaggio": data_viaggio, "ora_partenza": ora_partenza,
             "ora_arrivo": ora_arrivo, "km_iniziali": km_iniziali, "km_finali": km_finali_val,
             "sede_partenza_id": sede_partenza_id, "sede_arrivo_id": sede_arrivo_id_val,
-            "user_id": user_id, "note": note
+            "user_id": user_id_val, "note": note
         })
         
         if ora_arrivo and km_finali_val is not None:

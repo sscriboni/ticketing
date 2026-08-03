@@ -69,7 +69,7 @@
                             <tr>
                                 <td><span class="fw-bold">{{ v.marca }} {{ v.modello }}</span></td>
                                 <td><strong class="font-monospace text-dark fs-6 text-uppercase" style="letter-spacing: 1.2px; font-weight: 800;">{{ v.targa }}</strong></td>
-                                <td>{{ v.user_nome }} {{ v.user_cognome }}</td>
+                                <td>{% if v.user_nome or v.user_cognome %}{{ v.user_nome }} {{ v.user_cognome }}{% else %}<span class="text-muted fst-italic">Non specificato</span>{% endif %}</td>
                                 <td><i class="bi bi-geo-alt-fill text-danger me-1"></i>{{ v.sede_partenza_nome }}</td>
                                 <td>{{ v.data_viaggio }} alle {{ v.ora_partenza }}</td>
                                 <td><span class="badge bg-success font-monospace">{{ v.ora_partenza_effettiva }}</span></td>
@@ -120,7 +120,7 @@
                             <tr>
                                 <td><span class="fw-bold">{{ v.marca }} {{ v.modello }}</span></td>
                                 <td><strong class="font-monospace text-dark fs-6 text-uppercase" style="letter-spacing: 1.2px; font-weight: 800;">{{ v.targa }}</strong></td>
-                                <td>{{ v.user_nome }} {{ v.user_cognome }}</td>
+                                <td>{% if v.user_nome or v.user_cognome %}{{ v.user_nome }} {{ v.user_cognome }}{% else %}<span class="text-muted fst-italic">Non specificato</span>{% endif %}</td>
                                 <td><i class="bi bi-geo-alt-fill text-danger me-1"></i>{{ v.sede_partenza_nome }}</td>
                                 <td>{{ v.data_viaggio }} alle {{ v.ora_partenza }}</td>
                                 <td><span class="text-muted small">{{ v.note or '-' }}</span></td>
@@ -183,7 +183,7 @@
                             <tr>
                                 <td class="vehicle-name"><span class="fw-medium">{{ v.marca }} {{ v.modello }}</span></td>
                                 <td class="vehicle-targa"><strong class="font-monospace text-dark fs-6 text-uppercase" style="letter-spacing: 1.2px; font-weight: 800;">{{ v.targa }}</strong></td>
-                                <td class="driver-name">{{ v.user_nome }} {{ v.user_cognome }}</td>
+                                <td class="driver-name">{% if v.user_nome or v.user_cognome %}{{ v.user_nome }} {{ v.user_cognome }}{% else %}<span class="text-muted fst-italic">Non specificato</span>{% endif %}</td>
                                 <td>{{ v.sede_partenza_nome }}</td>
                                 <td><i class="bi bi-geo-alt-fill text-danger me-1"></i>{{ v.sede_arrivo_nome }}</td>
                                 <td>
@@ -227,27 +227,48 @@
                 </div>
                 <form action="../automezzi/viaggi/nuovo" method="post" id="addTripForm" onsubmit="return validateNewTripForm()">
                     <div class="modal-body">
-                        <!-- Automezzo e Conducente -->
+                        <!-- 1. Scelta Autovettura con ricerca parziale targa -->
                         <div class="row g-3 mb-3">
-                            <div class="col-md-6">
-                                <label class="form-label text-muted">Autovettura *</label>
+                            <div class="col-12">
+                                <label class="form-label text-muted fw-bold">1. Autovettura *</label>
+                                <div class="input-group mb-2">
+                                    <span class="input-group-text"><i class="bi bi-search"></i></span>
+                                    <input type="text" id="cercaTargaVeicoloInput" class="form-control" placeholder="Cerca per targa anche parziale (es. AB123)..." oninput="filterVehicleByTarga(this.value)">
+                                </div>
                                 <select class="form-select" name="automezzo_id" id="addTripAutomezzoId" onchange="onVehicleSelect()" required>
                                     <option value="" disabled selected>-- Seleziona Veicolo --</option>
                                     {% for v in veicoli %}
-                                    <option value="{{ v.automezzo_id }}" data-km="{{ v.km_attuali }}" data-sede-id="{{ v.sede_attuale_id or '' }}">
+                                    <option value="{{ v.automezzo_id }}" data-targa="{{ v.targa }}" data-km="{{ v.km_attuali }}" data-sede-id="{{ v.sede_attuale_id or '' }}">
                                         {{ v.marca }} {{ v.modello }} ({{ v.targa }}) — {{ v.km_attuali }} km [{{ v.sede_attuale_nome or 'Sede n/d' }}]
                                     </option>
                                     {% endfor %}
                                 </select>
                             </div>
+                        </div>
+
+                        <!-- 2. Reparto e Conducente Facoltativo -->
+                        <div class="row g-3 mb-3">
                             <div class="col-md-6">
-                                <label class="form-label text-muted">Operatore Conducente *</label>
-                                <select class="form-select" name="user_id" required>
-                                    <option value="" disabled selected>-- Seleziona Operatore --</option>
-                                    {% for op in operatori %}
-                                    <option value="{{ op.user_id }}">{{ op.cognome }} {{ op.nome }} ({{ op.ruolo }})</option>
+                                <label class="form-label text-muted fw-bold">2. Reparto Conducente</label>
+                                <select class="form-select" id="addTripRepartoId" onchange="onRepartoChange(this.value)">
+                                    <option value="" selected>-- Seleziona Prima il Reparto --</option>
+                                    {% for rep in reparti %}
+                                    <option value="{{ rep.reparto_id }}">{{ rep.nome }}</option>
                                     {% endfor %}
                                 </select>
+                                <small class="text-muted d-block" style="font-size: 0.75rem;">Seleziona prima il reparto per scegliere il conducente.</small>
+                            </div>
+                            <div class="col-md-6">
+                                <label class="form-label text-muted fw-bold">3. Operatore Conducente <span class="badge bg-secondary font-monospace" style="font-size:0.65rem;">Facoltativo</span></label>
+                                <select class="form-select" name="user_id" id="addTripUserId" disabled>
+                                    <option value="">-- Seleziona Prima il Reparto --</option>
+                                    {% for op in operatori %}
+                                    <option value="{{ op.user_id }}" data-reparto-id="{{ op.reparto_id or '' }}" style="display: none;">
+                                        {{ op.cognome }} {{ op.nome }} ({{ op.ruolo|capitalize }})
+                                    </option>
+                                    {% endfor %}
+                                </select>
+                                <small class="text-muted d-block" style="font-size: 0.75rem;">Campo facoltativo.</small>
                             </div>
                         </div>
 
@@ -413,7 +434,78 @@
         });
 
         function showAddTripModal() {
+            const searchInput = document.getElementById('cercaTargaVeicoloInput');
+            if (searchInput) {
+                searchInput.value = '';
+                filterVehicleByTarga('');
+            }
+            const repSelect = document.getElementById('addTripRepartoId');
+            if (repSelect) {
+                repSelect.value = '';
+                onRepartoChange('');
+            }
             addTripModalEl.show();
+        }
+
+        function filterVehicleByTarga(query) {
+            const norm = (query || '').toLowerCase().replace(/[\s-]/g, '');
+            const select = document.getElementById('addTripAutomezzoId');
+            if (!select) return;
+            
+            let matchedOption = null;
+            
+            for (let i = 0; i < select.options.length; i++) {
+                const opt = select.options[i];
+                if (!opt.value) continue;
+                const targa = (opt.getAttribute('data-targa') || '').toLowerCase().replace(/[\s-]/g, '');
+                const text = opt.text.toLowerCase().replace(/[\s-]/g, '');
+                
+                if (!norm || targa.includes(norm) || text.includes(norm)) {
+                    opt.style.display = '';
+                    if (!matchedOption) matchedOption = opt;
+                } else {
+                    opt.style.display = 'none';
+                }
+            }
+            
+            if (norm !== '') {
+                const currentOpt = select.options[select.selectedIndex];
+                if (!currentOpt || currentOpt.style.display === 'none') {
+                    if (matchedOption) {
+                        select.value = matchedOption.value;
+                        onVehicleSelect();
+                    }
+                }
+            }
+        }
+
+        function onRepartoChange(repartoId) {
+            const userSelect = document.getElementById('addTripUserId');
+            if (!userSelect) return;
+            
+            userSelect.value = "";
+            
+            if (!repartoId) {
+                userSelect.disabled = true;
+                userSelect.options[0].text = "-- Seleziona Prima il Reparto --";
+                for (let i = 1; i < userSelect.options.length; i++) {
+                    userSelect.options[i].style.display = 'none';
+                }
+                return;
+            }
+            
+            userSelect.disabled = false;
+            userSelect.options[0].text = "-- Nessun Conducente (Facoltativo) --";
+            
+            for (let i = 1; i < userSelect.options.length; i++) {
+                const opt = userSelect.options[i];
+                const repId = opt.getAttribute('data-reparto-id');
+                if (String(repId) === String(repartoId)) {
+                    opt.style.display = '';
+                } else {
+                    opt.style.display = 'none';
+                }
+            }
         }
 
         function onVehicleSelect() {
