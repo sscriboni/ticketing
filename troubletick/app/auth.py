@@ -46,15 +46,19 @@ def login_action(r: Request, username: str=Form(...), password: str=Form(...)):
         else:
             row = c.execute(text(query.format(field="u.username")), {"u": username}).mappings().first()
     if row and ok(password, row["password_hash"]):
-        # Fetch user roles
+        # Fetch user roles (combining primary users.ruolo and user_roles table)
+        roles = []
+        if row["ruolo"]:
+            roles.append(row["ruolo"])
         with engine.connect() as c_roles:
             roles_rows = c_roles.execute(text("SELECT ruolo FROM user_roles WHERE user_id = :uid"), {"uid": row["user_id"]}).mappings().all()
-            roles = [rr["ruolo"] for rr in roles_rows]
-            
+            for rr in roles_rows:
+                if rr["ruolo"] and rr["ruolo"] not in roles:
+                    roles.append(rr["ruolo"])
+
         if not roles:
-            # Fallback
-            roles = [row["ruolo"] or "normale"]
-            
+            roles = ["normale"]
+
         if len(roles) > 1:
             # Redirect to role selection page
             r.session["pending_login_user"] = {
@@ -70,7 +74,7 @@ def login_action(r: Request, username: str=Form(...), password: str=Form(...)):
                 "roles": roles
             }
             return RedirectResponse(url="/login/select-role", status_code=303)
-            
+
         # Single role login
         r.session["user"] = {
             "id": row["user_id"],
@@ -87,49 +91,155 @@ def login_action(r: Request, username: str=Form(...), password: str=Form(...)):
         }
         ip = r.client.host if r.client else "Sconosciuto"
         with engine.begin() as c_update:
-            c_update.execute(text("UPDATE users SET ultimo_accesso = :now, ultimo_ip = :ip WHERE user_id = :uid"), {"now": datetime.now().strftime("%Y-%m-%d %H:%M:%S"), "ip": ip, "uid": row["user_id"]})
+            c_update.execute(text("UPDATE users SET ultimo_accesso = :now, ultimo_ip = :ip WHERE user_id = :uid"), {
+                "now": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+                "ip": ip,
+                "uid": row["user_id"]
+            })
         return RedirectResponse(url="/", status_code=303)
-        
+
     ip = r.client.host if r.client else "Sconosciuto"
     now = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
     with open(os.path.join(BASE_DIR, "failed_logins.log"), "a", encoding="utf-8") as f:
         f.write(f"[{now}] IP: {ip} - Tentativo fallito per: {username}\n")
-        
-    return templates.TemplateResponse(r, "login.html", {"request": r, "cfg": CFG, "error":"Credenziali errate"})
+
+    return templates.TemplateResponse(r, "login.html", {"request": r, "cfg": CFG, "error": "Credenziali errate"})
 
 @router.get("/login/select-role", response_class=HTMLResponse)
 def select_role_form(r: Request):
     pending = r.session.get("pending_login_user")
     user = r.session.get("user")
-    
+
     if not pending and not user:
-        return RedirectResponse(url="/login")
-        
+        return RedirectResponse(url="/login", status_code=303)
+
     roles = pending["roles"] if pending else user.get("roles", [])
     if not roles:
-        return RedirectResponse(url="/login")
-        
+        return RedirectResponse(url="/login", status_code=303)
+
+    if len(roles) == 1:
+        if pending:
+            r.session["user"] = {
+                "id": pending["id"],
+                "username": pending["username"],
+                "email": pending["email"],
+                "nome": pending["nome"],
+                "cognome": pending["cognome"],
+                "ruolo": roles[0],
+                "reparto_nome": pending["reparto_nome"],
+                "sede_nome": pending["sede_nome"],
+                "sede_id": pending.get("sede_id"),
+                "magazzino_id": pending["magazzino_id"],
+                "roles": roles
+            }
+            r.session.pop("pending_login_user", None)
+        return RedirectResponse(url="/", status_code=303)
+
     with engine.connect() as c:
         ruoli_rows = c.execute(text("SELECT nome, descrizione FROM ruoli")).mappings().all()
         ruoli_dict = {rr["nome"]: rr["descrizione"] for rr in ruoli_rows}
-        
-    roles_data = [{"nome": role, "descrizione": ruoli_dict.get(role, role)} for role in roles]
-    return templates.TemplateResponse(r, "select_role.html", {"request": r, "cfg": CFG, "roles": roles_data, "user": user})
+
+    ROLE_META = {
+        "admin": {
+            "title": "Amministratore di Sistema",
+            "home_page": "Dashboard Amministrazione",
+            "desc": "Accesso completo a configurazioni, utenti, permessi e audit di sistema.",
+            "icon": "bi-shield-lock-fill",
+            "badge_class": "bg-danger"
+        },
+        "responsabile": {
+            "title": "Responsabile di Reparto",
+            "home_page": "Home Responsabile Reparto",
+            "desc": "Gestione presenze del reparto, monitoraggio ticket ed approvazioni.",
+            "icon": "bi-person-workspace",
+            "badge_class": "bg-primary"
+        },
+        "assistenza": {
+            "title": "Operatore Assistenza",
+            "home_page": "Dashboard Assistenza & Ticket",
+            "desc": "Gestione e presa in carico dei ticket di supporto operativo e tecnico.",
+            "icon": "bi-headset",
+            "badge_class": "bg-info text-dark"
+        },
+        "operatore": {
+            "title": "Operatore di Servizio",
+            "home_page": "Dashboard Operatore",
+            "desc": "Gestione ticket nei servizi di competenza ed evasione richieste.",
+            "icon": "bi-tools",
+            "badge_class": "bg-info text-dark"
+        },
+        "fleet_manager": {
+            "title": "Gestore Flotta Reparto",
+            "home_page": "Dashboard Flotta Reparto",
+            "desc": "Gestione parco automezzi del reparto, manutenzioni programmate e viaggi.",
+            "icon": "bi-car-front-fill",
+            "badge_class": "bg-warning text-dark"
+        },
+        "global_fleet_manager": {
+            "title": "Gestore Flotta Globale",
+            "home_page": "Dashboard Flotta Aziendale",
+            "desc": "Gestione globale dell'intero parco auto aziendale e piano manutenzioni.",
+            "icon": "bi-bus-front-fill",
+            "badge_class": "bg-warning text-dark"
+        },
+        "magazziniere": {
+            "title": "Gestore Magazzino",
+            "home_page": "Gestione Magazzino & Giacenze",
+            "desc": "Gestione giacenze, carico/scarico articoli e trasferimenti tra magazzini.",
+            "icon": "bi-box-seam-fill",
+            "badge_class": "bg-secondary"
+        },
+        "normale": {
+            "title": "Utente Standard",
+            "home_page": "Portale Utente",
+            "desc": "Apertura ticket di supporto, richieste di materiale e prenotazione veicoli.",
+            "icon": "bi-person-badge-fill",
+            "badge_class": "bg-success"
+        }
+    }
+
+    roles_data = []
+    current_ruolo = user.get("ruolo") if user else None
+    for role in roles:
+        r_info = ROLE_META.get(role, {
+            "title": role.replace("_", " ").capitalize(),
+            "home_page": "Home Page del Ruolo",
+            "desc": ruoli_dict.get(role, f"Ruolo {role}"),
+            "icon": "bi-person-fill",
+            "badge_class": "bg-dark"
+        })
+        roles_data.append({
+            "nome": role,
+            "title": r_info["title"],
+            "home_page": r_info["home_page"],
+            "desc": r_info["desc"],
+            "icon": r_info["icon"],
+            "badge_class": r_info["badge_class"],
+            "is_current": (role == current_ruolo)
+        })
+
+    return templates.TemplateResponse(r, "select_role.html", {
+        "request": r,
+        "cfg": CFG,
+        "roles": roles_data,
+        "current_ruolo": current_ruolo,
+        "pending": bool(pending)
+    })
 
 @router.post("/login/select-role")
 def select_role_action(r: Request, ruolo: str = Form(...)):
     pending = r.session.get("pending_login_user")
     user = r.session.get("user")
-    
+
     if not pending and not user:
-        return RedirectResponse(url="/login")
-        
+        return RedirectResponse(url="/login", status_code=303)
+
     roles = pending["roles"] if pending else user.get("roles", [])
     if ruolo not in roles:
-        return RedirectResponse(url="/login")
-        
+        return RedirectResponse(url="/login", status_code=303)
+
     if pending:
-        # Complete login
+        # Complete login with selected role
         r.session["user"] = {
             "id": pending["id"],
             "username": pending["username"],
@@ -144,8 +254,7 @@ def select_role_action(r: Request, ruolo: str = Form(...)):
             "roles": roles
         }
         r.session.pop("pending_login_user", None)
-        
-        # Update last login info
+
         ip = r.client.host if r.client else "Sconosciuto"
         with engine.begin() as c_update:
             c_update.execute(text("UPDATE users SET ultimo_accesso = :now, ultimo_ip = :ip WHERE user_id = :uid"), {
@@ -154,9 +263,11 @@ def select_role_action(r: Request, ruolo: str = Form(...)):
                 "uid": pending["id"]
             })
     else:
-        # Switch active role
+        # Switch active role for logged in user
         user["ruolo"] = ruolo
         r.session["user"] = user
+
+    return RedirectResponse(url="/", status_code=303)
         
     return RedirectResponse(url="/", status_code=303)
 

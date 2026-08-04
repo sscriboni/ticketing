@@ -1,0 +1,147 @@
+/* PWA & Mobile App Stylesheet for TroubleTick */
+
+:root {
+  --pwa-primary: #0284c7;
+  --pwa-primary-dark: #0369a1;
+  --pwa-bg: #f8fafc;
+  --pwa-card-bg: #ffffff;
+  --pwa-text: #0f172a;
+  --pwa-border: #e2e8f0;
+  --pwa-nav-height: 64px;
+}
+
+/* Touch & App UX Optimizations */
+html, body {
+  -webkit-tap-highlight-color: transparent;
+  -webkit-touch-callout: none;
+  overscroll-behavior-y: contain;
+}
+
+body.has-pwa-nav {
+  padding-bottom: calc(var(--pwa-nav-height) + env(safe-area-inset-bottom, 0px) + 12px) !important;
+}
+
+/* Glassmorphic App Bar / Navbar Touch Ups */
+.navbar {
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+}
+
+/* PWA Bottom Navigation Bar (Mobile App Shell) */
+.pwa-bottom-nav {
+  position: fixed;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  z-index: 1050;
+  height: calc(var(--pwa-nav-height) + env(safe-area-inset-bottom, 0px));
+  padding-bottom: env(safe-area-inset-bottom, 0px);
+  background: rgba(255, 255, 255, 0.95);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  border-top: 1px solid rgba(226, 232, 240, 0.8);
+  display: flex;
+  align-items: center;
+  justify-content: space-around;
+  box-shadow: 0 -4px 20px rgba(0, 0, 0, 0.06);
+}
+
+.pwa-nav-item {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  color: #64748b;
+  text-decoration: none;
+  font-size: 11px;
+  font-weight: 600;
+  padding: 6px 0;
+  transition: all 0.2s ease-in-out;
+  position: relative;
+}
+
+.pwa-nav-item i {
+  font-size: 20px;
+  margin-bottom: 2px;
+  transition: transform 0.2s ease, color 0.2s ease;
+}
+
+.pwa-nav-item:hover, .pwa-nav-item:focus {
+  color: var(--pwa-primary);
+}
+
+.pwa-nav-item.active {
+  color: var(--pwa-primary);
+  font-weight: 700;
+}
+
+.pwa-nav-item.active i {
+  transform: translateY(-2px) scale(1.1);
+  color: var(--pwa-primary);
+}
+
+.pwa-nav-badge {
+  position: absolute;
+  top: 4px;
+  right: 25%;
+  background-color: #ef4444;
+  color: #ffffff;
+  font-size: 10px;
+  font-weight: 800;
+  padding: 2px 5px;
+  border-radius: 10px;
+  line-height: 1;
+}
+
+/* PWA Install Banner */
+#pwaInstallBanner {
+  position: fixed;
+  bottom: calc(var(--pwa-nav-height) + 16px);
+  left: 16px;
+  right: 16px;
+  max-width: 480px;
+  margin: 0 auto;
+  z-index: 1060;
+  background: #0f172a;
+  color: #ffffff;
+  border-radius: 16px;
+  box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.25), 0 8px 10px -6px rgba(0, 0, 0, 0.1);
+  padding: 14px 18px;
+  display: none;
+  align-items: center;
+  gap: 14px;
+  animation: slideUp 0.35s cubic-bezier(0.16, 1, 0.3, 1);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+@keyframes slideUp {
+  from {
+    transform: translateY(100%);
+    opacity: 0;
+  }
+  to {
+    transform: translateY(0);
+    opacity: 1;
+  }
+}
+
+/* App-like Card Styling */
+.card {
+  border-radius: 14px;
+  transition: transform 0.2s ease, box-shadow 0.2s ease;
+}
+
+.card:hover {
+  box-shadow: 0 8px 20px rgba(0, 0, 0, 0.06);
+}
+
+/* Mobile buttons touch sizing */
+@media (max-width: 767.98px) {
+  .btn {
+    min-height: 44px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+  }
+}

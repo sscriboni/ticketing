@@ -588,6 +588,14 @@ app.mount("/uploads", StaticFiles(directory=UPLOAD_DIR), name="uploads")
 async def favicon():
     return FileResponse(os.path.join(BASE_DIR, "static", "favicon.png"))
 
+@app.get("/manifest.json", include_in_schema=False)
+async def pwa_manifest():
+    return FileResponse(os.path.join(BASE_DIR, "static", "manifest.json"), media_type="application/json")
+
+@app.get("/sw.js", include_in_schema=False)
+async def pwa_service_worker():
+    return FileResponse(os.path.join(BASE_DIR, "static", "sw.js"), media_type="application/javascript")
+
 def get_new_tickets_count(user):
     if not user or user.get("ruolo") == "normale":
         return 0
@@ -726,6 +734,9 @@ def home(r: Request):
             }
             return templates.TemplateResponse(r, "home_admin.html", {"request": r, "cfg": CFG, "avvisi": avvisi, "user": user, "stats": stats})
             
+        elif ruolo == "magazziniere":
+            return RedirectResponse(url="/magazzini", status_code=303)
+
         elif ruolo == "responsabile":
             rep_id = user.get("reparto_id")
             reparto_nome = c.execute(text("SELECT nome FROM reparti WHERE reparto_id = :rep_id"), {"rep_id": rep_id}).scalar() or "N/D"

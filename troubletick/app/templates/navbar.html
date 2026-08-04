@@ -1,5 +1,14 @@
 {% include 'base_script.html' %}
+<link rel="manifest" href="/manifest.json">
 <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css">
+<link rel="stylesheet" href="/static/css/pwa.css">
+<meta name="theme-color" content="#0284c7">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="TroubleTick">
+<link rel="apple-touch-icon" href="/static/icon-192.png">
+
 <style>
   /* Enable hover & click opening for navbar dropdowns */
   @media (min-width: 992px) {
@@ -511,5 +520,112 @@
         });
       }
     });
+
+    if (document.querySelector('.pwa-bottom-nav')) {
+      document.body.classList.add('has-pwa-nav');
+    }
   });
+</script>
+
+{% if user %}
+<!-- PWA Mobile Bottom Navigation Bar -->
+<nav class="pwa-bottom-nav d-md-none">
+  <a href="/" class="pwa-nav-item {% if request.url.path == '/' %}active{% endif %}">
+    <i class="bi bi-house-door-fill"></i>
+    <span>Home</span>
+  </a>
+
+  <a href="/tickets" class="pwa-nav-item {% if request.url.path.startswith('/ticket') %}active{% endif %}">
+    <i class="bi bi-ticket-detailed-fill"></i>
+    <span>Ticket</span>
+    {% set cnt_nuovi = get_new_tickets_count(user) %}
+    {% if cnt_nuovi > 0 %}
+    <span class="pwa-nav-badge">{{ cnt_nuovi }}</span>
+    {% endif %}
+  </a>
+
+  {% if user.ruolo in ('admin', 'fleet_manager', 'global_fleet_manager') %}
+  <a href="/admin/automezzi/gestione" class="pwa-nav-item {% if request.url.path.startswith('/admin/automezzi') %}active{% endif %}">
+    <i class="bi bi-car-front-fill"></i>
+    <span>Flotta</span>
+  </a>
+  {% else %}
+  <a href="/gestione-viaggi" class="pwa-nav-item {% if request.url.path.startswith('/gestione-viaggi') or request.url.path.startswith('/registra-viaggio') %}active{% endif %}">
+    <i class="bi bi-car-front-fill"></i>
+    <span>Viaggi</span>
+  </a>
+  {% endif %}
+
+  <a href="/magazzini" class="pwa-nav-item {% if request.url.path.startswith('/magazzin') or request.url.path.startswith('/richieste-materiale') %}active{% endif %}">
+    <i class="bi bi-box-seam-fill"></i>
+    <span>Magazzino</span>
+  </a>
+
+  {% if user.roles and user.roles|length > 1 %}
+  <a href="/login/select-role" class="pwa-nav-item {% if request.url.path == '/login/select-role' %}active{% endif %}">
+    <i class="bi bi-person-gear"></i>
+    <span>Ruolo</span>
+  </a>
+  {% else %}
+  <a href="/profilo" class="pwa-nav-item {% if request.url.path == '/profilo' %}active{% endif %}">
+    <i class="bi bi-person-circle"></i>
+    <span>Profilo</span>
+  </a>
+  {% endif %}
+</nav>
+{% endif %}
+
+<!-- PWA Floating Install Banner -->
+<div id="pwaInstallBanner">
+  <div class="bg-primary text-white p-2 rounded-circle shadow-sm">
+    <i class="bi bi-download fs-5"></i>
+  </div>
+  <div class="flex-grow-1">
+    <strong class="d-block text-white">Installa TroubleTick App</strong>
+    <small class="text-white-50">Accedi rapidamente dalla tua schermata home.</small>
+  </div>
+  <button class="btn btn-primary btn-sm fw-bold px-3 py-1 rounded-pill" onclick="installPWA()">Installa</button>
+  <button class="btn btn-outline-light btn-sm px-2 py-1 ms-1 rounded-circle" onclick="dismissPWABanner()"><i class="bi bi-x-lg"></i></button>
+</div>
+
+<!-- PWA Service Worker & Install Script -->
+<script>
+  if ('serviceWorker' in navigator) {
+    window.addEventListener('load', function() {
+      navigator.serviceWorker.register('/sw.js').then(function(registration) {
+        console.log('[PWA] ServiceWorker registered with scope: ', registration.scope);
+      }, function(err) {
+        console.log('[PWA] ServiceWorker registration failed: ', err);
+      });
+    });
+  }
+
+  let deferredPrompt;
+  window.addEventListener('beforeinstallprompt', (e) => {
+    e.preventDefault();
+    deferredPrompt = e;
+    const banner = document.getElementById('pwaInstallBanner');
+    if (banner) {
+      banner.style.display = 'flex';
+    }
+  });
+
+  function installPWA() {
+    if (deferredPrompt) {
+      deferredPrompt.prompt();
+      deferredPrompt.userChoice.then((choiceResult) => {
+        if (choiceResult.outcome === 'accepted') {
+          console.log('[PWA] User accepted install prompt');
+        }
+        deferredPrompt = null;
+        const banner = document.getElementById('pwaInstallBanner');
+        if (banner) banner.style.display = 'none';
+      });
+    }
+  }
+
+  function dismissPWABanner() {
+    const banner = document.getElementById('pwaInstallBanner');
+    if (banner) banner.style.display = 'none';
+  }
 </script>

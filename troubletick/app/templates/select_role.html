@@ -41,43 +41,42 @@
     {% include 'navbar.html' %}
 
     <div class="container flex-grow-1 d-flex align-items-center justify-content-center py-5">
-        <div class="card shadow-lg p-4 border-0" style="max-width: 550px; width: 100%; border-radius: 16px;">
+        <div class="card shadow-lg p-4 border-0" style="max-width: 620px; width: 100%; border-radius: 16px;">
             <div class="text-center mb-4">
-                <div class="bg-primary text-white d-inline-flex p-3 rounded-circle mb-3">
+                <div class="bg-primary text-white d-inline-flex p-3 rounded-circle mb-3 shadow-sm">
                     <i class="bi bi-person-gear fs-3"></i>
                 </div>
-                <h3 class="fw-bold text-dark">Seleziona Ruolo</h3>
-                <p class="text-muted">Il tuo account ha ruoli multipli. Scegli quale utilizzare per questa sessione di lavoro.</p>
+                <h3 class="fw-bold text-dark mb-1">Seleziona Ruolo Operativo</h3>
+                <p class="text-muted small">Il tuo account dispone di più ruoli abilitati. Seleziona il ruolo che desideri utilizzare per accedere alla rispettiva Home Page.</p>
             </div>
 
             <form method="post" action="/login/select-role" id="roleForm">
                 <div class="d-flex flex-column gap-3 mb-4">
                     {% for role in roles %}
-                    <label class="role-card p-3 d-flex align-items-center gap-3" id="label_{{ role.nome }}">
-                        <input type="radio" name="ruolo" value="{{ role.nome }}" class="form-check-input" required {% if loop.first %}checked{% endif %}>
-                        <div class="role-icon-container text-primary">
-                            {% if role.nome == 'admin' %}
-                                <i class="bi bi-shield-lock-fill fs-2"></i>
-                            {% elif role.nome == 'responsabile' %}
-                                <i class="bi bi-person-workspace fs-2"></i>
-                            {% elif role.nome == 'assistenza' %}
-                                <i class="bi bi-headset fs-2"></i>
-                            {% elif role.nome == 'fleet_manager' or role.nome == 'global_fleet_manager' %}
-                                <i class="bi bi-car-front-fill fs-2"></i>
-                            {% else %}
-                                <i class="bi bi-person fs-2"></i>
-                            {% endif %}
+                    <label class="role-card p-3 d-flex align-items-start gap-3 {% if role.is_current %}border-primary bg-light{% endif %}" id="label_{{ role.nome }}">
+                        <input type="radio" name="ruolo" value="{{ role.nome }}" class="form-check-input mt-1" required {% if role.is_current or loop.first %}checked{% endif %}>
+                        <div class="role-icon-container text-primary fs-2">
+                            <i class="bi {{ role.icon }}"></i>
                         </div>
-                        <div>
-                            <h5 class="mb-1 fw-bold text-dark">{{ role.nome|capitalize }}</h5>
-                            <small class="text-muted d-block">{{ role.descrizione }}</small>
+                        <div class="flex-grow-1 pe-4">
+                            <div class="d-flex align-items-center gap-2 mb-1">
+                                <h5 class="mb-0 fw-bold text-dark">{{ role.title }}</h5>
+                                <span class="badge {{ role.badge_class }} small">{{ role.nome }}</span>
+                                {% if role.is_current %}
+                                <span class="badge bg-success small"><i class="bi bi-check-circle me-1"></i>Attivo</span>
+                                {% endif %}
+                            </div>
+                            <div class="text-primary fw-semibold small mb-1">
+                                <i class="bi bi-house-door-fill me-1"></i> <strong>Home Page:</strong> {{ role.home_page }}
+                            </div>
+                            <div class="text-muted small lh-sm">{{ role.desc }}</div>
                         </div>
                     </label>
                     {% endfor %}
                 </div>
 
-                <button type="submit" class="btn btn-primary btn-lg w-100 py-2 fw-bold rounded-3">
-                    Conferma e Accedi <i class="bi bi-arrow-right ms-2"></i>
+                <button type="submit" class="btn btn-primary btn-lg w-100 py-2.5 fw-bold rounded-3 shadow-sm">
+                    Conferma e Vai alla Home Page <i class="bi bi-arrow-right-short fs-4 align-middle"></i>
                 </button>
             </form>
         </div>
