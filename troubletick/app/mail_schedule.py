@@ -100,12 +100,13 @@ def get_next_week_working_days(conn):
         })
     return next_week_days
 
-def get_next_5_working_days(conn):
+def get_next_5_working_days(conn, start_date=None):
     """
     Ritorna la lista delle date (date_obj, date_str, formatted_str) dei prossimi 5 giorni lavorativi
-    (escludendo sabato, domenica e festivita) a partire da domani.
+    (escludendo sabato, domenica e festivita).
+    Se start_date non è specificata, parte dal prossimo giorno lavorativo (es. domani 5/8 per l'esecuzione del 4/8).
     """
-    from datetime import date, timedelta
+    from datetime import date, datetime, timedelta
     festivita_dates = set()
     try:
         fest_rows = conn.execute(text("SELECT data FROM festivita")).mappings().all()
@@ -114,20 +115,24 @@ def get_next_5_working_days(conn):
         pass
         
     working_days = []
-    target = date.today()
+    if start_date is None:
+        target = date.today() + timedelta(days=1)
+    else:
+        if isinstance(start_date, datetime):
+            target = start_date.date()
+        else:
+            target = start_date
+            
     while len(working_days) < 5:
+        if target.weekday() < 5:
+            target_str = target.strftime("%Y-%m-%d")
+            if target_str not in festivita_dates:
+                working_days.append({
+                    "date": target,
+                    "date_str": target_str,
+                    "formatted": format_date_italian(target)
+                })
         target += timedelta(days=1)
-        # 5=Sabato, 6=Domenica
-        if target.weekday() >= 5:
-            continue
-        target_str = target.strftime("%Y-%m-%d")
-        if target_str in festivita_dates:
-            continue
-        working_days.append({
-            "date": target,
-            "date_str": target_str,
-            "formatted": format_date_italian(target)
-        })
     return working_days
 
 def get_date_5_working_days_ago(conn):
