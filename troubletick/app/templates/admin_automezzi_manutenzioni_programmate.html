@@ -585,97 +585,85 @@
                 <div class="p-4 text-center">
                     <div class="alert alert-success d-inline-flex align-items-center gap-2 mb-0 shadow-sm">
                         <i class="bi bi-check-circle-fill fs-5"></i>
-                        <span>Tutti gli automezzi in anagrafica hanno almeno una manutenzione programmata impostata.</span>
-                    </div>
-                </div>
-                {% endif %}
-            </div>
-        </div>
+            {% endif %}
 
+        </div>
     </div>
 
-    <!-- Modal Programma Manutenzione -->
+    <!-- Modal Programma Nuova Manutenzione -->
     <div class="modal fade" id="modalProgrammaManutenzione" tabindex="-1" aria-hidden="true">
         <div class="modal-dialog modal-dialog-centered">
             <div class="modal-content shadow-lg border-0">
-                <div class="modal-header bg-primary text-white">
+                <div class="modal-header bg-success text-white">
                     <h5 class="modal-title fw-bold">
-                        <i class="bi bi-calendar-plus me-2"></i> Programma Manutenzione Veicolo
+                        <i class="bi bi-calendar-plus me-2"></i> Programma Manutenzione
                     </h5>
                     <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Chiudi"></button>
                 </div>
-                <form action="/admin/automezzi/manutenzioni/programma" method="POST" id="formProgrammaManutenzione">
+                <form action="/admin/automezzi/manutenzioni/programma" method="POST">
                     <div class="modal-body p-4">
                         
-                        <!-- 1. Selezione Autoveicolo -->
+                        <!-- 1. Selezione Veicolo -->
                         <div class="mb-3">
-                            <label class="form-label fw-bold text-dark">Autoveicolo <span class="text-danger">*</span></label>
-                            <div class="input-group mb-2">
-                                <span class="input-group-text bg-light"><i class="bi bi-search text-muted"></i></span>
-                                <input type="text" id="searchProgTargaInput" class="form-control" placeholder="Cerca parziale per targa, marca o modello...">
-                            </div>
-                            <select name="automezzo_id" id="progAutomezzoId" class="form-select" required onchange="onProgVehOrTypeChange()">
-                                <option value="">-- Seleziona Autoveicolo --</option>
+                            <label class="form-label fw-bold text-dark">
+                                <i class="bi bi-car-front me-1"></i> Seleziona Veicolo *
+                            </label>
+                            <select name="automezzo_id" id="progAutomezzoId" class="form-select" onchange="onProgVehOrTypeChange()" required>
+                                <option value="" disabled selected>-- Scegli Veicolo --</option>
                                 {% for v in veicoli %}
-                                    <option value="{{ v.automezzo_id }}" 
-                                            data-targa="{{ v.targa }}" 
-                                            data-desc="{{ v.marca }} {{ v.modello }}" 
-                                            data-km="{{ v.km_attuali or 0 }}"
-                                            data-immatricolazione="{{ v.data_immatricolazione or '' }}">
-                                        {{ v.marca }} {{ v.modello }} ({{ v.targa }}) — {{ v.km_attuali or 0 }} km
-                                    </option>
+                                <option value="{{ v.automezzo_id }}" data-km="{{ v.km_attuali }}" data-immatricolazione="{{ v.data_immatricolazione or '' }}">
+                                    {{ v.marca }} {{ v.modello }} ({{ v.targa }}) — {{ v.km_attuali }} km
+                                </option>
                                 {% endfor %}
                             </select>
                         </div>
 
                         <!-- 2. Selezione Tipo Manutenzione -->
                         <div class="mb-3">
-                            <label class="form-label fw-bold text-dark">Tipo Manutenzione <span class="text-danger">*</span></label>
-                            <select name="tipo_manutenzione_id" id="progTipoManutenzioneId" class="form-select" required onchange="onProgVehOrTypeChange()">
-                                <option value="">-- Seleziona Tipo Manutenzione --</option>
-                                {% for t in tipi_manutenzione %}
-                                    <option value="{{ t.tipo_manutenzione_id }}" 
-                                            data-nome="{{ t.nome }}"
-                                            data-km="{{ t.scadenza_km or 0 }}" 
-                                            data-mesi="{{ t.scadenza_mesi or 0 }}" 
-                                            data-anni="{{ t.scadenza_anni or 0 }}">
-                                        {{ t.nome }} ({{ t.categoria or 'Generale' }})
-                                        {% if t.scadenza_km or t.scadenza_mesi or t.scadenza_anni %}
-                                            — [
-                                            {%- if t.scadenza_km %}{{ t.scadenza_km }} km{% endif -%}
-                                            {%- if t.scadenza_km and (t.scadenza_mesi or t.scadenza_anni) %}, {% endif -%}
-                                            {%- if t.scadenza_mesi %}{{ t.scadenza_mesi }} mesi{% endif -%}
-                                            {%- if t.scadenza_mesi and t.scadenza_anni %}, {% endif -%}
-                                            {%- if t.scadenza_anni %}{{ t.scadenza_anni }} anni{% endif -%}
-                                            ]
-                                        {% endif %}
-                                    </option>
+                            <label class="form-label fw-bold text-dark">
+                                <i class="bi bi-tools me-1"></i> Tipo Manutenzione *
+                            </label>
+                            <select name="tipo_manutenzione_id" id="progTipoManutenzioneId" class="form-select" onchange="onProgVehOrTypeChange()" required>
+                                <option value="" disabled selected>-- Scegli Tipo Manutenzione --</option>
+                                {% for tm in tipi_manutenzione %}
+                                <option value="{{ tm.tipo_manutenzione_id }}" 
+                                        data-nome="{{ tm.nome }}"
+                                        data-km="{{ tm.scadenza_km or 0 }}" 
+                                        data-mesi="{{ tm.scadenza_mesi or 0 }}" 
+                                        data-anni="{{ tm.scadenza_anni or 0 }}">
+                                    {{ tm.nome }} ({{ tm.categoria }}) 
+                                    {% set params = [] %}
+                                    {% if tm.scadenza_km %}{% set _ = params.append(tm.scadenza_km ~ ' km') %}{% endif %}
+                                    {% if tm.scadenza_mesi %}{% set _ = params.append(tm.scadenza_mesi ~ ' mesi') %}{% endif %}
+                                    {% if tm.scadenza_anni %}{% set _ = params.append(tm.scadenza_anni ~ ' anni') %}{% endif %}
+                                    {% if params %}[{{ params|join(', ') }}]{% endif %}
+                                </option>
                                 {% endfor %}
                             </select>
                         </div>
 
-                        <!-- 3. Campo KM Iniziali di partenza (Dinamico) -->
+                        <!-- 3. Data Inizio Calcolo (Dinamico) -->
+                        <div class="mb-3" id="divProgDataInizio" style="display: none;">
+                            <label class="form-label fw-bold text-dark">
+                                <i class="bi bi-calendar3 me-1"></i> Data di Inizio Calcolo Scadenza
+                            </label>
+                            <input type="date" name="data_inizio_calcolo" id="progDataInizioInput" class="form-control">
+                            <small class="text-muted d-block mt-1" id="progDataHelperNote">
+                                <i class="bi bi-info-circle me-1"></i> Data di partenza per il calcolo della scadenza temporale.
+                            </small>
+                        </div>
+
+                        <!-- 4. Km Partenza Calcolo (Dinamico) -->
                         <div class="mb-3" id="divProgKmPartenza" style="display: none;">
                             <label class="form-label fw-bold text-dark">
-                                Chilometri Iniziali di Partenza <span class="text-danger">*</span>
+                                <i class="bi bi-speedometer2 me-1"></i> Chilometri Partenza Calcolo Scadenza
                             </label>
                             <div class="input-group">
                                 <input type="number" name="km_partenza_calcolo" id="progKmPartenzaInput" class="form-control" placeholder="es. 15000" min="0">
                                 <span class="input-group-text">km</span>
                             </div>
-                            <small id="progKmHelperNote" class="text-muted d-block mt-1">
-                                <i class="bi bi-info-circle me-1"></i> Proposti di default i chilometri attuali del veicolo selezionato.
-                            </small>
-                        </div>
-
-                        <!-- 4. Campo Data di Partenza (Dinamico) -->
-                        <div class="mb-3" id="divProgDataInizio" style="display: none;">
-                            <label class="form-label fw-bold text-dark">
-                                Data di Partenza Calcolo <span class="text-danger">*</span>
-                            </label>
-                            <input type="date" name="data_inizio_calcolo" id="progDataInizioInput" class="form-control">
-                            <small id="progDataHelperNote" class="text-muted d-block mt-1">
-                                <i class="bi bi-info-circle me-1"></i> Proposta di default la data odierna.
+                            <small class="text-muted d-block mt-1" id="progKmHelperNote">
+                                <i class="bi bi-info-circle me-1"></i> Chilometraggio di partenza per il calcolo della scadenza chilometrica.
                             </small>
                         </div>
 
@@ -687,7 +675,7 @@
                     </div>
                     <div class="modal-footer bg-light">
                         <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Annulla</button>
-                        <button type="submit" class="btn btn-primary fw-bold px-4">Salva Programmazione</button>
+                        <button type="submit" class="btn btn-success fw-bold px-4">Salva Programmazione</button>
                     </div>
                 </form>
             </div>
@@ -715,7 +703,7 @@
                         </div>
 
                         <!-- Data Inizio Calcolo -->
-                        <div class="mb-3">
+                        <div class="mb-3" id="editProgDivDataInizio">
                             <label class="form-label fw-bold text-dark">
                                 <i class="bi bi-calendar3 me-1"></i> Data di Inizio Calcolo
                             </label>
@@ -726,7 +714,7 @@
                         </div>
 
                         <!-- Km Partenza Calcolo -->
-                        <div class="mb-3">
+                        <div class="mb-3" id="editProgDivKmPartenza">
                             <label class="form-label fw-bold text-dark">
                                 <i class="bi bi-speedometer2 me-1"></i> Chilometri Partenza Calcolo
                             </label>
@@ -750,8 +738,6 @@
     </div>
 
     <script>
-        const LAST_MAINT_MAP = {{ last_maint_map | tojson | safe if last_maint_map else '{}' }};
-
         function openEditProgrammaModal(btn) {
             const aid = btn.getAttribute('data-automezzo-id');
             const tid = btn.getAttribute('data-tipo-id');
@@ -760,12 +746,36 @@
             const dataInizio = btn.getAttribute('data-inizio') || '';
             const kmPartenza = btn.getAttribute('data-km-partenza') || '';
 
+            const scadKm = parseInt(btn.getAttribute('data-scadenza-km') || '0');
+            const scadMesi = parseInt(btn.getAttribute('data-scadenza-mesi') || '0');
+            const scadAnni = parseInt(btn.getAttribute('data-scadenza-anni') || '0');
+            const totMesi = scadMesi + (scadAnni * 12);
+
             document.getElementById('editProgAutomezzoId').value = aid;
             document.getElementById('editProgTipoManutenzioneId').value = tid;
             document.getElementById('editProgVehTitle').textContent = vehName;
             document.getElementById('editProgTypeTitle').textContent = typeName;
             document.getElementById('editProgDataInizioInput').value = dataInizio;
             document.getElementById('editProgKmPartenzaInput').value = kmPartenza;
+
+            const divKm = document.getElementById('editProgDivKmPartenza');
+            const divData = document.getElementById('editProgDivDataInizio');
+
+            if (divKm) {
+                if (scadKm > 0) {
+                    divKm.style.display = 'block';
+                } else {
+                    divKm.style.display = 'none';
+                }
+            }
+
+            if (divData) {
+                if (totMesi > 0 || scadKm <= 0) {
+                    divData.style.display = 'block';
+                } else {
+                    divData.style.display = 'none';
+                }
+            }
 
             const modalEl = document.getElementById('modalModificaProgrammazione');
             if (modalEl) {
