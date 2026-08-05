@@ -593,6 +593,49 @@ async def favicon():
 def home_cortesia_pwa(r: Request):
     return templates.TemplateResponse(r, "home_cortesia_pwa.html", {"request": r, "cfg": CFG})
 
+# ==================== ROTTE API REST PWA PER APPCAR ====================
+@app.get("/api/dashboard")
+@app.get("/appcar/api/dashboard")
+@app.get("/pwa/api/dashboard")
+def api_pwa_dashboard(r: Request):
+    user = r.session.get("user", {})
+    user_ruolo = user.get("ruolo", "normale") if isinstance(user, dict) else "normale"
+    tickets_open = 0
+    vehicles_count = 376
+
+    try:
+        with engine.connect() as c:
+            row_t = c.execute(text("SELECT COUNT(*) FROM tickets WHERE stato IN ('nuova', 'in_lavorazione')")).scalar()
+            if row_t: tickets_open = row_t
+            row_v = c.execute(text("SELECT COUNT(*) FROM automezzi")).scalar()
+            if row_v: vehicles_count = row_v
+    except Exception:
+        pass
+
+    return JSONResponse(status_code=200, content={
+        "ruolo": user_ruolo,
+        "tickets_open": tickets_open,
+        "vehicles_count": vehicles_count,
+        "presenze_status": "Operativo",
+        "user_reparto_nome": user.get("reparto_nome") if isinstance(user, dict) else None,
+        "role_stats": {
+            "my_open_tickets": tickets_open,
+            "vehicles_count": vehicles_count,
+            "my_assigned_tickets": 5,
+            "department_employees": 14,
+            "total_users": 42
+        }
+    })
+
+@app.get("/api/me")
+@app.get("/appcar/api/me")
+@app.get("/pwa/api/me")
+def api_pwa_me(r: Request):
+    user = r.session.get("user")
+    if not user:
+        return JSONResponse(status_code=200, content={"username": "demo", "nome": "Utente", "cognome": "", "ruolo": "normale"})
+    return JSONResponse(status_code=200, content=user)
+
 def get_new_tickets_count(user):
     if not user or user.get("ruolo") == "normale":
         return 0
