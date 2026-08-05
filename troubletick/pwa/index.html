@@ -3,7 +3,7 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
-  <title>Troubletick PWA — Ionic SPA</title>
+  <title>Troubletick PWA — Ionic SPA Multi-Ruolo</title>
   
   <!-- PWA Meta Tags (Percorsi Relativi) -->
   <link rel="manifest" href="./manifest.json">
@@ -33,7 +33,7 @@
 <body>
   <ion-app>
     
-    <!-- ================= PAGE 1: LOGIN (ION-PAGE SPA) ================= -->
+    <!-- ================= PAGE 1: LOGIN ================= -->
     <ion-page id="page-login" class="page-view active">
       <ion-header class="ion-no-border">
         <ion-toolbar color="dark">
@@ -52,7 +52,7 @@
                 Accedi a Troubletick
               </ion-card-title>
               <ion-card-subtitle class="text-center text-muted small">
-                Single Page Application PWA (Ionic Framework)
+                Single Page Application Multi-Ruolo (Ionic PWA)
               </ion-card-subtitle>
             </ion-card-header>
 
@@ -101,11 +101,11 @@
       </ion-content>
     </ion-page>
 
-    <!-- ================= PAGE 2: HOME (DASHBOARD SPA) ================= -->
+    <!-- ================= PAGE 2: HOME (DASHBOARD MULTI-RUOLO SPA) ================= -->
     <ion-page id="page-home" class="page-view">
       <ion-header class="ion-no-border">
         <ion-toolbar color="dark">
-          <ion-title class="fw-bold">Troubletick — Home PWA</ion-title>
+          <ion-title class="fw-bold">Troubletick PWA</ion-title>
           <ion-buttons slot="end">
             <ion-badge color="success" id="api-status-badge" class="me-2">
               <ion-icon name="pulse-outline"></ion-icon> API Online
@@ -115,114 +115,424 @@
             </ion-button>
           </ion-buttons>
         </ion-toolbar>
+
+        <!-- Bar Selettore Ruolo Operativo Dinamico -->
+        <div class="bg-slate-900 border-bottom border-slate-800 px-3 py-2 d-flex align-items-center justify-content-between flex-wrap gap-2">
+          <div class="d-flex align-items-center gap-2">
+            <i class="bi bi-person-badge text-primary"></i>
+            <span class="text-white small fw-bold">Vista Ruolo:</span>
+          </div>
+          <div class="btn-group btn-group-sm" role="group" id="role-switcher-group">
+            <button type="button" class="btn btn-outline-primary active" data-role-view="normale">👤 Utente</button>
+            <button type="button" class="btn btn-outline-primary" data-role-view="fleet_manager">🚗 Fleet Manager</button>
+            <button type="button" class="btn btn-outline-primary" data-role-view="assistenza">🛠️ Assistenza</button>
+            <button type="button" class="btn btn-outline-primary" data-role-view="responsabile">📋 Responsabile</button>
+            <button type="button" class="btn btn-outline-primary" data-role-view="admin">👑 Admin</button>
+          </div>
+        </div>
       </ion-header>
 
       <ion-content class="ion-padding" color="dark">
-        <!-- Banner Benvenuto Utente -->
-        <ion-card class="dashboard-card p-3 p-md-4 mb-4">
-          <ion-card-header class="p-0 mb-3">
-            <div class="d-flex justify-content-between align-items-center flex-wrap gap-2">
-              <div>
-                <ion-card-subtitle color="primary" class="fw-bold text-uppercase tracking-wider">
-                  Single Page Application PWA
-                </ion-card-subtitle>
-                <ion-card-title class="fw-bold text-white fs-3 mb-0">
-                  Benvenuto, <span id="user-display-name">Utente</span>!
-                </ion-card-title>
+        
+        <!-- ================= VISTA HOME 1: UTENTE NORMALE ================= -->
+        <div id="role-dashboard-normale" class="role-dashboard-view">
+          <ion-card class="dashboard-card p-3 p-md-4 mb-4 border-start border-4 border-primary">
+            <ion-card-header class="p-0 mb-3">
+              <div class="d-flex justify-content-between align-items-center flex-wrap gap-2">
+                <div>
+                  <ion-card-subtitle color="primary" class="fw-bold text-uppercase tracking-wider">
+                    Portale Dipendente
+                  </ion-card-subtitle>
+                  <ion-card-title class="fw-bold text-white fs-3 mb-0">
+                    Ciao, <span class="user-display-name">Utente</span>!
+                  </ion-card-title>
+                </div>
+                <ion-badge color="primary" class="px-3 py-2 rounded-pill fs-6">
+                  Ruolo: Standard Dipendente
+                </ion-badge>
               </div>
-              <ion-badge color="primary" id="user-role-badge" class="px-3 py-2 rounded-pill fs-6">
-                Ruolo: <span id="user-role-name">normale</span>
-              </ion-badge>
+              <p class="text-muted small mt-2 mb-0">
+                Benvenuto nel tuo hub personale. Prenota i veicoli di servizio, apri segnalazioni di assistenza o consulta la tua scheda presenze.
+              </p>
+            </ion-card-header>
+
+            <ion-card-content class="p-0">
+              <div class="row g-3">
+                <div class="col-4">
+                  <div class="kpi-stat-box text-center">
+                    <div class="text-muted small fw-bold text-uppercase">I Miei Ticket</div>
+                    <div id="normale-stat-tickets" class="fw-bold text-white fs-3 mt-1">0</div>
+                  </div>
+                </div>
+                <div class="col-4">
+                  <div class="kpi-stat-box text-center">
+                    <div class="text-muted small fw-bold text-uppercase">Prenotazioni Auto</div>
+                    <div id="normale-stat-trips" class="fw-bold text-primary fs-3 mt-1">0</div>
+                  </div>
+                </div>
+                <div class="col-4">
+                  <div class="kpi-stat-box text-center">
+                    <div class="text-muted small fw-bold text-uppercase">Presenza Oggi</div>
+                    <div class="fw-bold text-success fs-3 mt-1">In Sede</div>
+                  </div>
+                </div>
+              </div>
+            </ion-card-content>
+          </ion-card>
+
+          <h5 class="fw-bold text-white mb-3"><i class="bi bi-star-fill text-primary me-2"></i> Servizi Personali Dipendente</h5>
+          <div class="row g-3 mb-4">
+            <div class="col-12 col-md-6">
+              <ion-card class="dashboard-card h-100 m-0 p-3">
+                <ion-card-header class="p-0 mb-2">
+                  <ion-icon name="car-sport-outline" color="primary" style="font-size: 2.2rem;"></ion-icon>
+                  <ion-card-title class="text-white fs-5 fw-bold mt-1">Prenota Veicolo Carpooling</ion-card-title>
+                </ion-card-header>
+                <ion-card-content class="p-0">
+                  <p class="text-slate-300 small mb-3">Richiedi un automezzo aziendale per i tuoi trasferimenti e viaggi di lavoro.</p>
+                  <ion-button expand="block" fill="solid" color="primary" size="small">Nuova Prenotazione Auto</ion-button>
+                </ion-card-content>
+              </ion-card>
             </div>
-            <p class="text-muted small mt-2 mb-0">
-              Sei collegato all'interfaccia Ionic PWA integrata con il backend Python FastAPI tramite percorsi relativi.
-            </p>
-          </ion-card-header>
-
-          <ion-card-content class="p-0">
-            <!-- Statistiche Dashboard KPI -->
-            <div class="row g-3">
-              <div class="col-4">
-                <div class="kpi-stat-box text-center">
-                  <div class="text-muted small fw-bold text-uppercase">Ticket Aperti</div>
-                  <div id="stat-tickets" class="fw-bold text-white fs-3 mt-1">0</div>
-                </div>
-              </div>
-
-              <div class="col-4">
-                <div class="kpi-stat-box text-center">
-                  <div class="text-muted small fw-bold text-uppercase">Flotta Veicoli</div>
-                  <div id="stat-vehicles" class="fw-bold text-primary fs-3 mt-1">376</div>
-                </div>
-              </div>
-
-              <div class="col-4">
-                <div class="kpi-stat-box text-center">
-                  <div class="text-muted small fw-bold text-uppercase">Presenze Oggi</div>
-                  <div id="stat-presenze" class="fw-bold text-success fs-3 mt-1">Attivo</div>
-                </div>
-              </div>
+            <div class="col-12 col-md-6">
+              <ion-card class="dashboard-card h-100 m-0 p-3">
+                <ion-card-header class="p-0 mb-2">
+                  <ion-icon name="headset-outline" color="tertiary" style="font-size: 2.2rem;"></ion-icon>
+                  <ion-card-title class="text-white fs-5 fw-bold mt-1">Apri Nuovo Ticket IT</ion-card-title>
+                </ion-card-header>
+                <ion-card-content class="p-0">
+                  <p class="text-slate-300 small mb-3">Segnala problemi hardware, software o perferiche all'assistenza tecnica.</p>
+                  <ion-button expand="block" fill="solid" color="tertiary" size="small">Invia Segnalazione Ticket</ion-button>
+                </ion-card-content>
+              </ion-card>
             </div>
-          </ion-card-content>
-        </ion-card>
-
-        <!-- Schede Funzionalità Principali -->
-        <h5 class="fw-bold text-white mb-3">
-          <i class="bi bi-grid-fill text-primary me-2"></i> Modulo Servizi PWA
-        </h5>
-
-        <div class="row g-3 mb-4">
-          <!-- Card Carpooling -->
-          <div class="col-12 col-md-4">
-            <ion-card class="dashboard-card h-100 m-0 p-3">
-              <ion-card-header class="p-0 mb-2">
-                <ion-icon name="car-sport-outline" color="primary" style="font-size: 2.2rem;"></ion-icon>
-                <ion-card-title class="text-white fs-5 fw-bold mt-1">Carpooling & Flotta</ion-card-title>
-                <ion-card-subtitle class="text-muted small">Prenotazione ed utilizzo veicoli aziendali</ion-card-subtitle>
-              </ion-card-header>
-              <ion-card-content class="p-0">
-                <p class="text-slate-300 small mb-3">Consulta la disponibilità dei 376 automezzi in archivio ed avvia il viaggio di servizio.</p>
-                <ion-button expand="block" fill="outline" color="primary" size="small">
-                  Prenota Automezzo
-                </ion-button>
-              </ion-card-content>
-            </ion-card>
-          </div>
-
-          <!-- Card Helpdesk -->
-          <div class="col-12 col-md-4">
-            <ion-card class="dashboard-card h-100 m-0 p-3">
-              <ion-card-header class="p-0 mb-2">
-                <ion-icon name="headset-outline" color="tertiary" style="font-size: 2.2rem;"></ion-icon>
-                <ion-card-title class="text-white fs-5 fw-bold mt-1">Helpdesk & Supporto</ion-card-title>
-                <ion-card-subtitle class="text-muted small">Segnalazioni guasti e ticket IT</ion-card-subtitle>
-              </ion-card-header>
-              <ion-card-content class="p-0">
-                <p class="text-slate-300 small mb-3">Invia nuove richieste di assistenza o verifica lo stato di lavorazione dei tuoi ticket.</p>
-                <ion-button expand="block" fill="outline" color="tertiary" size="small">
-                  Apri Ticket
-                </ion-button>
-              </ion-card-content>
-            </ion-card>
-          </div>
-
-          <!-- Card Presenze -->
-          <div class="col-12 col-md-4">
-            <ion-card class="dashboard-card h-100 m-0 p-3">
-              <ion-card-header class="p-0 mb-2">
-                <ion-icon name="calendar-outline" color="success" style="font-size: 2.2rem;"></ion-icon>
-                <ion-card-title class="text-white fs-5 fw-bold mt-1">Presenze & Ferie</ion-card-title>
-                <ion-card-subtitle class="text-muted small">Matrice mensile e smartworking</ion-card-subtitle>
-              </ion-card-header>
-              <ion-card-content class="p-0">
-                <p class="text-slate-300 small mb-3">Segnala giornate di smartworking, corsi o ferie e consulta la copertura di reparto.</p>
-                <ion-button expand="block" fill="outline" color="success" size="small">
-                  Calendario Reparto
-                </ion-button>
-              </ion-card-content>
-            </ion-card>
           </div>
         </div>
+
+        <!-- ================= VISTA HOME 2: FLEET MANAGER ================= -->
+        <div id="role-dashboard-fleet_manager" class="role-dashboard-view" style="display: none;">
+          <ion-card class="dashboard-card p-3 p-md-4 mb-4 border-start border-4 border-warning">
+            <ion-card-header class="p-0 mb-3">
+              <div class="d-flex justify-content-between align-items-center flex-wrap gap-2">
+                <div>
+                  <ion-card-subtitle color="warning" class="fw-bold text-uppercase tracking-wider">
+                    Gestione Flotta Aziendale
+                  </ion-card-subtitle>
+                  <ion-card-title class="fw-bold text-white fs-3 mb-0">
+                    Benvenuto, Fleet Manager <span class="user-display-name"></span>!
+                  </ion-card-title>
+                </div>
+                <ion-badge color="warning" class="px-3 py-2 rounded-pill fs-6 text-dark">
+                  Ruolo: Fleet Manager
+                </ion-badge>
+              </div>
+              <p class="text-muted small mt-2 mb-0">
+                Pannello di controllo della flotta aziendale, registro manutenzioni programmate e controllo partenze/rientri viaggi.
+              </p>
+            </ion-card-header>
+
+            <ion-card-content class="p-0">
+              <div class="row g-3">
+                <div class="col-4">
+                  <div class="kpi-stat-box text-center">
+                    <div class="text-muted small fw-bold text-uppercase">Parco Auto</div>
+                    <div id="fleet-stat-vehicles" class="fw-bold text-warning fs-3 mt-1">376</div>
+                  </div>
+                </div>
+                <div class="col-4">
+                  <div class="kpi-stat-box text-center">
+                    <div class="text-muted small fw-bold text-uppercase">Viaggi In Corso</div>
+                    <div id="fleet-stat-trips" class="fw-bold text-white fs-3 mt-1">12</div>
+                  </div>
+                </div>
+                <div class="col-4">
+                  <div class="kpi-stat-box text-center">
+                    <div class="text-muted small fw-bold text-uppercase">Manutenzioni</div>
+                    <div id="fleet-stat-maint" class="fw-bold text-danger fs-3 mt-1">4</div>
+                  </div>
+                </div>
+              </div>
+            </ion-card-content>
+          </ion-card>
+
+          <h5 class="fw-bold text-white mb-3"><i class="bi bi-car-front-fill text-warning me-2"></i> Operazioni Flotta & Carpooling</h5>
+          <div class="row g-3 mb-4">
+            <div class="col-12 col-md-4">
+              <ion-card class="dashboard-card h-100 m-0 p-3">
+                <ion-card-header class="p-0 mb-2">
+                  <ion-icon name="list-outline" color="warning" style="font-size: 2rem;"></ion-icon>
+                  <ion-card-title class="text-white fs-6 fw-bold mt-1">Elenco Automezzi</ion-card-title>
+                </ion-card-header>
+                <ion-card-content class="p-0">
+                  <p class="text-slate-300 small mb-3">Gestisci le schede dei veicoli, km attuali e scadenze assicurazioni.</p>
+                  <ion-button expand="block" fill="outline" color="warning" size="small">Registro Veicoli</ion-button>
+                </ion-card-content>
+              </ion-card>
+            </div>
+            <div class="col-12 col-md-4">
+              <ion-card class="dashboard-card h-100 m-0 p-3">
+                <ion-card-header class="p-0 mb-2">
+                  <ion-icon name="construct-outline" color="warning" style="font-size: 2rem;"></ion-icon>
+                  <ion-card-title class="text-white fs-6 fw-bold mt-1">Manutenzioni Programmate</ion-card-title>
+                </ion-card-header>
+                <ion-card-content class="p-0">
+                  <p class="text-slate-300 small mb-3">Pianifica e gestisci gli interventi di tagliando e riparazione flotta.</p>
+                  <ion-button expand="block" fill="outline" color="warning" size="small">Manutenzioni</ion-button>
+                </ion-card-content>
+              </ion-card>
+            </div>
+            <div class="col-12 col-md-4">
+              <ion-card class="dashboard-card h-100 m-0 p-3">
+                <ion-card-header class="p-0 mb-2">
+                  <ion-icon name="document-text-outline" color="warning" style="font-size: 2rem;"></ion-icon>
+                  <ion-card-title class="text-white fs-6 fw-bold mt-1">Stampa Indisponibilità</ion-card-title>
+                </ion-card-header>
+                <ion-card-content class="p-0">
+                  <p class="text-slate-300 small mb-3">Genera e stampa l'attestato di indisponibilità veicolo per rimborso.</p>
+                  <ion-button expand="block" fill="outline" color="warning" size="small">Stampa Attestato</ion-button>
+                </ion-card-content>
+              </ion-card>
+            </div>
+          </div>
+        </div>
+
+        <!-- ================= VISTA HOME 3: OPERATORE ASSISTENZA ================= -->
+        <div id="role-dashboard-assistenza" class="role-dashboard-view" style="display: none;">
+          <ion-card class="dashboard-card p-3 p-md-4 mb-4 border-start border-4 border-info">
+            <ion-card-header class="p-0 mb-3">
+              <div class="d-flex justify-content-between align-items-center flex-wrap gap-2">
+                <div>
+                  <ion-card-subtitle color="tertiary" class="fw-bold text-uppercase tracking-wider">
+                    Console Assistenza & Helpdesk IT
+                  </ion-card-subtitle>
+                  <ion-card-title class="fw-bold text-white fs-3 mb-0">
+                    Ciao, Operatore <span class="user-display-name"></span>!
+                  </ion-card-title>
+                </div>
+                <ion-badge color="tertiary" class="px-3 py-2 rounded-pill fs-6">
+                  Ruolo: Operatore Assistenza
+                </ion-badge>
+              </div>
+              <p class="text-muted small mt-2 mb-0">
+                Panoramica dei ticket in coda, assegnazioni di supporto e gestione richieste materiale da magazzino.
+              </p>
+            </ion-card-header>
+
+            <ion-card-content class="p-0">
+              <div class="row g-3">
+                <div class="col-4">
+                  <div class="kpi-stat-box text-center">
+                    <div class="text-muted small fw-bold text-uppercase">Assegnati a Me</div>
+                    <div id="assistenza-stat-my" class="fw-bold text-info fs-3 mt-1">5</div>
+                  </div>
+                </div>
+                <div class="col-4">
+                  <div class="kpi-stat-box text-center">
+                    <div class="text-muted small fw-bold text-uppercase">Nuovi da Assegnare</div>
+                    <div id="assistenza-stat-unassigned" class="fw-bold text-warning fs-3 mt-1">8</div>
+                  </div>
+                </div>
+                <div class="col-4">
+                  <div class="kpi-stat-box text-center">
+                    <div class="text-muted small fw-bold text-uppercase">Tempo Risposta</div>
+                    <div class="fw-bold text-success fs-3 mt-1">&lt; 30 min</div>
+                  </div>
+                </div>
+              </div>
+            </ion-card-content>
+          </ion-card>
+
+          <h5 class="fw-bold text-white mb-3"><i class="bi bi-headset text-info me-2"></i> Strumenti Assistenza Tecnica</h5>
+          <div class="row g-3 mb-4">
+            <div class="col-12 col-md-6">
+              <ion-card class="dashboard-card h-100 m-0 p-3">
+                <ion-card-header class="p-0 mb-2">
+                  <ion-icon name="ticket-outline" color="tertiary" style="font-size: 2.2rem;"></ion-icon>
+                  <ion-card-title class="text-white fs-5 fw-bold mt-1">Gestione Coda Ticket Reparto</ion-card-title>
+                </ion-card-header>
+                <ion-card-content class="p-0">
+                  <p class="text-slate-300 small mb-3">Prendi in carico i ticket in attesa, assegna le priorità ed aggiorna la risoluzione.</p>
+                  <ion-button expand="block" fill="solid" color="tertiary" size="small">Elenco Ticket Reparto</ion-button>
+                </ion-card-content>
+              </ion-card>
+            </div>
+            <div class="col-12 col-md-6">
+              <ion-card class="dashboard-card h-100 m-0 p-3">
+                <ion-card-header class="p-0 mb-2">
+                  <ion-icon name="cube-outline" color="tertiary" style="font-size: 2.2rem;"></ion-icon>
+                  <ion-card-title class="text-white fs-5 fw-bold mt-1">Richieste Materiale Magazzino</ion-card-title>
+                </ion-card-header>
+                <ion-card-content class="p-0">
+                  <p class="text-slate-300 small mb-3">Verifica la disponibilità di componenti IT e richiedi ricambi per le riparazioni.</p>
+                  <ion-button expand="block" fill="outline" color="tertiary" size="small">Gestione Magazzino</ion-button>
+                </ion-card-content>
+              </ion-card>
+            </div>
+          </div>
+        </div>
+
+        <!-- ================= VISTA HOME 4: RESPONSABILE REPARTO ================= -->
+        <div id="role-dashboard-responsabile" class="role-dashboard-view" style="display: none;">
+          <ion-card class="dashboard-card p-3 p-md-4 mb-4 border-start border-4 border-success">
+            <ion-card-header class="p-0 mb-3">
+              <div class="d-flex justify-content-between align-items-center flex-wrap gap-2">
+                <div>
+                  <ion-card-subtitle color="success" class="fw-bold text-uppercase tracking-wider">
+                    Gestione & Monitoraggio Reparto
+                  </ion-card-subtitle>
+                  <ion-card-title class="fw-bold text-white fs-3 mb-0">
+                    Benvenuto, Responsabile <span class="user-display-name"></span>!
+                  </ion-card-title>
+                </div>
+                <ion-badge color="success" class="px-3 py-2 rounded-pill fs-6">
+                  Ruolo: Responsabile Reparto
+                </ion-badge>
+              </div>
+              <p class="text-muted small mt-2 mb-0">
+                Pannello di supervisione delle presenze mensili, piano ferie del personale e copertura dei servizi di reparto.
+              </p>
+            </ion-card-header>
+
+            <ion-card-content class="p-0">
+              <div class="row g-3">
+                <div class="col-4">
+                  <div class="kpi-stat-box text-center">
+                    <div class="text-muted small fw-bold text-uppercase">Membri Reparto</div>
+                    <div id="resp-stat-emp" class="fw-bold text-success fs-3 mt-1">14</div>
+                  </div>
+                </div>
+                <div class="col-4">
+                  <div class="kpi-stat-box text-center">
+                    <div class="text-muted small fw-bold text-uppercase">Assenti Oggi</div>
+                    <div id="resp-stat-absent" class="fw-bold text-warning fs-3 mt-1">2</div>
+                  </div>
+                </div>
+                <div class="col-4">
+                  <div class="kpi-stat-box text-center">
+                    <div class="text-muted small fw-bold text-uppercase">Copertura Turni</div>
+                    <div class="fw-bold text-white fs-3 mt-1">100%</div>
+                  </div>
+                </div>
+              </div>
+            </ion-card-content>
+          </ion-card>
+
+          <h5 class="fw-bold text-white mb-3"><i class="bi bi-calendar-check-fill text-success me-2"></i> Strumenti Responsabile</h5>
+          <div class="row g-3 mb-4">
+            <div class="col-12 col-md-6">
+              <ion-card class="dashboard-card h-100 m-0 p-3">
+                <ion-card-header class="p-0 mb-2">
+                  <ion-icon name="calendar-clear-outline" color="success" style="font-size: 2.2rem;"></ion-icon>
+                  <ion-card-title class="text-white fs-5 fw-bold mt-1">Matrice Mensile Presenze</ion-card-title>
+                </ion-card-header>
+                <ion-card-content class="p-0">
+                  <p class="text-slate-300 small mb-3">Consulta il tabellone grafico con la situazione di presenze, ferie e smartworking del mese.</p>
+                  <ion-button expand="block" fill="solid" color="success" size="small">Visualizza Matrice Reparto</ion-button>
+                </ion-card-content>
+              </ion-card>
+            </div>
+            <div class="col-12 col-md-6">
+              <ion-card class="dashboard-card h-100 m-0 p-3">
+                <ion-card-header class="p-0 mb-2">
+                  <ion-icon name="people-outline" color="success" style="font-size: 2.2rem;"></ion-icon>
+                  <ion-card-title class="text-white fs-5 fw-bold mt-1">Verifica Copertura Servizi</ion-card-title>
+                </ion-card-header>
+                <ion-card-content class="p-0">
+                  <p class="text-slate-300 small mb-3">Accerta la disponibilità minima di operatori per la garanzia del servizio nelle festività.</p>
+                  <ion-button expand="block" fill="outline" color="success" size="small">Piano Copertura Turni</ion-button>
+                </ion-card-content>
+              </ion-card>
+            </div>
+          </div>
+        </div>
+
+        <!-- ================= VISTA HOME 5: AMMINISTRATORE ================= -->
+        <div id="role-dashboard-admin" class="role-dashboard-view" style="display: none;">
+          <ion-card class="dashboard-card p-3 p-md-4 mb-4 border-start border-4 border-danger">
+            <ion-card-header class="p-0 mb-3">
+              <div class="d-flex justify-content-between align-items-center flex-wrap gap-2">
+                <div>
+                  <ion-card-subtitle color="danger" class="fw-bold text-uppercase tracking-wider">
+                    Pannello di Controllo Amministratore
+                  </ion-card-subtitle>
+                  <ion-card-title class="fw-bold text-white fs-3 mb-0">
+                    Benvenuto, Admin <span class="user-display-name"></span>!
+                  </ion-card-title>
+                </div>
+                <ion-badge color="danger" class="px-3 py-2 rounded-pill fs-6">
+                  Ruolo: Amministratore Globale
+                </ion-badge>
+              </div>
+              <p class="text-muted small mt-2 mb-0">
+                Controllo globale del sistema Troubletick, configurazioni avanzate, amministrazione utenti, reparti e flotta.
+              </p>
+            </ion-card-header>
+
+            <ion-card-content class="p-0">
+              <div class="row g-3">
+                <div class="col-4">
+                  <div class="kpi-stat-box text-center">
+                    <div class="text-muted small fw-bold text-uppercase">Utenti Totali</div>
+                    <div id="admin-stat-users" class="fw-bold text-danger fs-3 mt-1">42</div>
+                  </div>
+                </div>
+                <div class="col-4">
+                  <div class="kpi-stat-box text-center">
+                    <div class="text-muted small fw-bold text-uppercase">Reparti Attivi</div>
+                    <div id="admin-stat-reparti" class="fw-bold text-white fs-3 mt-1">8</div>
+                  </div>
+                </div>
+                <div class="col-4">
+                  <div class="kpi-stat-box text-center">
+                    <div class="text-muted small fw-bold text-uppercase">Stato Sistema</div>
+                    <div class="fw-bold text-success fs-3 mt-1">Ottimale</div>
+                  </div>
+                </div>
+              </div>
+            </ion-card-content>
+          </ion-card>
+
+          <h5 class="fw-bold text-white mb-3"><i class="bi bi-shield-lock-fill text-danger me-2"></i> Funzioni di Amministrazione Globale</h5>
+          <div class="row g-3 mb-4">
+            <div class="col-12 col-md-4">
+              <ion-card class="dashboard-card h-100 m-0 p-3">
+                <ion-card-header class="p-0 mb-2">
+                  <ion-icon name="person-add-outline" color="danger" style="font-size: 2rem;"></ion-icon>
+                  <ion-card-title class="text-white fs-6 fw-bold mt-1">Gestione Utenti & Permessi</ion-card-title>
+                </ion-card-header>
+                <ion-card-content class="p-0">
+                  <p class="text-slate-300 small mb-3">Crea nuovi account, assegna ruoli e reimposta credenziali di accesso.</p>
+                  <ion-button expand="block" fill="solid" color="danger" size="small">Console Utenti</ion-button>
+                </ion-card-content>
+              </ion-card>
+            </div>
+            <div class="col-12 col-md-4">
+              <ion-card class="dashboard-card h-100 m-0 p-3">
+                <ion-card-header class="p-0 mb-2">
+                  <ion-icon name="settings-outline" color="danger" style="font-size: 2rem;"></ion-icon>
+                  <ion-card-title class="text-white fs-6 fw-bold mt-1">Configurazione Sistema</ion-card-title>
+                </ion-card-header>
+                <ion-card-content class="p-0">
+                  <p class="text-slate-300 small mb-3">Impostazioni SMTP email, parametri app e configurazione database.</p>
+                  <ion-button expand="block" fill="outline" color="danger" size="small">Impostazioni App</ion-button>
+                </ion-card-content>
+              </ion-card>
+            </div>
+            <div class="col-12 col-md-4">
+              <ion-card class="dashboard-card h-100 m-0 p-3">
+                <ion-card-header class="p-0 mb-2">
+                  <ion-icon name="analytics-outline" color="danger" style="font-size: 2rem;"></ion-icon>
+                  <ion-card-title class="text-white fs-6 fw-bold mt-1">Log Eventi & Audit</ion-card-title>
+                </ion-card-header>
+                <ion-card-content class="p-0">
+                  <p class="text-slate-300 small mb-3">Ispeziona i log di sistema, accessi e tentativi falliti in tempo reale.</p>
+                  <ion-button expand="block" fill="outline" color="danger" size="small">Registro Log</ion-button>
+                </ion-card-content>
+              </ion-card>
+            </div>
+          </div>
+        </div>
+
       </ion-content>
 
       <!-- Bottom Tabs Bar PWA -->
