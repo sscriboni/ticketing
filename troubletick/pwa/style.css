@@ -1,56 +1,139 @@
 /* Custom Styling for Ionic PWA SPA */
 :root {
-  --ion-color-primary: #3880ff;
-  --ion-color-primary-rgb: 56, 128, 255;
+  --ion-color-primary: #0d6efd;
+  --ion-color-primary-rgb: 13, 110, 253;
   --ion-color-primary-contrast: #ffffff;
   --ion-color-primary-contrast-rgb: 255, 255, 255;
-  --ion-color-primary-shade: #3171e0;
-  --ion-color-primary-tint: #4c8dff;
+  --ion-color-primary-shade: #0b5ed7;
+  --ion-color-primary-tint: #3182ce;
+  --ion-background-color: #0f172a;
 }
 
-body {
-  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+html, body {
+  width: 100%;
+  height: 100%;
+  margin: 0;
+  padding: 0;
   background-color: #0f172a;
+  color: #f8fafc;
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
 }
 
+/* Page Views SPA Routing */
+ion-page.page-view {
+  display: none !important;
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  width: 100%;
+  height: 100%;
+  z-index: 1;
+}
+
+ion-page.page-view.active {
+  display: flex !important;
+  flex-direction: column;
+  z-index: 10;
+  animation: fadeIn 0.25s ease-in-out forwards;
+}
+
+@keyframes fadeIn {
+  from { opacity: 0; transform: scale(0.99); }
+  to { opacity: 1; transform: scale(1); }
+}
+
+/* Login Container Background */
+.login-wrapper {
+  min-height: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: radial-gradient(circle at top right, #1e293b 0%, #0f172a 60%, #020617 100%);
+  padding: 1.5rem 1rem;
+}
+
+/* High Contrast Glowing Login Card */
 .login-card {
+  width: 100%;
   max-width: 440px;
-  margin: 0 auto;
+  background: #1e293b;
+  border: 1px solid #334155;
   border-radius: 24px;
-  background: rgba(30, 41, 59, 0.85);
-  backdrop-filter: blur(16px);
-  border: 1px solid rgba(255, 255, 255, 0.1);
-  box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.5);
+  box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.7);
+  overflow: hidden;
 }
 
+.login-card ion-card-header {
+  background: rgba(15, 23, 42, 0.5);
+  border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+  padding: 1.75rem 1.5rem 1.25rem 1.5rem;
+}
+
+.login-card ion-card-content {
+  padding: 1.5rem;
+}
+
+/* Form Input Styling */
+.form-input-container {
+  background: #0f172a;
+  border: 1px solid #334155;
+  border-radius: 14px;
+  padding: 4px 12px;
+  margin-bottom: 1.25rem;
+  transition: border-color 0.2s, box-shadow 0.2s;
+}
+
+.form-input-container:focus-within {
+  border-color: #3b82f6;
+  box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.25);
+}
+
+.form-input-container label {
+  display: block;
+  font-size: 0.75rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: #94a3b8;
+  margin-top: 6px;
+  margin-bottom: 2px;
+}
+
+.form-input-container input {
+  width: 100%;
+  background: transparent;
+  border: none;
+  color: #ffffff;
+  font-size: 1rem;
+  padding: 6px 0 8px 0;
+  outline: none;
+}
+
+/* High Contrast Submit Button */
+.btn-login-submit {
+  --background: #0d6efd;
+  --background-hover: #0b5ed7;
+  --color: #ffffff;
+  --border-radius: 14px;
+  font-weight: 700;
+  font-size: 1.05rem;
+  height: 52px;
+  margin-top: 1rem;
+}
+
+/* Dashboard Card */
 .dashboard-card {
   border-radius: 20px;
-  background: rgba(30, 41, 59, 0.7);
-  backdrop-filter: blur(12px);
-  border: 1px solid rgba(255, 255, 255, 0.08);
-  transition: transform 0.2s ease, border-color 0.2s ease;
-}
-
-.dashboard-card:hover {
-  transform: translateY(-2px);
-  border-color: rgba(56, 128, 255, 0.4);
+  background: #1e293b;
+  border: 1px solid #334155;
+  box-shadow: 0 10px 25px rgba(0, 0, 0, 0.3);
 }
 
 .kpi-stat-box {
-  background: rgba(15, 23, 42, 0.6);
-  border: 1px solid rgba(255, 255, 255, 0.06);
+  background: #0f172a;
+  border: 1px solid #334155;
   border-radius: 16px;
-  padding: 1rem;
-}
-
-/* Smooth page fade transition for SPA */
-.page-view {
-  display: none;
-  opacity: 0;
-  transition: opacity 0.3s ease-in-out;
-}
-
-.page-view.active {
-  display: block;
-  opacity: 1;
+  padding: 1.2rem;
 }
