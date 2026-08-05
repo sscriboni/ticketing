@@ -291,16 +291,16 @@
                 <table class="table table-hover custom-table align-middle mb-0">
                     <thead>
                         <tr>
-                            <th>Veicolo</th>
-                            <th>Targa</th>
-                            <th>Immatricolazione</th>
-                            <th>Tipo Manutenzione</th>
-                            <th>Km Attuali</th>
-                            <th>Scadenza Temporale</th>
-                            <th>Mesi Mancanti</th>
-                            <th>Scadenza Chilometrica</th>
-                            <th>Km Mancanti</th>
-                            <th>Stato Scadenza</th>
+                            <th onclick="sortTable(0, 'text')" style="cursor: pointer;" class="user-select-none text-nowrap" title="Clicca per ordinare per Veicolo (Marca & Modello)">Veicolo <i class="bi bi-arrow-down-up text-muted ms-1 sort-icon"></i></th>
+                            <th onclick="sortTable(1, 'text')" style="cursor: pointer;" class="user-select-none text-nowrap" title="Clicca per ordinare per Targa">Targa <i class="bi bi-arrow-down-up text-muted ms-1 sort-icon"></i></th>
+                            <th onclick="sortTable(2, 'date')" style="cursor: pointer;" class="user-select-none text-nowrap" title="Clicca per ordinare per Data Immatricolazione">Immatricolazione <i class="bi bi-arrow-down-up text-muted ms-1 sort-icon"></i></th>
+                            <th onclick="sortTable(3, 'text')" style="cursor: pointer;" class="user-select-none text-nowrap" title="Clicca per ordinare per Tipo Manutenzione">Tipo Manutenzione <i class="bi bi-arrow-down-up text-muted ms-1 sort-icon"></i></th>
+                            <th onclick="sortTable(4, 'number')" style="cursor: pointer;" class="user-select-none text-nowrap" title="Clicca per ordinare per Km Attuali">Km Attuali <i class="bi bi-arrow-down-up text-muted ms-1 sort-icon"></i></th>
+                            <th onclick="sortTable(5, 'date')" style="cursor: pointer;" class="user-select-none text-nowrap" title="Clicca per ordinare per Data Scadenza Temporale">Scadenza Temporale <i class="bi bi-arrow-down-up text-muted ms-1 sort-icon"></i></th>
+                            <th onclick="sortTable(6, 'number')" style="cursor: pointer;" class="user-select-none text-nowrap" title="Clicca per ordinare per Mesi Mancanti">Mesi Mancanti <i class="bi bi-arrow-down-up text-muted ms-1 sort-icon"></i></th>
+                            <th onclick="sortTable(7, 'number')" style="cursor: pointer;" class="user-select-none text-nowrap" title="Clicca per ordinare per Scadenza Chilometrica">Scadenza Chilometrica <i class="bi bi-arrow-down-up text-muted ms-1 sort-icon"></i></th>
+                            <th onclick="sortTable(8, 'number')" style="cursor: pointer;" class="user-select-none text-nowrap" title="Clicca per ordinare per Km Mancanti">Km Mancanti <i class="bi bi-arrow-down-up text-muted ms-1 sort-icon"></i></th>
+                            <th onclick="sortTable(9, 'text')" style="cursor: pointer;" class="user-select-none text-nowrap" title="Clicca per ordinare per Stato Scadenza">Stato Scadenza <i class="bi bi-arrow-down-up text-muted ms-1 sort-icon"></i></th>
                             <th class="text-end text-nowrap">Azioni</th>
                         </tr>
                     </thead>
@@ -1136,6 +1136,78 @@
                 });
             }
         });
+
+        // Ordinamento dinamico della tabella Manutenzioni Programmate
+        let currentSortCol = -1;
+        let currentSortDir = 'asc';
+
+        function sortTable(colIndex, dataType) {
+            const table = document.querySelector('.custom-table');
+            if (!table) return;
+            const tbody = table.querySelector('tbody');
+            if (!tbody) return;
+
+            const rows = Array.from(tbody.querySelectorAll('tr'));
+            if (rows.length === 0 || rows[0].querySelectorAll('td').length < 2) return;
+
+            if (currentSortCol === colIndex) {
+                currentSortDir = currentSortDir === 'asc' ? 'desc' : 'asc';
+            } else {
+                currentSortCol = colIndex;
+                currentSortDir = 'asc';
+            }
+
+            // Aggiorna le icone di ordinamento sulle intestazioni <th>
+            table.querySelectorAll('th i.sort-icon').forEach((icon, idx) => {
+                if (idx === colIndex) {
+                    icon.className = currentSortDir === 'asc' 
+                        ? 'bi bi-sort-alpha-down text-primary ms-1 sort-icon fw-bold' 
+                        : 'bi bi-sort-alpha-up-alt text-primary ms-1 sort-icon fw-bold';
+                } else {
+                    icon.className = 'bi bi-arrow-down-up text-muted ms-1 sort-icon';
+                }
+            });
+
+            const parseItalianDate = (str) => {
+                const match = str.match(/(\d{2})\/(\d{2})\/(\d{4})/);
+                return match ? match[3] + match[2] + match[1] : str;
+            };
+
+            const parseNumber = (str) => {
+                const isNegative = str.includes('Scaduta') || str.includes('Superati') || str.includes('-');
+                const clean = str.replace(/[^0-9]/g, '');
+                if (!clean) return isNegative ? -999999999 : 999999999;
+                const num = parseInt(clean, 10);
+                return isNegative ? -num : num;
+            };
+
+            rows.sort((a, b) => {
+                const tdA = a.children[colIndex];
+                const tdB = b.children[colIndex];
+                if (!tdA || !tdB) return 0;
+
+                const valA = tdA.textContent.trim();
+                const valB = tdB.textContent.trim();
+
+                let cmp = 0;
+                if (dataType === 'number') {
+                    const numA = parseNumber(valA);
+                    const numB = parseNumber(valB);
+                    cmp = numA - numB;
+                } else if (dataType === 'date') {
+                    const dateA = parseItalianDate(valA);
+                    const dateB = parseItalianDate(valB);
+                    cmp = dateA.localeCompare(dateB);
+                } else {
+                    cmp = valA.localeCompare(valB, 'it', { sensitivity: 'base' });
+                }
+
+                return currentSortDir === 'asc' ? cmp : -cmp;
+            });
+
+            // Riapplica le righe ordinate alla tabella
+            rows.forEach(row => tbody.appendChild(row));
+        }
     </script>
 </body>
 

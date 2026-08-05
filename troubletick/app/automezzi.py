@@ -1635,7 +1635,9 @@ def list_manutenzioni_programmate(
     stato: str = Query(None),
     tag_id: typing.Any = Query(None),
     mesi_da: typing.Any = Query(None),
-    mesi_a: typing.Any = Query(None)
+    mesi_a: typing.Any = Query(None),
+    sort_by: str = Query(None),
+    sort_dir: str = Query("asc")
 ):
     if "user" not in r.session:
         return RedirectResponse(url="/login")
@@ -1811,6 +1813,37 @@ def list_manutenzioni_programmate(
 
         filtered.append(prog)
 
+    sort_by_str = _to_str(sort_by)
+    sort_dir_str = _to_str(sort_dir).lower()
+    if sort_dir_str not in ("asc", "desc"):
+        sort_dir_str = "asc"
+
+    if sort_by_str:
+        def get_sort_key(item):
+            if sort_by_str == "veicolo":
+                return (item.get("marca", "") + " " + item.get("modello", "")).lower()
+            elif sort_by_str == "targa":
+                return item.get("targa", "").lower()
+            elif sort_by_str == "immatricolazione":
+                return item.get("data_immatricolazione", "") or ""
+            elif sort_by_str == "tipo":
+                return (item.get("tipo_nome", "") or "").lower()
+            elif sort_by_str == "km_attuali":
+                return item.get("km_attuali") or 0
+            elif sort_by_str == "scadenza_data":
+                return str(item.get("scadenza_stimata_data") or "")
+            elif sort_by_str == "mesi_mancanti":
+                return item.get("mesi_rimanenti") if item.get("mesi_rimanenti") is not None else 999999
+            elif sort_by_str == "scadenza_km":
+                return item.get("scadenza_stimata_km") or 0
+            elif sort_by_str == "km_mancanti":
+                return item.get("km_migliaia_rimanenti") if item.get("km_migliaia_rimanenti") is not None else 999999
+            elif sort_by_str == "stato":
+                return (item.get("stato_scadenza", "") or "").lower()
+            return 0
+
+        filtered.sort(key=get_sort_key, reverse=(sort_dir_str == "desc"))
+
     totale_programmate = len(all_programmate)
     total_items = len(filtered)
     total_pages = max(1, math.ceil(total_items / per_page))
@@ -1835,6 +1868,8 @@ def list_manutenzioni_programmate(
         if tag_id_val: params_dict["tag_id"] = tag_id_val
         if mesi_da_val is not None: params_dict["mesi_da"] = mesi_da_val
         if mesi_a_val is not None: params_dict["mesi_a"] = mesi_a_val
+        if sort_by_str: params_dict["sort_by"] = sort_by_str
+        if sort_dir_str: params_dict["sort_dir"] = sort_dir_str
         return f"/admin/automezzi/manutenzioni/programmate?{urlencode(params_dict)}"
 
     pagination = {
@@ -1871,7 +1906,9 @@ def list_manutenzioni_programmate(
         "opt_targhe": opt_targhe,
         "all_tags": all_tags,
         "pagination": pagination,
-        "filters": {"targa": targa_str, "stato": stato_str, "tag_id": tag_id_val, "mesi_da": mesi_da_val, "mesi_a": mesi_a_val}
+        "sort_by": sort_by_str,
+        "sort_dir": sort_dir_str,
+        "filters": {"targa": targa_str, "stato": stato_str, "tag_id": tag_id_val, "mesi_da": mesi_da_val, "mesi_a": mesi_a_val, "sort_by": sort_by_str, "sort_dir": sort_dir_str}
     })
 
 
