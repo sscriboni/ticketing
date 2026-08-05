@@ -1,0 +1,233 @@
+<!doctype html>
+<html lang="it">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
+  <title>Troubletick PWA — Ionic SPA</title>
+  
+  <!-- PWA Meta Tags -->
+  <link rel="manifest" href="/manifest.json">
+  <meta name="theme-color" content="#3880ff">
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  
+  <!-- Ionic Framework v7 CDN -->
+  <script type="module" src="https://cdn.jsdelivr.net/npm/@ionic/core/dist/ionic/ionic.esm.js"></script>
+  <script nomodule src="https://cdn.jsdelivr.net/npm/@ionic/core/dist/ionic/ionic.js"></script>
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@ionic/core/css/ionic.bundle.css" />
+  
+  <!-- Ionicons CDN -->
+  <script type="module" src="https://unpkg.com/ionicons@7.1.0/dist/ionicons/ionicons.esm.js"></script>
+  <script nomodule src="https://unpkg.com/ionicons@7.1.0/dist/ionicons/ionicons.js"></script>
+
+  <!-- Custom Styles -->
+  <link rel="stylesheet" href="/style.css">
+</head>
+<body>
+  <ion-app>
+    <!-- ================= PAGE 1: LOGIN ================= -->
+    <div id="page-login" class="page-view active">
+      <ion-header class="ion-no-border">
+        <ion-toolbar color="dark">
+          <ion-title>Accedi — Troubletick PWA</ion-title>
+        </ion-toolbar>
+      </ion-header>
+
+      <ion-content class="ion-padding" color="dark">
+        <div class="d-flex flex-column align-items-center justify-content-center min-vh-100 py-5">
+          <ion-card class="login-card ion-padding">
+            <ion-card-header class="ion-text-center">
+              <div style="font-size: 3rem; margin-bottom: 0.5rem;">⚙️</div>
+              <ion-card-title class="ion-text-center font-bold" style="font-size: 1.5rem; font-weight: 800; color: #ffffff;">
+                Troubletick PWA
+              </ion-card-title>
+              <ion-card-subtitle class="ion-text-center" style="color: #94a3b8;">
+                Single Page Application (Ionic Framework)
+              </ion-card-subtitle>
+            </ion-card-header>
+
+            <ion-card-content>
+              <!-- Alert Messaggio Errore Login -->
+              <div id="login-error-alert" style="display: none; background: rgba(239,68,68,0.15); border: 1px solid rgba(239,68,68,0.3); color: #fca5a5; padding: 10px 14px; border-radius: 12px; margin-bottom: 1rem; font-size: 0.85rem;">
+                <ion-icon name="alert-circle-outline" style="vertical-align: middle; margin-right: 6px;"></ion-icon>
+                <span id="login-error-text">Credenziali non valide. Riprova.</span>
+              </div>
+
+              <form id="login-form">
+                <ion-list lines="none" style="background: transparent;">
+                  <ion-item class="ion-margin-bottom" style="--background: rgba(15,23,42,0.6); --border-radius: 14px; --border-color: rgba(255,255,255,0.1);">
+                    <ion-icon name="person-outline" slot="start" color="primary"></ion-icon>
+                    <ion-label position="floating" color="light">Username o Email</ion-label>
+                    <ion-input type="text" id="login-username" value="sscriboni@aslal.it" required></ion-input>
+                  </ion-item>
+
+                  <ion-item class="ion-margin-bottom" style="--background: rgba(15,23,42,0.6); --border-radius: 14px; --border-color: rgba(255,255,255,0.1);">
+                    <ion-icon name="lock-closed-outline" slot="start" color="primary"></ion-icon>
+                    <ion-label position="floating" color="light">Password</ion-label>
+                    <ion-input type="password" id="login-password" value="password123" required></ion-input>
+                  </ion-item>
+
+                  <ion-item lines="none" style="--background: transparent;">
+                    <ion-checkbox id="login-remember" slot="start" checked></ion-checkbox>
+                    <ion-label color="medium" style="font-size: 0.85rem;">Ricordami su questo dispositivo</ion-label>
+                  </ion-item>
+                </ion-list>
+
+                <div class="ion-margin-top">
+                  <ion-button type="submit" expand="block" color="primary" size="large" class="fw-bold" style="--border-radius: 14px;">
+                    <ion-icon slot="start" name="log-in-outline"></ion-icon>
+                    Accedi alla PWA
+                  </ion-button>
+                </div>
+              </form>
+            </ion-card-content>
+          </ion-card>
+        </div>
+      </ion-content>
+    </div>
+
+    <!-- ================= PAGE 2: HOME (DASHBOARD SPA) ================= -->
+    <div id="page-home" class="page-view">
+      <ion-header class="ion-no-border">
+        <ion-toolbar color="dark">
+          <ion-title>Troubletick — Home PWA</ion-title>
+          <ion-buttons slot="end">
+            <ion-badge color="success" id="api-status-badge" class="ion-margin-end">
+              <ion-icon name="pulse-outline"></ion-icon> API Online
+            </ion-badge>
+            <ion-button id="btn-logout" color="danger">
+              <ion-icon slot="icon-only" name="log-out-outline"></ion-icon>
+            </ion-button>
+          </ion-buttons>
+        </ion-toolbar>
+      </ion-header>
+
+      <ion-content class="ion-padding" color="dark">
+        <!-- Banner Benvenuto Utente -->
+        <ion-card class="dashboard-card ion-padding-bottom ion-margin-bottom">
+          <ion-card-header>
+            <div style="display: flex; justify-content: space-between; align-items: center;">
+              <div>
+                <ion-card-subtitle color="primary" style="font-weight: 700; text-uppercase; letter-spacing: 0.05em;">
+                  Single Page Application PWA
+                </ion-card-subtitle>
+                <ion-card-title style="font-size: 1.5rem; font-weight: 800; color: #ffffff;">
+                  Benvenuto, <span id="user-display-name">Utente</span>!
+                </ion-card-title>
+              </div>
+              <ion-badge color="primary" id="user-role-badge" style="font-size: 0.85rem; padding: 6px 12px; border-radius: 20px;">
+                Ruolo: <span id="user-role-name">normale</span>
+              </ion-badge>
+            </div>
+            <p style="color: #94a3b8; font-size: 0.88rem; margin-top: 0.5rem; margin-bottom: 0;">
+              Sei collegato all'interfaccia Ionic PWA integrata con il backend Python FastAPI.
+            </p>
+          </ion-card-header>
+
+          <ion-card-content>
+            <!-- Statistiche Dashboard KPI -->
+            <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(130px, 1fr)); gap: 12px;">
+              <div class="kpi-stat-box">
+                <div style="font-size: 0.75rem; color: #94a3b8; font-weight: 600; text-transform: uppercase;">Ticket Aperti</div>
+                <div id="stat-tickets" style="font-size: 1.6rem; font-weight: 800; color: #ffffff; margin-top: 2px;">0</div>
+              </div>
+
+              <div class="kpi-stat-box">
+                <div style="font-size: 0.75rem; color: #94a3b8; font-weight: 600; text-transform: uppercase;">Flotta Veicoli</div>
+                <div id="stat-vehicles" style="font-size: 1.6rem; font-weight: 800; color: #3880ff; margin-top: 2px;">376</div>
+              </div>
+
+              <div class="kpi-stat-box">
+                <div style="font-size: 0.75rem; color: #94a3b8; font-weight: 600; text-transform: uppercase;">Presenze Oggi</div>
+                <div id="stat-presenze" style="font-size: 1.6rem; font-weight: 800; color: #2dd36f; margin-top: 2px;">Attivo</div>
+              </div>
+            </div>
+          </ion-card-content>
+        </ion-card>
+
+        <!-- Schede Funzionalità Principali -->
+        <h5 style="color: #ffffff; font-weight: 700; margin-left: 4px; margin-bottom: 12px;">
+          <ion-icon name="grid-outline" color="primary" style="vertical-align: middle; margin-right: 6px;"></ion-icon>
+          Modulo Servizi PWA
+        </h5>
+
+        <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 16px; margin-bottom: 24px;">
+          
+          <!-- Card Carpooling -->
+          <ion-card class="dashboard-card" style="margin: 0;">
+            <ion-card-header>
+              <ion-icon name="car-sport-outline" color="primary" style="font-size: 2.2rem;"></ion-icon>
+              <ion-card-title style="color: #ffffff; font-size: 1.1rem; font-weight: 700;">Carpooling & Flotta</ion-card-title>
+              <ion-card-subtitle style="color: #94a3b8;">Prenotazione ed utilizzo veicoli aziendali</ion-card-subtitle>
+            </ion-card-header>
+            <ion-card-content>
+              <p style="color: #cbd5e1; font-size: 0.85rem;">Consulta la disponibilità dei 376 automezzi in archivio ed avvia il viaggio di servizio.</p>
+              <ion-button expand="block" fill="outline" color="primary" size="small" style="margin-top: 12px;">
+                Prenota Automezzo
+              </ion-button>
+            </ion-card-content>
+          </ion-card>
+
+          <!-- Card Helpdesk -->
+          <ion-card class="dashboard-card" style="margin: 0;">
+            <ion-card-header>
+              <ion-icon name="headset-outline" color="tertiary" style="font-size: 2.2rem;"></ion-icon>
+              <ion-card-title style="color: #ffffff; font-size: 1.1rem; font-weight: 700;">Helpdesk & Supporto</ion-card-title>
+              <ion-card-subtitle style="color: #94a3b8;">Segnalazioni guasti e ticket IT</ion-card-subtitle>
+            </ion-card-header>
+            <ion-card-content>
+              <p style="color: #cbd5e1; font-size: 0.85rem;">Invia nuove richieste di assistenza o verifica lo stato di lavorazione dei tuoi ticket.</p>
+              <ion-button expand="block" fill="outline" color="tertiary" size="small" style="margin-top: 12px;">
+                Apri Ticket
+              </ion-button>
+            </ion-card-content>
+          </ion-card>
+
+          <!-- Card Presenze -->
+          <ion-card class="dashboard-card" style="margin: 0;">
+            <ion-card-header>
+              <ion-icon name="calendar-outline" color="success" style="font-size: 2.2rem;"></ion-icon>
+              <ion-card-title style="color: #ffffff; font-size: 1.1rem; font-weight: 700;">Presenze & Ferie</ion-card-title>
+              <ion-card-subtitle style="color: #94a3b8;">Matrice mensile e smartworking</ion-card-subtitle>
+            </ion-card-header>
+            <ion-card-content>
+              <p style="color: #cbd5e1; font-size: 0.85rem;">Segnala giornate di smartworking, corsi o ferie e consulta la copertura di reparto.</p>
+              <ion-button expand="block" fill="outline" color="success" size="small" style="margin-top: 12px;">
+                Calendario Reparto
+              </ion-button>
+            </ion-card-content>
+          </ion-card>
+
+        </div>
+      </ion-content>
+
+      <!-- Bottom Tabs Bar PWA -->
+      <ion-tab-bar slot="bottom" color="dark">
+        <ion-tab-button tab="home" selected>
+          <ion-icon name="home-outline"></ion-icon>
+          <ion-label>Home</ion-label>
+        </ion-tab-button>
+
+        <ion-tab-button tab="flotta">
+          <ion-icon name="car-outline"></ion-icon>
+          <ion-label>Flotta</ion-label>
+        </ion-tab-button>
+
+        <ion-tab-button tab="ticket">
+          <ion-icon name="ticket-outline"></ion-icon>
+          <ion-label>Ticket</ion-label>
+        </ion-tab-button>
+
+        <ion-tab-button tab="presenze">
+          <ion-icon name="calendar-outline"></ion-icon>
+          <ion-label>Presenze</ion-label>
+        </ion-tab-button>
+      </ion-tab-bar>
+    </div>
+  </ion-app>
+
+  <!-- SPA Client Logic -->
+  <script src="/app.js"></script>
+</body>
+</html>
