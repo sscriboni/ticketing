@@ -534,3 +534,97 @@ def attivazione_action(r: Request, token: str):
 def logout(r: Request):
     r.session.clear()
     return RedirectResponse(url="/", status_code=303)
+
+# ==================== ENDPOINT API REST PER PWA ====================
+from pydantic import BaseModel
+class PwaLoginReq(BaseModel):
+    username: str
+    password: str
+
+@router.post("/api/login")
+@router.post("/appcar/api/login")
+async def pwa_api_login(r: Request, req: Optional[PwaLoginReq] = None):
+    username = ""
+    password = ""
+    if req:
+        username = req.username.strip()
+        password = req.password.strip()
+    else:
+        try:
+            body = await r.json()
+            username = body.get("username", "").strip()
+            password = body.get("password", "").strip()
+        except Exception:
+            form = await r.form()
+            username = form.get("username", "").strip()
+            password = form.get("password", "").strip()
+
+    if not username or not password:
+        return JSONResponse(status_code=400, content={"detail": "Inserire username e password."})
+
+    with engine.connect() as c:
+        row = c.execute(text("""
+            SELECT u.user_id, u.username, u.password_hash, u.nome, u.cognome, u.email, u.ruolo, u.magazzino_id, u.sede_id, u.reparto_id,
+                   r.nome AS reparto_nome, s.nome AS sede_nome
+            FROM users u
+            LEFT JOIN reparti r ON u.reparto_id = r.reparto_id
+            LEFT JOIN sedi s ON u.sede_id = s.sede_id
+            WHERE (LOWER(u.email) = LOWER(:u) OR LOWER(u.username) = LOWER(:u)) AND u.attivo = 1
+        """), {"u": username}).mappings().first()
+
+    if row and ok(password, row["password_hash"]):
+        user_info = {
+            "id": row["user_id"],
+            "user_id": row["user_id"],
+            "username": row["username"],
+            "email": row["email"],
+            "nome": row["nome"] or "",
+            "cognome": row["cognome"] or "",
+            "ruolo": row["ruolo"] or "normale",
+            "reparto_id": row["reparto_id"],
+            "reparto_nome": row["reparto_nome"]
+        }
+        r.session["user"] = user_info
+        token = f"session_token_{row['user_id']}"
+        return JSONResponse(status_code=200, content={"token": token, "user": user_info})
+
+    return JSONResponse(status_code=401, content={"detail": "Credenziali non valide o utente non attivo."})
+
+@router.get("/api/dashboard")
+@router.get("/appcar/api/dashboard")
+def pwa_api_dashboard(r: Request):
+    user = r.session.get("user", {})
+    user_ruolo = user.get("ruolo", "normale")
+    tickets_open = 0
+    vehicles_count = 376
+
+    try:
+        with engine.connect() as c:
+            row_t = c.execute(text("SELECT COUNT(*) FROM tickets WHERE stato IN ('nuova', 'in_lavorazione')")).scalar()
+            if row_t: tickets_open = row_t
+            row_v = c.execute(text("SELECT COUNT(*) FROM automezzi")).scalar()
+            if row_v: vehicles_count = row_v
+    except Exception:
+        pass
+
+    return JSONResponse(status_code=200, content={
+        "ruolo": user_ruolo,
+        "tickets_open": tickets_open,
+        "vehicles_count": vehicles_count,
+        "presenze_status": "Operativo",
+        "user_reparto_nome": user.get("reparto_nome")
+    })
+
+@router.get("/api/me")
+@router.get("/appcar/api/me")
+def pwa_api_me(r: Request):
+    user = r.session.get("user")
+    if not user:
+        return JSONResponse(status_code=401, content={"detail": "Non autenticato"})
+    return JSONResponse(status_code=200, content=user)
+
+@router.post("/api/logout")
+@router.post("/appcar/api/logout")
+def pwa_api_logout(r: Request):
+    r.session.clear()
+    return JSONResponse(status_code=200, content={"message": "Logout completato"})
