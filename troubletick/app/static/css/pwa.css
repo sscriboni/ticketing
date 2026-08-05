@@ -23,8 +23,13 @@ body.has-pwa-nav {
 
 /* Glassmorphic App Bar / Navbar Touch Ups */
 .navbar {
+  position: relative;
+  z-index: 2000 !important;
   backdrop-filter: blur(12px);
   -webkit-backdrop-filter: blur(12px);
+}
+.navbar .dropdown-menu {
+  z-index: 2050 !important;
 }
 
 /* PWA Bottom Navigation Bar (Mobile App Shell) */

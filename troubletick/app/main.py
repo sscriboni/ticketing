@@ -588,14 +588,6 @@ app.mount("/uploads", StaticFiles(directory=UPLOAD_DIR), name="uploads")
 async def favicon():
     return FileResponse(os.path.join(BASE_DIR, "static", "favicon.png"))
 
-@app.get("/manifest.json", include_in_schema=False)
-async def pwa_manifest():
-    return FileResponse(os.path.join(BASE_DIR, "static", "manifest.json"), media_type="application/json")
-
-@app.get("/sw.js", include_in_schema=False)
-async def pwa_service_worker():
-    return FileResponse(os.path.join(BASE_DIR, "static", "sw.js"), media_type="application/javascript")
-
 def get_new_tickets_count(user):
     if not user or user.get("ruolo") == "normale":
         return 0
@@ -824,16 +816,16 @@ def home(r: Request):
             else:
                 user_rep_id = None
                 
-            if user_rep_id is not None:
-                fleet_total = c.execute(text("SELECT COUNT(*) FROM automezzi WHERE reparto_assegnato_id = :rep"), {"rep": user_rep_id}).scalar() or 0
-                fleet_available = c.execute(text("SELECT COUNT(*) FROM automezzi WHERE stato = 'Disponibile' AND reparto_assegnato_id = :rep"), {"rep": user_rep_id}).scalar() or 0
-                fleet_in_use = c.execute(text("SELECT COUNT(*) FROM automezzi WHERE stato = 'In Uso' AND reparto_assegnato_id = :rep"), {"rep": user_rep_id}).scalar() or 0
-                fleet_maintenance = c.execute(text("SELECT COUNT(*) FROM automezzi WHERE stato = 'In Manutenzione' AND reparto_assegnato_id = :rep"), {"rep": user_rep_id}).scalar() or 0
+            if user_rep_id is not None and user_rep_id > 0:
+                fleet_total = c.execute(text("SELECT COUNT(*) FROM automezzi WHERE reparto_assegnato_id = :rep OR reparto_assegnato_id IS NULL OR reparto_assegnato_id = 0"), {"rep": user_rep_id}).scalar() or 0
+                fleet_available = c.execute(text("SELECT COUNT(*) FROM automezzi WHERE stato = 'Disponibile' AND (reparto_assegnato_id = :rep OR reparto_assegnato_id IS NULL OR reparto_assegnato_id = 0)"), {"rep": user_rep_id}).scalar() or 0
+                fleet_in_use = c.execute(text("SELECT COUNT(*) FROM automezzi WHERE stato = 'In Uso' AND (reparto_assegnato_id = :rep OR reparto_assegnato_id IS NULL OR reparto_assegnato_id = 0)"), {"rep": user_rep_id}).scalar() or 0
+                fleet_maintenance = c.execute(text("SELECT COUNT(*) FROM automezzi WHERE stato = 'In Manutenzione' AND (reparto_assegnato_id = :rep OR reparto_assegnato_id IS NULL OR reparto_assegnato_id = 0)"), {"rep": user_rep_id}).scalar() or 0
                 fleet_active_maintenance = c.execute(text("""
                     SELECT COUNT(*) 
                     FROM manutenzioni_automezzi m
                     JOIN automezzi a ON m.automezzo_id = a.automezzo_id
-                    WHERE a.reparto_assegnato_id = :rep AND (m.data_fine IS NULL OR m.data_fine = '')
+                    WHERE (a.reparto_assegnato_id = :rep OR a.reparto_assegnato_id IS NULL OR a.reparto_assegnato_id = 0) AND (m.data_fine IS NULL OR m.data_fine = '')
                 """), {"rep": user_rep_id}).scalar() or 0
                 
                 fleet_vehicles_list = c.execute(text("""
@@ -843,9 +835,20 @@ def home(r: Request):
                     LEFT JOIN sedi s1 ON a.sede_assegnata_id = s1.sede_id
                     LEFT JOIN sedi s2 ON a.sede_attuale_id = s2.sede_id
                     LEFT JOIN reparti r ON a.reparto_assegnato_id = r.reparto_id
-                    WHERE a.reparto_assegnato_id = :rep
+                    WHERE (a.reparto_assegnato_id = :rep OR a.reparto_assegnato_id IS NULL OR a.reparto_assegnato_id = 0)
                     ORDER BY a.targa
                 """), {"rep": user_rep_id}).mappings().all()
+
+                if not fleet_vehicles_list:
+                    fleet_vehicles_list = c.execute(text("""
+                        SELECT a.*, m.nome as marca_nome, s1.nome as sede_assegnata_nome, s2.nome as sede_attuale_nome, r.nome as reparto_assegnato_nome
+                        FROM automezzi a
+                        JOIN marche_automezzi m ON a.marca_id = m.marca_id
+                        LEFT JOIN sedi s1 ON a.sede_assegnata_id = s1.sede_id
+                        LEFT JOIN sedi s2 ON a.sede_attuale_id = s2.sede_id
+                        LEFT JOIN reparti r ON a.reparto_assegnato_id = r.reparto_id
+                        ORDER BY a.targa
+                    """)).mappings().all()
 
                 fleet_prenotazioni_list = c.execute(text("""
                     SELECT v.*, v.ora_riconsegna_prevista as ora_arrivo_presunta,
@@ -858,10 +861,9 @@ def home(r: Request):
                     JOIN users u ON v.user_id = u.user_id
                     LEFT JOIN sedi sp ON v.sede_partenza_id = sp.sede_id
                     LEFT JOIN sedi sa ON v.sede_arrivo_id = sa.sede_id
-                    WHERE a.reparto_assegnato_id = :rep
                     ORDER BY v.data_viaggio DESC, v.ora_partenza DESC 
                     LIMIT 30
-                """), {"rep": user_rep_id}).mappings().all()
+                """)).mappings().all()
             else:
                 fleet_total = c.execute(text("SELECT COUNT(*) FROM automezzi")).scalar() or 0
                 fleet_available = c.execute(text("SELECT COUNT(*) FROM automezzi WHERE stato = 'Disponibile'")).scalar() or 0

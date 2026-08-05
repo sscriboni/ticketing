@@ -12,7 +12,25 @@ router = APIRouter()
 
 @router.get("/login", response_class=HTMLResponse)
 def login_form(r: Request, reset: str = None, msg: str = None):
+    if "pending_login_user" in r.session:
+        return RedirectResponse(url="/login/select-role", status_code=303)
     if "user" in r.session:
+        user = r.session.get("user")
+        if user and "id" in user:
+            roles = []
+            if user.get("ruolo"):
+                roles.append(user.get("ruolo"))
+            with engine.connect() as c_roles:
+                roles_rows = c_roles.execute(text("SELECT ruolo FROM user_roles WHERE user_id = :uid"), {"uid": user["id"]}).mappings().all()
+                for rr in roles_rows:
+                    if rr["ruolo"] and rr["ruolo"] not in roles:
+                        roles.append(rr["ruolo"])
+            if not roles:
+                roles = ["normale"]
+            user["roles"] = roles
+            r.session["user"] = user
+            if len(roles) > 1:
+                return RedirectResponse(url="/login/select-role", status_code=303)
         return RedirectResponse(url="/", status_code=303)
     message = None
     error_msg = None
@@ -32,19 +50,21 @@ def login_form(r: Request, reset: str = None, msg: str = None):
 def login_action(r: Request, username: str=Form(...), password: str=Form(...)):
     username = username.strip()
     password = password.strip()
+
+    # Reset any existing session state to ensure clean login
+    r.session.pop("user", None)
+    r.session.pop("pending_login_user", None)
+
     with engine.connect() as c:
-        query = """
-            SELECT u.user_id, u.username, u.password_hash, u.nome, u.cognome, u.email, u.ruolo, u.magazzino_id, u.sede_id,
+        row = c.execute(text("""
+            SELECT u.user_id, u.username, u.password_hash, u.nome, u.cognome, u.email, u.ruolo, u.magazzino_id, u.sede_id, u.reparto_id,
                    r.nome AS reparto_nome, s.nome AS sede_nome
             FROM users u
             LEFT JOIN reparti r ON u.reparto_id = r.reparto_id
             LEFT JOIN sedi s ON u.sede_id = s.sede_id
-            WHERE {field}=:u AND u.attivo=1
-        """
-        if "@" in username:
-            row = c.execute(text(query.format(field="u.email")), {"u": username}).mappings().first()
-        else:
-            row = c.execute(text(query.format(field="u.username")), {"u": username}).mappings().first()
+            WHERE (LOWER(u.email) = LOWER(:u) OR LOWER(u.username) = LOWER(:u)) AND u.attivo = 1
+        """), {"u": username}).mappings().first()
+
     if row and ok(password, row["password_hash"]):
         # Fetch user roles (combining primary users.ruolo and user_roles table)
         roles = []
@@ -67,6 +87,7 @@ def login_action(r: Request, username: str=Form(...), password: str=Form(...)):
                 "email": row["email"],
                 "nome": row["nome"],
                 "cognome": row["cognome"],
+                "reparto_id": row["reparto_id"],
                 "reparto_nome": row["reparto_nome"],
                 "sede_nome": row["sede_nome"],
                 "sede_id": row["sede_id"],
@@ -83,6 +104,7 @@ def login_action(r: Request, username: str=Form(...), password: str=Form(...)):
             "nome": row["nome"],
             "cognome": row["cognome"],
             "ruolo": roles[0],
+            "reparto_id": row["reparto_id"],
             "reparto_nome": row["reparto_nome"],
             "sede_nome": row["sede_nome"],
             "sede_id": row["sede_id"],
@@ -113,7 +135,22 @@ def select_role_form(r: Request):
     if not pending and not user:
         return RedirectResponse(url="/login", status_code=303)
 
-    roles = pending["roles"] if pending else user.get("roles", [])
+    if user:
+        roles = []
+        if user.get("ruolo"):
+            roles.append(user.get("ruolo"))
+        with engine.connect() as c_roles:
+            roles_rows = c_roles.execute(text("SELECT ruolo FROM user_roles WHERE user_id = :uid"), {"uid": user["id"]}).mappings().all()
+            for rr in roles_rows:
+                if rr["ruolo"] and rr["ruolo"] not in roles:
+                    roles.append(rr["ruolo"])
+        if not roles:
+            roles = ["normale"]
+        user["roles"] = roles
+        r.session["user"] = user
+    else:
+        roles = pending.get("roles", [])
+
     if not roles:
         return RedirectResponse(url="/login", status_code=303)
 
@@ -247,6 +284,7 @@ def select_role_action(r: Request, ruolo: str = Form(...)):
             "nome": pending["nome"],
             "cognome": pending["cognome"],
             "ruolo": ruolo,
+            "reparto_id": pending.get("reparto_id"),
             "reparto_nome": pending["reparto_nome"],
             "sede_nome": pending["sede_nome"],
             "sede_id": pending.get("sede_id"),
@@ -267,8 +305,6 @@ def select_role_action(r: Request, ruolo: str = Form(...)):
         user["ruolo"] = ruolo
         r.session["user"] = user
 
-    return RedirectResponse(url="/", status_code=303)
-        
     return RedirectResponse(url="/", status_code=303)
 
 @router.get("/register", response_class=HTMLResponse)
