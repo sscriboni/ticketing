@@ -104,11 +104,11 @@ export default function App() {
               </div>
 
               <h2 className="text-2xl sm:text-3xl font-extrabold text-white tracking-tight leading-snug">
-                Pagina di Cortesia & Servizi Operativi PWA
+                Benvenuto nella WebApp PWA Troubletick!
               </h2>
 
-              <p className="text-sm text-slate-300 mt-2 max-w-2xl leading-relaxed">
-                Questa è la pagina di benvenuto della Webapp PWA. Da qui puoi accedere rapidamente alla prenotazione dei veicoli aziendali (Carpooling), segnalare guasti e richieste di assistenza, o verificare le tue presenze ed il calendario di reparto.
+              <p className="text-sm sm:text-base text-slate-200 mt-3 max-w-2xl leading-relaxed font-medium">
+                Siamo lieti di darti il benvenuto nella nuova applicazione PWA. Da qui puoi accedere in totale mobilità a tutti i servizi operativi: prenotazione automezzi aziendali (Carpooling), apertura e consultazione ticket di assistenza tecnica, segnalazione presenze e smartworking.
               </p>
 
               {/* Badges Info Cortesia */}
