@@ -588,6 +588,11 @@ app.mount("/uploads", StaticFiles(directory=UPLOAD_DIR), name="uploads")
 async def favicon():
     return FileResponse(os.path.join(BASE_DIR, "static", "favicon.png"))
 
+@app.get("/cortesia", response_class=HTMLResponse)
+@app.get("/pwa/cortesia", response_class=HTMLResponse)
+def home_cortesia_pwa(r: Request):
+    return templates.TemplateResponse(r, "home_cortesia_pwa.html", {"request": r, "cfg": CFG})
+
 def get_new_tickets_count(user):
     if not user or user.get("ruolo") == "normale":
         return 0
