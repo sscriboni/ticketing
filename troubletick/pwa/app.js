@@ -1,16 +1,14 @@
-// Troubletick PWA — Ionic SPA Controller (Configurazione Percorsi Relativi ed API Robustness)
+// Troubletick PWA — Ionic SPA Controller (Percorso Relativo Esclusivo)
 
+// Recupero del percorso relativo API identificato (senza altri tentativi o URL alternativi)
 function getApiBaseUrl() {
   if (window.PWA_CONFIG && window.PWA_CONFIG.apiBaseUrl) {
     return window.PWA_CONFIG.apiBaseUrl;
   }
-  const currentPath = window.location.pathname;
-  const baseFolder = currentPath.substring(0, currentPath.lastIndexOf('/') + 1) || './';
-  return window.location.origin + baseFolder.replace(/\/$/, '') + '/api';
+  return './api';
 }
 
-const API_PRIMARY_URL = getApiBaseUrl();
-const API_FALLBACK_URL = (window.PWA_CONFIG && window.PWA_CONFIG.apiFallbackUrl) ? window.PWA_CONFIG.apiFallbackUrl : 'http://localhost:8000/api';
+const API_RELATIVE_BASE_URL = getApiBaseUrl();
 
 // Gestione Navigazione SPA tra Pagine (<ion-page>)
 function navigateToPage(pageId) {
@@ -77,30 +75,14 @@ function renderUserHome(user) {
   switchRoleDashboardView(userRole);
 }
 
-// Multi-Candidate API Fetcher per la massima compatibilità su qualsiasi sotto-percorso webapp (es. /appcar/api/login, /api/login, /login)
+// Esegue la chiamata API REST utilizzando ESCLUSIVAMENTE il percorso relativo identificato
 async function apiFetch(endpoint, options = {}) {
-  const candidates = [
-    `${API_PRIMARY_URL}${endpoint}`,
-    `${window.location.origin}${window.location.pathname.replace(/\/$/, '')}${endpoint}`,
-    `${window.location.origin}/api${endpoint}`,
-    `${window.location.origin}${endpoint}`,
-    `${API_FALLBACK_URL}${endpoint}`
-  ];
+  const cleanBase = API_RELATIVE_BASE_URL.replace(/\/$/, '');
+  const cleanEndpoint = endpoint.startsWith('/') ? endpoint : '/' + endpoint;
+  const url = `${cleanBase}${cleanEndpoint}`;
 
-  // Rimuovi candidati duplicati
-  const uniqueCandidates = [...new Set(candidates)];
-
-  for (const url of uniqueCandidates) {
-    try {
-      const res = await fetch(url, options);
-      if (res && res.status !== 404) {
-        return res;
-      }
-    } catch (e) {
-      // Ignora ed hooks verso il prossimo candidato URL
-    }
-  }
-  return null;
+  // Esegue una singola chiamata fetch diretta sul percorso relativo senza tentativi alternativi
+  return fetch(url, options);
 }
 
 // Recupero Statistiche Dashboard dal Backend Python in base al ruolo
@@ -118,10 +100,9 @@ async function fetchDashboardStats(token) {
       data = await res.json();
     }
   } catch (e) {
-    console.warn('Avviso recupero API dashboard, attivata modalità tollerante:', e);
+    console.warn('Avviso recupero API dashboard su percorso relativo:', e);
   }
 
-  // Se i dati dal server non sono disponibili o hanno ritornato 404, usa dati locali di default
   if (!data) {
     data = {
       tickets_open: 0,
@@ -174,7 +155,7 @@ document.addEventListener('DOMContentLoaded', () => {
     });
   }
 
-  // Submit Form di Login (Azione API POST /api/login)
+  // Submit Form di Login (Azione API POST sul percorso relativo)
   if (loginForm) {
     loginForm.addEventListener('submit', async (e) => {
       e.preventDefault();
@@ -215,10 +196,10 @@ document.addEventListener('DOMContentLoaded', () => {
           return;
         }
       } catch (err) {
-        console.warn('Backend API non disponibile, proseguo con autenticazione locale PWA:', err);
+        console.warn('Avviso chiamata API su percorso relativo:', err);
       }
 
-      // Fallback trasparente per la fruizione SPA senza blocchi 404
+      // In caso di risposta inattesa, consente la navigazione locale SPA
       const demoUser = { username: username, nome: username.split('@')[0], cognome: '', ruolo: 'normale' };
       localStorage.setItem('pwa_auth_token', 'demo_token_pwa');
       localStorage.setItem('pwa_user_info', JSON.stringify(demoUser));
@@ -228,7 +209,7 @@ document.addEventListener('DOMContentLoaded', () => {
     });
   }
 
-  // Azione Logout (API POST /api/logout)
+  // Azione Logout
   if (btnLogout) {
     btnLogout.addEventListener('click', async () => {
       const token = localStorage.getItem('pwa_auth_token');
@@ -244,10 +225,10 @@ document.addEventListener('DOMContentLoaded', () => {
     });
   }
 
-  // Registrazione Service Worker per PWA Offline con percorso relativo
+  // Registrazione Service Worker con percorso relativo
   if ('serviceWorker' in navigator) {
     navigator.serviceWorker.register('./sw.js')
-      .then(reg => console.log('Service Worker PWA Registrato con percorso relativo:', reg.scope))
+      .then(reg => console.log('Service Worker PWA Registrato:', reg.scope))
       .catch(err => console.error('Errore registrazione Service Worker:', err));
   }
 
