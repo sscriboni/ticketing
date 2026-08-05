@@ -1,7 +1,17 @@
-// Troubletick PWA — Ionic SPA Controller
+// Troubletick PWA — Ionic SPA Controller (Configurazione Percorsi Relativi)
 
-// Configurazione Endpoint Backend Python API
-const API_BASE_URL = 'http://localhost:8000/api';
+// Calcolo Dinamico dell'URL API dal Config Relativo (window.PWA_CONFIG)
+function getApiBaseUrl() {
+  if (window.PWA_CONFIG && window.PWA_CONFIG.apiBaseUrl) {
+    return window.PWA_CONFIG.apiBaseUrl;
+  }
+  const currentPath = window.location.pathname;
+  const baseFolder = currentPath.substring(0, currentPath.lastIndexOf('/') + 1) || './';
+  return window.location.origin + baseFolder.replace(/\/$/, '') + '/api';
+}
+
+const API_PRIMARY_URL = getApiBaseUrl();
+const API_FALLBACK_URL = (window.PWA_CONFIG && window.PWA_CONFIG.apiFallbackUrl) ? window.PWA_CONFIG.apiFallbackUrl : 'http://localhost:8000/api';
 
 // Gestione Navigazione SPA tra Pagine
 function navigateToPage(pageId) {
@@ -40,7 +50,7 @@ function renderUserHome(user) {
   const roleNameEl = document.getElementById('user-role-name');
   const roleBadgeEl = document.getElementById('user-role-badge');
 
-  if (nameEl) nameEl.textContent = `${user.nome || ''} ${user.cognome || ''}`.strip() || user.username || 'Utente';
+  if (nameEl) nameEl.textContent = `${user.nome || ''} ${user.cognome || ''}`.trim() || user.username || 'Utente';
   if (roleNameEl) roleNameEl.textContent = user.ruolo || 'normale';
 
   if (roleBadgeEl) {
@@ -51,17 +61,34 @@ function renderUserHome(user) {
   }
 }
 
+// Helper Fetch flessibile con tentativo primario (relativo) e fallback su server locale
+async function apiFetch(endpoint, options = {}) {
+  const primaryUrl = `${API_PRIMARY_URL}${endpoint}`;
+  try {
+    const res = await fetch(primaryUrl, options);
+    if (res.ok || res.status === 401 || res.status === 400 || res.status === 403) {
+      return res;
+    }
+  } catch (e) {
+    console.warn(`Impossibile contattare l'endpoint primario (${primaryUrl}), proseguo con il fallback...`);
+  }
+
+  // Tenta con l'URL di fallback
+  const fallbackUrl = `${API_FALLBACK_URL}${endpoint}`;
+  return fetch(fallbackUrl, options);
+}
+
 // Recupero Statistiche Dashboard dal Backend Python
 async function fetchDashboardStats(token) {
   try {
-    const res = await fetch(`${API_BASE_URL}/dashboard`, {
+    const res = await apiFetch('/dashboard', {
       headers: {
         'Authorization': `Bearer ${token}`,
         'Content-Type': 'application/json'
       }
     });
 
-    if (res.ok) {
+    if (res && res.ok) {
       const data = await res.json();
       document.getElementById('stat-tickets').textContent = data.tickets_open || 0;
       document.getElementById('stat-vehicles').textContent = data.vehicles_count || 376;
@@ -102,13 +129,13 @@ document.addEventListener('DOMContentLoaded', () => {
       }
 
       try {
-        const res = await fetch(`${API_BASE_URL}/login`, {
+        const res = await apiFetch('/login', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ username, password })
         });
 
-        if (res.ok) {
+        if (res && res.ok) {
           const data = await res.json();
           localStorage.setItem('pwa_auth_token', data.token);
           localStorage.setItem('pwa_user_info', JSON.stringify(data.user));
@@ -117,7 +144,7 @@ document.addEventListener('DOMContentLoaded', () => {
           navigateToPage('page-home');
           fetchDashboardStats(data.token);
         } else {
-          const errData = await res.json().catch(() => ({}));
+          const errData = await (res ? res.json() : Promise.resolve({})).catch(() => ({}));
           loginErrorText.textContent = errData.detail || 'Credenziali non valide o utente non attivo.';
           loginErrorAlert.style.display = 'block';
         }
@@ -139,7 +166,7 @@ document.addEventListener('DOMContentLoaded', () => {
     btnLogout.addEventListener('click', async () => {
       const token = localStorage.getItem('pwa_auth_token');
       if (token) {
-        fetch(`${API_BASE_URL}/logout`, {
+        apiFetch('/logout', {
           method: 'POST',
           headers: { 'Authorization': `Bearer ${token}` }
         }).catch(() => {});
@@ -150,10 +177,10 @@ document.addEventListener('DOMContentLoaded', () => {
     });
   }
 
-  // Registrazione Service Worker per PWA Offline
+  // Registrazione Service Worker per PWA Offline con percorso relativo
   if ('serviceWorker' in navigator) {
-    navigator.serviceWorker.register('/sw.js')
-      .then(reg => console.log('Service Worker PWA Registrato:', reg.scope))
+    navigator.serviceWorker.register('./sw.js')
+      .then(reg => console.log('Service Worker PWA Registrato con percorso relativo:', reg.scope))
       .catch(err => console.error('Errore registrazione Service Worker:', err));
   }
 

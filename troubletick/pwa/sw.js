@@ -1,16 +1,19 @@
-const CACHE_NAME = 'ionic-pwa-spa-v1';
+const CACHE_NAME = 'ionic-pwa-spa-v2';
+
+// Caching con percorsi relativi per consentire l'hosting in qualsiasi sottocartella
 const ASSETS_TO_CACHE = [
-  '/',
-  '/index.html',
-  '/app.js',
-  '/style.css',
-  '/manifest.json'
+  './',
+  './index.html',
+  './config.js',
+  './app.js',
+  './style.css',
+  './manifest.json'
 ];
 
 self.addEventListener('install', (event) => {
   event.waitUntil(
     caches.open(CACHE_NAME).then((cache) => {
-      console.log('[ServiceWorker] Caching Ionic SPA Assets');
+      console.log('[ServiceWorker] Caching risorse con percorsi relativi');
       return cache.addAll(ASSETS_TO_CACHE);
     }).then(() => self.skipWaiting())
   );
@@ -22,7 +25,7 @@ self.addEventListener('activate', (event) => {
       return Promise.all(
         keyList.map((key) => {
           if (key !== CACHE_NAME) {
-            console.log('[ServiceWorker] Removing old cache:', key);
+            console.log('[ServiceWorker] Rimuovo vecchia cache:', key);
             return caches.delete(key);
           }
         })
@@ -33,6 +36,7 @@ self.addEventListener('activate', (event) => {
 
 self.addEventListener('fetch', (event) => {
   if (event.request.method !== 'GET') return;
+
   event.respondWith(
     fetch(event.request)
       .then((response) => {
@@ -49,8 +53,8 @@ self.addEventListener('fetch', (event) => {
           if (cachedResponse) {
             return cachedResponse;
           }
-          if (event.request.headers.get('accept').includes('text/html')) {
-            return caches.match('/index.html');
+          if (event.request.headers.get('accept') && event.request.headers.get('accept').includes('text/html')) {
+            return caches.match('./index.html') || caches.match('./');
           }
         });
       })
