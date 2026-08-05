@@ -214,7 +214,8 @@
                         </td>
                         {% for cell in row.giorni_stato %}
                         <td class="{% if cell.holiday %}holiday-cell{% elif cell.is_weekend %}weekend-cell{% endif %} 
-                                   {% if cell.absent and not cell.holiday %}
+                                   {% if cell.holiday or cell.is_weekend %}
+                                   {% elif cell.absent %}
                                        {% if cell.motivo == 'ferie' %}cell-absent-ferie
                                        {% elif cell.motivo == 'malattia' %}cell-absent-malattia
                                        {% elif cell.motivo == 'permessi vari' %}cell-absent-permesso
@@ -222,7 +223,7 @@
                                        {% elif cell.motivo == 'festività' %}cell-absent-festivita
                                        {% else %}cell-absent-altro
                                        {% endif %}
-                                   {% elif cell.present and not cell.holiday %}
+                                   {% elif cell.present %}
                                        {% if cell.presenza_tipo == 'smartwork' %}cell-presenza-smartwork
                                        {% elif cell.presenza_tipo == 'corsi' %}cell-presenza-corsi
                                        {% elif cell.presenza_tipo == 'trasferta' %}cell-presenza-trasferta
@@ -233,24 +234,26 @@
                                    {% else %}cell-presente{% endif %}"
                             {% if cell.holiday %}
                                 title="{{ cell.holiday }}"
+                            {% elif cell.is_weekend %}
+                                title="{{ cell.weekday_name }}"
                             {% elif cell.absent %}
                                 title="{{ row.operator_nome }}: Assente{% if cell.motivo %} - NOTA: {{ cell.motivo|capitalize }}{% endif %}"
                             {% elif cell.present %}
                                 title="{{ row.operator_nome }}: Presente in {{ cell.presenza_tipo|title }}{% if cell.presenza_nota %} - NOTA: {{ cell.presenza_nota }}{% endif %}"
                             {% endif %}
                             data-holiday-weekend-class="{% if cell.holiday %}holiday-cell{% elif cell.is_weekend %}weekend-cell{% endif %}"
-                            data-holiday="{{ '1' if cell.holiday else '0' }}"
-                            data-holiday-title="{{ cell.holiday or '' }}"
-                            data-absent="{{ '1' if (cell.absent and not cell.holiday) else '0' }}"
+                            data-holiday="{{ '1' if (cell.holiday or cell.is_weekend) else '0' }}"
+                            data-holiday-title="{{ cell.holiday or cell.weekday_name or '' }}"
+                            data-absent="{{ '1' if (cell.absent and not cell.holiday and not cell.is_weekend) else '0' }}"
                             data-absent-class="{% if cell.motivo == 'ferie' %}cell-absent-ferie{% elif cell.motivo == 'malattia' %}cell-absent-malattia{% elif cell.motivo == 'permessi vari' %}cell-absent-permesso{% elif cell.motivo == 'fuori sede' %}cell-absent-fuori-sede{% elif cell.motivo == 'festività' %}cell-absent-festivita{% else %}cell-absent-altro{% endif %}"
                             data-absent-text="{% if cell.motivo == 'ferie' %}F{% elif cell.motivo == 'malattia' %}M{% elif cell.motivo == 'permessi vari' %}P{% elif cell.motivo == 'fuori sede' %}FS{% elif cell.motivo == 'festività' %}FE{% else %}A{% endif %}"
                             data-absent-title="{{ row.operator_nome }}: Assente{% if cell.motivo %} - NOTA: {{ cell.motivo|capitalize }}{% endif %}"
-                            data-present="{{ '1' if (cell.present and not cell.holiday) else '0' }}"
+                            data-present="{{ '1' if (cell.present and not cell.holiday and not cell.is_weekend) else '0' }}"
                             data-present-class="{% if cell.presenza_tipo == 'smartwork' %}cell-presenza-smartwork{% elif cell.presenza_tipo == 'corsi' %}cell-presenza-corsi{% elif cell.presenza_tipo == 'trasferta' %}cell-presenza-trasferta{% elif cell.presenza_tipo == 'altra sede' %}cell-presenza-altra-sede{% elif cell.presenza_tipo == 'presente 1/2 gg' %}cell-presenza-mezza{% else %}cell-absent-altro{% endif %}"
                             data-present-text="{% if cell.presenza_tipo == 'smartwork' %}SW{% elif cell.presenza_tipo == 'corsi' %}CO{% elif cell.presenza_tipo == 'trasferta' %}TR{% elif cell.presenza_tipo == 'altra sede' %}AS{% elif cell.presenza_tipo == 'presente 1/2 gg' %}1/2{% else %}P{% endif %}"
                             data-present-title="{{ row.operator_nome }}: Presente in {{ cell.presenza_tipo|title }}{% if cell.presenza_nota %} - NOTA: {{ cell.presenza_nota }}{% endif %}"
                         >
-                            {% if cell.holiday %}
+                            {% if cell.holiday or cell.is_weekend %}
                             {% elif cell.absent %}
                                 {% if cell.motivo == 'ferie' %}F
                                 {% elif cell.motivo == 'malattia' %}M

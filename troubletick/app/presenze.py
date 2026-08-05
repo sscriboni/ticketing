@@ -137,9 +137,15 @@ def nuova_assenza(r: Request, data_inizio: str = Form(...), data_fine: str = For
             df_dt = datetime.strptime(data_fine, "%Y-%m-%d")
             
             dates_to_check = []
+            with engine.connect() as c_read:
+                festivita_dates = {f["data"] for f in c_read.execute(text("SELECT data FROM festivita WHERE data >= :start AND data <= :end"), {"start": data_inizio, "end": data_fine}).mappings().all()}
+
             curr_dt = di_dt
             while curr_dt <= df_dt:
-                dates_to_check.append(curr_dt.strftime("%Y-%m-%d"))
+                d_str = curr_dt.strftime("%Y-%m-%d")
+                # Escludi Sabato (5), Domenica (6) e festività dal controllo della copertura
+                if curr_dt.weekday() not in (5, 6) and d_str not in festivita_dates:
+                    dates_to_check.append(d_str)
                 curr_dt += timedelta(days=1)
                 
             with engine.connect() as c_read:
@@ -315,8 +321,10 @@ def copertura_servizi(r: Request, mese: int = None, anno: int = None, reparto_id
                             "motivo": absent_record["motivo"] if absent_record else None
                         })
                         
-                    if len(servizi_ops[s["servizio_id"]]) > 0 and present_count == 0:
-                        uncovered_count += 1
+                    is_weekend_day = d.weekday() in (5, 6)
+                    if not is_weekend_day and not holiday:
+                        if len(servizi_ops[s["servizio_id"]]) > 0 and present_count == 0:
+                            uncovered_count += 1
                         
                     day_servizi.append({
                         "servizio_id": s["servizio_id"],
@@ -330,9 +338,10 @@ def copertura_servizi(r: Request, mese: int = None, anno: int = None, reparto_id
                     "is_current_month": d.month == mese,
                     "is_today": d == today,
                     "holiday": holiday,
+                    "is_weekend": is_weekend_day,
                     "servizi": day_servizi,
-                    "uncovered": uncovered_count > 0,
-                    "uncovered_count": uncovered_count
+                    "uncovered": uncovered_count > 0 and not is_weekend_day and not holiday,
+                    "uncovered_count": uncovered_count if (not is_weekend_day and not holiday) else 0
                 })
             weeks.append(week_days)
             
@@ -514,6 +523,11 @@ def assenze_mese(r: Request, mese: int = None, anno: int = None, reparto_id: int
                         if f["comune_id"] is None or (op_comune_id is not None and f["comune_id"] == op_comune_id):
                             holiday = f"{f['descrizione']} ({f['comune_nome']})" if f["comune_nome"] else f["descrizione"]
                             break
+
+                # Se il giorno è una festività o un fine settimana (Sabato/Domenica), non evidenziare come ferie/assenza
+                if holiday or is_weekend:
+                    is_absent = False
+                    is_present = False
                 
                 giorni_stato.append({
                     "absent": is_absent,
@@ -522,7 +536,8 @@ def assenze_mese(r: Request, mese: int = None, anno: int = None, reparto_id: int
                     "presenza_tipo": presenza_tipo,
                     "presenza_nota": presenza_nota,
                     "holiday": holiday,
-                    "is_weekend": is_weekend
+                    "is_weekend": is_weekend,
+                    "weekday_name": wd_names[d.weekday()]
                 })
                 
             matrix.append({
