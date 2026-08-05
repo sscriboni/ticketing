@@ -1,5 +1,6 @@
 <!doctype html>
 <html lang="it">
+
 <head>
   <meta charset="utf-8">
   <title>Portale Assistenza — {{ cfg.app_title }}</title>
@@ -14,17 +15,20 @@
       margin-bottom: 24px;
       box-shadow: 0 4px 15px rgba(13, 110, 253, 0.15);
     }
+
     .action-card {
       border: none;
       border-radius: 12px;
       transition: transform 0.2s, box-shadow 0.2s;
       background: white;
-      box-shadow: 0 4px 10px rgba(0,0,0,0.05);
+      box-shadow: 0 4px 10px rgba(0, 0, 0, 0.05);
     }
+
     .action-card:hover {
       transform: translateY(-5px);
-      box-shadow: 0 8px 20px rgba(0,0,0,0.1);
+      box-shadow: 0 8px 20px rgba(0, 0, 0, 0.1);
     }
+
     .stat-badge {
       font-size: 0.9rem;
       font-weight: bold;
@@ -33,17 +37,19 @@
     }
   </style>
 </head>
+
 <body class="bg-light d-flex flex-column min-vh-100">
   {% include 'navbar.html' %}
 
   <div class="container flex-grow-1 mb-5">
-    
+
     <!-- Welcome Header -->
     <div class="gradient-header text-center text-md-start p-4 p-md-5 rounded-3 mb-4">
       <div class="row align-items-center">
         <div class="col-12 col-md-8">
           <h1 class="h2 fw-bold mb-2">Ciao, {{ user.nome }} {{ user.cognome }}!</h1>
-          <p class="mb-0 opacity-90">{{ cfg.company_description or 'Benvenuto nel portale di assistenza aziendale. Da qui puoi inviare richieste e monitorare il loro avanzamento.' }}</p>
+          <p class="mb-0 opacity-90">{{ cfg.company_description or 'Benvenuto nel portale di assistenza aziendale. Da
+            qui puoi inviare richieste e monitorare il loro avanzamento.' }}</p>
         </div>
         <div class="col-12 col-md-4 text-md-end mt-3 mt-md-0">
           <div class="d-inline-flex flex-column bg-white bg-opacity-20 px-3 py-2 rounded-3 text-center">
@@ -67,7 +73,7 @@
           </div>
         </a>
       </div>
-      
+
       <div class="col-12 col-md-6 col-lg-5">
         <a href="/tickets" class="text-decoration-none text-dark">
           <div class="card action-card p-4 text-center h-100">
@@ -108,7 +114,8 @@
             {% for p in stats.user_prenotazioni %}
             <tr>
               <td>
-                <strong class="font-monospace text-dark fs-5 text-uppercase" style="letter-spacing: 1.5px; font-weight: 800;">{{ p.targa }}</strong>
+                <strong class="font-monospace text-dark fs-5 text-uppercase"
+                  style="letter-spacing: 1.5px; font-weight: 800;">{{ p.targa }}</strong>
                 <small class="d-block text-muted">{{ p.marca_nome }} {{ p.modello }}</small>
               </td>
               <td>
@@ -116,26 +123,29 @@
                 <small class="d-block text-muted">{{ p.ora_partenza }} &rarr; {{ p.ora_arrivo_presunta or '-' }}</small>
               </td>
               <td>
-                <small class="text-muted"><i class="bi bi-geo-alt me-1 text-danger"></i>{{ p.sede_partenza_nome or 'Sede' }} &rarr; {{ p.sede_arrivo_nome or 'Sede' }}</small>
+                <small class="text-muted"><i class="bi bi-geo-alt me-1 text-danger"></i>{{ p.sede_partenza_nome or
+                  'Sede' }} &rarr; {{ p.sede_arrivo_nome or 'Sede' }}</small>
               </td>
               <td>
                 {% if p.ora_partenza_effettiva %}
-                  <span class="badge bg-success"><i class="bi bi-car-front-fill me-1"></i> In Corso (Partito {{ p.ora_partenza_effettiva }})</span>
+                <span class="badge bg-success"><i class="bi bi-car-front-fill me-1"></i> In Corso (Partito {{
+                  p.ora_partenza_effettiva }})</span>
                 {% else %}
-                  <span class="badge bg-warning text-dark"><i class="bi bi-clock me-1"></i> Da Avviare</span>
+                <span class="badge bg-warning text-dark"><i class="bi bi-clock me-1"></i> Da Avviare</span>
                 {% endif %}
               </td>
               <td class="text-end">
                 {% if not p.ora_partenza_effettiva %}
-                  <form action="/autopark/avvia/{{ p.viaggio_id }}" method="POST" class="d-inline">
-                    <button type="submit" class="btn btn-sm btn-success fw-bold shadow-sm">
-                      <i class="bi bi-play-circle-fill me-1"></i> Registra Partenza
-                    </button>
-                  </form>
-                {% else %}
-                  <button type="button" class="btn btn-sm btn-danger fw-bold shadow-sm" onclick="openCompletaViaggioHomeModal({{ p.viaggio_id }}, '{{ p.targa }}', {{ p.auto_km_attuali or p.km_iniziali or 0 }})">
-                    <i class="bi bi-stop-circle-fill me-1"></i> Registra Arrivo
+                <form action="/autopark/avvia/{{ p.viaggio_id }}" method="POST" class="d-inline">
+                  <button type="submit" class="btn btn-sm btn-success fw-bold shadow-sm">
+                    <i class="bi bi-play-circle-fill me-1"></i> Registra Partenza
                   </button>
+                </form>
+                {% else %}
+                <button type="button" class="btn btn-sm btn-danger fw-bold shadow-sm"
+                  onclick="openCompletaViaggioHomeModal({{ p.viaggio_id }}, '{{ p.targa }}', {{ p.auto_km_attuali or p.km_iniziali or 0 }})">
+                  <i class="bi bi-stop-circle-fill me-1"></i> Registra Arrivo
+                </button>
                 {% endif %}
               </td>
             </tr>
@@ -156,7 +166,7 @@
 
     <!-- Layout Grid: Recent Tickets & Announcements -->
     <div class="row g-4">
-      
+
       <!-- Recent user tickets list -->
       <div class="col-12 col-lg-7">
         <div class="card shadow-sm border-0 rounded-3 p-4 h-100">
@@ -168,15 +178,17 @@
             {% for ticket in stats.user_recent_tickets %}
             <div class="list-group-item border-0 px-1 py-3 d-flex justify-content-between align-items-center">
               <div>
-                <strong class="text-primary">{{ ticket.codice_ticket or '#' ~ ticket.ticket_id }}</strong> - 
-                <span class="fw-bold text-dark">{{ ticket.descrizione[:60] }}{% if ticket.descrizione|length > 60 %}...{% endif %}</span>
+                <strong class="text-primary">{{ ticket.codice_ticket or '#' ~ ticket.ticket_id }}</strong> -
+                <span class="fw-bold text-dark">{{ ticket.descrizione[:60] }}{% if ticket.descrizione|length > 60
+                  %}...{% endif %}</span>
                 <div class="small text-muted mt-1">
-                  <span>Creato il: {{ ticket.creato_il[:16] }}</span> | 
+                  <span>Creato il: {{ ticket.creato_il[:16] }}</span> |
                   <span>Servizio: {{ ticket.servizio_desc or 'N/D' }}</span>
                 </div>
               </div>
               <div>
-                <span class="badge {% if ticket.stato == 'nuova' %}bg-primary{% elif ticket.stato == 'presa_in_carico' %}bg-warning text-dark{% elif ticket.stato == 'risolta' or ticket.stato == 'chiusa' %}bg-success{% else %}bg-secondary{% endif %} me-2">
+                <span
+                  class="badge {% if ticket.stato == 'nuova' %}bg-primary{% elif ticket.stato == 'presa_in_carico' %}bg-warning text-dark{% elif ticket.stato == 'risolta' or ticket.stato == 'chiusa' %}bg-success{% else %}bg-secondary{% endif %} me-2">
                   {{ ticket.stato|replace('_', ' ')|capitalize }}
                 </span>
                 <a href="/ticket/{{ ticket.ticket_id }}" class="btn btn-sm btn-outline-primary rounded-pill">Apri</a>
@@ -209,7 +221,8 @@
               <div class="d-flex justify-content-between align-items-start mb-1">
                 <strong class="alert-heading small fw-bold">{{ avviso.titolo }}</strong>
                 {% if avviso.servizio_desc %}
-                <span class="badge bg-dark bg-opacity-75 text-white" style="font-size: 0.75rem;">{{ avviso.servizio_desc }}</span>
+                <span class="badge bg-dark bg-opacity-75 text-white" style="font-size: 0.75rem;">{{ avviso.servizio_desc
+                  }}</span>
                 {% endif %}
               </div>
               <p class="mb-0 small opacity-90">{{ avviso.testo }}</p>
@@ -224,7 +237,7 @@
           {% endif %}
         </div>
       </div>
-      
+
     </div>
   </div>
 
@@ -262,12 +275,14 @@
             </div>
             <div class="mb-3">
               <label class="form-label text-muted fw-bold">Note / Osservazioni (opzionale)</label>
-              <input type="text" name="note_finali" class="form-control" placeholder="Es. Veicolo parcheggiato in stallo 4">
+              <input type="text" name="note_finali" class="form-control"
+                placeholder="Es. Veicolo parcheggiato in stallo 4">
             </div>
           </div>
           <div class="modal-footer">
             <button type="button" class="btn btn-light border" data-bs-dismiss="modal">Annulla</button>
-            <button type="submit" class="btn btn-danger fw-bold"><i class="bi bi-check-circle-fill me-1"></i> Conferma Rientro Viaggio</button>
+            <button type="submit" class="btn btn-danger fw-bold"><i class="bi bi-check-circle-fill me-1"></i> Conferma
+              Rientro Viaggio</button>
           </div>
         </form>
       </div>
@@ -278,17 +293,17 @@
     function openCompletaViaggioHomeModal(viaggioId, targa, minKm) {
       document.getElementById("formHomeCompletaViaggio").action = "/autopark/completa/" + viaggioId;
       document.getElementById("homeCompletaTarga").value = targa;
-      
+
       const kmInp = document.getElementById("homeCompletaKmFinali");
       kmInp.min = minKm;
       kmInp.value = minKm;
-      
+
       const helpEl = document.getElementById("homeCompletaKmHelp");
       if (helpEl) helpEl.textContent = "Chilometri minimi consentiti: " + minKm + " km";
-      
+
       const nowStr = new Date().toTimeString().split(" ")[0].substring(0, 5);
       document.getElementById("homeCompletaOraArrivo").value = nowStr;
-      
+
       const modal = new bootstrap.Modal(document.getElementById("modalHomeCompletaViaggio"));
       modal.show();
     }
@@ -300,4 +315,5 @@
     </div>
   </footer>
 </body>
+
 </html>
