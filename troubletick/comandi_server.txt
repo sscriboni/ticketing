@@ -1,0 +1,35 @@
+# elenco servizi ATTIVI
+sudo systemctl list-units --type=service --state=running
+
+# elenco servizi completo
+sudo systemctl list-units --type=service
+
+# elenco servizi personalizzati
+ls -la /etc/systemd/system/*.service
+
+# stato di un servizio
+sudo systemctl status web_app_api
+
+# modificare il file config di un servizio
+sudo nano /etc/systemd/system/web_app_api.service
+
+# riavviare i servizi rileggendo i file config
+sudo systemctl daemon-reload
+
+# riavviare un servizio
+sudo systemctl restart web_app_api
+
+# verificare su server le api di un servizio
+curl http://localhost:5002/health
+
+# elenco visrtual host apache
+sudo httpd -S
+
+# test config apache
+sudo httpd -t
+
+# ricarica apache
+sudo systemctl reload httpd
+
+
+

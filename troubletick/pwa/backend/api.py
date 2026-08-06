@@ -69,11 +69,13 @@ def get_current_user(authorization: Optional[str] = Header(None)):
 
 
 @app.get("/health")
+@app.get("/api/health")
 def health_check():
     return {"status": "online", "app": "Troubletick PWA API Server", "db_exists": os.path.exists(DB_PATH)}
 
 
 @app.post("/api/login", response_model=LoginResponse)
+@app.post("/login", response_model=LoginResponse)
 def login(req: LoginRequest):
     username = req.username.strip()
     password = req.password.strip()
@@ -133,11 +135,13 @@ def login(req: LoginRequest):
 
 
 @app.get("/api/me", response_model=UserResponse)
+@app.get("/me", response_model=UserResponse)
 def get_me(user: dict = Depends(get_current_user)):
     return UserResponse(**user)
 
 
 @app.get("/api/dashboard", response_model=DashboardResponse)
+@app.get("/dashboard", response_model=DashboardResponse)
 def get_dashboard_metrics(user: dict = Depends(get_current_user)):
     user_ruolo = user.get("ruolo", "normale")
     tickets_open = 0
@@ -222,6 +226,7 @@ def get_dashboard_metrics(user: dict = Depends(get_current_user)):
 
 
 @app.post("/api/logout")
+@app.post("/logout")
 def logout(authorization: Optional[str] = Header(None)):
     if authorization and authorization.startswith("Bearer "):
         token = authorization.split(" ")[1]
