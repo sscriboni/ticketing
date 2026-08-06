@@ -357,8 +357,8 @@
                 {% endif %}
             </div>
 
-            <!-- BOX QR CODE WEBAPP -->
-            <div class="glass-card p-4 mt-4 text-center">
+            <!-- BOX QR CODE WEBAPP (Temporaneamente Nascosto) -->
+            <div class="glass-card p-4 mt-4 text-center" style="display: none !important;">
                 <h5 class="fw-bold mb-3" style="color: #1e3c72;">
                     <i class="bi bi-qr-code-scan me-2 text-primary"></i>Webapp Mobile
                 </h5>
@@ -646,13 +646,62 @@
             });
         });
 
-        // Set date input minimum value to today
+        // Set date input minimum value to today and handle departure hour options
         const dateInput = document.getElementById("data_viaggio");
+        const oraPartenza = document.getElementById("ora_partenza");
+        const oraRiconsegna = document.getElementById("ora_riconsegna_prevista");
+
+        function updateTimeOptions() {
+            if (!dateInput || !oraPartenza) return;
+            const now = new Date();
+            const year = now.getFullYear();
+            const month = String(now.getMonth() + 1).padStart(2, '0');
+            const day = String(now.getDate()).padStart(2, '0');
+            const todayStr = `${year}-${month}-${day}`;
+            const currentHour = now.getHours(); // e.g. 8 for 08:35
+
+            const isToday = (dateInput.value === todayStr);
+
+            Array.from(oraPartenza.options).forEach(opt => {
+                if (!opt.value) return;
+                const optHour = parseInt(opt.value.split(':')[0], 10);
+                if (isToday && optHour < currentHour) {
+                    opt.disabled = true;
+                    if (opt.selected) opt.selected = false;
+                } else {
+                    opt.disabled = false;
+                }
+            });
+
+            // If no option selected or selected option is disabled, select current hour option
+            if (isToday && (!oraPartenza.value || (oraPartenza.selectedOptions[0] && oraPartenza.selectedOptions[0].disabled))) {
+                const targetVal = String(currentHour).padStart(2, '0') + ":00";
+                oraPartenza.value = targetVal;
+            }
+        }
+
         if (dateInput) {
             const today = new Date().toISOString().split('T')[0];
             dateInput.min = today;
             dateInput.value = today;
+            dateInput.addEventListener("change", function() {
+                updateTimeOptions();
+                updateVehicleOptions();
+            });
         }
+
+        if (oraPartenza) {
+            oraPartenza.addEventListener("change", function() {
+                if (oraRiconsegna && (!oraRiconsegna.value || oraRiconsegna.value <= oraPartenza.value)) {
+                    const startH = parseInt(oraPartenza.value.split(':')[0], 10);
+                    const nextH = Math.min(startH + 1, 23);
+                    oraRiconsegna.value = String(nextH).padStart(2, '0') + ":00";
+                }
+                updateVehicleOptions();
+            });
+        }
+
+        updateTimeOptions();
 
         const allVehicles = {{ veicoli | tojson }};
         const activeBookings = {{ prenotazioni_attive | tojson }};
@@ -661,8 +710,6 @@
         const vehicleInfoBox = document.getElementById("vehicleInfoBox");
         const vehicleKmText = document.getElementById("vehicleKmText");
         const vehicleSedeText = document.getElementById("vehicleSedeText");
-        const oraPartenza = document.getElementById("ora_partenza");
-        const oraRiconsegna = document.getElementById("ora_riconsegna_prevista");
 
         function hasBookingOverlap(automezzoId, dateStr, startStr, endStr) {
             if (!dateStr || !startStr || !endStr) return null;

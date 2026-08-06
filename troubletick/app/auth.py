@@ -1,7 +1,8 @@
 import os, secrets, bcrypt
 from datetime import datetime, timedelta
+from typing import Optional
 from fastapi import APIRouter, Request, Form, BackgroundTasks
-from fastapi.responses import HTMLResponse, RedirectResponse
+from fastapi.responses import HTMLResponse, RedirectResponse, JSONResponse
 from sqlalchemy import text
 
 from core import engine, CFG, templates, BASE_DIR

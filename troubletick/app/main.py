@@ -589,14 +589,11 @@ async def favicon():
     return FileResponse(os.path.join(BASE_DIR, "static", "favicon.png"))
 
 @app.get("/cortesia", response_class=HTMLResponse)
-@app.get("/pwa/cortesia", response_class=HTMLResponse)
 def home_cortesia_pwa(r: Request):
     return templates.TemplateResponse(r, "home_cortesia_pwa.html", {"request": r, "cfg": CFG})
 
 # ==================== ROTTE API REST PWA PER APPCAR ====================
 @app.get("/api/dashboard")
-@app.get("/appcar/api/dashboard")
-@app.get("/pwa/api/dashboard")
 def api_pwa_dashboard(r: Request):
     user = r.session.get("user", {})
     user_ruolo = user.get("ruolo", "normale") if isinstance(user, dict) else "normale"
@@ -628,8 +625,6 @@ def api_pwa_dashboard(r: Request):
     })
 
 @app.get("/api/me")
-@app.get("/appcar/api/me")
-@app.get("/pwa/api/me")
 def api_pwa_me(r: Request):
     user = r.session.get("user")
     if not user:

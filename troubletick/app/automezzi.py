@@ -3339,9 +3339,19 @@ def prenota_automezzo(
 
     try:
         travel_dt = datetime.datetime.strptime(f"{data_viaggio} {ora_partenza}", "%Y-%m-%d %H:%M")
-        if travel_dt <= datetime.datetime.now():
+        now = datetime.datetime.now()
+        today_str = now.strftime("%Y-%m-%d")
+        current_hour_str = now.strftime("%H:00")
+        current_hour_dt = datetime.datetime.strptime(f"{today_str} {current_hour_str}", "%Y-%m-%d %H:%M")
+
+        if data_viaggio < today_str:
             import urllib.parse
-            err_msg = urllib.parse.quote("La data e l'ora di partenza devono essere nel futuro.")
+            err_msg = urllib.parse.quote("Non è possibile effettuare prenotazioni per date antecedenti ad oggi.")
+            return RedirectResponse(url=f"/autopark?error={err_msg}", status_code=303)
+
+        if travel_dt < current_hour_dt:
+            import urllib.parse
+            err_msg = urllib.parse.quote("Per la giornata odierna è possibile prenotare a partire dall'ora attuale.")
             return RedirectResponse(url=f"/autopark?error={err_msg}", status_code=303)
     except Exception:
         import urllib.parse
