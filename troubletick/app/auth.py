@@ -563,22 +563,30 @@ async def pwa_api_login(r: Request, req: Optional[PwaLoginReq] = None):
     if not username or not password:
         return JSONResponse(status_code=400, content={"detail": "Inserire username e password."})
 
+    username_clean = username.strip().lower()
+
     with engine.connect() as c:
-        row = c.execute(text("""
+        rows = c.execute(text("""
             SELECT u.user_id, u.username, u.password_hash, u.nome, u.cognome, u.email, u.ruolo, u.magazzino_id, u.sede_id, u.reparto_id,
                    r.nome AS reparto_nome, s.nome AS sede_nome
             FROM users u
             LEFT JOIN reparti r ON u.reparto_id = r.reparto_id
             LEFT JOIN sedi s ON u.sede_id = s.sede_id
             WHERE (LOWER(u.email) = LOWER(:u) OR LOWER(u.username) = LOWER(:u)) AND u.attivo = 1
-        """), {"u": username}).mappings().first()
+        """), {"u": username_clean}).mappings().all()
 
-    if row and ok(password, row["password_hash"]):
+        matching_row = None
+        for r_item in rows:
+            if ok(password, r_item["password_hash"]):
+                matching_row = r_item
+                break
+
+    if matching_row:
         all_roles = set()
-        if row["ruolo"]:
-            all_roles.add(row["ruolo"])
+        if matching_row["ruolo"]:
+            all_roles.add(matching_row["ruolo"])
         try:
-            r_rows = c.execute(text("SELECT ruolo FROM user_roles WHERE user_id = :uid"), {"uid": row["user_id"]}).mappings().all()
+            r_rows = c.execute(text("SELECT ruolo FROM user_roles WHERE user_id = :uid"), {"uid": matching_row["user_id"]}).mappings().all()
             for rr in r_rows:
                 if rr.get("ruolo"):
                     all_roles.add(rr["ruolo"])
@@ -588,19 +596,19 @@ async def pwa_api_login(r: Request, req: Optional[PwaLoginReq] = None):
             all_roles.add("normale")
 
         user_info = {
-            "id": row["user_id"],
-            "user_id": row["user_id"],
-            "username": row["username"],
-            "email": row["email"],
-            "nome": row["nome"] or "",
-            "cognome": row["cognome"] or "",
-            "ruolo": row["ruolo"] or "normale",
-            "reparto_id": row["reparto_id"],
-            "reparto_nome": row["reparto_nome"],
+            "id": matching_row["user_id"],
+            "user_id": matching_row["user_id"],
+            "username": matching_row["username"],
+            "email": matching_row["email"],
+            "nome": matching_row["nome"] or "",
+            "cognome": matching_row["cognome"] or "",
+            "ruolo": matching_row["ruolo"] or "normale",
+            "reparto_id": matching_row["reparto_id"],
+            "reparto_nome": matching_row["reparto_nome"],
             "roles": list(all_roles)
         }
         r.session["user"] = user_info
-        token = f"session_token_{row['user_id']}"
+        token = f"session_token_{matching_row['user_id']}"
         return JSONResponse(status_code=200, content={"token": token, "user": user_info})
 
     return JSONResponse(status_code=401, content={"detail": "Credenziali non valide o utente non attivo."})

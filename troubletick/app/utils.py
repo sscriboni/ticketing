@@ -4,9 +4,16 @@ from fastapi import Request, UploadFile
 from fastapi.responses import RedirectResponse
 from core import UPLOAD_DIR
 
-def ok(p, h):
-    try: return bcrypt.checkpw(p.encode("utf-8"), h.encode("utf-8"))
-    except: return False
+def ok(password: str, hashed: str) -> bool:
+    if not hashed or not password:
+        return False
+    hashed = str(hashed).strip()
+    try:
+        if hashed.startswith("$2b$") or hashed.startswith("$2a$"):
+            return bcrypt.checkpw(password.encode('utf-8'), hashed.encode('utf-8'))
+        return password == hashed
+    except Exception:
+        return False
 
 def current_user(r: Request):
     return r.session.get("user")
