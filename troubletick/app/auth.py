@@ -559,28 +559,10 @@ def log_auth_error(reason: str, username: str = "", client_ip: str = "127.0.0.1"
     auth_logger.error(msg)
 
 
-@router.post("/api/login")
-@router.post("/appcar/api/login")
-async def pwa_api_login(r: Request, req: Optional[PwaLoginReq] = None):
-    client_ip = r.client.host if (r and r.client) else "127.0.0.1"
-    username = ""
-    password = ""
-    if req:
-        username = req.username.strip()
-        password = req.password
-    else:
-        try:
-            body = await r.json()
-            username = body.get("username", "").strip()
-            password = body.get("password", "")
-        except Exception:
-            form = await r.form()
-            username = form.get("username", "").strip()
-            password = form.get("password", "")
-
+def authenticate_user(username: str, password: str, client_ip: str = "127.0.0.1") -> Optional[dict]:
     if not username or not password:
         log_auth_error("Username o password vuoti nel payload di login", username, client_ip)
-        return JSONResponse(status_code=400, content={"detail": "Inserire username e password."})
+        return None
 
     username_clean = username.strip().lower()
 
@@ -600,40 +582,65 @@ async def pwa_api_login(r: Request, req: Optional[PwaLoginReq] = None):
                 matching_row = r_item
                 break
 
-    if matching_row:
-        all_roles = set()
-        if matching_row["ruolo"]:
-            all_roles.add(matching_row["ruolo"])
-        try:
-            r_rows = c.execute(text("SELECT ruolo FROM user_roles WHERE user_id = :uid"), {"uid": matching_row["user_id"]}).mappings().all()
-            for rr in r_rows:
-                if rr.get("ruolo"):
-                    all_roles.add(rr["ruolo"])
-        except Exception:
-            pass
-        if not all_roles:
-            all_roles.add("normale")
+        if matching_row:
+            all_roles = set()
+            if matching_row["ruolo"]:
+                all_roles.add(matching_row["ruolo"])
+            try:
+                r_rows = c.execute(text("SELECT ruolo FROM user_roles WHERE user_id = :uid"), {"uid": matching_row["user_id"]}).mappings().all()
+                for rr in r_rows:
+                    if rr.get("ruolo"):
+                        all_roles.add(rr["ruolo"])
+            except Exception:
+                pass
+            if not all_roles:
+                all_roles.add("normale")
 
-        user_info = {
-            "id": matching_row["user_id"],
-            "user_id": matching_row["user_id"],
-            "username": matching_row["username"],
-            "email": matching_row["email"],
-            "nome": matching_row["nome"] or "",
-            "cognome": matching_row["cognome"] or "",
-            "ruolo": matching_row["ruolo"] or "normale",
-            "reparto_id": matching_row["reparto_id"],
-            "reparto_nome": matching_row["reparto_nome"],
-            "roles": list(all_roles)
-        }
-        r.session["user"] = user_info
-        token = f"session_token_{matching_row['user_id']}"
-        return JSONResponse(status_code=200, content={"token": token, "user": user_info})
+            return {
+                "id": matching_row["user_id"],
+                "user_id": matching_row["user_id"],
+                "username": matching_row["username"],
+                "email": matching_row["email"],
+                "nome": matching_row["nome"] or "",
+                "cognome": matching_row["cognome"] or "",
+                "ruolo": matching_row["ruolo"] or "normale",
+                "reparto_id": matching_row["reparto_id"],
+                "reparto_nome": matching_row["reparto_nome"],
+                "roles": list(all_roles)
+            }
 
-    if not rows:
-        log_auth_error("Utente o email non trovati nel database o account disattivato", username, client_ip)
+        if not rows:
+            log_auth_error("Utente o email non trovati nel database o account disattivato", username, client_ip)
+        else:
+            log_auth_error("Password errata per l'utente/email specificato", username, client_ip)
+
+        return None
+
+
+@router.post("/api/login")
+@router.post("/appcar/api/login")
+async def pwa_api_login(r: Request, req: Optional[PwaLoginReq] = None):
+    client_ip = r.client.host if (r and r.client) else "127.0.0.1"
+    username = ""
+    password = ""
+    if req:
+        username = req.username.strip()
+        password = req.password
     else:
-        log_auth_error("Password errata per l'utente/email specificato", username, client_ip)
+        try:
+            body = await r.json()
+            username = body.get("username", "").strip()
+            password = body.get("password", "")
+        except Exception:
+            form = await r.form()
+            username = form.get("username", "").strip()
+            password = form.get("password", "")
+
+    user_info = authenticate_user(username, password, client_ip)
+    if user_info:
+        r.session["user"] = user_info
+        token = f"session_token_{user_info['user_id']}"
+        return JSONResponse(status_code=200, content={"token": token, "user": user_info})
 
     return JSONResponse(status_code=401, content={"detail": "Credenziali non valide o utente non attivo."})
 

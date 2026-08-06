@@ -8,22 +8,17 @@ from fastapi import FastAPI, HTTPException, Header, Depends, status, Request
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 
-# Configurazione File di Log per gli Errori di Autenticazione PWA
+# Importazione del modulo di autenticazione centralizzato auth.py
+import sys
 BASE_DIR = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-LOG_DIR = os.path.join(BASE_DIR, "logs")
-os.makedirs(LOG_DIR, exist_ok=True)
-AUTH_LOG_FILE = os.path.join(LOG_DIR, "pwa_auth_errors.log")
+APP_DIR = os.path.join(BASE_DIR, "app")
+if APP_DIR not in sys.path:
+    sys.path.insert(0, APP_DIR)
 
-auth_logger = logging.getLogger("pwa_auth_errors")
-auth_logger.setLevel(logging.INFO)
-if not auth_logger.handlers:
-    fh = logging.FileHandler(AUTH_LOG_FILE, encoding="utf-8")
-    fh.setFormatter(logging.Formatter("[%(asctime)s] %(levelname)s - %(message)s"))
-    auth_logger.addHandler(fh)
-
-def log_auth_error(reason: str, username: str = "", client_ip: str = "127.0.0.1"):
-    msg = f"IP: {client_ip} | User/Email: '{username}' | Esito: FALLITO | Motivo: {reason}"
-    auth_logger.error(msg)
+try:
+    from auth import authenticate_user, log_auth_error
+except ImportError:
+    from app.auth import authenticate_user, log_auth_error
 
 # Inizializzazione FastAPI Backend per la PWA Ionic SPA
 app = FastAPI(
@@ -132,95 +127,25 @@ def health_check():
 @app.post("/login", response_model=LoginResponse)
 def login(req: LoginRequest, request: Request):
     client_ip = request.client.host if (request and request.client) else "127.0.0.1"
-    username = req.username.strip()
-    password = req.password
+    user_info = authenticate_user(req.username, req.password, client_ip)
 
-    if not username or not password:
-        log_auth_error("Username o password mancanti nel form", username, client_ip)
-        raise HTTPException(status_code=400, detail="Inserire username e password.")
+    if not user_info:
+        raise HTTPException(status_code=401, detail="Credenziali non valide o utente non attivo.")
 
-    current_db_path = get_db_path()
-    if not os.path.exists(current_db_path):
-        log_auth_error("Database SQLite non trovato, fallback su utente demo", username, client_ip)
-        demo_user = UserResponse(user_id=1, username=username, nome="Utente", cognome="PWA", email=username, ruolo="normale")
-        token = secrets.token_hex(32)
-        SESSIONS[token] = demo_user.dict()
-        return LoginResponse(token=token, user=demo_user)
+    token = secrets.token_hex(32)
+    user_res = UserResponse(
+        user_id=user_info["user_id"],
+        username=user_info["username"],
+        nome=user_info.get("nome") or "",
+        cognome=user_info.get("cognome") or "",
+        email=user_info.get("email") or "",
+        ruolo=user_info.get("ruolo") or "normale",
+        reparto_id=user_info.get("reparto_id"),
+        roles=user_info.get("roles") or ["normale"]
+    )
 
-    conn = sqlite3.connect(current_db_path)
-    conn.row_factory = sqlite3.Row
-    cursor = conn.cursor()
-
-    try:
-        username_clean = username.lower()
-        rows = cursor.execute("""
-            SELECT user_id, username, password_hash, nome, cognome, email, ruolo, reparto_id, attivo 
-            FROM users 
-            WHERE (LOWER(username) = LOWER(?) OR LOWER(email) = LOWER(?)) AND attivo = 1
-        """, (username_clean, username_clean)).fetchall()
-
-        if not rows:
-            conn.close()
-            log_auth_error("Utente o email non trovati nel database", username, client_ip)
-            raise HTTPException(status_code=401, detail="Credenziali non valide.")
-
-        matching_user = None
-        for r in rows:
-            u_dict = dict(r)
-            if verify_password(password, u_dict.get("password_hash", "")):
-                matching_user = u_dict
-                break
-
-        if not matching_user:
-            conn.close()
-            log_auth_error("Password errata per l'utente/email specificato", username, client_ip)
-            raise HTTPException(status_code=401, detail="Credenziali non valide.")
-
-        if matching_user.get("attivo") == 0:
-            conn.close()
-            log_auth_error("Account utente disattivato o non ancora approvato", username, client_ip)
-            raise HTTPException(status_code=403, detail="Account non attivo o in attesa di approvazione.")
-
-        # Query ruoli secondari dell'utente
-        all_roles = set()
-        if user_dict.get("ruolo"):
-            all_roles.add(user_dict["ruolo"])
-
-        try:
-            r_rows = cursor.execute("SELECT ruolo FROM user_roles WHERE user_id = ?", (user_dict["user_id"],)).fetchall()
-            for rr in r_rows:
-                if rr["ruolo"]:
-                    all_roles.add(rr["ruolo"])
-        except Exception:
-            pass
-
-        if not all_roles:
-            all_roles.add("normale")
-
-        token = secrets.token_hex(32)
-        user_res = UserResponse(
-            user_id=user_dict["user_id"],
-            username=user_dict["username"],
-            nome=user_dict.get("nome") or "",
-            cognome=user_dict.get("cognome") or "",
-            email=user_dict.get("email") or "",
-            ruolo=user_dict.get("ruolo") or "normale",
-            reparto_id=user_dict.get("reparto_id"),
-            roles=list(all_roles)
-        )
-
-        SESSIONS[token] = user_res.dict()
-        conn.close()
-        return LoginResponse(token=token, user=user_res)
-
-    except HTTPException:
-        raise
-    except Exception as e:
-        conn.close()
-        demo_user = UserResponse(user_id=1, username=username, nome="Utente", cognome="PWA", email=username, ruolo="normale")
-        token = secrets.token_hex(32)
-        SESSIONS[token] = demo_user.dict()
-        return LoginResponse(token=token, user=demo_user)
+    SESSIONS[token] = user_res.dict()
+    return LoginResponse(token=token, user=user_res)
 
 
 @app.get("/api/me", response_model=UserResponse)
