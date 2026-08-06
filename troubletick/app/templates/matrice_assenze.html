@@ -55,6 +55,39 @@
             color: #842029;
             font-weight: bold;
         }
+        /* Evidenziazione colonna giorno in corso (Oggi) ad intensità speciale */
+        .today-cell {
+            position: relative;
+            z-index: 5;
+            background-color: #e7f1ff !important;
+            box-shadow: inset 0 0 0 2px #0d6efd !important;
+        }
+        .matrix-table th.today-cell {
+            background-color: #0d6efd !important;
+            color: #ffffff !important;
+            font-weight: 800 !important;
+            box-shadow: inset 0 0 0 2px #0a58ca !important;
+        }
+        .matrix-table th.today-cell small {
+            color: #f8f9fa !important;
+            font-weight: bold !important;
+        }
+        .today-cell.cell-absent-ferie {
+            background-color: #198754 !important;
+            box-shadow: inset 0 0 0 3px #ffc107 !important;
+        }
+        .today-cell.cell-absent-malattia {
+            background-color: #dc3545 !important;
+            box-shadow: inset 0 0 0 3px #ffc107 !important;
+        }
+        .today-cell.cell-absent-permesso {
+            background-color: #ffc107 !important;
+            box-shadow: inset 0 0 0 3px #0d6efd !important;
+        }
+        .today-cell.cell-presenza-smartwork {
+            background-color: #0dcaf0 !important;
+            box-shadow: inset 0 0 0 3px #ffc107 !important;
+        }
         /* Color shorthands */
         .cell-presente {
             background-color: #ffffff;
@@ -198,7 +231,8 @@
                     <tr>
                         <th class="operator-col" style="z-index: 11;">Operatore</th>
                         {% for day in giorni %}
-                        <th class="day-header {% if day.holiday %}holiday-cell{% elif day.is_weekend %}weekend-cell{% endif %}" title="{% if day.holiday %}{{ day.holiday }}{% else %}{{ day.weekday_name }}{% endif %}">
+                        <th class="day-header {% if day.is_today %}today-cell{% elif day.holiday %}holiday-cell{% elif day.is_weekend %}weekend-cell{% endif %}" title="{% if day.is_today %}Oggi - {{ day.weekday_name }}{% elif day.holiday %}{{ day.holiday }}{% else %}{{ day.weekday_name }}{% endif %}">
+                            {% if day.is_today %}<span class="badge bg-warning text-dark px-1 py-0 mb-1 d-inline-block" style="font-size: 0.55rem; line-height: 1;">OGGI</span><br>{% endif %}
                             {{ day.day_num }}<br>
                             <small style="font-size: 0.6rem; font-weight: normal;">{{ day.weekday_name[:2] }}</small>
                         </th>
@@ -213,7 +247,8 @@
                             <small class="text-muted" style="font-size: 0.7rem;">{{ row.operator_ruolo|capitalize }}{% if row.sede_nome %} &bull; {{ row.sede_nome }}{% endif %}</small>
                         </td>
                         {% for cell in row.giorni_stato %}
-                        <td class="{% if cell.holiday %}holiday-cell{% elif cell.is_weekend %}weekend-cell{% endif %} 
+                        <td class="{% if cell.is_today %}today-cell{% endif %}
+                                   {% if cell.holiday %}holiday-cell{% elif cell.is_weekend %}weekend-cell{% endif %} 
                                    {% if cell.holiday or cell.is_weekend %}
                                    {% elif cell.absent %}
                                        {% if cell.motivo == 'ferie' %}cell-absent-ferie

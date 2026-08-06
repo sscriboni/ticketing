@@ -467,6 +467,7 @@ def assenze_mese(r: Request, mese: int = None, anno: int = None, reparto_id: int
             d = date(anno, mese, day_num)
             d_str = d.isoformat()
             is_weekend = d.weekday() in (5, 6)
+            is_today = (d == today)
             
             header_holiday = None
             for f in festivita_list:
@@ -480,6 +481,7 @@ def assenze_mese(r: Request, mese: int = None, anno: int = None, reparto_id: int
             giorni.append({
                 "day_num": day_num,
                 "is_weekend": is_weekend,
+                "is_today": is_today,
                 "holiday": header_holiday,
                 "weekday_name": wd_names[d.weekday()]
             })
@@ -493,6 +495,7 @@ def assenze_mese(r: Request, mese: int = None, anno: int = None, reparto_id: int
             for day_num in range(1, num_days + 1):
                 d = date(anno, mese, day_num)
                 d_str = d.isoformat()
+                is_today = (d == today)
                 
                 absent_record = None
                 for a in assenze_list:
@@ -537,6 +540,7 @@ def assenze_mese(r: Request, mese: int = None, anno: int = None, reparto_id: int
                     "presenza_nota": presenza_nota,
                     "holiday": holiday,
                     "is_weekend": is_weekend,
+                    "is_today": is_today,
                     "weekday_name": wd_names[d.weekday()]
                 })
                 
