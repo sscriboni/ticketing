@@ -542,25 +542,44 @@ class PwaLoginReq(BaseModel):
     username: str
     password: str
 
+# Logger Errori di Autenticazione PWA
+LOG_DIR = os.path.join(BASE_DIR, "logs")
+os.makedirs(LOG_DIR, exist_ok=True)
+AUTH_LOG_FILE = os.path.join(LOG_DIR, "pwa_auth_errors.log")
+
+auth_logger = logging.getLogger("pwa_auth_errors")
+auth_logger.setLevel(logging.INFO)
+if not auth_logger.handlers:
+    fh = logging.FileHandler(AUTH_LOG_FILE, encoding="utf-8")
+    fh.setFormatter(logging.Formatter("[%(asctime)s] %(levelname)s - %(message)s"))
+    auth_logger.addHandler(fh)
+
+def log_auth_error(reason: str, username: str = "", client_ip: str = "127.0.0.1"):
+    msg = f"IP: {client_ip} | User/Email: '{username}' | Esito: FALLITO | Motivo: {reason}"
+    auth_logger.error(msg)
+
+
 @router.post("/api/login")
 @router.post("/appcar/api/login")
 async def pwa_api_login(r: Request, req: Optional[PwaLoginReq] = None):
+    client_ip = r.client.host if (r and r.client) else "127.0.0.1"
     username = ""
     password = ""
     if req:
         username = req.username.strip()
-        password = req.password.strip()
+        password = req.password
     else:
         try:
             body = await r.json()
             username = body.get("username", "").strip()
-            password = body.get("password", "").strip()
+            password = body.get("password", "")
         except Exception:
             form = await r.form()
             username = form.get("username", "").strip()
-            password = form.get("password", "").strip()
+            password = form.get("password", "")
 
     if not username or not password:
+        log_auth_error("Username o password vuoti nel payload di login", username, client_ip)
         return JSONResponse(status_code=400, content={"detail": "Inserire username e password."})
 
     username_clean = username.strip().lower()
@@ -610,6 +629,11 @@ async def pwa_api_login(r: Request, req: Optional[PwaLoginReq] = None):
         r.session["user"] = user_info
         token = f"session_token_{matching_row['user_id']}"
         return JSONResponse(status_code=200, content={"token": token, "user": user_info})
+
+    if not rows:
+        log_auth_error("Utente o email non trovati nel database o account disattivato", username, client_ip)
+    else:
+        log_auth_error("Password errata per l'utente/email specificato", username, client_ip)
 
     return JSONResponse(status_code=401, content={"detail": "Credenziali non valide o utente non attivo."})
 

@@ -1,10 +1,29 @@
 import os
 import sqlite3
 import secrets
+import logging
 from typing import Optional, Dict, Any, List
-from fastapi import FastAPI, HTTPException, Header, Depends, status
+from datetime import datetime
+from fastapi import FastAPI, HTTPException, Header, Depends, status, Request
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
+
+# Configurazione File di Log per gli Errori di Autenticazione PWA
+BASE_DIR = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+LOG_DIR = os.path.join(BASE_DIR, "logs")
+os.makedirs(LOG_DIR, exist_ok=True)
+AUTH_LOG_FILE = os.path.join(LOG_DIR, "pwa_auth_errors.log")
+
+auth_logger = logging.getLogger("pwa_auth_errors")
+auth_logger.setLevel(logging.INFO)
+if not auth_logger.handlers:
+    fh = logging.FileHandler(AUTH_LOG_FILE, encoding="utf-8")
+    fh.setFormatter(logging.Formatter("[%(asctime)s] %(levelname)s - %(message)s"))
+    auth_logger.addHandler(fh)
+
+def log_auth_error(reason: str, username: str = "", client_ip: str = "127.0.0.1"):
+    msg = f"IP: {client_ip} | User/Email: '{username}' | Esito: FALLITO | Motivo: {reason}"
+    auth_logger.error(msg)
 
 # Inizializzazione FastAPI Backend per la PWA Ionic SPA
 app = FastAPI(
@@ -82,8 +101,10 @@ class DashboardResponse(BaseModel):
 
 
 # Helper dipendenza per estrarre l'utente autenticato dal Bearer Token
-def get_current_user(authorization: Optional[str] = Header(None)) -> dict:
+def get_current_user(request: Request, authorization: Optional[str] = Header(None)) -> dict:
+    client_ip = request.client.host if (request and request.client) else "127.0.0.1"
     if not authorization or not authorization.startswith("Bearer "):
+        log_auth_error("Header di autorizzazione Bearer mancante o non valido", "", client_ip)
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Header di autorizzazione mancante o non valido",
@@ -92,6 +113,7 @@ def get_current_user(authorization: Optional[str] = Header(None)) -> dict:
     token = authorization.split(" ")[1]
     user = SESSIONS.get(token)
     if not user:
+        log_auth_error("Token di sessione Bearer non valido o scaduto", "", client_ip)
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Token di sessione non valido o scaduto",
@@ -108,15 +130,18 @@ def health_check():
 
 @app.post("/api/login", response_model=LoginResponse)
 @app.post("/login", response_model=LoginResponse)
-def login(req: LoginRequest):
+def login(req: LoginRequest, request: Request):
+    client_ip = request.client.host if (request and request.client) else "127.0.0.1"
     username = req.username.strip()
-    password = req.password.strip()
+    password = req.password
 
     if not username or not password:
+        log_auth_error("Username o password mancanti nel form", username, client_ip)
         raise HTTPException(status_code=400, detail="Inserire username e password.")
 
     current_db_path = get_db_path()
     if not os.path.exists(current_db_path):
+        log_auth_error("Database SQLite non trovato, fallback su utente demo", username, client_ip)
         demo_user = UserResponse(user_id=1, username=username, nome="Utente", cognome="PWA", email=username, ruolo="normale")
         token = secrets.token_hex(32)
         SESSIONS[token] = demo_user.dict()
@@ -127,24 +152,33 @@ def login(req: LoginRequest):
     cursor = conn.cursor()
 
     try:
-        row = cursor.execute("""
+        username_clean = username.lower()
+        rows = cursor.execute("""
             SELECT user_id, username, password_hash, nome, cognome, email, ruolo, reparto_id, attivo 
             FROM users 
-            WHERE (LOWER(username) = LOWER(?) OR LOWER(email) = LOWER(?))
-        """, (username, username)).fetchone()
+            WHERE (LOWER(username) = LOWER(?) OR LOWER(email) = LOWER(?)) AND attivo = 1
+        """, (username_clean, username_clean)).fetchall()
 
-        if not row:
+        if not rows:
             conn.close()
+            log_auth_error("Utente o email non trovati nel database", username, client_ip)
             raise HTTPException(status_code=401, detail="Credenziali non valide.")
 
-        user_dict = dict(row)
+        matching_user = None
+        for r in rows:
+            u_dict = dict(r)
+            if verify_password(password, u_dict.get("password_hash", "")):
+                matching_user = u_dict
+                break
 
-        if not verify_password(password, user_dict.get("password_hash", "")):
+        if not matching_user:
             conn.close()
+            log_auth_error("Password errata per l'utente/email specificato", username, client_ip)
             raise HTTPException(status_code=401, detail="Credenziali non valide.")
 
-        if user_dict.get("attivo") == 0:
+        if matching_user.get("attivo") == 0:
             conn.close()
+            log_auth_error("Account utente disattivato o non ancora approvato", username, client_ip)
             raise HTTPException(status_code=403, detail="Account non attivo o in attesa di approvazione.")
 
         # Query ruoli secondari dell'utente
