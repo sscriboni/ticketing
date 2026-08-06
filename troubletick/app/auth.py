@@ -574,6 +574,19 @@ async def pwa_api_login(r: Request, req: Optional[PwaLoginReq] = None):
         """), {"u": username}).mappings().first()
 
     if row and ok(password, row["password_hash"]):
+        all_roles = set()
+        if row["ruolo"]:
+            all_roles.add(row["ruolo"])
+        try:
+            r_rows = c.execute(text("SELECT ruolo FROM user_roles WHERE user_id = :uid"), {"uid": row["user_id"]}).mappings().all()
+            for rr in r_rows:
+                if rr.get("ruolo"):
+                    all_roles.add(rr["ruolo"])
+        except Exception:
+            pass
+        if not all_roles:
+            all_roles.add("normale")
+
         user_info = {
             "id": row["user_id"],
             "user_id": row["user_id"],
@@ -583,7 +596,8 @@ async def pwa_api_login(r: Request, req: Optional[PwaLoginReq] = None):
             "cognome": row["cognome"] or "",
             "ruolo": row["ruolo"] or "normale",
             "reparto_id": row["reparto_id"],
-            "reparto_nome": row["reparto_nome"]
+            "reparto_nome": row["reparto_nome"],
+            "roles": list(all_roles)
         }
         r.session["user"] = user_info
         token = f"session_token_{row['user_id']}"

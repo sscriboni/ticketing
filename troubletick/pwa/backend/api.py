@@ -1,7 +1,7 @@
 import os
 import sqlite3
 import secrets
-from typing import Optional, Dict, Any
+from typing import Optional, Dict, Any, List
 from fastapi import FastAPI, HTTPException, Header, Depends, status
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
@@ -22,9 +22,33 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+import bcrypt
+
 # Percorso Database SQLite principale
-BASE_DIR = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-DB_PATH = os.path.join(BASE_DIR, "troubletick.db")
+def get_db_path():
+    base = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+    candidates = [
+        os.path.join(base, "app", "troubletick.db"),
+        os.path.join(base, "troubletick.db"),
+        os.path.abspath("app/troubletick.db"),
+        os.path.abspath("troubletick.db")
+    ]
+    for c in candidates:
+        if os.path.exists(c) and os.path.getsize(c) > 0:
+            return c
+    return os.path.join(base, "app", "troubletick.db")
+
+DB_PATH = get_db_path()
+
+def verify_password(plain_password: str, hashed_password: str) -> bool:
+    if not hashed_password:
+        return False
+    try:
+        if hashed_password.startswith("$2b$") or hashed_password.startswith("$2a$"):
+            return bcrypt.checkpw(plain_password.encode('utf-8'), hashed_password.encode('utf-8'))
+        return plain_password == hashed_password
+    except Exception:
+        return False
 
 # Cache in memoria delle sessioni/token per l'autenticazione API
 SESSIONS = {}
@@ -42,6 +66,7 @@ class UserResponse(BaseModel):
     email: Optional[str] = ""
     ruolo: Optional[str] = "normale"
     reparto_id: Optional[int] = None
+    roles: Optional[List[str]] = ["normale"]
 
 class LoginResponse(BaseModel):
     token: str
@@ -53,25 +78,32 @@ class DashboardResponse(BaseModel):
     vehicles_count: int
     presenze_status: str
     user_reparto_nome: Optional[str] = None
-    role_stats: Dict[str, Any] = {}
+    role_stats: Optional[Dict[str, Any]] = None
 
 
-def get_current_user(authorization: Optional[str] = Header(None)):
+# Helper dipendenza per estrarre l'utente autenticato dal Bearer Token
+def get_current_user(authorization: Optional[str] = Header(None)) -> dict:
     if not authorization or not authorization.startswith("Bearer "):
-        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Token di autenticazione mancante o non valido.")
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Header di autorizzazione mancante o non valido",
+            headers={"WWW-Authenticate": "Bearer"},
+        )
     token = authorization.split(" ")[1]
     user = SESSIONS.get(token)
     if not user:
-        if token == "demo_token_pwa":
-            return {"user_id": 1, "username": "demo", "nome": "Utente", "cognome": "Demo", "ruolo": "normale"}
-        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Sessione scaduta o token non trovato.")
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Token di sessione non valido o scaduto",
+            headers={"WWW-Authenticate": "Bearer"},
+        )
     return user
 
 
 @app.get("/health")
 @app.get("/api/health")
 def health_check():
-    return {"status": "online", "app": "Troubletick PWA API Server", "db_exists": os.path.exists(DB_PATH)}
+    return {"status": "online", "app": "Troubletick PWA API Server", "db_exists": os.path.exists(DB_PATH), "db_path": DB_PATH}
 
 
 @app.post("/api/login", response_model=LoginResponse)
@@ -83,13 +115,14 @@ def login(req: LoginRequest):
     if not username or not password:
         raise HTTPException(status_code=400, detail="Inserire username e password.")
 
-    if not os.path.exists(DB_PATH):
+    current_db_path = get_db_path()
+    if not os.path.exists(current_db_path):
         demo_user = UserResponse(user_id=1, username=username, nome="Utente", cognome="PWA", email=username, ruolo="normale")
         token = secrets.token_hex(32)
         SESSIONS[token] = demo_user.dict()
         return LoginResponse(token=token, user=demo_user)
 
-    conn = sqlite3.connect(DB_PATH)
+    conn = sqlite3.connect(current_db_path)
     conn.row_factory = sqlite3.Row
     cursor = conn.cursor()
 
@@ -97,7 +130,7 @@ def login(req: LoginRequest):
         row = cursor.execute("""
             SELECT user_id, username, password_hash, nome, cognome, email, ruolo, reparto_id, attivo 
             FROM users 
-            WHERE (username = ? OR email = ?)
+            WHERE (LOWER(username) = LOWER(?) OR LOWER(email) = LOWER(?))
         """, (username, username)).fetchone()
 
         if not row:
@@ -105,9 +138,30 @@ def login(req: LoginRequest):
             raise HTTPException(status_code=401, detail="Credenziali non valide.")
 
         user_dict = dict(row)
+
+        if not verify_password(password, user_dict.get("password_hash", "")):
+            conn.close()
+            raise HTTPException(status_code=401, detail="Credenziali non valide.")
+
         if user_dict.get("attivo") == 0:
             conn.close()
             raise HTTPException(status_code=403, detail="Account non attivo o in attesa di approvazione.")
+
+        # Query ruoli secondari dell'utente
+        all_roles = set()
+        if user_dict.get("ruolo"):
+            all_roles.add(user_dict["ruolo"])
+
+        try:
+            r_rows = cursor.execute("SELECT ruolo FROM user_roles WHERE user_id = ?", (user_dict["user_id"],)).fetchall()
+            for rr in r_rows:
+                if rr["ruolo"]:
+                    all_roles.add(rr["ruolo"])
+        except Exception:
+            pass
+
+        if not all_roles:
+            all_roles.add("normale")
 
         token = secrets.token_hex(32)
         user_res = UserResponse(
@@ -117,7 +171,8 @@ def login(req: LoginRequest):
             cognome=user_dict.get("cognome") or "",
             email=user_dict.get("email") or "",
             ruolo=user_dict.get("ruolo") or "normale",
-            reparto_id=user_dict.get("reparto_id")
+            reparto_id=user_dict.get("reparto_id"),
+            roles=list(all_roles)
         )
 
         SESSIONS[token] = user_res.dict()
