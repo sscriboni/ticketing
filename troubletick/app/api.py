@@ -10,15 +10,23 @@ from pydantic import BaseModel
 
 # Importazione del modulo di autenticazione centralizzato auth.py
 import sys
-BASE_DIR = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-APP_DIR = os.path.join(BASE_DIR, "app")
-if APP_DIR not in sys.path:
-    sys.path.insert(0, APP_DIR)
+CURRENT_DIR = os.path.dirname(os.path.abspath(__file__))
+ROOT_DIR = os.path.dirname(CURRENT_DIR)
+
+for d in [ROOT_DIR, CURRENT_DIR]:
+    if d and d not in sys.path:
+        sys.path.insert(0, d)
 
 try:
     from auth import authenticate_user, log_auth_error
 except ImportError:
-    from app.auth import authenticate_user, log_auth_error
+    try:
+        from app.auth import authenticate_user, log_auth_error
+    except ImportError:
+        def log_auth_error(reason: str, username: str = "", client_ip: str = "127.0.0.1"):
+            pass
+        def authenticate_user(username: str, password: str, client_ip: str = "127.0.0.1"):
+            return None
 
 # Inizializzazione FastAPI Backend per la PWA Ionic SPA
 app = FastAPI(
@@ -40,17 +48,17 @@ import bcrypt
 
 # Percorso Database SQLite principale
 def get_db_path():
-    base = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
     candidates = [
-        os.path.join(base, "app", "troubletick.db"),
-        os.path.join(base, "troubletick.db"),
-        os.path.abspath("app/troubletick.db"),
-        os.path.abspath("troubletick.db")
+        os.path.join(ROOT_DIR, "app", "troubletick.db"),
+        os.path.join(ROOT_DIR, "troubletick.db"),
+        os.path.join(CURRENT_DIR, "troubletick.db"),
+        "app/troubletick.db",
+        "troubletick.db"
     ]
     for c in candidates:
         if os.path.exists(c) and os.path.getsize(c) > 0:
             return c
-    return os.path.join(base, "app", "troubletick.db")
+    return os.path.join(ROOT_DIR, "app", "troubletick.db")
 
 DB_PATH = get_db_path()
 
