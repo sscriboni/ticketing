@@ -68,7 +68,7 @@ def get_current_user(authorization: Optional[str] = Header(None)):
     return user
 
 
-@app.get("/api/health")
+@app.get("/health")
 def health_check():
     return {"status": "online", "app": "Troubletick PWA API Server", "db_exists": os.path.exists(DB_PATH)}
 
