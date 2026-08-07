@@ -64,6 +64,8 @@ function switchRoleDashboardView(roleName) {
 
   if (targetRole === 'global_fleet_manager' || targetRole === 'fleet_manager') {
     loadGlobalFleetVehicles();
+  } else if (targetRole === 'normale') {
+    loadUserActivePrenotazioni();
   }
 }
 
@@ -250,6 +252,9 @@ async function fetchDashboardStats(token) {
   const elemFleetV = document.getElementById('fleet-stat-vehicles');
   if (elemFleetV) elemFleetV.textContent = data.vehicles_count || 376;
 
+  const elemNormaleVehicles = document.getElementById('normale-stat-vehicles');
+  if (elemNormaleVehicles) elemNormaleVehicles.textContent = data.vehicles_count || 376;
+
   const elemAssisMy = document.getElementById('assistenza-stat-my');
   if (elemAssisMy) elemAssisMy.textContent = stats.my_assigned_tickets || 5;
 
@@ -313,6 +318,123 @@ async function loadGlobalFleetVehicles() {
     if (spinner) spinner.style.display = 'none';
     if (listContainer) listContainer.style.display = 'flex';
   }
+}
+
+// Gestione Recupero Prenotazioni Veicoli Attive Utente dall'API REST
+async function loadUserActivePrenotazioni() {
+  const token = localStorage.getItem('pwa_auth_token');
+  const spinner = document.getElementById('user-trips-loading-spinner');
+  const listContainer = document.getElementById('user-active-trips-list');
+
+  if (spinner) spinner.style.display = 'block';
+  if (listContainer) listContainer.style.display = 'none';
+
+  try {
+    const res = await apiFetch('/prenotazioni', {
+      headers: {
+        'Authorization': `Bearer ${token}`,
+        'Content-Type': 'application/json'
+      }
+    });
+
+    if (res && res.ok) {
+      const data = await res.json();
+      const trips = data.prenotazioni || [];
+
+      const statEl = document.getElementById('normale-stat-trips');
+      if (statEl) statEl.textContent = data.totale || trips.length || 0;
+
+      renderUserActivePrenotazioniList(trips);
+    } else if (res && res.status === 401) {
+      console.warn('Sessione non valida o scaduta su /prenotazioni. Reindirizzamento al login.');
+      localStorage.removeItem('pwa_auth_token');
+      localStorage.removeItem('pwa_user_info');
+      localStorage.removeItem('pwa_active_role');
+      navigateToPage('page-login');
+      showLoginError('Sessione scaduta o non valida. Effettua nuovamente il login.');
+      return;
+    } else {
+      renderUserActivePrenotazioniError('Impossibile recuperare le prenotazioni dal server.');
+    }
+  } catch (err) {
+    console.error('Errore durante il recupero prenotazioni PWA:', err);
+    renderUserActivePrenotazioniError('Errore di connessione durante il recupero delle prenotazioni.');
+  } finally {
+    if (spinner) spinner.style.display = 'none';
+    if (listContainer) listContainer.style.display = 'flex';
+  }
+}
+
+function renderUserActivePrenotazioniList(trips) {
+  const listContainer = document.getElementById('user-active-trips-list');
+  if (!listContainer) return;
+
+  if (trips.length === 0) {
+    listContainer.innerHTML = `
+      <div class="col-12">
+        <ion-card class="dashboard-card m-0 p-4 text-center">
+          <ion-icon name="car-outline" color="primary" style="font-size: 3rem; opacity: 0.6;"></ion-icon>
+          <h6 class="text-white fw-bold mt-2">Nessuna prenotazione veicolo attiva</h6>
+          <p class="text-slate-300 small mb-3">Non hai viaggi programmati o in corso al momento.</p>
+          <ion-button size="small" color="primary" fill="outline" href="./autopark">
+            <i class="bi bi-plus-lg me-1"></i> Effettua una Prenotazione
+          </ion-button>
+        </ion-card>
+      </div>
+    `;
+    return;
+  }
+
+  listContainer.innerHTML = trips.map(t => {
+    let badgeClass = 'bg-primary';
+    let statusText = 'Confermata';
+    if (t.stato === 'in corso') {
+      badgeClass = 'bg-warning text-dark';
+      statusText = '🚀 Viaggio in Corso';
+    } else if (t.stato === 'oggi') {
+      badgeClass = 'bg-success';
+      statusText = '🗓️ In Programma Oggi';
+    } else if (t.stato === 'completato') {
+      badgeClass = 'bg-secondary';
+      statusText = '✅ Completato';
+    }
+
+    const targa = t.targa || 'N/D';
+    const autoName = `${t.marca_nome || ''} ${t.modello || ''}`.trim() || 'Automezzo Aziendale';
+    const destinazione = t.destinazione || 'Destinazione non specificata';
+    const dataViaggio = t.data_viaggio || 'Data non specificata';
+    const orario = t.ora_partenza ? `${t.ora_partenza}${t.ora_riconsegna_prevista ? ' - ' + t.ora_riconsegna_prevista : ''}` : '';
+
+    return `
+      <div class="col-12 col-md-6">
+        <ion-card class="dashboard-card m-0 p-3 border-start border-4 border-primary">
+          <div class="d-flex justify-content-between align-items-start mb-2">
+            <div>
+              <span class="badge ${badgeClass} mb-1">${statusText}</span>
+              <h6 class="text-white fw-bold mb-0">${autoName}</h6>
+              <span class="text-primary small fw-bold"><i class="bi bi-card-heading me-1"></i> Targa: ${targa}</span>
+            </div>
+            <a href="./autopark" class="btn btn-sm btn-outline-light"><i class="bi bi-geo-alt"></i> Dettagli</a>
+          </div>
+          <div class="border-top border-slate-700 pt-2 mt-2 font-monospace small text-slate-300">
+            <div><i class="bi bi-calendar3 me-1 text-info"></i> <strong>Data:</strong> ${dataViaggio} ${orario ? '(' + orario + ')' : ''}</div>
+            <div><i class="bi bi-geo-fill me-1 text-warning"></i> <strong>Destinazione:</strong> ${destinazione}</div>
+          </div>
+        </ion-card>
+      </div>
+    `;
+  }).join('');
+}
+
+function renderUserActivePrenotazioniError(msg) {
+  const listContainer = document.getElementById('user-active-trips-list');
+  if (!listContainer) return;
+  listContainer.innerHTML = `
+    <div class="col-12 text-center py-3 text-danger">
+      <i class="bi bi-exclamation-triangle-fill fs-3"></i>
+      <p class="mt-2 mb-0 small">${msg}</p>
+    </div>
+  `;
 }
 
 function renderGlobalFleetList(vehicles) {
@@ -429,6 +551,11 @@ document.addEventListener('DOMContentLoaded', () => {
 
   if (btnRefreshFleet) {
     btnRefreshFleet.addEventListener('click', () => loadGlobalFleetVehicles());
+  }
+
+  const btnRefreshUserTrips = document.getElementById('btn-refresh-user-trips');
+  if (btnRefreshUserTrips) {
+    btnRefreshUserTrips.addEventListener('click', () => loadUserActivePrenotazioni());
   }
 
   if (searchInputFleet) {

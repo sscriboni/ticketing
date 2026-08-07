@@ -103,6 +103,24 @@ class TagInfo(BaseModel):
     colore: Optional[str] = "#0d6efd"
     descrizione: Optional[str] = ""
 
+class PrenotazioneResponse(BaseModel):
+    viaggio_id: int
+    automezzo_id: Optional[int] = None
+    targa: str
+    modello: Optional[str] = ""
+    marca_nome: Optional[str] = ""
+    data_viaggio: str
+    ora_partenza: Optional[str] = ""
+    ora_riconsegna_prevista: Optional[str] = ""
+    destinazione: Optional[str] = ""
+    ora_partenza_effettiva: Optional[str] = ""
+    ora_arrivo: Optional[str] = ""
+    stato: Optional[str] = "confermata"
+
+class PrenotazioniListResponse(BaseModel):
+    totale: int
+    prenotazioni: List[PrenotazioneResponse]
+
 class AutomezzoResponse(BaseModel):
     automezzo_id: int
     targa: str
@@ -481,6 +499,57 @@ def get_automezzi(
         totale_in_uso=tot_in_uso,
         totale_in_manutenzione=tot_in_manutenzione,
         automezzi=automezzi_list
+    )
+
+
+@app.get("/api/prenotazioni", response_model=PrenotazioniListResponse)
+@app.get("/prenotazioni", response_model=PrenotazioniListResponse)
+@app.get("/api/viaggi/miei", response_model=PrenotazioniListResponse)
+def get_user_prenotazioni(user: dict = Depends(get_current_user)):
+    uid = user.get("user_id", 0)
+    email = (user.get("email") or "").strip().lower()
+    today_str = datetime.now().strftime("%Y-%m-%d")
+
+    prenotazioni = []
+    try:
+        with engine.connect() as conn:
+            rows = conn.execute(text("""
+                SELECT v.viaggio_id, v.automezzo_id,
+                       COALESCE(v.targa, a.targa, '') AS targa,
+                       COALESCE(a.modello, '') AS modello,
+                       COALESCE(m.nome, '') AS marca_nome,
+                       v.data_viaggio,
+                       COALESCE(v.ora_partenza, '') AS ora_partenza,
+                       COALESCE(v.ora_riconsegna_prevista, '') AS ora_riconsegna_prevista,
+                       COALESCE(v.destinazione, '') AS destinazione,
+                       COALESCE(v.ora_partenza_effettiva, '') AS ora_partenza_effettiva,
+                       COALESCE(v.ora_arrivo, '') AS ora_arrivo
+                FROM viaggi_automezzi v
+                LEFT JOIN automezzi a ON v.automezzo_id = a.automezzo_id
+                LEFT JOIN marche_automezzi m ON a.marca_id = m.marca_id
+                WHERE (v.user_id = :uid OR (LOWER(v.email_conducente) = :email AND :email != ''))
+                  AND (v.ora_arrivo IS NULL OR v.ora_arrivo = '' OR v.data_viaggio >= :today)
+                ORDER BY v.data_viaggio DESC, v.ora_partenza DESC
+            """), {"uid": uid, "email": email, "today": today_str}).mappings().all()
+
+            for r in rows:
+                p_dict = dict(r)
+                st = "confermata"
+                if p_dict.get("ora_arrivo"):
+                    st = "completato"
+                elif p_dict.get("ora_partenza_effettiva"):
+                    st = "in corso"
+                elif p_dict.get("data_viaggio") == today_str:
+                    st = "oggi"
+                
+                p_dict["stato"] = st
+                prenotazioni.append(PrenotazioneResponse(**p_dict))
+    except Exception as e:
+        print("Avviso recupero prenotazioni utente API:", e)
+
+    return PrenotazioniListResponse(
+        totale=len(prenotazioni),
+        prenotazioni=prenotazioni
     )
 
 

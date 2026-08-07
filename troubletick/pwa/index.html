@@ -178,7 +178,7 @@
               <div class="d-flex justify-content-between align-items-center flex-wrap gap-2">
                 <div>
                   <ion-card-subtitle color="primary" class="fw-bold text-uppercase tracking-wider">
-                    Portale Dipendente
+                    Portale Dipendente — Carpooling & Viaggi
                   </ion-card-subtitle>
                   <ion-card-title class="fw-bold text-white fs-3 mb-0">
                     Ciao, <span class="user-display-name">Utente</span>!
@@ -189,8 +189,7 @@
                 </ion-badge>
               </div>
               <p class="text-muted small mt-2 mb-0">
-                Benvenuto nel tuo hub personale. Prenota i veicoli di servizio, apri segnalazioni di assistenza o
-                consulta la tua scheda presenze.
+                Benvenuto nel tuo hub personale per la gestione delle prenotazioni autoveicoli di servizio e carpooling.
               </p>
             </ion-card-header>
 
@@ -198,14 +197,14 @@
               <div class="row g-3">
                 <div class="col-4">
                   <div class="kpi-stat-box text-center">
-                    <div class="text-muted small fw-bold text-uppercase">I Miei Ticket</div>
-                    <div id="normale-stat-tickets" class="fw-bold text-white fs-3 mt-1">0</div>
+                    <div class="text-muted small fw-bold text-uppercase">Prenotazioni Attive</div>
+                    <div id="normale-stat-trips" class="fw-bold text-primary fs-3 mt-1">0</div>
                   </div>
                 </div>
                 <div class="col-4">
                   <div class="kpi-stat-box text-center">
-                    <div class="text-muted small fw-bold text-uppercase">Prenotazioni Auto</div>
-                    <div id="normale-stat-trips" class="fw-bold text-primary fs-3 mt-1">0</div>
+                    <div class="text-muted small fw-bold text-uppercase">Veicoli Flotta</div>
+                    <div id="normale-stat-vehicles" class="fw-bold text-warning fs-3 mt-1">0</div>
                   </div>
                 </div>
                 <div class="col-4">
@@ -218,36 +217,45 @@
             </ion-card-content>
           </ion-card>
 
-          <h5 class="fw-bold text-white mb-3"><i class="bi bi-star-fill text-primary me-2"></i> Servizi Personali
-            Dipendente</h5>
+          <!-- Sezione Azione Nuova Prenotazione Auto -->
           <div class="row g-3 mb-4">
-            <div class="col-12 col-md-6">
-              <ion-card class="dashboard-card h-100 m-0 p-3">
-                <ion-card-header class="p-0 mb-2">
-                  <ion-icon name="car-sport-outline" color="primary" style="font-size: 2.2rem;"></ion-icon>
-                  <ion-card-title class="text-white fs-5 fw-bold mt-1">Prenota Veicolo Carpooling</ion-card-title>
-                </ion-card-header>
-                <ion-card-content class="p-0">
-                  <p class="text-slate-300 small mb-3">Richiedi un automezzo aziendale per i tuoi trasferimenti e viaggi
-                    di lavoro.</p>
-                  <ion-button expand="block" fill="solid" color="primary" size="small" href="./autopark">Nuova
-                    Prenotazione Auto / Carpooling</ion-button>
-                </ion-card-content>
+            <div class="col-12">
+              <ion-card class="dashboard-card m-0 p-3 border-start border-4 border-success">
+                <div class="d-flex align-items-center justify-content-between flex-wrap gap-3">
+                  <div class="d-flex align-items-center gap-3">
+                    <ion-icon name="car-sport-outline" color="success" style="font-size: 2.5rem;"></ion-icon>
+                    <div>
+                      <h5 class="text-white fw-bold mb-1">Nuova Prenotazione Veicolo</h5>
+                      <p class="text-slate-300 small mb-0">Riserva un automezzo aziendale per i tuoi trasferimenti e viaggi di servizio.</p>
+                    </div>
+                  </div>
+                  <ion-button fill="solid" color="success" class="fw-bold" href="./autopark">
+                    <i class="bi bi-plus-circle me-1"></i> Nuova Prenotazione Auto
+                  </ion-button>
+                </div>
               </ion-card>
             </div>
-            <div class="col-12 col-md-6">
-              <ion-card class="dashboard-card h-100 m-0 p-3">
-                <ion-card-header class="p-0 mb-2">
-                  <ion-icon name="headset-outline" color="tertiary" style="font-size: 2.2rem;"></ion-icon>
-                  <ion-card-title class="text-white fs-5 fw-bold mt-1">Apri Nuovo Ticket IT</ion-card-title>
-                </ion-card-header>
-                <ion-card-content class="p-0">
-                  <p class="text-slate-300 small mb-3">Segnala problemi hardware, software o perferiche all'assistenza
-                    tecnica.</p>
-                  <ion-button expand="block" fill="solid" color="tertiary" size="small">Invia Segnalazione
-                    Ticket</ion-button>
-                </ion-card-content>
-              </ion-card>
+          </div>
+
+          <!-- Sezione Elenco Prenotazioni Veicoli Attive -->
+          <div class="d-flex align-items-center justify-content-between flex-wrap gap-2 mb-3">
+            <h5 class="fw-bold text-white mb-0">
+              <i class="bi bi-calendar-check-fill text-primary me-2"></i> Le Mie Prenotazioni Attive
+            </h5>
+            <button id="btn-refresh-user-trips" class="btn btn-sm btn-outline-primary d-flex align-items-center gap-1">
+              <i class="bi bi-arrow-clockwise"></i> Aggiorna
+            </button>
+          </div>
+
+          <div id="user-active-trips-container" class="mb-4">
+            <div id="user-trips-loading-spinner" class="text-center py-4">
+              <div class="spinner-border text-primary" role="status">
+                <span class="visually-hidden">Caricamento prenotazioni...</span>
+              </div>
+              <p class="text-muted small mt-2">Recupero prenotazioni in corso...</p>
+            </div>
+            <div id="user-active-trips-list" class="row g-3" style="display: none;">
+              <!-- Prenotazioni caricate dinamicamente tramite API REST -->
             </div>
           </div>
         </div>
