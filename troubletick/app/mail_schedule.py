@@ -1052,6 +1052,15 @@ def query_ope_status(conn, op_id, op_nome, op_cognome, reparto_id, reparto_nome)
         WHERE os.user_id = :uid
     """), {"uid": op_id}).mappings().all()
     
+    # Pre-carichiamo i nomi degli utenti attivi per mappare gli ID
+    users_rows = conn.execute(text("""
+        SELECT user_id, nome, cognome, username FROM users WHERE attivo = 1
+    """)).mappings().all()
+    user_names = {}
+    for u in users_rows:
+        full_name = f"{u['nome'] or ''} {u['cognome'] or ''}".strip() or u["username"]
+        user_names[u["user_id"]] = full_name
+
     services_ops = {}
     for s in assigned_services:
         sid = s["servizio_id"]
@@ -1063,7 +1072,7 @@ def query_ope_status(conn, op_id, op_nome, op_cognome, reparto_id, reparto_nome)
         """), {"sid": sid}).mappings().all()
         services_ops[sid] = {
             "descrizione": s["descrizione"],
-            "uids": {r["user_id"] for r in ops_rows}
+            "uids": [r["user_id"] for r in ops_rows]
         }
         
     # 3. Calcolo situazione per i prossimi 5 giorni lavorativi
@@ -1100,16 +1109,26 @@ def query_ope_status(conn, op_id, op_nome, op_cognome, reparto_id, reparto_nome)
         day_absents = {a["user_id"] for a in assenze_rows}
         
         scoperti = []
+        copertura_dettaglio = []
         for sid, sinfo in services_ops.items():
-            presenti_cnt = len(sinfo["uids"] - day_absents)
-            if presenti_cnt == 0 and len(sinfo["uids"]) > 0:
+            presenti_uids = [uid for uid in sinfo["uids"] if uid not in day_absents]
+            presenti_names = [user_names[uid] for uid in presenti_uids if uid in user_names]
+
+            if len(presenti_names) == 0 and len(sinfo["uids"]) > 0:
                 scoperti.append(sinfo["descrizione"])
+
+            copertura_dettaglio.append({
+                "servizio_id": sid,
+                "servizio_desc": sinfo["descrizione"],
+                "presenti": presenti_names
+            })
                 
         schedule.append({
             "formatted_date": day["formatted"],
             "op_status": op_status,
             "is_absent": is_op_absent,
-            "scoperti": scoperti
+            "scoperti": scoperti,
+            "copertura_dettaglio": copertura_dettaglio
         })
         
     data["schedule"] = schedule
@@ -1186,17 +1205,30 @@ def build_html_ope_status(data):
         
         status_badge = f"<span style='display: inline-block; padding: 4px 8px; font-size: 11px; font-weight: bold; border-radius: 6px; background-color: {status_bg}; border: 1px solid {status_border}; color: {status_color};'>{s['op_status']}</span>"
         
-        if s["scoperti"]:
-            gaps_list = ", ".join([f"<strong>{srv}</strong>" for srv in s["scoperti"]])
-            scoperti_badge = f"<span class='badge badge-danger' style='margin-bottom: 4px;'>🚨 SCOPERTO!</span><br><span style='font-size: 12px; color: #991b1b;'>I tuoi servizi scoperti: {gaps_list}</span>"
+        copertura_items = []
+        for cd in s.get("copertura_dettaglio", []):
+            srv_nome = cd["servizio_desc"]
+            presenti_list = cd.get("presenti", [])
+            if not presenti_list:
+                copertura_items.append(
+                    f"<div style='margin-bottom: 4px;'><span class='badge badge-danger' style='font-size: 10px;'>🚨 SCOPERTO!</span> <strong style='color: #991b1b; font-size: 12px;'>{srv_nome}</strong></div>"
+                )
+            else:
+                names_str = ", ".join(presenti_list)
+                copertura_items.append(
+                    f"<div style='margin-bottom: 4px; font-size: 12px;'><strong style='color: #0369a1;'>{srv_nome}</strong>: <span style='color: #1e293b; font-weight: 600;'>{names_str}</span></div>"
+                )
+
+        if not copertura_items:
+            copertura_cell_html = "<span style='font-size: 12px; color: #64748b;'>Nessun servizio assegnato</span>"
         else:
-            scoperti_badge = "<span class='badge badge-success'>🟢 COPERTO</span>"
+            copertura_cell_html = "".join(copertura_items)
             
         schedule_rows_html += f"""
         <tr>
-            <td style="padding: 12px 10px; border-bottom: 1px solid #e2e8f0; color: #1e293b; font-weight: bold; width: 30%;">{s['formatted_date']}</td>
-            <td style="padding: 12px 10px; border-bottom: 1px solid #e2e8f0; vertical-align: middle; width: 35%;">{status_badge}</td>
-            <td style="padding: 12px 10px; border-bottom: 1px solid #e2e8f0; vertical-align: middle;">{scoperti_badge}</td>
+            <td style="padding: 12px 10px; border-bottom: 1px solid #e2e8f0; color: #1e293b; font-weight: bold; width: 28%;">{s['formatted_date']}</td>
+            <td style="padding: 12px 10px; border-bottom: 1px solid #e2e8f0; vertical-align: middle; width: 32%;">{status_badge}</td>
+            <td style="padding: 12px 10px; border-bottom: 1px solid #e2e8f0; vertical-align: middle;">{copertura_cell_html}</td>
         </tr>
         """
 
@@ -1650,7 +1682,8 @@ def main():
                     print(f"[*] Generazione report OPE_STATUS per operatore '{op_nome} {op_cognome}' (Destinatario: {dest_email})")
                     data = query_ope_status(conn, op_id, op_nome, op_cognome, rep_id, rep_nome)
                     
-                    subject = f"[{CFG.get('app_title', 'Troubletick')}] 🗓️ Riepilogo Ticket e Turni per {op_nome}"
+                    full_op_name = f"{op_nome or ''} {op_cognome or ''}".strip()
+                    subject = f"[{CFG.get('app_title', 'Troubletick')}] 🗓️ Riepilogo Ticket e Turni per {full_op_name}"
                     body = build_html_ope_status(data)
                     reason = f"Report Attività e Copertura programmato per operatore {op_nome} {op_cognome} (OPE_STATUS)"
                     
