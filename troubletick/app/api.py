@@ -4,7 +4,7 @@ import secrets
 import logging
 from typing import Optional, Dict, Any, List
 from datetime import datetime
-from fastapi import FastAPI, HTTPException, Header, Depends, status, Request
+from fastapi import FastAPI, HTTPException, Header, Depends, status, Request, Query
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 
@@ -101,6 +101,45 @@ class DashboardResponse(BaseModel):
     presenze_status: str
     user_reparto_nome: Optional[str] = None
     role_stats: Optional[Dict[str, Any]] = None
+
+class TagInfo(BaseModel):
+    tag_id: int
+    nome: str
+    colore: Optional[str] = "#0d6efd"
+    descrizione: Optional[str] = ""
+
+class AutomezzoResponse(BaseModel):
+    automezzo_id: int
+    targa: str
+    marca_id: Optional[int] = None
+    marca_nome: Optional[str] = ""
+    modello: str
+    tipo: str
+    note: Optional[str] = ""
+    alimentazione: Optional[str] = ""
+    data_immatricolazione: Optional[str] = ""
+    proprieta: Optional[str] = ""
+    canone_noleggio: Optional[float] = 0.0
+    km_attuali: Optional[int] = 0
+    stato: Optional[str] = "Disponibile"
+    sede_assegnata_id: Optional[int] = None
+    sede_assegnata_nome: Optional[str] = ""
+    sede_attuale_id: Optional[int] = None
+    sede_attuale_nome: Optional[str] = ""
+    reparto_assegnato_id: Optional[int] = None
+    reparto_assegnato_nome: Optional[str] = ""
+    fornitore: Optional[str] = ""
+    classe_euro: Optional[str] = ""
+    escluso_prenotazione: Optional[int] = 0
+    tags: Optional[List[TagInfo]] = []
+
+class AutomezziListResponse(BaseModel):
+    totale: int
+    totale_disponibili: int
+    totale_in_uso: int
+    totale_in_manutenzione: int
+    automezzi: List[AutomezzoResponse]
+
 
 
 # Helper dipendenza per estrarre l'utente autenticato dal Bearer Token
@@ -200,9 +239,24 @@ def get_dashboard_metrics(user: dict = Depends(get_current_user)):
                     "total_reparti": row_rep[0] if row_rep else 0,
                     "system_status": "Ottimale"
                 }
-            elif user_ruolo == "fleet_manager":
-                row_trips = cursor.execute("SELECT COUNT(*) FROM viaggi WHERE ora_arrivo_effettiva IS NULL").fetchone()
-                row_maint = cursor.execute("SELECT COUNT(*) FROM manutenzioni WHERE conclusa = 0").fetchone()
+            elif user_ruolo in ("fleet_manager", "global_fleet_manager"):
+                row_trips = None
+                row_maint = None
+                try:
+                    row_trips = cursor.execute("SELECT COUNT(*) FROM viaggi_automezzi WHERE ora_arrivo IS NULL").fetchone()
+                except Exception:
+                    try:
+                        row_trips = cursor.execute("SELECT COUNT(*) FROM viaggi WHERE ora_arrivo_effettiva IS NULL").fetchone()
+                    except Exception:
+                        pass
+                try:
+                    row_maint = cursor.execute("SELECT COUNT(*) FROM manutenzioni_automezzi WHERE data_fine IS NULL OR data_fine = ''").fetchone()
+                except Exception:
+                    try:
+                        row_maint = cursor.execute("SELECT COUNT(*) FROM manutenzioni WHERE conclusa = 0").fetchone()
+                    except Exception:
+                        pass
+
                 role_stats = {
                     "active_trips": row_trips[0] if row_trips else 0,
                     "pending_maintenances": row_maint[0] if row_maint else 0,
@@ -244,6 +298,138 @@ def get_dashboard_metrics(user: dict = Depends(get_current_user)):
         presenze_status="Operativo",
         user_reparto_nome=reparto_nome,
         role_stats=role_stats
+    )
+
+
+@app.get("/api/automezzi", response_model=AutomezziListResponse)
+@app.get("/automezzi", response_model=AutomezziListResponse)
+@app.get("/api/autoveicoli", response_model=AutomezziListResponse)
+def get_automezzi(
+    stato: Optional[str] = Query(None),
+    search: Optional[str] = Query(None),
+    user: dict = Depends(get_current_user)
+):
+    user_ruolo = user.get("ruolo", "normale")
+    user_roles = user.get("roles") or [user_ruolo]
+    reparto_id = user.get("reparto_id")
+
+    is_global = any(r in ("admin", "global_fleet_manager") for r in user_roles) or user_ruolo in ("admin", "global_fleet_manager")
+    is_fleet_mgr = "fleet_manager" in user_roles or user_ruolo == "fleet_manager"
+
+    automezzi_list = []
+    tot_disponibili = 0
+    tot_in_uso = 0
+    tot_in_manutenzione = 0
+
+    if os.path.exists(DB_PATH):
+        try:
+            conn = sqlite3.connect(DB_PATH)
+            conn.row_factory = sqlite3.Row
+            cursor = conn.cursor()
+
+            query = """
+                SELECT a.automezzo_id, a.targa, a.marca_id, COALESCE(m.nome, '') as marca_nome,
+                       a.modello, a.tipo, a.note, a.alimentazione, a.data_immatricolazione,
+                       a.proprieta, a.canone_noleggio, a.km_attuali, a.stato,
+                       a.sede_assegnata_id, COALESCE(s_ass.nome, '') as sede_assegnata_nome,
+                       a.sede_attuale_id, COALESCE(s_att.nome, '') as sede_attuale_nome,
+                       a.reparto_assegnato_id, COALESCE(r.nome, '') as reparto_assegnato_nome,
+                       a.fornitore, a.classe_euro, COALESCE(a.escluso_prenotazione, 0) as escluso_prenotazione
+                FROM automezzi a
+                LEFT JOIN marche_automezzi m ON a.marca_id = m.marca_id
+                LEFT JOIN sedi s_ass ON a.sede_assegnata_id = s_ass.sede_id
+                LEFT JOIN sedi s_att ON a.sede_attuale_id = s_att.sede_id
+                LEFT JOIN reparti r ON a.reparto_assegnato_id = r.reparto_id
+                WHERE 1=1
+            """
+            params = []
+
+            if is_fleet_mgr and not is_global and reparto_id:
+                query += " AND a.reparto_assegnato_id = ?"
+                params.append(reparto_id)
+
+            if stato:
+                query += " AND LOWER(a.stato) = LOWER(?)"
+                params.append(stato)
+
+            if search:
+                s_pattern = f"%{search.strip()}%"
+                query += " AND (a.targa LIKE ? OR a.modello LIKE ? OR m.nome LIKE ? OR r.nome LIKE ?)"
+                params.extend([s_pattern, s_pattern, s_pattern, s_pattern])
+
+            query += " ORDER BY COALESCE(s_ass.nome, ''), COALESCE(r.nome, ''), a.targa"
+
+            rows = cursor.execute(query, params).fetchall()
+
+            tags_map = {}
+            try:
+                tag_rows = cursor.execute("""
+                    SELECT at.automezzo_id, t.tag_id, t.nome, t.colore, t.descrizione
+                    FROM automezzi_tag at
+                    JOIN tag_automezzi t ON at.tag_id = t.tag_id
+                    ORDER BY t.nome
+                """).fetchall()
+                for tr in tag_rows:
+                    aid = tr["automezzo_id"]
+                    if aid not in tags_map:
+                        tags_map[aid] = []
+                    tags_map[aid].append(TagInfo(
+                        tag_id=tr["tag_id"],
+                        nome=tr["nome"],
+                        colore=tr["colore"] or "#0d6efd",
+                        descrizione=tr["descrizione"] or ""
+                    ))
+            except Exception as te:
+                print("Avviso recupero tag automezzi API:", te)
+
+            for r in rows:
+                st = (r["stato"] or "").strip()
+                st_lower = st.lower()
+                if st_lower == "disponibile":
+                    tot_disponibili += 1
+                elif st_lower == "in uso":
+                    tot_in_uso += 1
+                elif st_lower == "in manutenzione":
+                    tot_in_manutenzione += 1
+
+                item = AutomezzoResponse(
+                    automezzo_id=r["automezzo_id"],
+                    targa=r["targa"],
+                    marca_id=r["marca_id"],
+                    marca_nome=r["marca_nome"],
+                    modello=r["modello"],
+                    tipo=r["tipo"],
+                    note=r["note"] or "",
+                    alimentazione=r["alimentazione"] or "",
+                    data_immatricolazione=r["data_immatricolazione"] or "",
+                    proprieta=r["proprieta"] or "",
+                    canone_noleggio=float(r["canone_noleggio"] or 0),
+                    km_attuali=r["km_attuali"] or 0,
+                    stato=st or "Disponibile",
+                    sede_assegnata_id=r["sede_assegnata_id"],
+                    sede_assegnata_nome=r["sede_assegnata_nome"],
+                    sede_attuale_id=r["sede_attuale_id"],
+                    sede_attuale_nome=r["sede_attuale_nome"],
+                    reparto_assegnato_id=r["reparto_assegnato_id"],
+                    reparto_assegnato_nome=r["reparto_assegnato_nome"],
+                    fornitore=r["fornitore"] or "",
+                    classe_euro=r["classe_euro"] or "",
+                    escluso_prenotazione=r["escluso_prenotazione"] or 0,
+                    tags=tags_map.get(r["automezzo_id"], [])
+                )
+                automezzi_list.append(item)
+
+            conn.close()
+        except Exception as e:
+            print("Errore recupero automezzi API:", e)
+            raise HTTPException(status_code=500, detail=f"Errore recupero automezzi: {str(e)}")
+
+    return AutomezziListResponse(
+        totale=len(automezzi_list),
+        totale_disponibili=tot_disponibili,
+        totale_in_uso=tot_in_uso,
+        totale_in_manutenzione=tot_in_manutenzione,
+        automezzi=automezzi_list
     )
 
 

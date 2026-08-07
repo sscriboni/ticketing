@@ -23,7 +23,7 @@ function navigateToPage(pageId) {
 
 // Commutatore dinamico delle Dashboard in base al Ruolo Utente scelto
 function switchRoleDashboardView(roleName) {
-  const allowedRoles = ['normale', 'fleet_manager', 'assistenza', 'responsabile', 'admin'];
+  const allowedRoles = ['normale', 'fleet_manager', 'global_fleet_manager', 'assistenza', 'responsabile', 'admin'];
   const targetRole = allowedRoles.includes(roleName) ? roleName : 'normale';
 
   document.querySelectorAll('.role-dashboard-view').forEach(view => {
@@ -42,6 +42,10 @@ function switchRoleDashboardView(roleName) {
       btn.classList.remove('active');
     }
   });
+
+  if (targetRole === 'global_fleet_manager' || targetRole === 'fleet_manager') {
+    loadGlobalFleetVehicles();
+  }
 }
 
 // Generatore ed Handlers per la Pagina di Selezione Ruolo Multiplo
@@ -55,7 +59,8 @@ function renderRoleSelectionPage(user, userRoles) {
 
   const roleMeta = {
     'normale': { title: '👤 Dipendente Standard', desc: 'Prenotazione carpooling, presenze e ticket personali', color: 'btn-outline-primary' },
-    'fleet_manager': { title: '🚗 Fleet Manager', desc: 'Gestione flotta 376 veicoli, viaggi e manutenzioni', color: 'btn-outline-warning' },
+    'fleet_manager': { title: '🚗 Fleet Manager', desc: 'Gestione flotta locale, viaggi e manutenzioni', color: 'btn-outline-warning' },
+    'global_fleet_manager': { title: '🌐 Global Fleet Manager', desc: 'Gestione flotta aziendale globale e parco autoveicoli', color: 'btn-outline-warning' },
     'assistenza': { title: '🛠️ Operatore Assistenza', desc: 'Console helpdesk, presa in carico e ricambi', color: 'btn-outline-info' },
     'responsabile': { title: '📋 Responsabile Reparto', desc: 'Matrice presenze mensili e piano ferie reparto', color: 'btn-outline-success' },
     'admin': { title: '👑 Amministratore Globale', desc: 'Controllo completo utenti, permessi e sistema', color: 'btn-outline-danger' }
@@ -208,12 +213,176 @@ async function fetchDashboardStats(token) {
   if (elemAdminU) elemAdminU.textContent = stats.total_users || 42;
 }
 
+// Gestione Recupero Autoveicoli Flotta Globale dall'API REST
+let currentFleetVehicles = [];
+
+async function loadGlobalFleetVehicles() {
+  const token = localStorage.getItem('pwa_auth_token');
+  const spinner = document.getElementById('global-fleet-loading-spinner');
+  const listContainer = document.getElementById('global-fleet-vehicles-list');
+
+  if (spinner) spinner.style.display = 'block';
+  if (listContainer) listContainer.style.display = 'none';
+
+  try {
+    const res = await apiFetch('/automezzi', {
+      headers: {
+        'Authorization': `Bearer ${token}`,
+        'Content-Type': 'application/json'
+      }
+    });
+
+    if (res && res.ok) {
+      const data = await res.json();
+      currentFleetVehicles = data.automezzi || [];
+
+      // Aggiorna contatori KPI
+      const elTotal = document.getElementById('global-fleet-stat-total');
+      const elDisp = document.getElementById('global-fleet-stat-disponibili');
+      const elUso = document.getElementById('global-fleet-stat-inuso');
+      const elMaint = document.getElementById('global-fleet-stat-manutenzione');
+
+      if (elTotal) elTotal.textContent = data.totale || 0;
+      if (elDisp) elDisp.textContent = data.totale_disponibili || 0;
+      if (elUso) elUso.textContent = data.totale_in_uso || 0;
+      if (elMaint) elMaint.textContent = data.totale_in_manutenzione || 0;
+
+      renderGlobalFleetList(currentFleetVehicles);
+    } else {
+      renderGlobalFleetError('Impossibile recuperare l\'elenco autoveicoli dal server.');
+    }
+  } catch (err) {
+    console.error('Errore durante il recupero autoveicoli PWA:', err);
+    renderGlobalFleetError('Errore di connessione durante il recupero dei veicoli.');
+  } finally {
+    if (spinner) spinner.style.display = 'none';
+    if (listContainer) listContainer.style.display = 'flex';
+  }
+}
+
+function renderGlobalFleetList(vehicles) {
+  const listContainer = document.getElementById('global-fleet-vehicles-list');
+  if (!listContainer) return;
+
+  const searchInput = document.getElementById('global-fleet-search-input');
+  const filterStato = document.getElementById('global-fleet-filter-stato');
+
+  const query = searchInput ? searchInput.value.trim().toLowerCase() : '';
+  const selectedStato = filterStato ? filterStato.value.trim().toLowerCase() : '';
+
+  const filtered = vehicles.filter(v => {
+    const matchesSearch = !query ||
+      (v.targa && v.targa.toLowerCase().includes(query)) ||
+      (v.modello && v.modello.toLowerCase().includes(query)) ||
+      (v.marca_nome && v.marca_nome.toLowerCase().includes(query)) ||
+      (v.reparto_assegnato_nome && v.reparto_assegnato_nome.toLowerCase().includes(query)) ||
+      (v.sede_assegnata_nome && v.sede_assegnata_nome.toLowerCase().includes(query));
+
+    const matchesStato = !selectedStato || (v.stato && v.stato.toLowerCase() === selectedStato);
+    return matchesSearch && matchesStato;
+  });
+
+  if (filtered.length === 0) {
+    listContainer.innerHTML = `
+      <div class="col-12 text-center py-4">
+        <div class="text-muted">
+          <i class="bi bi-car-front fs-1 opacity-50"></i>
+          <p class="mt-2 mb-0">Nessun autoveicolo trovato con i filtri selezionati.</p>
+        </div>
+      </div>
+    `;
+    return;
+  }
+
+  listContainer.innerHTML = filtered.map(v => {
+    let badgeClass = 'bg-success';
+    let statoIcon = 'bi-check-circle-fill';
+    const stLower = (v.stato || '').toLowerCase();
+    if (stLower === 'in uso') {
+      badgeClass = 'bg-primary';
+      statoIcon = 'bi-person-badge-fill';
+    } else if (stLower === 'in manutenzione') {
+      badgeClass = 'bg-danger';
+      statoIcon = 'bi-tools';
+    }
+
+    const tagsHtml = (v.tags || []).map(t =>
+      `<span class="badge me-1" style="background-color: ${t.colore || '#0d6efd'}">${t.nome}</span>`
+    ).join('');
+
+    return `
+      <div class="col-12 col-md-6 col-lg-4">
+        <ion-card class="dashboard-card h-100 m-0 p-3 border-top border-3 border-warning">
+          <div class="d-flex justify-content-between align-items-start mb-2">
+            <div>
+              <span class="badge bg-slate-800 text-warning font-monospace fs-6 px-2 py-1 border border-warning border-opacity-25 me-1">
+                ${v.targa || 'N/D'}
+              </span>
+              <span class="badge ${badgeClass} text-white px-2 py-1">
+                <i class="bi ${statoIcon} me-1"></i>${v.stato || 'Disponibile'}
+              </span>
+            </div>
+            <span class="text-muted small">${v.alimentazione || ''}</span>
+          </div>
+
+          <h6 class="fw-bold text-white mb-1">
+            ${v.marca_nome || ''} ${v.modello || ''}
+          </h6>
+
+          <div class="small text-slate-300 mb-2">
+            <div><i class="bi bi-geo-alt text-primary me-1"></i>Sede: <strong>${v.sede_assegnata_nome || 'Non Assegnata'}</strong></div>
+            <div><i class="bi bi-diagram-3 text-info me-1"></i>Reparto: <strong>${v.reparto_assegnato_nome || 'Non Assegnato'}</strong></div>
+            <div><i class="bi bi-speedometer2 text-warning me-1"></i>Km Attuali: <strong>${(v.km_attuali || 0).toLocaleString('it-IT')} km</strong></div>
+          </div>
+
+          ${tagsHtml ? `<div class="mb-2">${tagsHtml}</div>` : ''}
+
+          <div class="d-flex justify-content-between align-items-center pt-2 border-top border-slate-800 text-muted extra-small">
+            <span>Proprietà: ${v.proprieta || 'N/D'}</span>
+            ${v.canone_noleggio > 0 ? `<span>Canone: €${v.canone_noleggio}/mo</span>` : ''}
+          </div>
+        </ion-card>
+      </div>
+    `;
+  }).join('');
+}
+
+function renderGlobalFleetError(msg) {
+  const listContainer = document.getElementById('global-fleet-vehicles-list');
+  if (listContainer) {
+    listContainer.innerHTML = `
+      <div class="col-12 text-center py-4">
+        <div class="alert alert-danger text-start">
+          <i class="bi bi-exclamation-triangle-fill me-2"></i> ${msg}
+        </div>
+      </div>
+    `;
+  }
+}
+
 // Inizializzazione Event Listener al caricamento DOM
 document.addEventListener('DOMContentLoaded', () => {
   const loginForm = document.getElementById('login-form');
   const loginErrorAlert = document.getElementById('login-error-alert');
   const loginErrorText = document.getElementById('login-error-text');
   const btnLogout = document.getElementById('btn-logout');
+
+  // Listener per ricerca e filtri autoveicoli Global Fleet
+  const btnRefreshFleet = document.getElementById('btn-refresh-global-fleet');
+  const searchInputFleet = document.getElementById('global-fleet-search-input');
+  const filterStatoFleet = document.getElementById('global-fleet-filter-stato');
+
+  if (btnRefreshFleet) {
+    btnRefreshFleet.addEventListener('click', () => loadGlobalFleetVehicles());
+  }
+
+  if (searchInputFleet) {
+    searchInputFleet.addEventListener('input', () => renderGlobalFleetList(currentFleetVehicles));
+  }
+
+  if (filterStatoFleet) {
+    filterStatoFleet.addEventListener('change', () => renderGlobalFleetList(currentFleetVehicles));
+  }
 
   // Gestione click sui pulsanti del selettore ruolo
   const roleSwitcher = document.getElementById('role-switcher-group');

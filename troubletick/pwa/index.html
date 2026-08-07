@@ -161,8 +161,8 @@
           </div>
           <div class="btn-group btn-group-sm" role="group" id="role-switcher-group">
             <button type="button" class="btn btn-outline-primary active" data-role-view="normale">👤 Utente</button>
-            <button type="button" class="btn btn-outline-primary" data-role-view="fleet_manager">🚗 Fleet
-              Manager</button>
+            <button type="button" class="btn btn-outline-primary" data-role-view="fleet_manager">🚗 Fleet Manager</button>
+            <button type="button" class="btn btn-outline-warning" data-role-view="global_fleet_manager">🌐 Global Fleet</button>
             <button type="button" class="btn btn-outline-primary" data-role-view="assistenza">🛠️ Assistenza</button>
             <button type="button" class="btn btn-outline-primary" data-role-view="responsabile">📋 Responsabile</button>
             <button type="button" class="btn btn-outline-primary" data-role-view="admin">👑 Admin</button>
@@ -341,6 +341,100 @@
                   <ion-button expand="block" fill="outline" color="warning" size="small">Stampa Attestato</ion-button>
                 </ion-card-content>
               </ion-card>
+            </div>
+          </div>
+        </div>
+
+        <!-- ================= VISTA HOME 2B: GLOBAL FLEET MANAGER ================= -->
+        <div id="role-dashboard-global_fleet_manager" class="role-dashboard-view" style="display: none;">
+          <ion-card class="dashboard-card p-3 p-md-4 mb-4 border-start border-4 border-warning">
+            <ion-card-header class="p-0 mb-3">
+              <div class="d-flex justify-content-between align-items-center flex-wrap gap-2">
+                <div>
+                  <ion-card-subtitle color="warning" class="fw-bold text-uppercase tracking-wider">
+                    Console Global Fleet Manager
+                  </ion-card-subtitle>
+                  <ion-card-title class="fw-bold text-white fs-3 mb-0">
+                    Flotta Aziendale Globale <span class="user-display-name"></span>
+                  </ion-card-title>
+                </div>
+                <ion-badge color="warning" class="px-3 py-2 rounded-pill fs-6 text-dark">
+                  Ruolo: Global Fleet Manager
+                </ion-badge>
+              </div>
+              <p class="text-muted small mt-2 mb-0">
+                Supervisione completa di tutti gli autoveicoli aziendali dislocati in ogni sede e reparto.
+              </p>
+            </ion-card-header>
+
+            <ion-card-content class="p-0">
+              <div class="row g-3">
+                <div class="col-3">
+                  <div class="kpi-stat-box text-center p-2">
+                    <div class="text-muted small fw-bold text-uppercase">Totale Auto</div>
+                    <div id="global-fleet-stat-total" class="fw-bold text-warning fs-3 mt-1">0</div>
+                  </div>
+                </div>
+                <div class="col-3">
+                  <div class="kpi-stat-box text-center p-2">
+                    <div class="text-muted small fw-bold text-uppercase">Disponibili</div>
+                    <div id="global-fleet-stat-disponibili" class="fw-bold text-success fs-3 mt-1">0</div>
+                  </div>
+                </div>
+                <div class="col-3">
+                  <div class="kpi-stat-box text-center p-2">
+                    <div class="text-muted small fw-bold text-uppercase">In Uso</div>
+                    <div id="global-fleet-stat-inuso" class="fw-bold text-info fs-3 mt-1">0</div>
+                  </div>
+                </div>
+                <div class="col-3">
+                  <div class="kpi-stat-box text-center p-2">
+                    <div class="text-muted small fw-bold text-uppercase">In Manutenzione</div>
+                    <div id="global-fleet-stat-manutenzione" class="fw-bold text-danger fs-3 mt-1">0</div>
+                  </div>
+                </div>
+              </div>
+            </ion-card-content>
+          </ion-card>
+
+          <!-- Sezione Registro Autoveicoli REST API -->
+          <div class="d-flex align-items-center justify-content-between flex-wrap gap-2 mb-3">
+            <h5 class="fw-bold text-white mb-0">
+              <i class="bi bi-car-front-fill text-warning me-2"></i> Elenco Autoveicoli Flotta Globale
+            </h5>
+            <button id="btn-refresh-global-fleet" class="btn btn-sm btn-outline-warning d-flex align-items-center gap-1">
+              <i class="bi bi-arrow-clockwise"></i> Aggiorna
+            </button>
+          </div>
+
+          <!-- Filtri e Ricerca Rapida Autoveicoli -->
+          <div class="row g-2 mb-3">
+            <div class="col-12 col-md-7">
+              <div class="input-group input-group-sm">
+                <span class="input-group-text bg-slate-900 border-slate-700 text-muted"><i class="bi bi-search"></i></span>
+                <input type="text" id="global-fleet-search-input" class="form-control bg-slate-900 border-slate-700 text-white" placeholder="Cerca per targa, modello, marca, reparto...">
+              </div>
+            </div>
+            <div class="col-12 col-md-5">
+              <select id="global-fleet-filter-stato" class="form-select form-select-sm bg-slate-900 border-slate-700 text-white">
+                <option value="">Tutti gli stati</option>
+                <option value="Disponibile">Disponibile</option>
+                <option value="In Uso">In Uso</option>
+                <option value="In Manutenzione">In Manutenzione</option>
+              </select>
+            </div>
+          </div>
+
+          <!-- Container Dinamico Lista Autoveicoli REST API -->
+          <div id="global-fleet-vehicles-container" class="mb-4">
+            <div id="global-fleet-loading-spinner" class="text-center py-4">
+              <div class="spinner-border text-warning" role="status">
+                <span class="visually-hidden">Caricamento autoveicoli...</span>
+              </div>
+              <p class="text-muted small mt-2">Recupero autoveicoli dall'API Python in corso...</p>
+            </div>
+            <div id="global-fleet-vehicles-list" class="row g-3" style="display: none;">
+              <!-- Veicoli caricati dinamicamente tramite API REST -->
             </div>
           </div>
         </div>
