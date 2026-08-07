@@ -113,6 +113,7 @@ function setupRoleSwitcherBar(userRoles, activeRole) {
 
 // Controllo Stato Autenticazione all'avvio
 function checkAuth() {
+  if (typeof hideLoginError === 'function') hideLoginError();
   const token = localStorage.getItem('pwa_auth_token');
   const userJson = localStorage.getItem('pwa_user_info');
   const activeRole = localStorage.getItem('pwa_active_role');
@@ -397,11 +398,29 @@ document.addEventListener('DOMContentLoaded', () => {
     });
   }
 
+function hideLoginError() {
+  const alertEl = document.getElementById('login-error-alert');
+  if (alertEl) {
+    alertEl.classList.add('d-none');
+    alertEl.style.display = 'none';
+  }
+}
+
+function showLoginError(msg) {
+  const alertEl = document.getElementById('login-error-alert');
+  const textEl = document.getElementById('login-error-text');
+  if (textEl) textEl.textContent = msg || 'Credenziali non valide. Riprova.';
+  if (alertEl) {
+    alertEl.classList.remove('d-none');
+    alertEl.style.display = 'flex';
+  }
+}
+
   // Submit Form di Login (Azione API POST sul percorso relativo)
   if (loginForm) {
     loginForm.addEventListener('submit', async (e) => {
       e.preventDefault();
-      loginErrorAlert.style.display = 'none';
+      hideLoginError();
 
       const usernameInput = document.getElementById('login-username');
       const passwordInput = document.getElementById('login-password');
@@ -410,8 +429,7 @@ document.addEventListener('DOMContentLoaded', () => {
       const password = passwordInput ? passwordInput.value.trim() : '';
 
       if (!username || !password) {
-        loginErrorText.textContent = 'Inserisci sia lo username che la password.';
-        loginErrorAlert.style.display = 'block';
+        showLoginError('Inserisci sia lo username che la password.');
         return;
       }
 
@@ -427,6 +445,7 @@ document.addEventListener('DOMContentLoaded', () => {
           const user = data.user || { username, nome: username, cognome: '', ruolo: 'normale' };
           const userRoles = user.roles && user.roles.length > 0 ? user.roles : (user.ruolo ? [user.ruolo] : ['normale']);
           
+          hideLoginError();
           localStorage.setItem('pwa_auth_token', data.token || 'pwa_auth_token_active');
           localStorage.setItem('pwa_user_info', JSON.stringify(user));
           localStorage.removeItem('pwa_active_role');
@@ -444,22 +463,15 @@ document.addEventListener('DOMContentLoaded', () => {
           return;
         } else if (res && (res.status === 401 || res.status === 400 || res.status === 403)) {
           const errData = await res.json().catch(() => ({}));
-          loginErrorText.textContent = errData.detail || 'Credenziali non valide o utente non attivo.';
-          loginErrorAlert.style.display = 'block';
+          showLoginError(errData.detail || 'Credenziali non valide o utente non attivo.');
           return;
         }
       } catch (err) {
         console.warn('Avviso chiamata API su percorso relativo:', err);
       }
 
-      // In caso di risposta inattesa, consente la navigazione locale SPA
-      const demoUser = { username: username, nome: username.split('@')[0], cognome: '', ruolo: 'normale', roles: ['normale'] };
-      localStorage.setItem('pwa_auth_token', 'demo_token_pwa');
-      localStorage.setItem('pwa_user_info', JSON.stringify(demoUser));
-      localStorage.setItem('pwa_active_role', 'normale');
-
-      renderUserHome(demoUser, 'normale');
-      navigateToPage('page-home');
+      // In caso di errore server generico, gestisci il messaggio
+      showLoginError('Impossibile contattare il server di autenticazione. Riprova più tardi.');
     });
   }
 
