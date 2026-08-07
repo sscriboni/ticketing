@@ -1,5 +1,4 @@
 import os
-import sqlite3
 import secrets
 import logging
 from typing import Optional, Dict, Any, List
@@ -7,8 +6,9 @@ from datetime import datetime
 from fastapi import FastAPI, HTTPException, Header, Depends, status, Request, Query
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
+from sqlalchemy import text
 
-# Importazione del modulo di autenticazione centralizzato auth.py
+# Importazione del modulo di autenticazione centralizzato auth.py e engine da core.py
 import sys
 CURRENT_DIR = os.path.dirname(os.path.abspath(__file__))
 ROOT_DIR = os.path.dirname(CURRENT_DIR)
@@ -16,6 +16,18 @@ ROOT_DIR = os.path.dirname(CURRENT_DIR)
 for d in [ROOT_DIR, CURRENT_DIR]:
     if d and d not in sys.path:
         sys.path.insert(0, d)
+
+try:
+    from core import engine, CFG, DB_TYPE, DB_DRIVER
+except ImportError:
+    try:
+        from app.core import engine, CFG, DB_TYPE, DB_DRIVER
+    except ImportError:
+        from sqlalchemy import create_engine
+        engine = create_engine("sqlite:///troubletick.db", connect_args={"check_same_thread": False})
+        CFG = {"db_type": "sqlite"}
+        DB_TYPE = "SQLite"
+        DB_DRIVER = "sqlite"
 
 try:
     from auth import authenticate_user, log_auth_error
@@ -27,40 +39,6 @@ except ImportError:
             pass
         def authenticate_user(username: str, password: str, client_ip: str = "127.0.0.1"):
             return None
-
-# Inizializzazione FastAPI Backend per la PWA Ionic SPA
-app = FastAPI(
-    title="Troubletick PWA Backend API",
-    description="API REST Python per la Single Page Application PWA (Ionic Framework) con supporto ruoli multipli",
-    version="1.1.0"
-)
-
-# Abilitazione CORS per la comunicazione tra Frontend SPA e Backend API
-app.add_middleware(
-    CORSMiddleware,
-    allow_origins=["*"],
-    allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
-)
-
-import bcrypt
-
-# Percorso Database SQLite principale
-def get_db_path():
-    candidates = [
-        os.path.join(ROOT_DIR, "app", "troubletick.db"),
-        os.path.join(ROOT_DIR, "troubletick.db"),
-        os.path.join(CURRENT_DIR, "troubletick.db"),
-        "app/troubletick.db",
-        "troubletick.db"
-    ]
-    for c in candidates:
-        if os.path.exists(c) and os.path.getsize(c) > 0:
-            return c
-    return os.path.join(ROOT_DIR, "app", "troubletick.db")
-
-DB_PATH = get_db_path()
 
 def verify_password(plain_password: str, hashed_password: str) -> bool:
     if not hashed_password:
@@ -167,7 +145,13 @@ def get_current_user(request: Request, authorization: Optional[str] = Header(Non
 @app.get("/health")
 @app.get("/api/health")
 def health_check():
-    return {"status": "online", "app": "Troubletick PWA API Server", "db_exists": os.path.exists(DB_PATH), "db_path": DB_PATH}
+    return {
+        "status": "online",
+        "app": "Troubletick PWA API Server",
+        "db_type": DB_TYPE,
+        "db_driver": DB_DRIVER,
+        "config_db_type": CFG.get("db_type", "sqlite")
+    }
 
 
 @app.post("/api/login", response_model=LoginResponse)
@@ -210,86 +194,90 @@ def get_dashboard_metrics(user: dict = Depends(get_current_user)):
     reparto_nome = None
     role_stats = {}
 
-    if os.path.exists(DB_PATH):
-        try:
-            conn = sqlite3.connect(DB_PATH)
-            conn.row_factory = sqlite3.Row
-            cursor = conn.cursor()
-
+    try:
+        with engine.connect() as conn:
             # Metriche generali
-            row_t = cursor.execute("SELECT COUNT(*) FROM tickets WHERE stato IN ('nuova', 'in_lavorazione')").fetchone()
-            if row_t:
-                tickets_open = row_t[0]
+            try:
+                row_t = conn.execute(text("SELECT COUNT(*) FROM tickets WHERE stato IN ('nuova', 'in_lavorazione')")).scalar()
+                if row_t is not None:
+                    tickets_open = row_t
+            except Exception:
+                pass
 
-            row_v = cursor.execute("SELECT COUNT(*) FROM automezzi").fetchone()
-            if row_v and row_v[0] > 0:
-                vehicles_count = row_v[0]
+            try:
+                row_v = conn.execute(text("SELECT COUNT(*) FROM automezzi")).scalar()
+                if row_v is not None and row_v > 0:
+                    vehicles_count = row_v
+            except Exception:
+                pass
 
             if user.get("reparto_id"):
-                row_r = cursor.execute("SELECT nome FROM reparti WHERE reparto_id = ?", (user["reparto_id"],)).fetchone()
-                if row_r:
-                    reparto_nome = row_r["nome"]
+                try:
+                    row_r = conn.execute(text("SELECT nome FROM reparti WHERE reparto_id = :rid"), {"rid": user["reparto_id"]}).scalar()
+                    if row_r:
+                        reparto_nome = row_r
+                except Exception:
+                    pass
 
             # Metriche specifiche per ruolo
             if user_ruolo == "admin":
-                row_u = cursor.execute("SELECT COUNT(*) FROM users").fetchone()
-                row_rep = cursor.execute("SELECT COUNT(*) FROM reparti").fetchone()
+                row_u = conn.execute(text("SELECT COUNT(*) FROM users")).scalar() or 0
+                row_rep = conn.execute(text("SELECT COUNT(*) FROM reparti")).scalar() or 0
                 role_stats = {
-                    "total_users": row_u[0] if row_u else 0,
-                    "total_reparti": row_rep[0] if row_rep else 0,
+                    "total_users": row_u,
+                    "total_reparti": row_rep,
                     "system_status": "Ottimale"
                 }
             elif user_ruolo in ("fleet_manager", "global_fleet_manager"):
                 row_trips = None
                 row_maint = None
                 try:
-                    row_trips = cursor.execute("SELECT COUNT(*) FROM viaggi_automezzi WHERE ora_arrivo IS NULL").fetchone()
+                    row_trips = conn.execute(text("SELECT COUNT(*) FROM viaggi_automezzi WHERE ora_arrivo IS NULL")).scalar()
                 except Exception:
                     try:
-                        row_trips = cursor.execute("SELECT COUNT(*) FROM viaggi WHERE ora_arrivo_effettiva IS NULL").fetchone()
+                        row_trips = conn.execute(text("SELECT COUNT(*) FROM viaggi WHERE ora_arrivo_effettiva IS NULL")).scalar()
                     except Exception:
                         pass
                 try:
-                    row_maint = cursor.execute("SELECT COUNT(*) FROM manutenzioni_automezzi WHERE data_fine IS NULL OR data_fine = ''").fetchone()
+                    row_maint = conn.execute(text("SELECT COUNT(*) FROM manutenzioni_automezzi WHERE data_fine IS NULL OR data_fine = ''")).scalar()
                 except Exception:
                     try:
-                        row_maint = cursor.execute("SELECT COUNT(*) FROM manutenzioni WHERE conclusa = 0").fetchone()
+                        row_maint = conn.execute(text("SELECT COUNT(*) FROM manutenzioni WHERE conclusa = 0")).scalar()
                     except Exception:
                         pass
 
                 role_stats = {
-                    "active_trips": row_trips[0] if row_trips else 0,
-                    "pending_maintenances": row_maint[0] if row_maint else 0,
+                    "active_trips": row_trips or 0,
+                    "pending_maintenances": row_maint or 0,
                     "fleet_availability": "94%"
                 }
             elif user_ruolo == "assistenza":
                 uid = user.get("user_id", 0)
-                row_my_t = cursor.execute("SELECT COUNT(*) FROM tickets WHERE operatore_id = ? AND stato IN ('nuova', 'in_lavorazione')", (uid,)).fetchone()
+                row_my_t = conn.execute(text("SELECT COUNT(*) FROM tickets WHERE operatore_id = :uid AND stato IN ('nuova', 'in_lavorazione')"), {"uid": uid}).scalar() or 0
                 role_stats = {
-                    "my_assigned_tickets": row_my_t[0] if row_my_t else 0,
+                    "my_assigned_tickets": row_my_t,
                     "unassigned_tickets": tickets_open,
                     "response_time": "< 30 min"
                 }
             elif user_ruolo == "responsabile":
                 rep_id = user.get("reparto_id", 0)
-                row_emp = cursor.execute("SELECT COUNT(*) FROM users WHERE reparto_id = ?", (rep_id,)).fetchone()
+                row_emp = conn.execute(text("SELECT COUNT(*) FROM users WHERE reparto_id = :repid"), {"repid": rep_id}).scalar() or 0
                 role_stats = {
-                    "department_employees": row_emp[0] if row_emp else 0,
+                    "department_employees": row_emp,
                     "absent_today": 0,
                     "pending_approvals": 0
                 }
             else: # normale
                 uid = user.get("user_id", 0)
-                row_user_t = cursor.execute("SELECT COUNT(*) FROM tickets WHERE creatore_id = ? AND stato IN ('nuova', 'in_lavorazione')", (uid,)).fetchone()
+                row_user_t = conn.execute(text("SELECT COUNT(*) FROM tickets WHERE creatore_id = :uid AND stato IN ('nuova', 'in_lavorazione')"), {"uid": uid}).scalar() or 0
                 role_stats = {
-                    "my_open_tickets": row_user_t[0] if row_user_t else 0,
+                    "my_open_tickets": row_user_t,
                     "my_active_trips": 0,
                     "attendance_today": "In Sede"
                 }
 
-            conn.close()
-        except Exception as e:
-            print("Avviso consultazione DB dashboard API:", e)
+    except Exception as e:
+        print("Avviso consultazione DB dashboard API:", e)
 
     return DashboardResponse(
         ruolo=user_ruolo,
@@ -321,12 +309,8 @@ def get_automezzi(
     tot_in_uso = 0
     tot_in_manutenzione = 0
 
-    if os.path.exists(DB_PATH):
-        try:
-            conn = sqlite3.connect(DB_PATH)
-            conn.row_factory = sqlite3.Row
-            cursor = conn.cursor()
-
+    try:
+        with engine.connect() as conn:
             query = """
                 SELECT a.automezzo_id, a.targa, a.marca_id, COALESCE(m.nome, '') as marca_nome,
                        a.modello, a.tipo, a.note, a.alimentazione, a.data_immatricolazione,
@@ -342,33 +326,32 @@ def get_automezzi(
                 LEFT JOIN reparti r ON a.reparto_assegnato_id = r.reparto_id
                 WHERE 1=1
             """
-            params = []
+            params = {}
 
             if is_fleet_mgr and not is_global and reparto_id:
-                query += " AND a.reparto_assegnato_id = ?"
-                params.append(reparto_id)
+                query += " AND a.reparto_assegnato_id = :reparto_id"
+                params["reparto_id"] = reparto_id
 
             if stato:
-                query += " AND LOWER(a.stato) = LOWER(?)"
-                params.append(stato)
+                query += " AND LOWER(a.stato) = LOWER(:stato)"
+                params["stato"] = stato
 
             if search:
-                s_pattern = f"%{search.strip()}%"
-                query += " AND (a.targa LIKE ? OR a.modello LIKE ? OR m.nome LIKE ? OR r.nome LIKE ?)"
-                params.extend([s_pattern, s_pattern, s_pattern, s_pattern])
+                query += " AND (a.targa LIKE :search OR a.modello LIKE :search OR m.nome LIKE :search OR r.nome LIKE :search)"
+                params["search"] = f"%{search.strip()}%"
 
             query += " ORDER BY COALESCE(s_ass.nome, ''), COALESCE(r.nome, ''), a.targa"
 
-            rows = cursor.execute(query, params).fetchall()
+            rows = conn.execute(text(query), params).mappings().all()
 
             tags_map = {}
             try:
-                tag_rows = cursor.execute("""
+                tag_rows = conn.execute(text("""
                     SELECT at.automezzo_id, t.tag_id, t.nome, t.colore, t.descrizione
                     FROM automezzi_tag at
                     JOIN tag_automezzi t ON at.tag_id = t.tag_id
                     ORDER BY t.nome
-                """).fetchall()
+                """)).mappings().all()
                 for tr in tag_rows:
                     aid = tr["automezzo_id"]
                     if aid not in tags_map:
@@ -419,10 +402,9 @@ def get_automezzi(
                 )
                 automezzi_list.append(item)
 
-            conn.close()
-        except Exception as e:
-            print("Errore recupero automezzi API:", e)
-            raise HTTPException(status_code=500, detail=f"Errore recupero automezzi: {str(e)}")
+    except Exception as e:
+        print("Errore recupero automezzi API:", e)
+        raise HTTPException(status_code=500, detail=f"Errore recupero automezzi: {str(e)}")
 
     return AutomezziListResponse(
         totale=len(automezzi_list),
