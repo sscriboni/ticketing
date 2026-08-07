@@ -39,6 +39,23 @@ except ImportError:
             pass
         def authenticate_user(username: str, password: str, client_ip: str = "127.0.0.1"):
             return None
+import bcrypt
+
+# Inizializzazione FastAPI Backend per la PWA Ionic SPA
+app = FastAPI(
+    title="Troubletick PWA Backend API",
+    description="API REST Python per la Single Page Application PWA (Ionic Framework) con supporto ruoli multipli",
+    version="1.1.0"
+)
+
+# Abilitazione CORS per la comunicazione tra Frontend SPA e Backend API
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
 
 def verify_password(plain_password: str, hashed_password: str) -> bool:
     if not hashed_password:
