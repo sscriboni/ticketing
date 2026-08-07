@@ -37,3 +37,5 @@ sudo systemctl reload httpd
 # controllare log mail inviate
 sudo tail -f /var/log/maillog | grep -iE "status=(bounced|deferred|failed)|reject|error"
 
+# log applicativi su apache
+sudo tail -f /var/log/httpd/applicativi_python_access.log

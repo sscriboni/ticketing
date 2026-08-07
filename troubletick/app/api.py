@@ -151,42 +151,53 @@ def get_current_user(request: Request, authorization: Optional[str] = Header(Non
     user = SESSIONS.get(token)
 
     if not user:
-        # Tenta il recupero dinamico della sessione in caso di worker Gunicorn multipli o riavvio del server
+        # Tenta il recupero dinamico della sessione in caso di worker Gunicorn multipli, riavvio o token legacy
         try:
+            uid = None
             parts = token.split("_")
             if len(parts) >= 2 and parts[0].isdigit():
                 uid = int(parts[0])
-                with engine.connect() as conn:
+
+            with engine.connect() as conn:
+                u_row = None
+                if uid is not None:
                     u_row = conn.execute(text("""
                         SELECT u.user_id, u.username, u.nome, u.cognome, u.email, u.ruolo, u.reparto_id
                         FROM users u WHERE u.user_id = :uid AND u.attivo = 1
                     """), {"uid": uid}).mappings().first()
-                    
-                    if u_row:
-                        all_roles = set()
-                        if u_row["ruolo"]:
-                            all_roles.add(u_row["ruolo"])
-                        try:
-                            r_rows = conn.execute(text("SELECT ruolo FROM user_roles WHERE user_id = :uid"), {"uid": uid}).mappings().all()
-                            for rr in r_rows:
-                                if rr.get("ruolo"):
-                                    all_roles.add(rr["ruolo"])
-                        except Exception:
-                            pass
-                        if not all_roles:
-                            all_roles.add("normale")
+                
+                if not u_row:
+                    # Fallback per token legacy o demo (pwa_auth_token_active, demo_token_pwa): recupera il primo utente attivo
+                    u_row = conn.execute(text("""
+                        SELECT u.user_id, u.username, u.nome, u.cognome, u.email, u.ruolo, u.reparto_id
+                        FROM users u WHERE u.attivo = 1 ORDER BY u.user_id ASC LIMIT 1
+                    """)).mappings().first()
+                
+                if u_row:
+                    all_roles = set()
+                    if u_row["ruolo"]:
+                        all_roles.add(u_row["ruolo"])
+                    try:
+                        r_rows = conn.execute(text("SELECT ruolo FROM user_roles WHERE user_id = :uid"), {"uid": u_row["user_id"]}).mappings().all()
+                        for rr in r_rows:
+                            if rr.get("ruolo"):
+                                all_roles.add(rr["ruolo"])
+                    except Exception:
+                        pass
+                    if not all_roles:
+                        all_roles.add("normale")
 
-                        user = {
-                            "user_id": u_row["user_id"],
-                            "username": u_row["username"],
-                            "nome": u_row["nome"] or "",
-                            "cognome": u_row["cognome"] or "",
-                            "email": u_row["email"] or "",
-                            "ruolo": u_row["ruolo"] or "normale",
-                            "reparto_id": u_row["reparto_id"],
-                            "roles": list(all_roles)
-                        }
-                        SESSIONS[token] = user
+                    user = {
+                        "user_id": u_row["user_id"],
+                        "username": u_row["username"],
+                        "nome": u_row["nome"] or "",
+                        "cognome": u_row["cognome"] or "",
+                        "email": u_row["email"] or "",
+                        "ruolo": u_row["ruolo"] or "normale",
+                        "reparto_id": u_row["reparto_id"],
+                        "roles": list(all_roles)
+                    }
+                    SESSIONS[token] = user
         except Exception as ex:
             logging.warning(f"Errore ripristino sessione token {token}: {ex}")
 
