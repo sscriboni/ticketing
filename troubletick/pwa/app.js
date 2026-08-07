@@ -48,10 +48,23 @@ function switchRoleDashboardView(roleName) {
   }
 }
 
+function getUserRoles(user) {
+  if (!user) return ['normale'];
+  let roles = user.roles && user.roles.length > 0 ? [...user.roles] : (user.ruolo ? [user.ruolo] : ['normale']);
+  
+  if (roles.includes('fleet_manager') || roles.includes('global_fleet_manager') || roles.includes('admin')) {
+    if (!roles.includes('fleet_manager')) roles.push('fleet_manager');
+    if (!roles.includes('global_fleet_manager')) roles.push('global_fleet_manager');
+  }
+  return Array.from(new Set(roles));
+}
+
 // Generatore ed Handlers per la Pagina di Selezione Ruolo Multiplo
 function renderRoleSelectionPage(user, userRoles) {
   const container = document.getElementById('role-select-buttons-list');
   if (!container) return;
+
+  const rolesToRender = userRoles || getUserRoles(user);
 
   document.querySelectorAll('.user-display-name').forEach(el => {
     el.textContent = `${user.nome || ''} ${user.cognome || ''}`.trim() || user.username || 'Utente';
@@ -67,7 +80,7 @@ function renderRoleSelectionPage(user, userRoles) {
   };
 
   container.innerHTML = '';
-  userRoles.forEach(roleKey => {
+  rolesToRender.forEach(roleKey => {
     const meta = roleMeta[roleKey] || { title: `🎭 Ruolo: ${roleKey}`, desc: 'Accedi con questo ruolo', color: 'btn-outline-primary' };
     
     const btn = document.createElement('button');
@@ -100,10 +113,16 @@ function setupRoleSwitcherBar(userRoles, activeRole) {
 
   const buttons = switcherGroup.querySelectorAll('button[data-role-view]');
   const isGlobalAdmin = userRoles.includes('admin');
+  const isFleetRole = userRoles.includes('fleet_manager') || userRoles.includes('global_fleet_manager');
 
   buttons.forEach(btn => {
     const roleKey = btn.getAttribute('data-role-view');
-    if (isGlobalAdmin || userRoles.includes(roleKey)) {
+    if (
+      roleKey === 'normale' ||
+      isGlobalAdmin ||
+      userRoles.includes(roleKey) ||
+      (isFleetRole && (roleKey === 'fleet_manager' || roleKey === 'global_fleet_manager'))
+    ) {
       btn.style.display = 'inline-block';
     } else {
       btn.style.display = 'none';
@@ -121,7 +140,7 @@ function checkAuth() {
   if (token && userJson) {
     try {
       const user = JSON.parse(userJson);
-      const userRoles = user.roles && user.roles.length > 0 ? user.roles : (user.ruolo ? [user.ruolo] : ['normale']);
+      const userRoles = getUserRoles(user);
       
       if (!activeRole && userRoles.length > 1) {
         renderRoleSelectionPage(user, userRoles);
@@ -148,7 +167,7 @@ function renderUserHome(user, roleName) {
     el.textContent = fullName;
   });
 
-  const userRoles = user.roles && user.roles.length > 0 ? user.roles : (user.ruolo ? [user.ruolo] : ['normale']);
+  const userRoles = getUserRoles(user);
   const activeRole = roleName || localStorage.getItem('pwa_active_role') || userRoles[0] || 'normale';
 
   setupRoleSwitcherBar(userRoles, activeRole);
@@ -402,17 +421,17 @@ function hideLoginError() {
   const alertEl = document.getElementById('login-error-alert');
   if (alertEl) {
     alertEl.classList.add('d-none');
-    alertEl.style.display = 'none';
+    alertEl.style.setProperty('display', 'none', 'important');
   }
 }
 
 function showLoginError(msg) {
   const alertEl = document.getElementById('login-error-alert');
   const textEl = document.getElementById('login-error-text');
-  if (textEl) textEl.textContent = msg || 'Credenziali non valide. Riprova.';
+  if (textEl) textEl.textContent = msg || 'Credenziali non valide o utente non riconosciuto.';
   if (alertEl) {
     alertEl.classList.remove('d-none');
-    alertEl.style.display = 'flex';
+    alertEl.style.setProperty('display', 'flex', 'important');
   }
 }
 
@@ -443,7 +462,7 @@ function showLoginError(msg) {
         if (res && res.ok) {
           const data = await res.json();
           const user = data.user || { username, nome: username, cognome: '', ruolo: 'normale' };
-          const userRoles = user.roles && user.roles.length > 0 ? user.roles : (user.ruolo ? [user.ruolo] : ['normale']);
+          const userRoles = getUserRoles(user);
           
           hideLoginError();
           localStorage.setItem('pwa_auth_token', data.token || 'pwa_auth_token_active');
@@ -461,17 +480,27 @@ function showLoginError(msg) {
             fetchDashboardStats(data.token);
           }
           return;
-        } else if (res && (res.status === 401 || res.status === 400 || res.status === 403)) {
-          const errData = await res.json().catch(() => ({}));
-          showLoginError(errData.detail || 'Credenziali non valide o utente non attivo.');
+        } else {
+          let message = 'Credenziali non valide o utente non attivo.';
+          if (res) {
+            try {
+              const errData = await res.json();
+              if (errData && errData.detail) {
+                if (typeof errData.detail === 'string') {
+                  message = errData.detail;
+                } else if (Array.isArray(errData.detail) && errData.detail[0] && errData.detail[0].msg) {
+                  message = errData.detail[0].msg;
+                }
+              }
+            } catch (jsonErr) {}
+          }
+          showLoginError(message);
           return;
         }
       } catch (err) {
-        console.warn('Avviso chiamata API su percorso relativo:', err);
+        console.error('Errore durante il tentativo di login PWA:', err);
+        showLoginError('Connessione al server non riuscita. Verificare la rete.');
       }
-
-      // In caso di errore server generico, gestisci il messaggio
-      showLoginError('Impossibile contattare il server di autenticazione. Riprova più tardi.');
     });
   }
 
