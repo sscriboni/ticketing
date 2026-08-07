@@ -149,6 +149,47 @@ def get_current_user(request: Request, authorization: Optional[str] = Header(Non
         )
     token = authorization.split(" ")[1]
     user = SESSIONS.get(token)
+
+    if not user:
+        # Tenta il recupero dinamico della sessione in caso di worker Gunicorn multipli o riavvio del server
+        try:
+            parts = token.split("_")
+            if len(parts) >= 2 and parts[0].isdigit():
+                uid = int(parts[0])
+                with engine.connect() as conn:
+                    u_row = conn.execute(text("""
+                        SELECT u.user_id, u.username, u.nome, u.cognome, u.email, u.ruolo, u.reparto_id
+                        FROM users u WHERE u.user_id = :uid AND u.attivo = 1
+                    """), {"uid": uid}).mappings().first()
+                    
+                    if u_row:
+                        all_roles = set()
+                        if u_row["ruolo"]:
+                            all_roles.add(u_row["ruolo"])
+                        try:
+                            r_rows = conn.execute(text("SELECT ruolo FROM user_roles WHERE user_id = :uid"), {"uid": uid}).mappings().all()
+                            for rr in r_rows:
+                                if rr.get("ruolo"):
+                                    all_roles.add(rr["ruolo"])
+                        except Exception:
+                            pass
+                        if not all_roles:
+                            all_roles.add("normale")
+
+                        user = {
+                            "user_id": u_row["user_id"],
+                            "username": u_row["username"],
+                            "nome": u_row["nome"] or "",
+                            "cognome": u_row["cognome"] or "",
+                            "email": u_row["email"] or "",
+                            "ruolo": u_row["ruolo"] or "normale",
+                            "reparto_id": u_row["reparto_id"],
+                            "roles": list(all_roles)
+                        }
+                        SESSIONS[token] = user
+        except Exception as ex:
+            logging.warning(f"Errore ripristino sessione token {token}: {ex}")
+
     if not user:
         log_auth_error("Token di sessione Bearer non valido o scaduto", "", client_ip)
         raise HTTPException(
@@ -180,7 +221,7 @@ def login(req: LoginRequest, request: Request):
     if not user_info:
         raise HTTPException(status_code=401, detail="Credenziali non valide o utente non attivo.")
 
-    token = secrets.token_hex(32)
+    token = f"{user_info['user_id']}_{secrets.token_hex(20)}"
     user_res = UserResponse(
         user_id=user_info["user_id"],
         username=user_info["username"],

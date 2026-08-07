@@ -195,6 +195,14 @@ async function fetchDashboardStats(token) {
 
     if (res && res.ok) {
       data = await res.json();
+    } else if (res && res.status === 401) {
+      console.warn('Sessione non valida o scaduta su /dashboard. Reindirizzamento al login.');
+      localStorage.removeItem('pwa_auth_token');
+      localStorage.removeItem('pwa_user_info');
+      localStorage.removeItem('pwa_active_role');
+      navigateToPage('page-login');
+      showLoginError('Sessione scaduta o non valida. Effettua nuovamente il login.');
+      return;
     }
   } catch (e) {
     console.warn('Avviso recupero API dashboard su percorso relativo:', e);
@@ -268,6 +276,14 @@ async function loadGlobalFleetVehicles() {
       if (elMaint) elMaint.textContent = data.totale_in_manutenzione || 0;
 
       renderGlobalFleetList(currentFleetVehicles);
+    } else if (res && res.status === 401) {
+      console.warn('Sessione non valida o scaduta su /automezzi. Reindirizzamento al login.');
+      localStorage.removeItem('pwa_auth_token');
+      localStorage.removeItem('pwa_user_info');
+      localStorage.removeItem('pwa_active_role');
+      navigateToPage('page-login');
+      showLoginError('Sessione scaduta o non valida. Effettua nuovamente il login.');
+      return;
     } else {
       renderGlobalFleetError('Impossibile recuperare l\'elenco autoveicoli dal server.');
     }
