@@ -21,6 +21,25 @@ function navigateToPage(pageId) {
   }
 }
 
+// Utility per la gestione visiva degli alert di Login
+function hideLoginError() {
+  const alertEl = document.getElementById('login-error-alert');
+  if (alertEl) {
+    alertEl.classList.add('d-none');
+    alertEl.style.setProperty('display', 'none', 'important');
+  }
+}
+
+function showLoginError(msg) {
+  const alertEl = document.getElementById('login-error-alert');
+  const textEl = document.getElementById('login-error-text');
+  if (textEl) textEl.textContent = msg || 'Credenziali non valide o utente non riconosciuto.';
+  if (alertEl) {
+    alertEl.classList.remove('d-none');
+    alertEl.style.setProperty('display', 'flex', 'important');
+  }
+}
+
 // Commutatore dinamico delle Dashboard in base al Ruolo Utente scelto
 function switchRoleDashboardView(roleName) {
   const allowedRoles = ['normale', 'fleet_manager', 'global_fleet_manager', 'assistenza', 'responsabile', 'admin'];
@@ -433,23 +452,7 @@ document.addEventListener('DOMContentLoaded', () => {
     });
   }
 
-function hideLoginError() {
-  const alertEl = document.getElementById('login-error-alert');
-  if (alertEl) {
-    alertEl.classList.add('d-none');
-    alertEl.style.setProperty('display', 'none', 'important');
-  }
-}
 
-function showLoginError(msg) {
-  const alertEl = document.getElementById('login-error-alert');
-  const textEl = document.getElementById('login-error-text');
-  if (textEl) textEl.textContent = msg || 'Credenziali non valide o utente non riconosciuto.';
-  if (alertEl) {
-    alertEl.classList.remove('d-none');
-    alertEl.style.setProperty('display', 'flex', 'important');
-  }
-}
 
   // Submit Form di Login (Azione API POST sul percorso relativo)
   if (loginForm) {
