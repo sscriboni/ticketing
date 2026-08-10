@@ -831,21 +831,26 @@ def create_prenotazione(req: PrenotazioneCreateRequest, user: dict = Depends(get
 
 
 @app.post("/api/prenotazioni/{viaggio_id}/parti", response_model=PrenotazioneActionResponse)
+@app.post("/prenotazioni/{viaggio_id}/parti", response_model=PrenotazioneActionResponse)
+@app.post("/api/autopark/parti/{viaggio_id}", response_model=PrenotazioneActionResponse)
+@app.post("/autopark/parti/{viaggio_id}", response_model=PrenotazioneActionResponse)
 def start_prenotazione(viaggio_id: int, user: dict = Depends(get_current_user)):
     uid = user.get("user_id", 0)
     role = user.get("ruolo", "normale")
     user_roles = user.get("roles") or [role]
+    email = (user.get("email") or "").strip().lower()
     is_admin_or_mgr = any(r in ("admin", "fleet_manager", "global_fleet_manager") for r in user_roles)
 
     now_str = datetime.now().strftime("%H:%M")
     today_str = datetime.now().strftime("%Y-%m-%d")
 
     with engine.begin() as conn:
-        query = "SELECT viaggio_id, user_id, automezzo_id, data_viaggio, ora_partenza_effettiva, ora_arrivo FROM viaggi_automezzi WHERE viaggio_id = :id"
+        query = "SELECT viaggio_id, user_id, email_conducente, automezzo_id, data_viaggio, ora_partenza_effettiva, ora_arrivo FROM viaggi_automezzi WHERE viaggio_id = :id"
         params = {"id": viaggio_id}
         if not is_admin_or_mgr:
-            query += " AND user_id = :uid"
+            query += " AND (user_id = :uid OR (LOWER(email_conducente) = :email AND :email != ''))"
             params["uid"] = uid
+            params["email"] = email
 
         v = conn.execute(text(query), params).mappings().first()
         if not v:
@@ -880,20 +885,25 @@ def start_prenotazione(viaggio_id: int, user: dict = Depends(get_current_user)):
 
 
 @app.post("/api/prenotazioni/{viaggio_id}/completa", response_model=PrenotazioneActionResponse)
+@app.post("/prenotazioni/{viaggio_id}/completa", response_model=PrenotazioneActionResponse)
+@app.post("/api/autopark/completa/{viaggio_id}", response_model=PrenotazioneActionResponse)
+@app.post("/autopark/completa/{viaggio_id}", response_model=PrenotazioneActionResponse)
 def complete_prenotazione(viaggio_id: int, req: PrenotazioneCompletaRequest, user: dict = Depends(get_current_user)):
     uid = user.get("user_id", 0)
     role = user.get("ruolo", "normale")
     user_roles = user.get("roles") or [role]
+    email = (user.get("email") or "").strip().lower()
     is_admin_or_mgr = any(r in ("admin", "fleet_manager", "global_fleet_manager") for r in user_roles)
 
     now_str = datetime.now().strftime("%H:%M")
 
     with engine.begin() as conn:
-        query = "SELECT viaggio_id, user_id, automezzo_id, km_iniziali, ora_partenza_effettiva, ora_arrivo, sede_partenza_id FROM viaggi_automezzi WHERE viaggio_id = :id"
+        query = "SELECT viaggio_id, user_id, email_conducente, automezzo_id, km_iniziali, ora_partenza_effettiva, ora_arrivo, sede_partenza_id FROM viaggi_automezzi WHERE viaggio_id = :id"
         params = {"id": viaggio_id}
         if not is_admin_or_mgr:
-            query += " AND user_id = :uid"
+            query += " AND (user_id = :uid OR (LOWER(email_conducente) = :email AND :email != ''))"
             params["uid"] = uid
+            params["email"] = email
 
         v = conn.execute(text(query), params).mappings().first()
         if not v:
@@ -945,25 +955,44 @@ def complete_prenotazione(viaggio_id: int, req: PrenotazioneCompletaRequest, use
 
 
 @app.post("/api/prenotazioni/{viaggio_id}/annulla", response_model=PrenotazioneActionResponse)
+@app.post("/prenotazioni/{viaggio_id}/annulla", response_model=PrenotazioneActionResponse)
+@app.post("/api/autopark/elimina/{viaggio_id}", response_model=PrenotazioneActionResponse)
+@app.post("/autopark/elimina/{viaggio_id}", response_model=PrenotazioneActionResponse)
 @app.delete("/api/prenotazioni/{viaggio_id}", response_model=PrenotazioneActionResponse)
+@app.delete("/prenotazioni/{viaggio_id}", response_model=PrenotazioneActionResponse)
 def cancel_prenotazione(viaggio_id: int, user: dict = Depends(get_current_user)):
     uid = user.get("user_id", 0)
     role = user.get("ruolo", "normale")
     user_roles = user.get("roles") or [role]
-    is_admin_or_mgr = any(r in ("admin", "fleet_manager", "global_fleet_manager") for r in user_roles)
+    email = (user.get("email") or "").strip().lower()
+    reparto_id = user.get("reparto_id")
+    is_global = any(r in ("admin", "global_fleet_manager") for r in user_roles) or role in ("admin", "global_fleet_manager")
+    is_fleet_mgr = "fleet_manager" in user_roles or role == "fleet_manager"
 
     with engine.begin() as conn:
-        query = "SELECT viaggio_id, user_id, automezzo_id, data_viaggio, ora_partenza_effettiva, ora_arrivo FROM viaggi_automezzi WHERE viaggio_id = :id"
-        params = {"id": viaggio_id}
-        if not is_admin_or_mgr:
-            query += " AND user_id = :uid"
-            params["uid"] = uid
+        if is_global:
+            v = conn.execute(text("""
+                SELECT viaggio_id, user_id, email_conducente, automezzo_id, data_viaggio, ora_partenza_effettiva, ora_arrivo
+                FROM viaggi_automezzi WHERE viaggio_id = :id
+            """), {"id": viaggio_id}).mappings().first()
+        elif is_fleet_mgr and reparto_id:
+            v = conn.execute(text("""
+                SELECT v.viaggio_id, v.user_id, v.email_conducente, v.automezzo_id, v.data_viaggio, v.ora_partenza_effettiva, v.ora_arrivo
+                FROM viaggi_automezzi v
+                JOIN users u ON v.user_id = u.user_id
+                WHERE v.viaggio_id = :id AND (u.reparto_id = :repid OR v.user_id = :uid OR LOWER(v.email_conducente) = :email)
+            """), {"id": viaggio_id, "repid": reparto_id, "uid": uid, "email": email}).mappings().first()
+        else:
+            v = conn.execute(text("""
+                SELECT viaggio_id, user_id, email_conducente, automezzo_id, data_viaggio, ora_partenza_effettiva, ora_arrivo
+                FROM viaggi_automezzi
+                WHERE viaggio_id = :id AND (user_id = :uid OR (LOWER(email_conducente) = :email AND :email != ''))
+            """), {"id": viaggio_id, "uid": uid, "email": email}).mappings().first()
 
-        v = conn.execute(text(query), params).mappings().first()
         if not v:
             raise HTTPException(status_code=404, detail="Prenotazione non trovata o non sei autorizzato ad annullarla.")
 
-        if v["ora_arrivo"] or v["ora_partenza_effettiva"]:
+        if not is_global and not is_fleet_mgr and (v["ora_arrivo"] or v["ora_partenza_effettiva"]):
             raise HTTPException(status_code=400, detail="Non puoi eliminare un viaggio che è già iniziato o completato.")
 
         conn.execute(text("DELETE FROM viaggi_automezzi WHERE viaggio_id = :id"), {"id": viaggio_id})
