@@ -1,6 +1,8 @@
 import os
+import sys
 import secrets
 import logging
+from logging.handlers import RotatingFileHandler
 from typing import Optional, Dict, Any, List
 from datetime import datetime
 from fastapi import FastAPI, HTTPException, Header, Depends, status, Request, Query
@@ -9,13 +11,27 @@ from pydantic import BaseModel
 from sqlalchemy import text
 
 # Importazione del modulo di autenticazione centralizzato auth.py e engine da core.py
-import sys
 CURRENT_DIR = os.path.dirname(os.path.abspath(__file__))
 ROOT_DIR = os.path.dirname(CURRENT_DIR)
 
 for d in [ROOT_DIR, CURRENT_DIR]:
     if d and d not in sys.path:
         sys.path.insert(0, d)
+
+# Configurazione del Logger Centralizzato per le API PWA (con rotazione dei file per evitare sovraccarichi)
+LOG_DIR = os.path.join(ROOT_DIR, "logs")
+os.makedirs(LOG_DIR, exist_ok=True)
+API_LOG_FILE = os.path.join(LOG_DIR, "pwa_api.log")
+
+api_logger = logging.getLogger("pwa_api")
+api_logger.setLevel(logging.INFO)
+if not api_logger.handlers:
+    rfh = RotatingFileHandler(API_LOG_FILE, maxBytes=5 * 1024 * 1024, backupCount=3, encoding="utf-8")
+    rfh.setFormatter(logging.Formatter("[%(asctime)s] %(levelname)s - %(message)s"))
+    api_logger.addHandler(rfh)
+    sh = logging.StreamHandler()
+    sh.setFormatter(logging.Formatter("[%(asctime)s] [PWA-API] %(levelname)s - %(message)s"))
+    api_logger.addHandler(sh)
 
 try:
     from core import engine, CFG, DB_TYPE, DB_DRIVER
@@ -36,7 +52,7 @@ except ImportError:
         from app.auth import authenticate_user, log_auth_error
     except ImportError:
         def log_auth_error(reason: str, username: str = "", client_ip: str = "127.0.0.1"):
-            pass
+            api_logger.warning("[AUTH ERROR] %s (User: %s, IP: %s)", reason, username, client_ip)
         def authenticate_user(username: str, password: str, client_ip: str = "127.0.0.1"):
             return None
 import bcrypt
@@ -206,6 +222,7 @@ def get_current_user(request: Request, authorization: Optional[str] = Header(Non
     client_ip = request.client.host if (request and request.client) else "127.0.0.1"
     if not authorization or not authorization.startswith("Bearer "):
         log_auth_error("Header di autorizzazione Bearer mancante o non valido", "", client_ip)
+        api_logger.warning("[AUTH] Richiesta non autorizzata da IP: %s (Header Bearer mancante)", client_ip)
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Header di autorizzazione mancante o non valido",
@@ -263,10 +280,11 @@ def get_current_user(request: Request, authorization: Optional[str] = Header(Non
                     }
                     SESSIONS[token] = user
         except Exception as ex:
-            logging.warning(f"Errore ripristino sessione token {token}: {ex}")
+            api_logger.warning("[AUTH] Errore ripristino sessione per token %s...: %s", token[:8], ex)
 
     if not user:
         log_auth_error("Token di sessione Bearer non valido o scaduto", "", client_ip)
+        api_logger.warning("[AUTH] Sessione non trovata o scaduta per token %s... da IP: %s", token[:8], client_ip)
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Token di sessione non valido o scaduto",
@@ -278,6 +296,7 @@ def get_current_user(request: Request, authorization: Optional[str] = Header(Non
 @app.get("/health")
 @app.get("/api/health")
 def health_check():
+    api_logger.info("[HEALTH] Health check eseguito - Status: online | DB: %s (%s)", DB_TYPE, DB_DRIVER)
     return {
         "status": "online",
         "app": "Troubletick PWA API Server",
@@ -294,6 +313,7 @@ def login(req: LoginRequest, request: Request):
     user_info = authenticate_user(req.username, req.password, client_ip)
 
     if not user_info:
+        api_logger.warning("[LOGIN FAILED] Tentativo di login non valido per username '%s' da IP: %s", req.username, client_ip)
         raise HTTPException(status_code=401, detail="Credenziali non valide o utente non attivo.")
 
     token = f"{user_info['user_id']}_{secrets.token_hex(20)}"
@@ -309,12 +329,14 @@ def login(req: LoginRequest, request: Request):
     )
 
     SESSIONS[token] = user_res.dict()
+    api_logger.info("[LOGIN SUCCESS] Login riuscito per '%s' (ID: %s, Ruolo: %s) da IP: %s", user_res.username, user_res.user_id, user_res.ruolo, client_ip)
     return LoginResponse(token=token, user=user_res)
 
 
 @app.get("/api/me", response_model=UserResponse)
 @app.get("/me", response_model=UserResponse)
 def get_me(user: dict = Depends(get_current_user)):
+    api_logger.info("[ME] Profilo richiesto per utente '%s' (ID: %s)", user.get("username"), user.get("user_id"))
     return UserResponse(**user)
 
 
@@ -410,7 +432,9 @@ def get_dashboard_metrics(user: dict = Depends(get_current_user)):
                 }
 
     except Exception as e:
-        print("Avviso consultazione DB dashboard API:", e)
+        api_logger.error("[DASHBOARD ERROR] Errore calcolo metriche dashboard per utente ID %s: %s", user.get("user_id"), e, exc_info=True)
+
+    api_logger.info("[DASHBOARD] Metriche caricate per utente '%s' (ID: %s, Ruolo: %s) - Tickets: %s, Veicoli: %s", user.get("username"), user.get("user_id"), user_ruolo, tickets_open, vehicles_count)
 
     return DashboardResponse(
         ruolo=user_ruolo,
@@ -496,7 +520,7 @@ def get_automezzi(
                         descrizione=tr["descrizione"] or ""
                     ))
             except Exception as te:
-                print("Avviso recupero tag automezzi API:", te)
+                api_logger.warning("[FLEET] Avviso recupero tag automezzi API: %s", te)
 
             for r in rows:
                 st = (r["stato"] or "").strip()
@@ -536,8 +560,10 @@ def get_automezzi(
                 automezzi_list.append(item)
 
     except Exception as e:
-        print("Errore recupero automezzi API:", e)
+        api_logger.error("[FLEET ERROR] Errore recupero automezzi per utente ID %s (stato='%s', search='%s'): %s", user.get("user_id"), stato, search, e, exc_info=True)
         raise HTTPException(status_code=500, detail=f"Errore recupero automezzi: {str(e)}")
+
+    api_logger.info("[FLEET] Elenco automezzi per utente '%s' (ID: %s) [Filtri: stato='%s', search='%s'] -> Trovati: %d (Disp: %d, In uso: %d, Manut: %d)", user.get("username"), user.get("user_id"), stato or 'tutti', search or '', len(automezzi_list), tot_disponibili, tot_in_uso, tot_in_manutenzione)
 
     return AutomezziListResponse(
         totale=len(automezzi_list),
@@ -573,9 +599,10 @@ def get_sedi(user: dict = Depends(get_current_user)):
                     auto_disponibili=r["auto_disponibili"] or 0
                 ))
     except Exception as e:
-        logging.error(f"Errore recupero sedi API: {e}")
+        api_logger.error("[SEDI ERROR] Errore recupero sedi per utente ID %s: %s", user.get("user_id"), e, exc_info=True)
         raise HTTPException(status_code=500, detail=f"Errore recupero sedi: {str(e)}")
 
+    api_logger.info("[SEDI] Elenco sedi per utente '%s' (ID: %s) -> %d sedi caricate", user.get("username"), user.get("user_id"), len(sedi))
     return SediListResponse(totale=len(sedi), sedi=sedi)
 
 
@@ -675,7 +702,9 @@ def get_user_prenotazioni(
 
                 prenotazioni.append(PrenotazioneResponse(**p_dict))
     except Exception as e:
-        logging.error(f"Errore recupero prenotazioni utente API: {e}")
+        api_logger.error("[BOOKINGS ERROR] Errore recupero prenotazioni utente ID %s: %s", uid, e, exc_info=True)
+
+    api_logger.info("[BOOKINGS] Prenotazioni caricate per utente '%s' (ID: %s, all=%s) -> %d trovate", user.get("username"), uid, all_trips, len(prenotazioni))
 
     return PrenotazioniListResponse(
         totale=len(prenotazioni),
@@ -708,14 +737,18 @@ def create_prenotazione(req: PrenotazioneCreateRequest, user: dict = Depends(get
         current_hour_dt = datetime.strptime(f"{today_str} {current_hour_str}", "%Y-%m-%d %H:%M")
 
         if data_viaggio < today_str:
+            api_logger.warning("[BOOKING REJECTED] Utente '%s' (ID: %s) ha richiesto una data passata: %s", user.get("username"), uid, data_viaggio)
             raise HTTPException(status_code=400, detail="Non è possibile effettuare prenotazioni per date antecedenti ad oggi.")
 
         if travel_dt < current_hour_dt:
+            api_logger.warning("[BOOKING REJECTED] Utente '%s' (ID: %s) ha richiesto un orario già trascorso per oggi: %s %s", user.get("username"), uid, data_viaggio, ora_partenza)
             raise HTTPException(status_code=400, detail="Per la giornata odierna è possibile prenotare solo a partire dall'ora attuale.")
     except ValueError:
+        api_logger.warning("[BOOKING REJECTED] Formato data/ora non valido da utente ID %s (data: '%s', ora: '%s')", uid, data_viaggio, ora_partenza)
         raise HTTPException(status_code=400, detail="Formato data o ora non valido (atteso YYYY-MM-DD e HH:MM).")
 
     if ora_riconsegna <= ora_partenza:
+        api_logger.warning("[BOOKING REJECTED] Ora riconsegna non valida (%s <= %s) da utente ID %s", ora_riconsegna, ora_partenza, uid)
         raise HTTPException(status_code=400, detail="L'ora di riconsegna deve essere successiva all'ora di partenza.")
 
     # Risoluzione email conducente
@@ -726,102 +759,119 @@ def create_prenotazione(req: PrenotazioneCreateRequest, user: dict = Depends(get
         final_email = current_email
 
     if not final_email:
+        api_logger.warning("[BOOKING REJECTED] Email conducente mancante da utente ID %s", uid)
         raise HTTPException(status_code=400, detail="Email del conducente mancante.")
 
-    with engine.connect() as conn:
-        driver = conn.execute(text("""
-            SELECT user_id, reparto_id, email, nome, cognome
-            FROM users
-            WHERE LOWER(email) = LOWER(:email) AND attivo = 1
-        """), {"email": final_email}).mappings().first()
+    try:
+        with engine.connect() as conn:
+            driver = conn.execute(text("""
+                SELECT user_id, reparto_id, email, nome, cognome
+                FROM users
+                WHERE LOWER(email) = LOWER(:email) AND attivo = 1
+            """), {"email": final_email}).mappings().first()
 
-        if not driver:
-            raise HTTPException(status_code=404, detail="Nessun utente attivo trovato con l'email del conducente indicata.")
+            if not driver:
+                api_logger.warning("[BOOKING REJECTED] Nessun utente attivo trovato per email conducente '%s'", final_email)
+                raise HTTPException(status_code=404, detail="Nessun utente attivo trovato con l'email del conducente indicata.")
 
-        # Controllo reparto per fleet_manager
-        if "fleet_manager" in user_roles and not any(r in ("admin", "global_fleet_manager") for r in user_roles):
-            fm_reparto_id = conn.execute(text("SELECT reparto_id FROM users WHERE user_id = :uid"), {"uid": uid}).scalar()
-            if driver["reparto_id"] != fm_reparto_id:
-                raise HTTPException(status_code=403, detail="Puoi prenotare solo per utenti appartenenti al tuo stesso reparto.")
+            # Controllo reparto per fleet_manager
+            if "fleet_manager" in user_roles and not any(r in ("admin", "global_fleet_manager") for r in user_roles):
+                fm_reparto_id = conn.execute(text("SELECT reparto_id FROM users WHERE user_id = :uid"), {"uid": uid}).scalar()
+                if driver["reparto_id"] != fm_reparto_id:
+                    api_logger.warning("[BOOKING REJECTED] Fleet Manager ID %s ha tentato prenotazione per conducente di altro reparto (Driver Reparto: %s, FM Reparto: %s)", uid, driver["reparto_id"], fm_reparto_id)
+                    raise HTTPException(status_code=403, detail="Puoi prenotare solo per utenti appartenenti al tuo stesso reparto.")
 
-        # Controllo veicolo
-        car = conn.execute(text("""
-            SELECT stato, km_attuali, escluso_prenotazione, sede_attuale_id, sede_assegnata_id
-            FROM automezzi WHERE automezzo_id = :id
-        """), {"id": automezzo_id}).mappings().first()
+            # Controllo veicolo
+            car = conn.execute(text("""
+                SELECT stato, km_attuali, escluso_prenotazione, sede_attuale_id, sede_assegnata_id
+                FROM automezzi WHERE automezzo_id = :id
+            """), {"id": automezzo_id}).mappings().first()
 
-        if not car:
-            raise HTTPException(status_code=404, detail="Automezzo non trovato nel sistema.")
+            if not car:
+                api_logger.warning("[BOOKING REJECTED] Automezzo ID %s non trovato", automezzo_id)
+                raise HTTPException(status_code=404, detail="Automezzo non trovato nel sistema.")
 
-        if car["escluso_prenotazione"] == 1:
-            raise HTTPException(status_code=400, detail="Il veicolo selezionato è attualmente escluso dalle prenotazioni.")
+            if car["escluso_prenotazione"] == 1:
+                api_logger.warning("[BOOKING REJECTED] Automezzo ID %s escluso dalle prenotazioni", automezzo_id)
+                raise HTTPException(status_code=400, detail="Il veicolo selezionato è attualmente escluso dalle prenotazioni.")
 
-        car_sede = car["sede_attuale_id"] or car["sede_assegnata_id"] or 0
-        if car_sede != 0 and car_sede != sede_partenza_id:
-            raise HTTPException(status_code=400, detail="Il veicolo selezionato non si trova nella sede di partenza specificata.")
+            car_sede = car["sede_attuale_id"] or car["sede_assegnata_id"] or 0
+            if car_sede != 0 and car_sede != sede_partenza_id:
+                api_logger.warning("[BOOKING REJECTED] Automezzo ID %s non presente nella sede di partenza richiesta %s (Sede auto: %s)", automezzo_id, sede_partenza_id, car_sede)
+                raise HTTPException(status_code=400, detail="Il veicolo selezionato non si trova nella sede di partenza specificata.")
 
-        km_iniziali = car["km_attuali"] or 0
+            km_iniziali = car["km_attuali"] or 0
 
-        # Controllo overlap veicolo
-        overlap = conn.execute(text("""
-            SELECT viaggio_id FROM viaggi_automezzi
-            WHERE automezzo_id = :automezzo_id
-              AND data_viaggio = :data_viaggio
-              AND (ora_arrivo IS NULL OR ora_arrivo = '')
-              AND ora_partenza < :ora_riconsegna
-              AND ora_riconsegna_prevista > :ora_partenza
-        """), {
-            "automezzo_id": automezzo_id,
-            "data_viaggio": data_viaggio,
-            "ora_partenza": ora_partenza,
-            "ora_riconsegna": ora_riconsegna
-        }).first()
+            # Controllo overlap veicolo
+            overlap = conn.execute(text("""
+                SELECT viaggio_id FROM viaggi_automezzi
+                WHERE automezzo_id = :automezzo_id
+                  AND data_viaggio = :data_viaggio
+                  AND (ora_arrivo IS NULL OR ora_arrivo = '')
+                  AND ora_partenza < :ora_riconsegna
+                  AND ora_riconsegna_prevista > :ora_partenza
+            """), {
+                "automezzo_id": automezzo_id,
+                "data_viaggio": data_viaggio,
+                "ora_partenza": ora_partenza,
+                "ora_riconsegna": ora_riconsegna
+            }).first()
 
-        if overlap:
-            raise HTTPException(status_code=409, detail="Il veicolo selezionato è già prenotato in questa fascia oraria.")
+            if overlap:
+                api_logger.warning("[BOOKING CONFLICT] Collisione oraria per veicolo ID %s il %s (%s-%s) con viaggio esistente ID %s", automezzo_id, data_viaggio, ora_partenza, ora_riconsegna, overlap[0])
+                raise HTTPException(status_code=409, detail="Il veicolo selezionato è già prenotato in questa fascia oraria.")
 
-        # Controllo overlap guidatore
-        driver_overlap = conn.execute(text("""
-            SELECT viaggio_id FROM viaggi_automezzi
-            WHERE user_id = :driver_id
-              AND data_viaggio = :data_viaggio
-              AND (ora_arrivo IS NULL OR ora_arrivo = '')
-              AND ora_partenza < :ora_riconsegna
-              AND ora_riconsegna_prevista > :ora_partenza
-        """), {
-            "driver_id": driver["user_id"],
-            "data_viaggio": data_viaggio,
-            "ora_partenza": ora_partenza,
-            "ora_riconsegna": ora_riconsegna
-        }).first()
+            # Controllo overlap guidatore
+            driver_overlap = conn.execute(text("""
+                SELECT viaggio_id FROM viaggi_automezzi
+                WHERE user_id = :driver_id
+                  AND data_viaggio = :data_viaggio
+                  AND (ora_arrivo IS NULL OR ora_arrivo = '')
+                  AND ora_partenza < :ora_riconsegna
+                  AND ora_riconsegna_prevista > :ora_partenza
+            """), {
+                "driver_id": driver["user_id"],
+                "data_viaggio": data_viaggio,
+                "ora_partenza": ora_partenza,
+                "ora_riconsegna": ora_riconsegna
+            }).first()
 
-        if driver_overlap:
-            raise HTTPException(status_code=409, detail="Il guidatore selezionato ha già un'altra prenotazione attiva in questa fascia oraria.")
+            if driver_overlap:
+                api_logger.warning("[BOOKING CONFLICT] Collisione oraria per guidatore ID %s il %s (%s-%s) con viaggio esistente ID %s", driver["user_id"], data_viaggio, ora_partenza, ora_riconsegna, driver_overlap[0])
+                raise HTTPException(status_code=409, detail="Il guidatore selezionato ha già un'altra prenotazione attiva in questa fascia oraria.")
 
-    # Inserimento transazionale
-    with engine.begin() as conn:
-        res = conn.execute(text("""
-            INSERT INTO viaggi_automezzi (
-                automezzo_id, data_viaggio, ora_partenza, ora_riconsegna_prevista, ora_arrivo,
-                km_iniziali, km_finali, sede_partenza_id, sede_arrivo_id, user_id, email_conducente,
-                ora_partenza_effettiva, note
-            ) VALUES (
-                :automezzo_id, :data_viaggio, :ora_partenza, :ora_riconsegna_prevista, NULL,
-                :km_iniziali, NULL, :sede_partenza_id, NULL, :user_id, :email_conducente,
-                NULL, :note
-            )
-        """), {
-            "automezzo_id": automezzo_id,
-            "data_viaggio": data_viaggio,
-            "ora_partenza": ora_partenza,
-            "ora_riconsegna_prevista": ora_riconsegna,
-            "km_iniziali": km_iniziali,
-            "sede_partenza_id": sede_partenza_id,
-            "user_id": driver["user_id"],
-            "email_conducente": driver["email"],
-            "note": note
-        })
-        new_id = res.lastrowid
+        # Inserimento transazionale
+        with engine.begin() as conn:
+            res = conn.execute(text("""
+                INSERT INTO viaggi_automezzi (
+                    automezzo_id, data_viaggio, ora_partenza, ora_riconsegna_prevista, ora_arrivo,
+                    km_iniziali, km_finali, sede_partenza_id, sede_arrivo_id, user_id, email_conducente,
+                    ora_partenza_effettiva, note
+                ) VALUES (
+                    :automezzo_id, :data_viaggio, :ora_partenza, :ora_riconsegna_prevista, NULL,
+                    :km_iniziali, NULL, :sede_partenza_id, NULL, :user_id, :email_conducente,
+                    NULL, :note
+                )
+            """), {
+                "automezzo_id": automezzo_id,
+                "data_viaggio": data_viaggio,
+                "ora_partenza": ora_partenza,
+                "ora_riconsegna_prevista": ora_riconsegna,
+                "km_iniziali": km_iniziali,
+                "sede_partenza_id": sede_partenza_id,
+                "user_id": driver["user_id"],
+                "email_conducente": driver["email"],
+                "note": note
+            })
+            new_id = res.lastrowid
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        api_logger.error("[BOOKING ERROR] Errore imprevisto creazione prenotazione per utente ID %s: %s", uid, e, exc_info=True)
+        raise HTTPException(status_code=500, detail=f"Errore interno registrazione prenotazione: {str(e)}")
+
+    api_logger.info("[BOOKING CREATED] Prenotazione ID %s creata da '%s' (ID: %s) -> Veicolo ID %s, Conducente '%s', Data %s (%s-%s, Sede: %s)", new_id, user.get("username"), uid, automezzo_id, driver["email"], data_viaggio, ora_partenza, ora_riconsegna, sede_partenza_id)
 
     return PrenotazioneActionResponse(
         success=True,
@@ -844,38 +894,51 @@ def start_prenotazione(viaggio_id: int, user: dict = Depends(get_current_user)):
     now_str = datetime.now().strftime("%H:%M")
     today_str = datetime.now().strftime("%Y-%m-%d")
 
-    with engine.begin() as conn:
-        query = "SELECT viaggio_id, user_id, email_conducente, automezzo_id, data_viaggio, ora_partenza_effettiva, ora_arrivo FROM viaggi_automezzi WHERE viaggio_id = :id"
-        params = {"id": viaggio_id}
-        if not is_admin_or_mgr:
-            query += " AND (user_id = :uid OR (LOWER(email_conducente) = :email AND :email != ''))"
-            params["uid"] = uid
-            params["email"] = email
+    try:
+        with engine.begin() as conn:
+            query = "SELECT viaggio_id, user_id, email_conducente, automezzo_id, data_viaggio, ora_partenza_effettiva, ora_arrivo FROM viaggi_automezzi WHERE viaggio_id = :id"
+            params = {"id": viaggio_id}
+            if not is_admin_or_mgr:
+                query += " AND (user_id = :uid OR (LOWER(email_conducente) = :email AND :email != ''))"
+                params["uid"] = uid
+                params["email"] = email
 
-        v = conn.execute(text(query), params).mappings().first()
-        if not v:
-            raise HTTPException(status_code=404, detail="Prenotazione non trovata o non autorizzato.")
+            v = conn.execute(text(query), params).mappings().first()
+            if not v:
+                api_logger.warning("[TRIP START REJECTED] Viaggio ID %s non trovato o utente ID %s non autorizzato", viaggio_id, uid)
+                raise HTTPException(status_code=404, detail="Prenotazione non trovata o non autorizzato.")
 
-        if v["ora_arrivo"]:
-            raise HTTPException(status_code=400, detail="Il viaggio è già stato completato.")
+            if v["ora_arrivo"]:
+                api_logger.warning("[TRIP START REJECTED] Viaggio ID %s già completato (Utente ID: %s)", viaggio_id, uid)
+                raise HTTPException(status_code=400, detail="Il viaggio è già stato completato.")
 
-        if v["ora_partenza_effettiva"]:
-            raise HTTPException(status_code=400, detail="Il viaggio è già stato avviato.")
+            if v["ora_partenza_effettiva"]:
+                api_logger.warning("[TRIP START REJECTED] Viaggio ID %s già avviato alle %s (Utente ID: %s)", viaggio_id, v["ora_partenza_effettiva"], uid)
+                raise HTTPException(status_code=400, detail="Il viaggio è già stato avviato.")
 
-        if v["data_viaggio"] > today_str:
-            raise HTTPException(status_code=400, detail=f"Il viaggio potrà essere avviato solo a partire dal giorno di prenotazione ({v['data_viaggio']}).")
+            if v["data_viaggio"] > today_str:
+                api_logger.warning("[TRIP START REJECTED] Viaggio ID %s per data futura %s tentato oggi %s (Utente ID: %s)", viaggio_id, v["data_viaggio"], today_str, uid)
+                raise HTTPException(status_code=400, detail=f"Il viaggio potrà essere avviato solo a partire dal giorno di prenotazione ({v['data_viaggio']}).")
 
-        conn.execute(text("""
-            UPDATE viaggi_automezzi
-            SET ora_partenza_effettiva = :now
-            WHERE viaggio_id = :id
-        """), {"now": now_str, "id": viaggio_id})
-
-        # Aggiorna stato automezzo a 'In Uso'
-        if v["automezzo_id"]:
             conn.execute(text("""
-                UPDATE automezzi SET stato = 'In Uso' WHERE automezzo_id = :aid
-            """), {"aid": v["automezzo_id"]})
+                UPDATE viaggi_automezzi
+                SET ora_partenza_effettiva = :now
+                WHERE viaggio_id = :id
+            """), {"now": now_str, "id": viaggio_id})
+
+            # Aggiorna stato automezzo a 'In Uso'
+            if v["automezzo_id"]:
+                conn.execute(text("""
+                    UPDATE automezzi SET stato = 'In Uso' WHERE automezzo_id = :aid
+                """), {"aid": v["automezzo_id"]})
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        api_logger.error("[TRIP START ERROR] Errore imprevisto avvio viaggio ID %s per utente ID %s: %s", viaggio_id, uid, e, exc_info=True)
+        raise HTTPException(status_code=500, detail=f"Errore interno avvio viaggio: {str(e)}")
+
+    api_logger.info("[TRIP STARTED] Viaggio ID %s avviato da '%s' (ID: %s) alle %s (Veicolo ID: %s)", viaggio_id, user.get("username"), uid, now_str, v["automezzo_id"])
 
     return PrenotazioneActionResponse(
         success=True,
@@ -897,55 +960,68 @@ def complete_prenotazione(viaggio_id: int, req: PrenotazioneCompletaRequest, use
 
     now_str = datetime.now().strftime("%H:%M")
 
-    with engine.begin() as conn:
-        query = "SELECT viaggio_id, user_id, email_conducente, automezzo_id, km_iniziali, ora_partenza_effettiva, ora_arrivo, sede_partenza_id FROM viaggi_automezzi WHERE viaggio_id = :id"
-        params = {"id": viaggio_id}
-        if not is_admin_or_mgr:
-            query += " AND (user_id = :uid OR (LOWER(email_conducente) = :email AND :email != ''))"
-            params["uid"] = uid
-            params["email"] = email
+    try:
+        with engine.begin() as conn:
+            query = "SELECT viaggio_id, user_id, email_conducente, automezzo_id, km_iniziali, ora_partenza_effettiva, ora_arrivo, sede_partenza_id FROM viaggi_automezzi WHERE viaggio_id = :id"
+            params = {"id": viaggio_id}
+            if not is_admin_or_mgr:
+                query += " AND (user_id = :uid OR (LOWER(email_conducente) = :email AND :email != ''))"
+                params["uid"] = uid
+                params["email"] = email
 
-        v = conn.execute(text(query), params).mappings().first()
-        if not v:
-            raise HTTPException(status_code=404, detail="Prenotazione non trovata o non autorizzato.")
+            v = conn.execute(text(query), params).mappings().first()
+            if not v:
+                api_logger.warning("[TRIP COMPLETE REJECTED] Viaggio ID %s non trovato o utente ID %s non autorizzato", viaggio_id, uid)
+                raise HTTPException(status_code=404, detail="Prenotazione non trovata o non autorizzato.")
 
-        if v["ora_arrivo"]:
-            raise HTTPException(status_code=400, detail="Il viaggio è già stato completato.")
+            if v["ora_arrivo"]:
+                api_logger.warning("[TRIP COMPLETE REJECTED] Viaggio ID %s già completato (Utente ID: %s)", viaggio_id, uid)
+                raise HTTPException(status_code=400, detail="Il viaggio è già stato completato.")
 
-        if not v["ora_partenza_effettiva"]:
-            raise HTTPException(status_code=400, detail="Devi prima avviare il viaggio prima di poter registrare il rientro.")
+            if not v["ora_partenza_effettiva"]:
+                api_logger.warning("[TRIP COMPLETE REJECTED] Viaggio ID %s non è ancora stato avviato (Utente ID: %s)", viaggio_id, uid)
+                raise HTTPException(status_code=400, detail="Devi prima avviare il viaggio prima di poter registrare il rientro.")
 
-        if req.km_finali < (v["km_iniziali"] or 0):
-            raise HTTPException(status_code=400, detail=f"I km finali ({req.km_finali}) non possono essere inferiori a quelli iniziali ({v['km_iniziali']}).")
+            if req.km_finali < (v["km_iniziali"] or 0):
+                api_logger.warning("[TRIP COMPLETE REJECTED] Km finali (%d) inferiori a km iniziali (%d) per viaggio ID %s", req.km_finali, v["km_iniziali"], viaggio_id)
+                raise HTTPException(status_code=400, detail=f"I km finali ({req.km_finali}) non possono essere inferiori a quelli iniziali ({v['km_iniziali']}).")
 
-        sede_arrivo_id = req.sede_arrivo_id or v["sede_partenza_id"]
+            sede_arrivo_id = req.sede_arrivo_id or v["sede_partenza_id"]
 
-        conn.execute(text("""
-            UPDATE viaggi_automezzi
-            SET ora_arrivo = :now,
-                km_finali = :km_finali,
-                sede_arrivo_id = :sede_arrivo_id,
-                in_pausa = 0
-            WHERE viaggio_id = :id
-        """), {
-            "now": now_str,
-            "km_finali": req.km_finali,
-            "sede_arrivo_id": sede_arrivo_id,
-            "id": viaggio_id
-        })
-
-        if v["automezzo_id"]:
             conn.execute(text("""
-                UPDATE automezzi
-                SET stato = 'Disponibile',
-                    km_attuali = :km_finali,
-                    sede_attuale_id = :sede_arrivo_id
-                WHERE automezzo_id = :aid
+                UPDATE viaggi_automezzi
+                SET ora_arrivo = :now,
+                    km_finali = :km_finali,
+                    sede_arrivo_id = :sede_arrivo_id,
+                    in_pausa = 0
+                WHERE viaggio_id = :id
             """), {
+                "now": now_str,
                 "km_finali": req.km_finali,
                 "sede_arrivo_id": sede_arrivo_id,
-                "aid": v["automezzo_id"]
+                "id": viaggio_id
             })
+
+            if v["automezzo_id"]:
+                conn.execute(text("""
+                    UPDATE automezzi
+                    SET stato = 'Disponibile',
+                        km_attuali = :km_finali,
+                        sede_attuale_id = :sede_arrivo_id
+                    WHERE automezzo_id = :aid
+                """), {
+                    "km_finali": req.km_finali,
+                    "sede_arrivo_id": sede_arrivo_id,
+                    "aid": v["automezzo_id"]
+                })
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        api_logger.error("[TRIP COMPLETE ERROR] Errore imprevisto completamento viaggio ID %s per utente ID %s: %s", viaggio_id, uid, e, exc_info=True)
+        raise HTTPException(status_code=500, detail=f"Errore interno registrazione rientro: {str(e)}")
+
+    api_logger.info("[TRIP COMPLETED] Viaggio ID %s concluso da '%s' (ID: %s) alle %s (Km finali: %d, Sede arrivo: %s)", viaggio_id, user.get("username"), uid, now_str, req.km_finali, sede_arrivo_id)
 
     return PrenotazioneActionResponse(
         success=True,
@@ -969,33 +1045,44 @@ def cancel_prenotazione(viaggio_id: int, user: dict = Depends(get_current_user))
     is_global = any(r in ("admin", "global_fleet_manager") for r in user_roles) or role in ("admin", "global_fleet_manager")
     is_fleet_mgr = "fleet_manager" in user_roles or role == "fleet_manager"
 
-    with engine.begin() as conn:
-        if is_global:
-            v = conn.execute(text("""
-                SELECT viaggio_id, user_id, email_conducente, automezzo_id, data_viaggio, ora_partenza_effettiva, ora_arrivo
-                FROM viaggi_automezzi WHERE viaggio_id = :id
-            """), {"id": viaggio_id}).mappings().first()
-        elif is_fleet_mgr and reparto_id:
-            v = conn.execute(text("""
-                SELECT v.viaggio_id, v.user_id, v.email_conducente, v.automezzo_id, v.data_viaggio, v.ora_partenza_effettiva, v.ora_arrivo
-                FROM viaggi_automezzi v
-                JOIN users u ON v.user_id = u.user_id
-                WHERE v.viaggio_id = :id AND (u.reparto_id = :repid OR v.user_id = :uid OR LOWER(v.email_conducente) = :email)
-            """), {"id": viaggio_id, "repid": reparto_id, "uid": uid, "email": email}).mappings().first()
-        else:
-            v = conn.execute(text("""
-                SELECT viaggio_id, user_id, email_conducente, automezzo_id, data_viaggio, ora_partenza_effettiva, ora_arrivo
-                FROM viaggi_automezzi
-                WHERE viaggio_id = :id AND (user_id = :uid OR (LOWER(email_conducente) = :email AND :email != ''))
-            """), {"id": viaggio_id, "uid": uid, "email": email}).mappings().first()
+    try:
+        with engine.begin() as conn:
+            if is_global:
+                v = conn.execute(text("""
+                    SELECT viaggio_id, user_id, email_conducente, automezzo_id, data_viaggio, ora_partenza_effettiva, ora_arrivo
+                    FROM viaggi_automezzi WHERE viaggio_id = :id
+                """), {"id": viaggio_id}).mappings().first()
+            elif is_fleet_mgr and reparto_id:
+                v = conn.execute(text("""
+                    SELECT v.viaggio_id, v.user_id, v.email_conducente, v.automezzo_id, v.data_viaggio, v.ora_partenza_effettiva, v.ora_arrivo
+                    FROM viaggi_automezzi v
+                    JOIN users u ON v.user_id = u.user_id
+                    WHERE v.viaggio_id = :id AND (u.reparto_id = :repid OR v.user_id = :uid OR LOWER(v.email_conducente) = :email)
+                """), {"id": viaggio_id, "repid": reparto_id, "uid": uid, "email": email}).mappings().first()
+            else:
+                v = conn.execute(text("""
+                    SELECT viaggio_id, user_id, email_conducente, automezzo_id, data_viaggio, ora_partenza_effettiva, ora_arrivo
+                    FROM viaggi_automezzi
+                    WHERE viaggio_id = :id AND (user_id = :uid OR (LOWER(email_conducente) = :email AND :email != ''))
+                """), {"id": viaggio_id, "uid": uid, "email": email}).mappings().first()
 
-        if not v:
-            raise HTTPException(status_code=404, detail="Prenotazione non trovata o non sei autorizzato ad annullarla.")
+            if not v:
+                api_logger.warning("[BOOKING CANCEL REJECTED] Prenotazione ID %s non trovata o utente ID %s non autorizzato", viaggio_id, uid)
+                raise HTTPException(status_code=404, detail="Prenotazione non trovata o non sei autorizzato ad annullarla.")
 
-        if not is_global and not is_fleet_mgr and (v["ora_arrivo"] or v["ora_partenza_effettiva"]):
-            raise HTTPException(status_code=400, detail="Non puoi eliminare un viaggio che è già iniziato o completato.")
+            if not is_global and not is_fleet_mgr and (v["ora_arrivo"] or v["ora_partenza_effettiva"]):
+                api_logger.warning("[BOOKING CANCEL REJECTED] Viaggio ID %s già iniziato/completato, annullamento respinto per utente ID %s", viaggio_id, uid)
+                raise HTTPException(status_code=400, detail="Non puoi eliminare un viaggio che è già iniziato o completato.")
 
-        conn.execute(text("DELETE FROM viaggi_automezzi WHERE viaggio_id = :id"), {"id": viaggio_id})
+            conn.execute(text("DELETE FROM viaggi_automezzi WHERE viaggio_id = :id"), {"id": viaggio_id})
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        api_logger.error("[BOOKING CANCEL ERROR] Errore imprevisto annullamento prenotazione ID %s per utente ID %s: %s", viaggio_id, uid, e, exc_info=True)
+        raise HTTPException(status_code=500, detail=f"Errore interno annullamento prenotazione: {str(e)}")
+
+    api_logger.info("[BOOKING CANCELLED] Prenotazione ID %s annullata da '%s' (ID: %s) - Veicolo ID %s liberato", viaggio_id, user.get("username"), uid, v["automezzo_id"])
 
     return PrenotazioneActionResponse(
         success=True,
@@ -1007,9 +1094,11 @@ def cancel_prenotazione(viaggio_id: int, user: dict = Depends(get_current_user))
 @app.post("/api/logout")
 @app.post("/logout")
 def logout(authorization: Optional[str] = Header(None)):
+    token = None
     if authorization and authorization.startswith("Bearer "):
         token = authorization.split(" ")[1]
         SESSIONS.pop(token, None)
+    api_logger.info("[LOGOUT] Sessione terminata per token %s...", token[:8] if token else "anonimo")
     return {"message": "Logout completato con successo."}
 
 
