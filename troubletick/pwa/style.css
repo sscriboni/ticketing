@@ -158,3 +158,95 @@ ion-page.page-view.active {
   justify-content: center;
   gap: 4px;
 }
+
+/* Custom Booking Form Controls & Components */
+.booking-header-banner {
+  background: linear-gradient(135deg, #1e293b 0%, #0f172a 100%);
+}
+
+.form-label-custom {
+  display: block;
+  font-size: 0.82rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: #cbd5e1;
+  margin-bottom: 6px;
+}
+
+.form-select-custom,
+.form-input-custom,
+.form-textarea-custom {
+  width: 100%;
+  background-color: #0f172a;
+  border: 1px solid #334155;
+  border-radius: 12px;
+  color: #ffffff;
+  padding: 10px 14px;
+  font-size: 0.95rem;
+  outline: none;
+  transition: all 0.2s ease;
+}
+
+.form-select-custom:focus,
+.form-input-custom:focus,
+.form-textarea-custom:focus {
+  border-color: #3b82f6;
+  box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.25);
+  background-color: #020617;
+}
+
+.form-select-custom:disabled,
+.form-input-custom:disabled {
+  background-color: #1e293b;
+  border-color: #1e293b;
+  color: #64748b;
+  cursor: not-allowed;
+}
+
+.form-select-custom option {
+  background-color: #0f172a;
+  color: #ffffff;
+}
+
+.form-text-custom {
+  font-size: 0.75rem;
+  color: #94a3b8 !important;
+}
+
+.vehicle-preview-box {
+  background: #090e17;
+  border: 1px solid #293548;
+}
+
+.btn-submit-booking-action {
+  --background: #0d6efd;
+  --background-hover: #0b5ed7;
+  --color: #ffffff;
+  --border-radius: 12px;
+  font-weight: 700;
+  font-size: 1rem;
+  height: 48px;
+  margin-top: 0.5rem;
+}
+
+/* Background Slate Utilities */
+.bg-slate-800 {
+  background-color: #1e293b !important;
+}
+
+.bg-slate-900 {
+  background-color: #0f172a !important;
+}
+
+.border-slate-700 {
+  border-color: #334155 !important;
+}
+
+.border-slate-800 {
+  border-color: #1e293b !important;
+}
+
+.text-slate-300 {
+  color: #cbd5e1 !important;
+}

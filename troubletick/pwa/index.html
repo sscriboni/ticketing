@@ -247,7 +247,7 @@
                         viaggi di servizio.</p>
                     </div>
                   </div>
-                  <ion-button fill="solid" color="success" class="fw-bold" href="./autopark">
+                  <ion-button fill="solid" color="success" class="fw-bold" id="btn-open-booking-normale" onclick="openBookingForm()">
                     <i class="bi bi-plus-circle me-1"></i> Nuova Prenotazione Auto
                   </ion-button>
                 </div>
@@ -745,7 +745,226 @@
         </ion-tab-button>
       </ion-tab-bar>
     </ion-page>
+
+    <!-- ================= PAGE 3: PRENOTAZIONE AUTOVEICOLO ================= -->
+    <ion-page id="page-prenota-auto" class="page-view">
+      <ion-header class="ion-no-border">
+        <ion-toolbar color="dark">
+          <ion-buttons slot="start">
+            <ion-button id="btn-back-from-booking" color="light">
+              <ion-icon slot="icon-only" name="arrow-back-outline"></ion-icon>
+            </ion-button>
+          </ion-buttons>
+          <ion-title class="fw-bold"><i class="bi bi-car-front-fill text-primary me-2"></i> Prenota Autoveicolo</ion-title>
+        </ion-toolbar>
+      </ion-header>
+
+      <ion-content class="ion-padding" color="dark">
+        <div class="container py-2" style="max-width: 720px;">
+          <!-- Header Banner -->
+          <div class="booking-header-banner p-3 p-md-4 mb-4 rounded-4 shadow-sm border border-primary border-opacity-25 bg-slate-800">
+            <div class="d-flex align-items-center gap-3">
+              <div class="p-3 rounded-circle bg-primary bg-opacity-20 text-primary flex-shrink-0">
+                <ion-icon name="calendar-number-outline" style="font-size: 2.4rem;"></ion-icon>
+              </div>
+              <div>
+                <h4 class="fw-bold text-white mb-1">Modulo Prenotazione Carpooling</h4>
+                <p class="text-slate-300 small mb-0">
+                  Riserva un'auto aziendale per le tue trasferte lavorative. Scegli sede, orari e veicolo disponibile.
+                </p>
+              </div>
+            </div>
+          </div>
+
+          <!-- Alert Messaggio Feedback / Errore -->
+          <div id="booking-alert-box" class="alert d-none align-items-center gap-2 mb-4 rounded-3 shadow-sm" role="alert">
+            <i id="booking-alert-icon" class="bi bi-info-circle-fill fs-5 flex-shrink-0"></i>
+            <span id="booking-alert-text" class="small fw-semibold"></span>
+          </div>
+
+          <!-- Form Card -->
+          <ion-card class="dashboard-card m-0 p-3 p-md-4 border-top border-4 border-primary shadow-lg">
+            <form id="booking-auto-form">
+              <!-- 1. Sede di Partenza -->
+              <div class="mb-3">
+                <label for="booking-sede-select" class="form-label-custom">
+                  <i class="bi bi-geo-alt-fill text-danger me-1"></i> 1. Sede di Partenza
+                </label>
+                <select id="booking-sede-select" class="form-select-custom" required>
+                  <option value="" disabled selected>Caricamento sedi...</option>
+                </select>
+                <div class="form-text-custom mt-1 text-muted">
+                  Seleziona la sede presso cui ritirare l'autoveicolo.
+                </div>
+              </div>
+
+              <!-- 2. Data Viaggio -->
+              <div class="mb-3">
+                <label for="booking-data-input" class="form-label-custom">
+                  <i class="bi bi-calendar3 text-info me-1"></i> 2. Data Viaggio
+                </label>
+                <input type="date" id="booking-data-input" class="form-input-custom" required>
+                <div class="form-text-custom mt-1 text-muted">
+                  Le prenotazioni possono essere effettuate per oggi o per date future.
+                </div>
+              </div>
+
+              <!-- 3. Fascia Oraria (Partenza & Riconsegna) -->
+              <div class="row g-2 mb-3">
+                <div class="col-6">
+                  <label for="booking-ora-partenza-select" class="form-label-custom">
+                    <i class="bi bi-clock-fill text-success me-1"></i> Ora Partenza
+                  </label>
+                  <select id="booking-ora-partenza-select" class="form-select-custom" required>
+                    <option value="" disabled selected>Ora...</option>
+                  </select>
+                </div>
+                <div class="col-6">
+                  <label for="booking-ora-riconsegna-select" class="form-label-custom">
+                    <i class="bi bi-clock-history text-warning me-1"></i> Ora Riconsegna
+                  </label>
+                  <select id="booking-ora-riconsegna-select" class="form-select-custom" required>
+                    <option value="" disabled selected>Ora...</option>
+                  </select>
+                </div>
+                <div class="col-12">
+                  <div class="form-text-custom text-muted">
+                    L'ora di riconsegna stimata deve essere successiva all'ora di partenza.
+                  </div>
+                </div>
+              </div>
+
+              <!-- 4. Seleziona Veicolo -->
+              <div class="mb-3">
+                <div class="d-flex justify-content-between align-items-center mb-1">
+                  <label for="booking-veicolo-select" class="form-label-custom mb-0">
+                    <i class="bi bi-car-front text-primary me-1"></i> 3. Seleziona Veicolo
+                  </label>
+                  <span id="booking-vehicle-count-badge" class="badge bg-primary bg-opacity-25 text-primary border border-primary border-opacity-25 d-none">
+                    -- disponibili
+                  </span>
+                </div>
+                <select id="booking-veicolo-select" class="form-select-custom" required disabled>
+                  <option value="" disabled selected>Seleziona prima sede, data e orari...</option>
+                </select>
+
+                <!-- Box Dettagli Veicolo Selezionato -->
+                <div id="booking-vehicle-preview-box" class="vehicle-preview-box mt-2 p-3 rounded-3 border border-slate-700 bg-slate-900 d-none">
+                  <div class="d-flex justify-content-between align-items-center mb-1">
+                    <span id="preview-vehicle-name" class="fw-bold text-white fs-6">Fiat Panda</span>
+                    <span id="preview-vehicle-plate" class="badge bg-slate-800 text-warning font-monospace">AA000AA</span>
+                  </div>
+                  <div class="small text-slate-300">
+                    <div><i class="bi bi-speedometer2 text-info me-1"></i> Odometro attuale: <strong id="preview-vehicle-km">--</strong> km</div>
+                    <div><i class="bi bi-geo-alt-fill text-danger me-1"></i> Posizione: <strong id="preview-vehicle-sede">--</strong></div>
+                  </div>
+                </div>
+
+                <!-- Box Avviso Nessun Veicolo Disponibile -->
+                <div id="booking-no-vehicles-alert" class="alert alert-danger border-2 border-danger rounded-3 mt-3 d-none p-3" role="alert">
+                  <div class="d-flex align-items-start gap-2">
+                    <i class="bi bi-exclamation-triangle-fill fs-4 flex-shrink-0 text-danger"></i>
+                    <div>
+                      <strong class="d-block mb-1 text-white">Nessun veicolo disponibile!</strong>
+                      <p class="small text-slate-300 mb-0">
+                        Non vi sono auto aziendali disponibili per la sede ed i criteri orari selezionati.
+                        Modifica l'orario o la sede di partenza, oppure rivolgiti al Fleet Manager.
+                      </p>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              <!-- 5. Email Conducente (visibile se admin / fleet manager) -->
+              <div id="booking-driver-email-container" class="mb-3" style="display: none;">
+                <label for="booking-email-conducente" class="form-label-custom">
+                  <i class="bi bi-person-fill text-warning me-1"></i> Email Conducente
+                </label>
+                <input type="email" id="booking-email-conducente" class="form-input-custom" placeholder="email.guidatore@azienda.it">
+                <div class="form-text-custom mt-1 text-muted">
+                  Inserisci l'email aziendale del dipendente che guiderà il veicolo (stesso reparto).
+                </div>
+              </div>
+
+              <!-- 6. Note / Destinazione -->
+              <div class="mb-4">
+                <label for="booking-note-input" class="form-label-custom">
+                  <i class="bi bi-pencil-square text-info me-1"></i> Note / Destinazione
+                </label>
+                <textarea id="booking-note-input" class="form-textarea-custom" rows="2" placeholder="Es. Visita clienti a Milano, consegna campioni, ecc."></textarea>
+              </div>
+
+              <!-- Submit Button -->
+              <ion-button id="btn-submit-booking" type="submit" expand="block" color="primary" class="btn-submit-booking-action shadow fw-bold">
+                <ion-icon slot="start" name="checkmark-circle-outline"></ion-icon>
+                Conferma Prenotazione
+              </ion-button>
+            </form>
+          </ion-card>
+        </div>
+      </ion-content>
+    </ion-page>
+
+    <!-- ================= MODAL: REGISTRAZIONE RIENTRO / CHIUSURA VIAGGIO ================= -->
+    <div class="modal fade" id="modal-completa-viaggio" tabindex="-1" aria-labelledby="modalCompletaViaggioLabel" aria-hidden="true">
+      <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content bg-slate-900 text-white border border-slate-700 rounded-4 shadow-lg">
+          <div class="modal-header border-slate-800">
+            <h5 class="modal-title fw-bold text-success" id="modalCompletaViaggioLabel">
+              <i class="bi bi-check2-circle me-1"></i> Registrazione Rientro Viaggio
+            </h5>
+            <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Chiudi"></button>
+          </div>
+          <form id="form-completa-viaggio">
+            <div class="modal-body p-4">
+              <input type="hidden" id="completa-viaggio-id" value="">
+              <input type="hidden" id="completa-km-iniziali" value="0">
+              
+              <div class="mb-3 p-3 rounded-3 bg-slate-800 border border-slate-700">
+                <div class="small text-muted mb-1">Veicolo: <strong id="completa-veicolo-label" class="text-white"></strong></div>
+                <div class="small text-muted">Km alla Partenza: <strong id="completa-km-iniziali-label" class="text-info"></strong> km</div>
+              </div>
+
+              <div class="mb-3">
+                <label for="completa-km-finali" class="form-label-custom">
+                  <i class="bi bi-speedometer2 text-warning me-1"></i> Chilometri al Rientro (Odometro)
+                </label>
+                <input type="number" id="completa-km-finali" class="form-input-custom" min="0" required placeholder="Es. 12500">
+                <div class="form-text-custom mt-1 text-muted">
+                  Inserisci i km effettivi visualizzati sul cruscotto dell'auto al rientro.
+                </div>
+              </div>
+
+              <div class="mb-3">
+                <label for="completa-sede-arrivo" class="form-label-custom">
+                  <i class="bi bi-geo-alt-fill text-danger me-1"></i> Sede di Rientro
+                </label>
+                <select id="completa-sede-arrivo" class="form-select-custom" required>
+                  <option value="" disabled selected>Seleziona sede di riconsegna...</option>
+                </select>
+              </div>
+
+              <div class="mb-2">
+                <label for="completa-note" class="form-label-custom">
+                  <i class="bi bi-pencil-square text-info me-1"></i> Note Rientro (opzionale)
+                </label>
+                <textarea id="completa-note" class="form-textarea-custom" rows="2" placeholder="Eventuali anomalie, carburante, ecc."></textarea>
+              </div>
+            </div>
+            <div class="modal-footer border-slate-800 p-3">
+              <button type="button" class="btn btn-secondary rounded-3 px-3" data-bs-dismiss="modal">Annulla</button>
+              <button type="submit" id="btn-submit-completa-viaggio" class="btn btn-success fw-bold rounded-3 px-4">
+                <i class="bi bi-check-lg me-1"></i> Conferma Rientro
+              </button>
+            </div>
+          </form>
+        </div>
+      </div>
+    </div>
   </ion-app>
+
+  <!-- Bootstrap 5 Bundle JS CDN -->
+  <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
 
   <!-- SPA Client Logic con Versione Centralizzata e Cache Busting -->
   <script>

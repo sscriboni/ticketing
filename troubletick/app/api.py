@@ -103,6 +103,17 @@ class TagInfo(BaseModel):
     colore: Optional[str] = "#0d6efd"
     descrizione: Optional[str] = ""
 
+class SedeItem(BaseModel):
+    sede_id: int
+    nome: str
+    comune_nome: Optional[str] = ""
+    indirizzo: Optional[str] = ""
+    auto_disponibili: Optional[int] = 0
+
+class SediListResponse(BaseModel):
+    totale: int
+    sedi: List[SedeItem]
+
 class PrenotazioneResponse(BaseModel):
     viaggio_id: int
     automezzo_id: Optional[int] = None
@@ -112,14 +123,49 @@ class PrenotazioneResponse(BaseModel):
     data_viaggio: str
     ora_partenza: Optional[str] = ""
     ora_riconsegna_prevista: Optional[str] = ""
+    note: Optional[str] = ""
     destinazione: Optional[str] = ""
     ora_partenza_effettiva: Optional[str] = ""
     ora_arrivo: Optional[str] = ""
+    km_iniziali: Optional[int] = 0
+    km_finali: Optional[int] = None
+    sede_partenza_id: Optional[int] = None
+    sede_partenza_nome: Optional[str] = ""
+    sede_arrivo_id: Optional[int] = None
+    sede_arrivo_nome: Optional[str] = ""
+    user_id: Optional[int] = None
+    driver_nome: Optional[str] = ""
+    driver_cognome: Optional[str] = ""
+    driver_email: Optional[str] = ""
+    is_in_corso: Optional[bool] = False
+    in_pausa: Optional[bool] = False
+    can_start: Optional[bool] = False
+    can_complete: Optional[bool] = False
+    can_cancel: Optional[bool] = False
     stato: Optional[str] = "confermata"
 
 class PrenotazioniListResponse(BaseModel):
     totale: int
     prenotazioni: List[PrenotazioneResponse]
+
+class PrenotazioneCreateRequest(BaseModel):
+    automezzo_id: int
+    data_viaggio: str
+    ora_partenza: str
+    ora_riconsegna_prevista: str
+    sede_partenza_id: int
+    email_conducente: Optional[str] = None
+    note: Optional[str] = None
+
+class PrenotazioneCompletaRequest(BaseModel):
+    km_finali: int
+    sede_arrivo_id: Optional[int] = None
+    note: Optional[str] = None
+
+class PrenotazioneActionResponse(BaseModel):
+    success: bool
+    message: str
+    viaggio_id: Optional[int] = None
 
 class AutomezzoResponse(BaseModel):
     automezzo_id: int
@@ -419,11 +465,11 @@ def get_automezzi(
                 query += " AND a.reparto_assegnato_id = :reparto_id"
                 params["reparto_id"] = reparto_id
 
-            if stato:
+            if isinstance(stato, str) and stato.strip():
                 query += " AND LOWER(a.stato) = LOWER(:stato)"
-                params["stato"] = stato
+                params["stato"] = stato.strip()
 
-            if search:
+            if isinstance(search, str) and search.strip():
                 query += " AND (a.targa LIKE :search OR a.modello LIKE :search OR m.nome LIKE :search OR r.nome LIKE :search)"
                 params["search"] = f"%{search.strip()}%"
 
@@ -502,54 +548,430 @@ def get_automezzi(
     )
 
 
+@app.get("/api/sedi", response_model=SediListResponse)
+@app.get("/sedi", response_model=SediListResponse)
+def get_sedi(user: dict = Depends(get_current_user)):
+    sedi = []
+    try:
+        with engine.connect() as conn:
+            rows = conn.execute(text("""
+                SELECT s.sede_id, s.nome, COALESCE(c.nome, '') AS comune_nome, COALESCE(s.indirizzo, '') AS indirizzo,
+                       (SELECT COUNT(*) FROM automezzi a 
+                        WHERE COALESCE(NULLIF(a.sede_attuale_id, 0), NULLIF(a.sede_assegnata_id, 0), 0) = s.sede_id
+                          AND a.stato = 'Disponibile' 
+                          AND a.escluso_prenotazione = 0) AS auto_disponibili
+                FROM sedi s
+                LEFT JOIN comuni c ON s.comune_id = c.comune_id
+                ORDER BY COALESCE(c.nome, s.nome) ASC, s.nome ASC
+            """)).mappings().all()
+            for r in rows:
+                sedi.append(SedeItem(
+                    sede_id=r["sede_id"],
+                    nome=r["nome"],
+                    comune_nome=r["comune_nome"] or "",
+                    indirizzo=r["indirizzo"] or "",
+                    auto_disponibili=r["auto_disponibili"] or 0
+                ))
+    except Exception as e:
+        logging.error(f"Errore recupero sedi API: {e}")
+        raise HTTPException(status_code=500, detail=f"Errore recupero sedi: {str(e)}")
+
+    return SediListResponse(totale=len(sedi), sedi=sedi)
+
+
 @app.get("/api/prenotazioni", response_model=PrenotazioniListResponse)
 @app.get("/prenotazioni", response_model=PrenotazioniListResponse)
 @app.get("/api/viaggi/miei", response_model=PrenotazioniListResponse)
-def get_user_prenotazioni(user: dict = Depends(get_current_user)):
+def get_user_prenotazioni(
+    all_trips: Optional[bool] = Query(False, alias="all"),
+    user: dict = Depends(get_current_user)
+):
     uid = user.get("user_id", 0)
     email = (user.get("email") or "").strip().lower()
-    today_str = datetime.now().strftime("%Y-%m-%d")
+    user_ruolo = user.get("ruolo", "normale")
+    user_roles = user.get("roles") or [user_ruolo]
+    reparto_id = user.get("reparto_id")
+    now = datetime.now()
+    today_str = now.strftime("%Y-%m-%d")
+
+    is_global = any(r in ("admin", "global_fleet_manager") for r in user_roles) or user_ruolo in ("admin", "global_fleet_manager")
+    is_fleet_mgr = "fleet_manager" in user_roles or user_ruolo == "fleet_manager"
 
     prenotazioni = []
     try:
         with engine.connect() as conn:
-            rows = conn.execute(text("""
+            query = """
                 SELECT v.viaggio_id, v.automezzo_id,
-                       COALESCE(v.targa, a.targa, '') AS targa,
+                       COALESCE(a.targa, '') AS targa,
                        COALESCE(a.modello, '') AS modello,
                        COALESCE(m.nome, '') AS marca_nome,
                        v.data_viaggio,
                        COALESCE(v.ora_partenza, '') AS ora_partenza,
                        COALESCE(v.ora_riconsegna_prevista, '') AS ora_riconsegna_prevista,
-                       COALESCE(v.destinazione, '') AS destinazione,
+                       COALESCE(v.note, '') AS note,
+                       COALESCE(v.note, '') AS destinazione,
                        COALESCE(v.ora_partenza_effettiva, '') AS ora_partenza_effettiva,
-                       COALESCE(v.ora_arrivo, '') AS ora_arrivo
+                       COALESCE(v.ora_arrivo, '') AS ora_arrivo,
+                       COALESCE(v.km_iniziali, 0) AS km_iniziali,
+                       v.km_finali,
+                       v.sede_partenza_id,
+                       COALESCE(s_part.nome, '') AS sede_partenza_nome,
+                       v.sede_arrivo_id,
+                       COALESCE(s_arr.nome, '') AS sede_arrivo_nome,
+                       v.user_id,
+                       COALESCE(u.nome, '') AS driver_nome,
+                       COALESCE(u.cognome, '') AS driver_cognome,
+                       COALESCE(u.email, v.email_conducente, '') AS driver_email,
+                       COALESCE(v.in_pausa, 0) AS in_pausa
                 FROM viaggi_automezzi v
                 LEFT JOIN automezzi a ON v.automezzo_id = a.automezzo_id
                 LEFT JOIN marche_automezzi m ON a.marca_id = m.marca_id
-                WHERE (v.user_id = :uid OR (LOWER(v.email_conducente) = :email AND :email != ''))
-                  AND (v.ora_arrivo IS NULL OR v.ora_arrivo = '' OR v.data_viaggio >= :today)
-                ORDER BY v.data_viaggio DESC, v.ora_partenza DESC
-            """), {"uid": uid, "email": email, "today": today_str}).mappings().all()
+                LEFT JOIN sedi s_part ON v.sede_partenza_id = s_part.sede_id
+                LEFT JOIN sedi s_arr ON v.sede_arrivo_id = s_arr.sede_id
+                LEFT JOIN users u ON v.user_id = u.user_id
+                WHERE 1=1
+            """
+            params = {}
+
+            if all_trips:
+                if is_fleet_mgr and not is_global and reparto_id:
+                    query += " AND u.reparto_id = :reparto_id"
+                    params["reparto_id"] = reparto_id
+                elif not is_global and not is_fleet_mgr:
+                    query += " AND (v.user_id = :uid OR (LOWER(v.email_conducente) = :email AND :email != ''))"
+                    params["uid"] = uid
+                    params["email"] = email
+            else:
+                query += " AND (v.user_id = :uid OR (LOWER(v.email_conducente) = :email AND :email != ''))"
+                params["uid"] = uid
+                params["email"] = email
+
+            query += " ORDER BY v.data_viaggio DESC, v.ora_partenza DESC"
+
+            rows = conn.execute(text(query), params).mappings().all()
 
             for r in rows:
                 p_dict = dict(r)
+                has_started = bool(p_dict.get("ora_partenza_effettiva"))
+                has_ended = bool(p_dict.get("ora_arrivo"))
+                is_in_pausa = bool(p_dict.get("in_pausa"))
+
                 st = "confermata"
-                if p_dict.get("ora_arrivo"):
+                if has_ended:
                     st = "completato"
-                elif p_dict.get("ora_partenza_effettiva"):
+                elif is_in_pausa:
+                    st = "in pausa"
+                elif has_started:
                     st = "in corso"
                 elif p_dict.get("data_viaggio") == today_str:
                     st = "oggi"
-                
+
+                p_dict["is_in_corso"] = has_started and not has_ended
+                p_dict["in_pausa"] = is_in_pausa
+                p_dict["can_start"] = not has_started and not has_ended and (p_dict.get("data_viaggio") <= today_str)
+                p_dict["can_complete"] = has_started and not has_ended
+                p_dict["can_cancel"] = not has_started and not has_ended and (p_dict.get("data_viaggio") >= today_str)
                 p_dict["stato"] = st
+
                 prenotazioni.append(PrenotazioneResponse(**p_dict))
     except Exception as e:
-        print("Avviso recupero prenotazioni utente API:", e)
+        logging.error(f"Errore recupero prenotazioni utente API: {e}")
 
     return PrenotazioniListResponse(
         totale=len(prenotazioni),
         prenotazioni=prenotazioni
+    )
+
+
+@app.post("/api/prenotazioni", response_model=PrenotazioneActionResponse, status_code=status.HTTP_201_CREATED)
+@app.post("/prenotazioni", response_model=PrenotazioneActionResponse, status_code=status.HTTP_201_CREATED)
+@app.post("/api/autopark/prenota", response_model=PrenotazioneActionResponse, status_code=status.HTTP_201_CREATED)
+def create_prenotazione(req: PrenotazioneCreateRequest, user: dict = Depends(get_current_user)):
+    uid = user.get("user_id", 0)
+    role = user.get("ruolo", "normale")
+    user_roles = user.get("roles") or [role]
+    current_email = (user.get("email") or "").strip().lower()
+
+    data_viaggio = req.data_viaggio.strip()
+    ora_partenza = req.ora_partenza.strip()
+    ora_riconsegna = req.ora_riconsegna_prevista.strip()
+    sede_partenza_id = int(req.sede_partenza_id)
+    automezzo_id = int(req.automezzo_id)
+    note = (req.note or "").strip()
+
+    now = datetime.now()
+    today_str = now.strftime("%Y-%m-%d")
+    current_hour_str = now.strftime("%H:00")
+
+    try:
+        travel_dt = datetime.strptime(f"{data_viaggio} {ora_partenza}", "%Y-%m-%d %H:%M")
+        current_hour_dt = datetime.strptime(f"{today_str} {current_hour_str}", "%Y-%m-%d %H:%M")
+
+        if data_viaggio < today_str:
+            raise HTTPException(status_code=400, detail="Non è possibile effettuare prenotazioni per date antecedenti ad oggi.")
+
+        if travel_dt < current_hour_dt:
+            raise HTTPException(status_code=400, detail="Per la giornata odierna è possibile prenotare solo a partire dall'ora attuale.")
+    except ValueError:
+        raise HTTPException(status_code=400, detail="Formato data o ora non valido (atteso YYYY-MM-DD e HH:MM).")
+
+    if ora_riconsegna <= ora_partenza:
+        raise HTTPException(status_code=400, detail="L'ora di riconsegna deve essere successiva all'ora di partenza.")
+
+    # Risoluzione email conducente
+    is_fleet_or_admin = any(r in ("admin", "fleet_manager", "global_fleet_manager") for r in user_roles) or role in ("admin", "fleet_manager", "global_fleet_manager")
+    if is_fleet_or_admin and req.email_conducente and req.email_conducente.strip():
+        final_email = req.email_conducente.strip().lower()
+    else:
+        final_email = current_email
+
+    if not final_email:
+        raise HTTPException(status_code=400, detail="Email del conducente mancante.")
+
+    with engine.connect() as conn:
+        driver = conn.execute(text("""
+            SELECT user_id, reparto_id, email, nome, cognome
+            FROM users
+            WHERE LOWER(email) = LOWER(:email) AND attivo = 1
+        """), {"email": final_email}).mappings().first()
+
+        if not driver:
+            raise HTTPException(status_code=404, detail="Nessun utente attivo trovato con l'email del conducente indicata.")
+
+        # Controllo reparto per fleet_manager
+        if "fleet_manager" in user_roles and not any(r in ("admin", "global_fleet_manager") for r in user_roles):
+            fm_reparto_id = conn.execute(text("SELECT reparto_id FROM users WHERE user_id = :uid"), {"uid": uid}).scalar()
+            if driver["reparto_id"] != fm_reparto_id:
+                raise HTTPException(status_code=403, detail="Puoi prenotare solo per utenti appartenenti al tuo stesso reparto.")
+
+        # Controllo veicolo
+        car = conn.execute(text("""
+            SELECT stato, km_attuali, escluso_prenotazione, sede_attuale_id, sede_assegnata_id
+            FROM automezzi WHERE automezzo_id = :id
+        """), {"id": automezzo_id}).mappings().first()
+
+        if not car:
+            raise HTTPException(status_code=404, detail="Automezzo non trovato nel sistema.")
+
+        if car["escluso_prenotazione"] == 1:
+            raise HTTPException(status_code=400, detail="Il veicolo selezionato è attualmente escluso dalle prenotazioni.")
+
+        car_sede = car["sede_attuale_id"] or car["sede_assegnata_id"] or 0
+        if car_sede != 0 and car_sede != sede_partenza_id:
+            raise HTTPException(status_code=400, detail="Il veicolo selezionato non si trova nella sede di partenza specificata.")
+
+        km_iniziali = car["km_attuali"] or 0
+
+        # Controllo overlap veicolo
+        overlap = conn.execute(text("""
+            SELECT viaggio_id FROM viaggi_automezzi
+            WHERE automezzo_id = :automezzo_id
+              AND data_viaggio = :data_viaggio
+              AND (ora_arrivo IS NULL OR ora_arrivo = '')
+              AND ora_partenza < :ora_riconsegna
+              AND ora_riconsegna_prevista > :ora_partenza
+        """), {
+            "automezzo_id": automezzo_id,
+            "data_viaggio": data_viaggio,
+            "ora_partenza": ora_partenza,
+            "ora_riconsegna": ora_riconsegna
+        }).first()
+
+        if overlap:
+            raise HTTPException(status_code=409, detail="Il veicolo selezionato è già prenotato in questa fascia oraria.")
+
+        # Controllo overlap guidatore
+        driver_overlap = conn.execute(text("""
+            SELECT viaggio_id FROM viaggi_automezzi
+            WHERE user_id = :driver_id
+              AND data_viaggio = :data_viaggio
+              AND (ora_arrivo IS NULL OR ora_arrivo = '')
+              AND ora_partenza < :ora_riconsegna
+              AND ora_riconsegna_prevista > :ora_partenza
+        """), {
+            "driver_id": driver["user_id"],
+            "data_viaggio": data_viaggio,
+            "ora_partenza": ora_partenza,
+            "ora_riconsegna": ora_riconsegna
+        }).first()
+
+        if driver_overlap:
+            raise HTTPException(status_code=409, detail="Il guidatore selezionato ha già un'altra prenotazione attiva in questa fascia oraria.")
+
+    # Inserimento transazionale
+    with engine.begin() as conn:
+        res = conn.execute(text("""
+            INSERT INTO viaggi_automezzi (
+                automezzo_id, data_viaggio, ora_partenza, ora_riconsegna_prevista, ora_arrivo,
+                km_iniziali, km_finali, sede_partenza_id, sede_arrivo_id, user_id, email_conducente,
+                ora_partenza_effettiva, note
+            ) VALUES (
+                :automezzo_id, :data_viaggio, :ora_partenza, :ora_riconsegna_prevista, NULL,
+                :km_iniziali, NULL, :sede_partenza_id, NULL, :user_id, :email_conducente,
+                NULL, :note
+            )
+        """), {
+            "automezzo_id": automezzo_id,
+            "data_viaggio": data_viaggio,
+            "ora_partenza": ora_partenza,
+            "ora_riconsegna_prevista": ora_riconsegna,
+            "km_iniziali": km_iniziali,
+            "sede_partenza_id": sede_partenza_id,
+            "user_id": driver["user_id"],
+            "email_conducente": driver["email"],
+            "note": note
+        })
+        new_id = res.lastrowid
+
+    return PrenotazioneActionResponse(
+        success=True,
+        message="Prenotazione veicolo confermata con successo!",
+        viaggio_id=new_id
+    )
+
+
+@app.post("/api/prenotazioni/{viaggio_id}/parti", response_model=PrenotazioneActionResponse)
+def start_prenotazione(viaggio_id: int, user: dict = Depends(get_current_user)):
+    uid = user.get("user_id", 0)
+    role = user.get("ruolo", "normale")
+    user_roles = user.get("roles") or [role]
+    is_admin_or_mgr = any(r in ("admin", "fleet_manager", "global_fleet_manager") for r in user_roles)
+
+    now_str = datetime.now().strftime("%H:%M")
+    today_str = datetime.now().strftime("%Y-%m-%d")
+
+    with engine.begin() as conn:
+        query = "SELECT viaggio_id, user_id, automezzo_id, data_viaggio, ora_partenza_effettiva, ora_arrivo FROM viaggi_automezzi WHERE viaggio_id = :id"
+        params = {"id": viaggio_id}
+        if not is_admin_or_mgr:
+            query += " AND user_id = :uid"
+            params["uid"] = uid
+
+        v = conn.execute(text(query), params).mappings().first()
+        if not v:
+            raise HTTPException(status_code=404, detail="Prenotazione non trovata o non autorizzato.")
+
+        if v["ora_arrivo"]:
+            raise HTTPException(status_code=400, detail="Il viaggio è già stato completato.")
+
+        if v["ora_partenza_effettiva"]:
+            raise HTTPException(status_code=400, detail="Il viaggio è già stato avviato.")
+
+        if v["data_viaggio"] > today_str:
+            raise HTTPException(status_code=400, detail=f"Il viaggio potrà essere avviato solo a partire dal giorno di prenotazione ({v['data_viaggio']}).")
+
+        conn.execute(text("""
+            UPDATE viaggi_automezzi
+            SET ora_partenza_effettiva = :now
+            WHERE viaggio_id = :id
+        """), {"now": now_str, "id": viaggio_id})
+
+        # Aggiorna stato automezzo a 'In Uso'
+        if v["automezzo_id"]:
+            conn.execute(text("""
+                UPDATE automezzi SET stato = 'In Uso' WHERE automezzo_id = :aid
+            """), {"aid": v["automezzo_id"]})
+
+    return PrenotazioneActionResponse(
+        success=True,
+        message=f"Viaggio avviato con successo alle {now_str}!",
+        viaggio_id=viaggio_id
+    )
+
+
+@app.post("/api/prenotazioni/{viaggio_id}/completa", response_model=PrenotazioneActionResponse)
+def complete_prenotazione(viaggio_id: int, req: PrenotazioneCompletaRequest, user: dict = Depends(get_current_user)):
+    uid = user.get("user_id", 0)
+    role = user.get("ruolo", "normale")
+    user_roles = user.get("roles") or [role]
+    is_admin_or_mgr = any(r in ("admin", "fleet_manager", "global_fleet_manager") for r in user_roles)
+
+    now_str = datetime.now().strftime("%H:%M")
+
+    with engine.begin() as conn:
+        query = "SELECT viaggio_id, user_id, automezzo_id, km_iniziali, ora_partenza_effettiva, ora_arrivo, sede_partenza_id FROM viaggi_automezzi WHERE viaggio_id = :id"
+        params = {"id": viaggio_id}
+        if not is_admin_or_mgr:
+            query += " AND user_id = :uid"
+            params["uid"] = uid
+
+        v = conn.execute(text(query), params).mappings().first()
+        if not v:
+            raise HTTPException(status_code=404, detail="Prenotazione non trovata o non autorizzato.")
+
+        if v["ora_arrivo"]:
+            raise HTTPException(status_code=400, detail="Il viaggio è già stato completato.")
+
+        if not v["ora_partenza_effettiva"]:
+            raise HTTPException(status_code=400, detail="Devi prima avviare il viaggio prima di poter registrare il rientro.")
+
+        if req.km_finali < (v["km_iniziali"] or 0):
+            raise HTTPException(status_code=400, detail=f"I km finali ({req.km_finali}) non possono essere inferiori a quelli iniziali ({v['km_iniziali']}).")
+
+        sede_arrivo_id = req.sede_arrivo_id or v["sede_partenza_id"]
+
+        conn.execute(text("""
+            UPDATE viaggi_automezzi
+            SET ora_arrivo = :now,
+                km_finali = :km_finali,
+                sede_arrivo_id = :sede_arrivo_id,
+                in_pausa = 0
+            WHERE viaggio_id = :id
+        """), {
+            "now": now_str,
+            "km_finali": req.km_finali,
+            "sede_arrivo_id": sede_arrivo_id,
+            "id": viaggio_id
+        })
+
+        if v["automezzo_id"]:
+            conn.execute(text("""
+                UPDATE automezzi
+                SET stato = 'Disponibile',
+                    km_attuali = :km_finali,
+                    sede_attuale_id = :sede_arrivo_id
+                WHERE automezzo_id = :aid
+            """), {
+                "km_finali": req.km_finali,
+                "sede_arrivo_id": sede_arrivo_id,
+                "aid": v["automezzo_id"]
+            })
+
+    return PrenotazioneActionResponse(
+        success=True,
+        message=f"Viaggio concluso con successo alle {now_str}! Km aggiornati a {req.km_finali}.",
+        viaggio_id=viaggio_id
+    )
+
+
+@app.post("/api/prenotazioni/{viaggio_id}/annulla", response_model=PrenotazioneActionResponse)
+@app.delete("/api/prenotazioni/{viaggio_id}", response_model=PrenotazioneActionResponse)
+def cancel_prenotazione(viaggio_id: int, user: dict = Depends(get_current_user)):
+    uid = user.get("user_id", 0)
+    role = user.get("ruolo", "normale")
+    user_roles = user.get("roles") or [role]
+    is_admin_or_mgr = any(r in ("admin", "fleet_manager", "global_fleet_manager") for r in user_roles)
+
+    with engine.begin() as conn:
+        query = "SELECT viaggio_id, user_id, automezzo_id, data_viaggio, ora_partenza_effettiva, ora_arrivo FROM viaggi_automezzi WHERE viaggio_id = :id"
+        params = {"id": viaggio_id}
+        if not is_admin_or_mgr:
+            query += " AND user_id = :uid"
+            params["uid"] = uid
+
+        v = conn.execute(text(query), params).mappings().first()
+        if not v:
+            raise HTTPException(status_code=404, detail="Prenotazione non trovata o non sei autorizzato ad annullarla.")
+
+        if v["ora_arrivo"] or v["ora_partenza_effettiva"]:
+            raise HTTPException(status_code=400, detail="Non puoi eliminare un viaggio che è già iniziato o completato.")
+
+        conn.execute(text("DELETE FROM viaggi_automezzi WHERE viaggio_id = :id"), {"id": viaggio_id})
+
+    return PrenotazioneActionResponse(
+        success=True,
+        message="Prenotazione annullata con successo.",
+        viaggio_id=viaggio_id
     )
 
 

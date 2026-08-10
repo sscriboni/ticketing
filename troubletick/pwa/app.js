@@ -373,10 +373,10 @@ function renderUserActivePrenotazioniList(trips) {
     listContainer.innerHTML = `
       <div class="col-12">
         <ion-card class="dashboard-card m-0 p-4 text-center">
-          <ion-icon name="car-outline" color="primary" style="font-size: 3rem; opacity: 0.6;"></ion-icon>
+          <ion-icon name="car-outline" color="primary" style="font-size: 3.2rem; opacity: 0.6;"></ion-icon>
           <h6 class="text-white fw-bold mt-2">Nessuna prenotazione veicolo attiva</h6>
           <p class="text-slate-300 small mb-3">Non hai viaggi programmati o in corso al momento.</p>
-          <ion-button size="small" color="primary" fill="outline" href="./autopark">
+          <ion-button size="small" color="primary" fill="outline" onclick="openBookingForm()">
             <i class="bi bi-plus-lg me-1"></i> Effettua una Prenotazione
           </ion-button>
         </ion-card>
@@ -391,6 +391,9 @@ function renderUserActivePrenotazioniList(trips) {
     if (t.stato === 'in corso') {
       badgeClass = 'bg-warning text-dark';
       statusText = '🚀 Viaggio in Corso';
+    } else if (t.stato === 'in pausa') {
+      badgeClass = 'bg-warning text-dark';
+      statusText = '⏸️ In Pausa';
     } else if (t.stato === 'oggi') {
       badgeClass = 'bg-success';
       statusText = '🗓️ In Programma Oggi';
@@ -401,25 +404,63 @@ function renderUserActivePrenotazioniList(trips) {
 
     const targa = t.targa || 'N/D';
     const autoName = `${t.marca_nome || ''} ${t.modello || ''}`.trim() || 'Automezzo Aziendale';
-    const destinazione = t.destinazione || 'Destinazione non specificata';
+    const note = t.note || t.destinazione || '';
     const dataViaggio = t.data_viaggio || 'Data non specificata';
     const orario = t.ora_partenza ? `${t.ora_partenza}${t.ora_riconsegna_prevista ? ' - ' + t.ora_riconsegna_prevista : ''}` : '';
+    const sedePartenza = t.sede_partenza_nome || 'Sede aziendale';
+    const driverLabel = `${t.driver_nome || ''} ${t.driver_cognome || ''}`.trim() || t.driver_email || '';
+
+    // Azioni dinamiche
+    let actionButtons = '';
+    if (t.can_start) {
+      actionButtons += `
+        <button type="button" class="btn btn-sm btn-success fw-bold d-flex align-items-center gap-1" onclick="startPrenotazione(${t.viaggio_id})">
+          <i class="bi bi-play-fill"></i> Avvia Viaggio
+        </button>
+      `;
+    }
+    if (t.can_complete) {
+      const autoEscaped = autoName.replace(/'/g, "\\'");
+      const targaEscaped = targa.replace(/'/g, "\\'");
+      actionButtons += `
+        <button type="button" class="btn btn-sm btn-primary fw-bold d-flex align-items-center gap-1" onclick="promptCompletePrenotazione(${t.viaggio_id}, ${t.km_iniziali || 0}, '${autoEscaped}', '${targaEscaped}', ${t.sede_partenza_id || 0})">
+          <i class="bi bi-journal-check"></i> Registra Rientro
+        </button>
+      `;
+    }
+    if (t.can_cancel) {
+      actionButtons += `
+        <button type="button" class="btn btn-sm btn-outline-danger d-flex align-items-center gap-1" onclick="cancelPrenotazione(${t.viaggio_id})" title="Annulla prenotazione">
+          <i class="bi bi-trash"></i> Annulla
+        </button>
+      `;
+    }
 
     return `
       <div class="col-12 col-md-6">
-        <ion-card class="dashboard-card m-0 p-3 border-start border-4 border-primary">
+        <ion-card class="dashboard-card m-0 p-3 border-start border-4 ${t.is_in_corso ? 'border-warning' : 'border-primary'}">
           <div class="d-flex justify-content-between align-items-start mb-2">
             <div>
               <span class="badge ${badgeClass} mb-1">${statusText}</span>
               <h6 class="text-white fw-bold mb-0">${autoName}</h6>
               <span class="text-primary small fw-bold"><i class="bi bi-card-heading me-1"></i> Targa: ${targa}</span>
             </div>
-            <a href="./autopark" class="btn btn-sm btn-outline-light"><i class="bi bi-geo-alt"></i> Dettagli</a>
+            <span class="badge bg-slate-800 text-slate-300 font-monospace extra-small">#${t.viaggio_id}</span>
           </div>
-          <div class="border-top border-slate-700 pt-2 mt-2 font-monospace small text-slate-300">
+
+          <div class="border-top border-slate-700 pt-2 mt-2 small text-slate-300">
             <div><i class="bi bi-calendar3 me-1 text-info"></i> <strong>Data:</strong> ${dataViaggio} ${orario ? '(' + orario + ')' : ''}</div>
-            <div><i class="bi bi-geo-fill me-1 text-warning"></i> <strong>Destinazione:</strong> ${destinazione}</div>
+            <div><i class="bi bi-geo-alt-fill me-1 text-danger"></i> <strong>Partenza da:</strong> ${sedePartenza}</div>
+            ${driverLabel ? `<div><i class="bi bi-person-fill me-1 text-warning"></i> <strong>Conducente:</strong> ${driverLabel}</div>` : ''}
+            ${t.ora_partenza_effettiva ? `<div><i class="bi bi-speedometer2 me-1 text-success"></i> <strong>Km partenza:</strong> ${t.km_iniziali} km (ore ${t.ora_partenza_effettiva})</div>` : ''}
+            ${note ? `<div class="mt-1 text-truncate"><i class="bi bi-pencil-square me-1 text-info"></i> <strong>Note:</strong> ${note}</div>` : ''}
           </div>
+
+          ${actionButtons ? `
+            <div class="d-flex gap-2 justify-content-end align-items-center pt-3 mt-2 border-top border-slate-800 flex-wrap">
+              ${actionButtons}
+            </div>
+          ` : ''}
         </ion-card>
       </div>
     `;
@@ -435,6 +476,605 @@ function renderUserActivePrenotazioniError(msg) {
       <p class="mt-2 mb-0 small">${msg}</p>
     </div>
   `;
+}
+
+// Azioni sul Ciclo di Vita del Viaggio (Avvio, Rientro, Annullamento)
+async function startPrenotazione(viaggioId) {
+  if (!confirm('Confermi l\'avvio effettivo del viaggio con il veicolo?')) return;
+  const token = localStorage.getItem('pwa_auth_token');
+
+  try {
+    const res = await apiFetch(`/prenotazioni/${viaggioId}/parti`, {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${token}`,
+        'Content-Type': 'application/json'
+      }
+    });
+
+    const data = await res.json();
+    if (res && res.ok) {
+      alert(data.message || 'Viaggio avviato con successo!');
+      loadUserActivePrenotazioni();
+    } else {
+      alert(data.detail || 'Impossibile avviare il viaggio.');
+    }
+  } catch (err) {
+    console.error('Errore avvio viaggio:', err);
+    alert('Errore di connessione durante l\'avvio del viaggio.');
+  }
+}
+
+function promptCompletePrenotazione(viaggioId, kmIniziali, veicoloNome, targa, sedePartenzaId) {
+  const modalEl = document.getElementById('modal-completa-viaggio');
+  if (!modalEl) return;
+
+  const idInput = document.getElementById('completa-viaggio-id');
+  const kmInitInput = document.getElementById('completa-km-iniziali');
+  const kmFinalInput = document.getElementById('completa-km-finali');
+  const veicoloLabel = document.getElementById('completa-veicolo-label');
+  const kmInitLabel = document.getElementById('completa-km-iniziali-label');
+  const sedeSelect = document.getElementById('completa-sede-arrivo');
+
+  if (idInput) idInput.value = viaggioId;
+  if (kmInitInput) kmInitInput.value = kmIniziali || 0;
+  if (kmFinalInput) {
+    kmFinalInput.value = kmIniziali || 0;
+    kmFinalInput.min = kmIniziali || 0;
+  }
+  if (veicoloLabel) veicoloLabel.textContent = `${veicoloNome} (${targa})`;
+  if (kmInitLabel) kmInitLabel.textContent = (kmIniziali || 0).toLocaleString('it-IT');
+
+  // Popola o pre-seleziona sede di riconsegna
+  if (sedeSelect && currentAvailableSedi.length > 0) {
+    sedeSelect.innerHTML = currentAvailableSedi.map(s => `
+      <option value="${s.sede_id}" ${parseInt(s.sede_id) === parseInt(sedePartenzaId) ? 'selected' : ''}>
+        ${s.comune_nome ? '[' + s.comune_nome + '] ' : ''}${s.nome}
+      </option>
+    `).join('');
+  }
+
+  if (typeof bootstrap !== 'undefined' && bootstrap.Modal) {
+    const modalInstance = bootstrap.Modal.getOrCreateInstance(modalEl);
+    modalInstance.show();
+  } else {
+    modalEl.classList.add('show');
+    modalEl.style.display = 'block';
+  }
+}
+
+async function cancelPrenotazione(viaggioId) {
+  if (!confirm('Sei sicuro di voler annullare questa prenotazione? Il veicolo tornerà disponibile.')) return;
+  const token = localStorage.getItem('pwa_auth_token');
+
+  try {
+    const res = await apiFetch(`/prenotazioni/${viaggioId}/annulla`, {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${token}`,
+        'Content-Type': 'application/json'
+      }
+    });
+
+    const data = await res.json();
+    if (res && res.ok) {
+      alert(data.message || 'Prenotazione annullata con successo.');
+      loadUserActivePrenotazioni();
+    } else {
+      alert(data.detail || 'Impossibile annullare la prenotazione.');
+    }
+  } catch (err) {
+    console.error('Errore annullamento prenotazione:', err);
+    alert('Errore di connessione durante l\'annullamento.');
+  }
+}
+
+// ============================================================================
+// MODULO PRENOTAZIONE AUTOVEICOLI PWA (LOGICA FORM REATTIVA & OVERLAP CHECKS)
+// ============================================================================
+let currentAvailableSedi = [];
+let allVehiclesForBooking = [];
+let activeTripsForOverlap = [];
+
+// Utility alert box form prenotazione
+function showBookingAlert(msg, type = 'danger') {
+  const alertBox = document.getElementById('booking-alert-box');
+  const alertText = document.getElementById('booking-alert-text');
+  const alertIcon = document.getElementById('booking-alert-icon');
+  if (!alertBox || !alertText) return;
+
+  alertBox.className = `alert alert-${type} d-flex align-items-center gap-2 mb-4 rounded-3 shadow-sm`;
+  if (alertIcon) {
+    alertIcon.className = type === 'success' ? 'bi bi-check-circle-fill fs-5 flex-shrink-0' : 'bi bi-exclamation-triangle-fill fs-5 flex-shrink-0';
+  }
+  alertText.textContent = msg;
+  alertBox.classList.remove('d-none');
+}
+
+function hideBookingAlert() {
+  const alertBox = document.getElementById('booking-alert-box');
+  if (alertBox) alertBox.classList.add('d-none');
+}
+
+// Recupero Sedi da /api/sedi
+async function loadSedi() {
+  const token = localStorage.getItem('pwa_auth_token');
+  try {
+    const res = await apiFetch('/sedi', {
+      headers: {
+        'Authorization': `Bearer ${token}`,
+        'Content-Type': 'application/json'
+      }
+    });
+
+    if (res && res.ok) {
+      const data = await res.json();
+      currentAvailableSedi = data.sedi || [];
+      populateSediDropdowns(currentAvailableSedi);
+      return currentAvailableSedi;
+    }
+  } catch (err) {
+    console.error('Errore caricamento sedi:', err);
+  }
+  return [];
+}
+
+function populateSediDropdowns(sedi) {
+  const bookingSedeSelect = document.getElementById('booking-sede-select');
+  const completaSedeSelect = document.getElementById('completa-sede-arrivo');
+
+  if (bookingSedeSelect) {
+    bookingSedeSelect.innerHTML = '<option value="" disabled selected>Seleziona sede di partenza...</option>';
+    sedi.forEach(s => {
+      const opt = document.createElement('option');
+      opt.value = s.sede_id;
+      const countStr = s.auto_disponibili > 0 ? ` (${s.auto_disponibili} auto disponibili)` : ' (0 auto)';
+      opt.textContent = `${s.comune_nome ? '[' + s.comune_nome + '] ' : ''}${s.nome}${countStr}`;
+      bookingSedeSelect.appendChild(opt);
+    });
+  }
+
+  if (completaSedeSelect) {
+    completaSedeSelect.innerHTML = '<option value="" disabled selected>Seleziona sede di riconsegna...</option>';
+    sedi.forEach(s => {
+      const opt = document.createElement('option');
+      opt.value = s.sede_id;
+      opt.textContent = `${s.comune_nome ? '[' + s.comune_nome + '] ' : ''}${s.nome}`;
+      completaSedeSelect.appendChild(opt);
+    });
+  }
+}
+
+// Caricamento Dati per la Prenotazione (Automezzi & Prenotazioni Attive)
+async function loadBookingData() {
+  const token = localStorage.getItem('pwa_auth_token');
+  try {
+    const [resV, resT] = await Promise.all([
+      apiFetch('/automezzi', {
+        headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' }
+      }),
+      apiFetch('/prenotazioni?all=1', {
+        headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' }
+      })
+    ]);
+
+    if (resV && resV.ok) {
+      const dataV = await resV.json();
+      allVehiclesForBooking = dataV.automezzi || [];
+    }
+    if (resT && resT.ok) {
+      const dataT = await resT.json();
+      activeTripsForOverlap = dataT.prenotazioni || [];
+    }
+  } catch (err) {
+    console.error('Errore caricamento dati veicoli/prenotazioni per booking:', err);
+  }
+}
+
+// Verifica Collisione Oraria (Overlap) per Veicolo
+function hasBookingOverlap(automezzoId, dateStr, startStr, endStr) {
+  if (!dateStr || !startStr || !endStr) return null;
+  const targetAid = parseInt(automezzoId);
+
+  for (let i = 0; i < activeTripsForOverlap.length; i++) {
+    const b = activeTripsForOverlap[i];
+    if (parseInt(b.automezzo_id) === targetAid && b.data_viaggio === dateStr && !b.ora_arrivo) {
+      const bStart = b.ora_partenza;
+      const bEnd = b.ora_riconsegna_prevista || b.ora_partenza;
+      if (bStart < endStr && bEnd > startStr) {
+        return b;
+      }
+    }
+  }
+  return null;
+}
+
+// Inizializzazione e Apertura Form Prenotazione SPA
+async function openBookingForm() {
+  hideBookingAlert();
+  navigateToPage('page-prenota-auto');
+
+  const now = new Date();
+  const todayStr = now.toISOString().split('T')[0];
+
+  const dateInput = document.getElementById('booking-data-input');
+  if (dateInput) {
+    dateInput.value = todayStr;
+    dateInput.min = todayStr;
+  }
+
+  // Popola selettori ore 00:00 - 23:00
+  const oraPartenza = document.getElementById('booking-ora-partenza-select');
+  const oraRiconsegna = document.getElementById('booking-ora-riconsegna-select');
+
+  const currentHour = now.getHours();
+  const defaultStartHour = Math.min(Math.max(currentHour + 1, 8), 22);
+  const defaultEndHour = Math.min(defaultStartHour + 2, 23);
+
+  if (oraPartenza) {
+    oraPartenza.innerHTML = '<option value="" disabled>Seleziona ora di partenza...</option>';
+    for (let h = 0; h < 24; h++) {
+      const hr = (h < 10 ? '0' : '') + h + ':00';
+      const opt = document.createElement('option');
+      opt.value = hr;
+      opt.textContent = hr;
+      if (h === defaultStartHour) opt.selected = true;
+      oraPartenza.appendChild(opt);
+    }
+  }
+
+  if (oraRiconsegna) {
+    oraRiconsegna.innerHTML = '<option value="" disabled>Seleziona ora di riconsegna...</option>';
+    for (let h = 0; h < 24; h++) {
+      const hr = (h < 10 ? '0' : '') + h + ':00';
+      const opt = document.createElement('option');
+      opt.value = hr;
+      opt.textContent = hr;
+      if (h <= defaultStartHour) opt.disabled = true;
+      if (h === defaultEndHour) opt.selected = true;
+      oraRiconsegna.appendChild(opt);
+    }
+  }
+
+  // Gestione campo email guidatore per admin/fleet manager
+  const userJson = localStorage.getItem('pwa_user_info');
+  let user = {};
+  try { user = JSON.parse(userJson) || {}; } catch (e) {}
+
+  const userRoles = getUserRoles(user);
+  const isManagerOrAdmin = userRoles.includes('admin') || userRoles.includes('fleet_manager') || userRoles.includes('global_fleet_manager');
+
+  const driverContainer = document.getElementById('booking-driver-email-container');
+  const driverInput = document.getElementById('booking-email-conducente');
+  if (driverContainer && driverInput) {
+    if (isManagerOrAdmin) {
+      driverContainer.style.display = 'block';
+      driverInput.value = user.email || '';
+    } else {
+      driverContainer.style.display = 'none';
+      driverInput.value = user.email || '';
+    }
+  }
+
+  // Caricamento sedi e veicoli
+  await Promise.all([loadSedi(), loadBookingData()]);
+
+  // Seleziona la sede dell'utente se disponibile
+  const sedeSelect = document.getElementById('booking-sede-select');
+  if (sedeSelect && user.sede_id) {
+    sedeSelect.value = user.sede_id;
+  } else if (sedeSelect && currentAvailableSedi.length > 0 && !sedeSelect.value) {
+    // Seleziona la prima sede valida
+    sedeSelect.value = currentAvailableSedi[0].sede_id;
+  }
+
+  updateBookingVehicleOptions();
+}
+
+// Ricalcolo Reattivo Opzioni Veicoli Disponibili
+function updateBookingVehicleOptions() {
+  const sedeSelect = document.getElementById('booking-sede-select');
+  const dateInput = document.getElementById('booking-data-input');
+  const oraPartenza = document.getElementById('booking-ora-partenza-select');
+  const oraRiconsegna = document.getElementById('booking-ora-riconsegna-select');
+  const vehicleSelect = document.getElementById('booking-veicolo-select');
+  const countBadge = document.getElementById('booking-vehicle-count-badge');
+  const previewBox = document.getElementById('booking-vehicle-preview-box');
+  const noVehicleAlert = document.getElementById('booking-no-vehicles-alert');
+
+  if (!vehicleSelect) return;
+
+  const sedeId = sedeSelect ? parseInt(sedeSelect.value) || 0 : 0;
+  const dateStr = dateInput ? dateInput.value : '';
+  const startStr = oraPartenza ? oraPartenza.value : '';
+  const endStr = oraRiconsegna ? oraRiconsegna.value : '';
+
+  // Aggiorna disabilitazione ore di riconsegna <= ora partenza
+  if (oraPartenza && oraRiconsegna && startStr) {
+    const startHour = parseInt(startStr.split(':')[0]);
+    for (let i = 0; i < oraRiconsegna.options.length; i++) {
+      const opt = oraRiconsegna.options[i];
+      if (!opt.value) continue;
+      const optH = parseInt(opt.value.split(':')[0]);
+      opt.disabled = (optH <= startHour);
+    }
+    if (endStr && parseInt(endStr.split(':')[0]) <= startHour) {
+      oraRiconsegna.value = '';
+    }
+  }
+
+  const allFieldsReady = (sedeId > 0 && dateStr && startStr && endStr && endStr > startStr);
+
+  if (!allFieldsReady) {
+    vehicleSelect.innerHTML = '<option value="" disabled selected>Seleziona prima sede, data e orari...</option>';
+    vehicleSelect.disabled = true;
+    if (countBadge) countBadge.classList.add('d-none');
+    if (previewBox) previewBox.classList.add('d-none');
+    if (noVehicleAlert) noVehicleAlert.classList.add('d-none');
+    return;
+  }
+
+  // Filtra veicoli per sede di partenza (sede_attuale_id o sede_assegnata_id)
+  let filtered = allVehiclesForBooking.filter(v => {
+    const vSede = parseInt(v.sede_attuale_id || v.sede_assegnata_id || 0);
+    return vSede === sedeId;
+  });
+
+  // Ordina veicoli: disponibili prima
+  filtered.sort((a, b) => {
+    const aAvail = (a.stato === 'Disponibile' && a.escluso_prenotazione === 0) ? 1 : 0;
+    const bAvail = (b.stato === 'Disponibile' && b.escluso_prenotazione === 0) ? 1 : 0;
+    return bAvail - aAvail;
+  });
+
+  const prevSelectedValue = vehicleSelect.value;
+  vehicleSelect.innerHTML = '<option value="" disabled>Scegli un veicolo aziendale...</option>';
+  vehicleSelect.disabled = false;
+
+  let availableCount = 0;
+  let firstAvailableOpt = null;
+  let prevStillValid = false;
+
+  filtered.forEach(v => {
+    const opt = document.createElement('option');
+    opt.value = v.automezzo_id;
+    opt.setAttribute('data-km', (v.km_attuali || 0).toLocaleString('it-IT'));
+    opt.setAttribute('data-sede', v.sede_attuale_nome || v.sede_assegnata_nome || 'Sede di partenza');
+    opt.setAttribute('data-modello', `${v.marca_nome || ''} ${v.modello || ''}`.trim());
+    opt.setAttribute('data-targa', v.targa || '');
+
+    const isGeneralAvailable = (v.stato === 'Disponibile' && v.escluso_prenotazione === 0);
+    const overlap = hasBookingOverlap(v.automezzo_id, dateStr, startStr, endStr);
+
+    if (!isGeneralAvailable) {
+      opt.disabled = true;
+      let reason = v.stato || 'Non disponibile';
+      if (v.escluso_prenotazione === 1) reason = 'Escluso';
+      opt.textContent = `${v.marca_nome || ''} ${v.modello || ''} (${v.targa}) — Non disponibile (${reason})`;
+    } else if (overlap) {
+      opt.disabled = true;
+      opt.textContent = `${v.marca_nome || ''} ${v.modello || ''} (${v.targa}) — Già prenotata (${overlap.ora_partenza} - ${overlap.ora_riconsegna_prevista})`;
+    } else {
+      opt.disabled = false;
+      availableCount++;
+      opt.textContent = `${v.marca_nome || ''} ${v.modello || ''} (${v.targa}) — Disponibile (${(v.km_attuali || 0).toLocaleString('it-IT')} km)`;
+      if (!firstAvailableOpt) firstAvailableOpt = opt;
+    }
+
+    if (prevSelectedValue && String(v.automezzo_id) === String(prevSelectedValue) && !opt.disabled) {
+      opt.selected = true;
+      prevStillValid = true;
+    }
+
+    vehicleSelect.appendChild(opt);
+  });
+
+  if (!prevStillValid && firstAvailableOpt) {
+    firstAvailableOpt.selected = true;
+    vehicleSelect.value = firstAvailableOpt.value;
+  } else if (!prevStillValid && !firstAvailableOpt) {
+    vehicleSelect.value = '';
+  }
+
+  // Aggiorna contatore badge
+  if (countBadge) {
+    countBadge.classList.remove('d-none');
+    if (availableCount > 0) {
+      countBadge.className = 'badge bg-success bg-opacity-25 text-success border border-success border-opacity-25';
+      countBadge.innerHTML = `<i class="bi bi-check-circle-fill me-1"></i> ${availableCount} disponibili`;
+      if (noVehicleAlert) noVehicleAlert.classList.add('d-none');
+    } else {
+      countBadge.className = 'badge bg-danger bg-opacity-25 text-danger border border-danger border-opacity-25';
+      countBadge.innerHTML = `<i class="bi bi-x-circle-fill me-1"></i> 0 disponibili`;
+      if (noVehicleAlert) noVehicleAlert.classList.remove('d-none');
+    }
+  }
+
+  // Aggiorna box preview
+  updateVehiclePreviewDetails();
+}
+
+function updateVehiclePreviewDetails() {
+  const vehicleSelect = document.getElementById('booking-veicolo-select');
+  const previewBox = document.getElementById('booking-vehicle-preview-box');
+  const nameEl = document.getElementById('preview-vehicle-name');
+  const plateEl = document.getElementById('preview-vehicle-plate');
+  const kmEl = document.getElementById('preview-vehicle-km');
+  const sedeEl = document.getElementById('preview-vehicle-sede');
+
+  if (!vehicleSelect || !previewBox) return;
+
+  const opt = vehicleSelect.options[vehicleSelect.selectedIndex];
+  if (opt && opt.value && !opt.disabled) {
+    if (nameEl) nameEl.textContent = opt.getAttribute('data-modello') || 'Automezzo Aziendale';
+    if (plateEl) plateEl.textContent = opt.getAttribute('data-targa') || 'N/D';
+    if (kmEl) kmEl.textContent = opt.getAttribute('data-km') || '--';
+    if (sedeEl) sedeEl.textContent = opt.getAttribute('data-sede') || '--';
+    previewBox.classList.remove('d-none');
+  } else {
+    previewBox.classList.add('d-none');
+  }
+}
+
+// Invio Form Prenotazione al Backend REST API
+async function submitBookingForm(e) {
+  e.preventDefault();
+  hideBookingAlert();
+
+  const sedeSelect = document.getElementById('booking-sede-select');
+  const dateInput = document.getElementById('booking-data-input');
+  const oraPartenza = document.getElementById('booking-ora-partenza-select');
+  const oraRiconsegna = document.getElementById('booking-ora-riconsegna-select');
+  const vehicleSelect = document.getElementById('booking-veicolo-select');
+  const driverInput = document.getElementById('booking-email-conducente');
+  const noteInput = document.getElementById('booking-note-input');
+  const submitBtn = document.getElementById('btn-submit-booking');
+
+  const sedeId = sedeSelect ? parseInt(sedeSelect.value) : 0;
+  const dataViaggio = dateInput ? dateInput.value.trim() : '';
+  const oraP = oraPartenza ? oraPartenza.value.trim() : '';
+  const oraR = oraRiconsegna ? oraRiconsegna.value.trim() : '';
+  const automezzoId = vehicleSelect ? parseInt(vehicleSelect.value) : 0;
+  const emailConducente = driverInput ? driverInput.value.trim() : '';
+  const note = noteInput ? noteInput.value.trim() : '';
+
+  if (!sedeId) {
+    showBookingAlert('Seleziona una sede di partenza valida.');
+    return;
+  }
+  if (!dataViaggio) {
+    showBookingAlert('Inserisci una data di viaggio valida.');
+    return;
+  }
+  if (!oraP || !oraR) {
+    showBookingAlert('Seleziona sia l\'ora di partenza che l\'ora di riconsegna.');
+    return;
+  }
+  if (oraR <= oraP) {
+    showBookingAlert('L\'ora di riconsegna deve essere successiva all\'ora di partenza.');
+    return;
+  }
+  if (!automezzoId) {
+    showBookingAlert('Seleziona un veicolo aziendale disponibile.');
+    return;
+  }
+
+  const payload = {
+    sede_partenza_id: sedeId,
+    data_viaggio: dataViaggio,
+    ora_partenza: oraP,
+    ora_riconsegna_prevista: oraR,
+    automezzo_id: automezzoId,
+    email_conducente: emailConducente || undefined,
+    note: note || undefined
+  };
+
+  const token = localStorage.getItem('pwa_auth_token');
+  if (submitBtn) {
+    submitBtn.disabled = true;
+    submitBtn.innerHTML = '<span class="spinner-border spinner-border-sm me-2"></span> Registrazione prenotazione...';
+  }
+
+  try {
+    const res = await apiFetch('/prenotazioni', {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${token}`,
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify(payload)
+    });
+
+    const data = await res.json();
+
+    if (res && res.ok) {
+      alert(data.message || 'Prenotazione completata con successo!');
+      navigateToPage('page-home');
+      loadUserActivePrenotazioni();
+    } else {
+      let errDetail = 'Errore durante la prenotazione.';
+      if (data && data.detail) {
+        errDetail = typeof data.detail === 'string' ? data.detail : (data.detail[0]?.msg || errDetail);
+      }
+      showBookingAlert(errDetail);
+    }
+  } catch (err) {
+    console.error('Errore invio prenotazione:', err);
+    showBookingAlert('Errore di connessione con il server. Riprova.');
+  } finally {
+    if (submitBtn) {
+      submitBtn.disabled = false;
+      submitBtn.innerHTML = '<ion-icon slot="start" name="checkmark-circle-outline"></ion-icon> Conferma Prenotazione';
+    }
+  }
+}
+
+// Invio Chiusura / Registrazione Rientro Viaggio
+async function submitCompleteViaggio(e) {
+  e.preventDefault();
+
+  const idInput = document.getElementById('completa-viaggio-id');
+  const kmInput = document.getElementById('completa-km-finali');
+  const sedeSelect = document.getElementById('completa-sede-arrivo');
+  const noteInput = document.getElementById('completa-note');
+  const submitBtn = document.getElementById('btn-submit-completa-viaggio');
+
+  const viaggioId = idInput ? parseInt(idInput.value) : 0;
+  const kmFinali = kmInput ? parseInt(kmInput.value) : 0;
+  const sedeArrivoId = sedeSelect && sedeSelect.value ? parseInt(sedeSelect.value) : null;
+  const note = noteInput ? noteInput.value.trim() : '';
+
+  if (!viaggioId || isNaN(kmFinali) || kmFinali < 0) {
+    alert('Inserisci un valore valido per i chilometri finali.');
+    return;
+  }
+
+  const token = localStorage.getItem('pwa_auth_token');
+  if (submitBtn) {
+    submitBtn.disabled = true;
+    submitBtn.innerHTML = '<span class="spinner-border spinner-border-sm me-2"></span> Salvataggio rientro...';
+  }
+
+  try {
+    const res = await apiFetch(`/prenotazioni/${viaggioId}/completa`, {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${token}`,
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({
+        km_finali: kmFinali,
+        sede_arrivo_id: sedeArrivoId,
+        note: note || undefined
+      })
+    });
+
+    const data = await res.json();
+    if (res && res.ok) {
+      alert(data.message || 'Viaggio concluso con successo!');
+      
+      const modalEl = document.getElementById('modal-completa-viaggio');
+      if (modalEl && typeof bootstrap !== 'undefined' && bootstrap.Modal) {
+        const modalInstance = bootstrap.Modal.getInstance(modalEl);
+        if (modalInstance) modalInstance.hide();
+      } else if (modalEl) {
+        modalEl.style.display = 'none';
+        modalEl.classList.remove('show');
+      }
+
+      loadUserActivePrenotazioni();
+    } else {
+      alert(data.detail || 'Impossibile registrare il rientro.');
+    }
+  } catch (err) {
+    console.error('Errore registrazione rientro:', err);
+    alert('Errore di connessione durante la registrazione del rientro.');
+  } finally {
+    if (submitBtn) {
+      submitBtn.disabled = false;
+      submitBtn.innerHTML = '<i class="bi bi-check-lg me-1"></i> Conferma Rientro';
+    }
+  }
 }
 
 function renderGlobalFleetList(vehicles) {
@@ -579,7 +1219,73 @@ document.addEventListener('DOMContentLoaded', () => {
     });
   }
 
+  // Listener Navigazione Form Prenotazione Auto
+  const btnBackFromBooking = document.getElementById('btn-back-from-booking');
+  if (btnBackFromBooking) {
+    btnBackFromBooking.addEventListener('click', () => {
+      navigateToPage('page-home');
+    });
+  }
 
+  const bookingSedeSelect = document.getElementById('booking-sede-select');
+  if (bookingSedeSelect) {
+    bookingSedeSelect.addEventListener('change', () => updateBookingVehicleOptions());
+  }
+
+  const bookingDataInput = document.getElementById('booking-data-input');
+  if (bookingDataInput) {
+    bookingDataInput.addEventListener('change', () => updateBookingVehicleOptions());
+    bookingDataInput.addEventListener('input', () => updateBookingVehicleOptions());
+  }
+
+  const bookingOraPartenza = document.getElementById('booking-ora-partenza-select');
+  if (bookingOraPartenza) {
+    bookingOraPartenza.addEventListener('change', () => updateBookingVehicleOptions());
+  }
+
+  const bookingOraRiconsegna = document.getElementById('booking-ora-riconsegna-select');
+  if (bookingOraRiconsegna) {
+    bookingOraRiconsegna.addEventListener('change', () => updateBookingVehicleOptions());
+  }
+
+  const bookingVeicoloSelect = document.getElementById('booking-veicolo-select');
+  if (bookingVeicoloSelect) {
+    bookingVeicoloSelect.addEventListener('change', () => updateVehiclePreviewDetails());
+  }
+
+  const bookingAutoForm = document.getElementById('booking-auto-form');
+  if (bookingAutoForm) {
+    bookingAutoForm.addEventListener('submit', submitBookingForm);
+  }
+
+  const formCompletaViaggio = document.getElementById('form-completa-viaggio');
+  if (formCompletaViaggio) {
+    formCompletaViaggio.addEventListener('submit', submitCompleteViaggio);
+  }
+
+  // Gestione Bottom Tabs Bar PWA
+  document.querySelectorAll('ion-tab-button').forEach(tabBtn => {
+    tabBtn.addEventListener('click', () => {
+      const tabName = tabBtn.getAttribute('tab');
+      document.querySelectorAll('ion-tab-button').forEach(b => b.removeAttribute('selected'));
+      tabBtn.setAttribute('selected', 'true');
+
+      if (tabName === 'home') {
+        navigateToPage('page-home');
+        const activeRole = localStorage.getItem('pwa_active_role') || 'normale';
+        switchRoleDashboardView(activeRole);
+      } else if (tabName === 'flotta') {
+        navigateToPage('page-home');
+        switchRoleDashboardView('global_fleet_manager');
+      } else if (tabName === 'ticket') {
+        navigateToPage('page-home');
+        switchRoleDashboardView('assistenza');
+      } else if (tabName === 'presenze') {
+        navigateToPage('page-home');
+        switchRoleDashboardView('responsabile');
+      }
+    });
+  });
 
   // Submit Form di Login (Azione API POST sul percorso relativo)
   if (loginForm) {
