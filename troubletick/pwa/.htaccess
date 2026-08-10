@@ -1,0 +1,21 @@
+# Troubletick PWA — Configurazione Apache Cache-Control & Anti-Caching
+
+<IfModule mod_headers.c>
+    # 1. Non memorizzare mai in cache il Service Worker, l'HTML principale ed il Manifest
+    <FilesMatch "\.(html|htm)$">
+        Header set Cache-Control "no-cache, no-store, must-revalidate"
+        Header set Pragma "no-cache"
+        Header set Expires 0
+    </FilesMatch>
+
+    <FilesMatch "(sw\.js|version\.js|manifest\.json)$">
+        Header set Cache-Control "no-cache, no-store, must-revalidate"
+        Header set Pragma "no-cache"
+        Header set Expires 0
+    </FilesMatch>
+
+    # 2. File statici con versionamento (CSS, JS, immagini): ri-validazione immediata
+    <FilesMatch "\.(css|js|png|jpg|jpeg|gif|svg|ico|webp)$">
+        Header set Cache-Control "public, max-age=0, must-revalidate"
+    </FilesMatch>
+</IfModule>

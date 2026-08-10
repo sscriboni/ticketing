@@ -667,11 +667,50 @@ document.addEventListener('DOMContentLoaded', () => {
     });
   }
 
-  // Registrazione Service Worker con percorso relativo
+  // Registrazione e Monitoraggio Aggiornamenti Service Worker (Anti-Caching e Auto-Refresh)
   if ('serviceWorker' in navigator) {
-    navigator.serviceWorker.register('./sw.js')
-      .then(reg => console.log('Service Worker PWA Registrato:', reg.scope))
+    navigator.serviceWorker.register('./sw.js', { updateViaCache: 'none' })
+      .then(reg => {
+        console.log('[PWA] Service Worker registrato con successo.');
+
+        // Verifica forzata di nuovi aggiornamenti sul server ad ogni avvio
+        if (typeof reg.update === 'function') {
+          reg.update();
+        }
+
+        // Rileva quando è stato scaricato un nuovo service worker aggiornato
+        reg.addEventListener('updatefound', () => {
+          const newWorker = reg.installing;
+          if (newWorker) {
+            newWorker.addEventListener('statechange', () => {
+              if (newWorker.state === 'installed' && navigator.serviceWorker.controller) {
+                console.log('[PWA] Nuova versione dell\'applicazione scaricata. Attivazione immediata...');
+                newWorker.postMessage('SKIP_WAITING');
+              }
+            });
+          }
+        });
+      })
       .catch(err => console.error('Errore registrazione Service Worker:', err));
+
+    // Ricaricamento controllato quando il nuovo Service Worker prende il controllo attivo
+    let refreshing = false;
+    navigator.serviceWorker.addEventListener('controllerchange', () => {
+      if (!refreshing) {
+        refreshing = true;
+        console.log('[PWA] Ricaricamento dell\'applicazione per visualizzare i file più recenti...');
+        window.location.reload();
+      }
+    });
+
+    // Controllo automatico aggiornamenti quando la scheda torna visibile / in focus
+    document.addEventListener('visibilitychange', () => {
+      if (document.visibilityState === 'visible' && navigator.serviceWorker.controller) {
+        navigator.serviceWorker.getRegistration().then(reg => {
+          if (reg && typeof reg.update === 'function') reg.update();
+        });
+      }
+    });
   }
 
   // Esegui controllo autenticazione iniziale

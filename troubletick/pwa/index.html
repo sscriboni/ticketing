@@ -7,8 +7,18 @@
     content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
   <title>Troubletick PWA</title>
 
-  <!-- PWA Meta Tags (Percorsi Relativi) -->
-  <link rel="manifest" href="./manifest.json">
+  <!-- Anti-Caching & Cache Control per forzare aggiornamenti immediati -->
+  <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
+  <meta http-equiv="Pragma" content="no-cache">
+  <meta http-equiv="Expires" content="0">
+
+  <!-- Script di Versione Centralizzata (Unico Punto di Modifica) -->
+  <script src="./version.js"></script>
+
+  <!-- PWA Meta Tags & Manifest con Versione Dinamica -->
+  <script>
+    document.write('<link rel="manifest" href="./manifest.json?v=' + (window.APP_VERSION || '1.0.0') + '">');
+  </script>
   <meta name="theme-color" content="#0d6efd">
   <meta name="mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-capable" content="yes">
@@ -28,9 +38,11 @@
   <script type="module" src="https://unpkg.com/ionicons@7.1.0/dist/ionicons/ionicons.esm.js"></script>
   <script nomodule src="https://unpkg.com/ionicons@7.1.0/dist/ionicons/ionicons.js"></script>
 
-  <!-- Custom Styles & Config (Percorsi Relativi) -->
-  <link rel="stylesheet" href="./style.css">
-  <script src="./config.js"></script>
+  <!-- Custom Styles & Config con Versione Centralizzata -->
+  <script>
+    document.write('<link rel="stylesheet" href="./style.css?v=' + (window.APP_VERSION || '1.0.0') + '">');
+    document.write('<script src="./config.js?v=' + (window.APP_VERSION || '1.0.0') + '"><\/script>');
+  </script>
 </head>
 
 <body>
@@ -69,8 +81,10 @@
               <form id="login-form">
                 <!-- Username Input -->
                 <div class="form-input-container">
-                  <label for="login-username"><i class="bi bi-person-fill me-1 text-primary"></i> Username o Email</label>
-                  <input type="text" id="login-username" value="admin" placeholder="Inserisci username o email" required>
+                  <label for="login-username"><i class="bi bi-person-fill me-1 text-primary"></i> Username o
+                    Email</label>
+                  <input type="text" id="login-username" value="admin" placeholder="Inserisci username o email"
+                    required>
                 </div>
 
                 <!-- Password Input -->
@@ -122,7 +136,8 @@
                   </div>
                   <h3 class="fw-bold text-white mb-2">Seleziona Ruolo Operativo</h3>
                   <p class="text-muted small mb-0">
-                    Ciao <strong class="user-display-name text-white">Utente</strong>! Il tuo account possiede più ruoli autorizzati. Seleziona con quale ruolo intendi accedere:
+                    Ciao <strong class="user-display-name text-white">Utente</strong>! Il tuo account possiede più ruoli
+                    autorizzati. Seleziona con quale ruolo intendi accedere:
                   </p>
                 </div>
 
@@ -160,8 +175,10 @@
           </div>
           <div class="btn-group btn-group-sm" role="group" id="role-switcher-group">
             <button type="button" class="btn btn-outline-primary active" data-role-view="normale">👤 Utente</button>
-            <button type="button" class="btn btn-outline-primary" data-role-view="fleet_manager">🚗 Fleet Manager</button>
-            <button type="button" class="btn btn-outline-warning" data-role-view="global_fleet_manager">🌐 Global Fleet</button>
+            <button type="button" class="btn btn-outline-primary" data-role-view="fleet_manager">🚗 Fleet
+              Manager</button>
+            <button type="button" class="btn btn-outline-warning" data-role-view="global_fleet_manager">🌐 Global
+              Fleet</button>
             <button type="button" class="btn btn-outline-primary" data-role-view="assistenza">🛠️ Assistenza</button>
             <button type="button" class="btn btn-outline-primary" data-role-view="responsabile">📋 Responsabile</button>
             <button type="button" class="btn btn-outline-primary" data-role-view="admin">👑 Admin</button>
@@ -197,19 +214,19 @@
               <div class="row g-3">
                 <div class="col-4">
                   <div class="kpi-stat-box text-center">
-                    <div class="text-muted small fw-bold text-uppercase">Prenotazioni Attive</div>
+                    <div class="kpi-label"><i class="bi bi-calendar-check-fill text-primary me-1"></i> Prenotazioni Attive</div>
                     <div id="normale-stat-trips" class="fw-bold text-primary fs-3 mt-1">0</div>
                   </div>
                 </div>
                 <div class="col-4">
                   <div class="kpi-stat-box text-center">
-                    <div class="text-muted small fw-bold text-uppercase">Veicoli Flotta</div>
+                    <div class="kpi-label"><i class="bi bi-car-front-fill text-warning me-1"></i> Veicoli Flotta</div>
                     <div id="normale-stat-vehicles" class="fw-bold text-warning fs-3 mt-1">0</div>
                   </div>
                 </div>
                 <div class="col-4">
                   <div class="kpi-stat-box text-center">
-                    <div class="text-muted small fw-bold text-uppercase">Presenza Oggi</div>
+                    <div class="kpi-label"><i class="bi bi-person-check-fill text-success me-1"></i> Presenza Oggi</div>
                     <div class="fw-bold text-success fs-3 mt-1">In Sede</div>
                   </div>
                 </div>
@@ -226,7 +243,8 @@
                     <ion-icon name="car-sport-outline" color="success" style="font-size: 2.5rem;"></ion-icon>
                     <div>
                       <h5 class="text-white fw-bold mb-1">Nuova Prenotazione Veicolo</h5>
-                      <p class="text-slate-300 small mb-0">Riserva un automezzo aziendale per i tuoi trasferimenti e viaggi di servizio.</p>
+                      <p class="text-slate-300 small mb-0">Riserva un automezzo aziendale per i tuoi trasferimenti e
+                        viaggi di servizio.</p>
                     </div>
                   </div>
                   <ion-button fill="solid" color="success" class="fw-bold" href="./autopark">
@@ -287,19 +305,19 @@
               <div class="row g-3">
                 <div class="col-4">
                   <div class="kpi-stat-box text-center">
-                    <div class="text-muted small fw-bold text-uppercase">Parco Auto</div>
+                    <div class="kpi-label"><i class="bi bi-car-front-fill text-warning me-1"></i> Parco Auto</div>
                     <div id="fleet-stat-vehicles" class="fw-bold text-warning fs-3 mt-1">376</div>
                   </div>
                 </div>
                 <div class="col-4">
                   <div class="kpi-stat-box text-center">
-                    <div class="text-muted small fw-bold text-uppercase">Viaggi In Corso</div>
+                    <div class="kpi-label"><i class="bi bi-geo-alt-fill text-info me-1"></i> Viaggi In Corso</div>
                     <div id="fleet-stat-trips" class="fw-bold text-white fs-3 mt-1">12</div>
                   </div>
                 </div>
                 <div class="col-4">
                   <div class="kpi-stat-box text-center">
-                    <div class="text-muted small fw-bold text-uppercase">Manutenzioni</div>
+                    <div class="kpi-label"><i class="bi bi-wrench-adjustable text-danger me-1"></i> Manutenzioni</div>
                     <div id="fleet-stat-maint" class="fw-bold text-danger fs-3 mt-1">4</div>
                   </div>
                 </div>
@@ -319,7 +337,9 @@
                 <ion-card-content class="p-0">
                   <p class="text-slate-300 small mb-3">Gestisci le schede dei veicoli, km attuali e scadenze
                     assicurazioni.</p>
-                  <ion-button expand="block" fill="solid" color="warning" size="small" onclick="switchRoleDashboardView('global_fleet_manager')">Registro Veicoli (Flotta Globale)</ion-button>
+                  <ion-button expand="block" fill="solid" color="warning" size="small"
+                    onclick="switchRoleDashboardView('global_fleet_manager')">Registro Veicoli (Flotta
+                    Globale)</ion-button>
                 </ion-card-content>
               </ion-card>
             </div>
@@ -361,13 +381,9 @@
                   <ion-card-subtitle color="warning" class="fw-bold text-uppercase tracking-wider">
                     Console Global Fleet Manager
                   </ion-card-subtitle>
-                  <ion-card-title class="fw-bold text-white fs-3 mb-0">
-                    Flotta Aziendale Globale <span class="user-display-name"></span>
-                  </ion-card-title>
+
                 </div>
-                <ion-badge color="warning" class="px-3 py-2 rounded-pill fs-6 text-dark">
-                  Ruolo: Global Fleet Manager
-                </ion-badge>
+
               </div>
               <p class="text-muted small mt-2 mb-0">
                 Supervisione completa di tutti gli autoveicoli aziendali dislocati in ogni sede e reparto.
@@ -376,27 +392,27 @@
 
             <ion-card-content class="p-0">
               <div class="row g-3">
-                <div class="col-3">
+                <div class="col-6 col-md-3">
                   <div class="kpi-stat-box text-center p-2">
-                    <div class="text-muted small fw-bold text-uppercase">Totale Auto</div>
+                    <div class="kpi-label"><i class="bi bi-truck-front-fill text-warning me-1"></i> Totale Auto</div>
                     <div id="global-fleet-stat-total" class="fw-bold text-warning fs-3 mt-1">0</div>
                   </div>
                 </div>
-                <div class="col-3">
+                <div class="col-6 col-md-3">
                   <div class="kpi-stat-box text-center p-2">
-                    <div class="text-muted small fw-bold text-uppercase">Disponibili</div>
+                    <div class="kpi-label"><i class="bi bi-check-circle-fill text-success me-1"></i> Disponibili</div>
                     <div id="global-fleet-stat-disponibili" class="fw-bold text-success fs-3 mt-1">0</div>
                   </div>
                 </div>
-                <div class="col-3">
+                <div class="col-6 col-md-3">
                   <div class="kpi-stat-box text-center p-2">
-                    <div class="text-muted small fw-bold text-uppercase">In Uso</div>
+                    <div class="kpi-label"><i class="bi bi-person-badge-fill text-info me-1"></i> In Uso</div>
                     <div id="global-fleet-stat-inuso" class="fw-bold text-info fs-3 mt-1">0</div>
                   </div>
                 </div>
-                <div class="col-3">
+                <div class="col-6 col-md-3">
                   <div class="kpi-stat-box text-center p-2">
-                    <div class="text-muted small fw-bold text-uppercase">In Manutenzione</div>
+                    <div class="kpi-label"><i class="bi bi-tools text-danger me-1"></i> In Manutenzione</div>
                     <div id="global-fleet-stat-manutenzione" class="fw-bold text-danger fs-3 mt-1">0</div>
                   </div>
                 </div>
@@ -409,7 +425,8 @@
             <h5 class="fw-bold text-white mb-0">
               <i class="bi bi-car-front-fill text-warning me-2"></i> Elenco Autoveicoli Flotta Globale
             </h5>
-            <button id="btn-refresh-global-fleet" class="btn btn-sm btn-outline-warning d-flex align-items-center gap-1">
+            <button id="btn-refresh-global-fleet"
+              class="btn btn-sm btn-outline-warning d-flex align-items-center gap-1">
               <i class="bi bi-arrow-clockwise"></i> Aggiorna
             </button>
           </div>
@@ -418,12 +435,16 @@
           <div class="row g-2 mb-3">
             <div class="col-12 col-md-7">
               <div class="input-group input-group-sm">
-                <span class="input-group-text bg-slate-900 border-slate-700 text-muted"><i class="bi bi-search"></i></span>
-                <input type="text" id="global-fleet-search-input" class="form-control bg-slate-900 border-slate-700 text-white" placeholder="Cerca per targa, modello, marca, reparto...">
+                <span class="input-group-text bg-slate-900 border-slate-700 text-muted"><i
+                    class="bi bi-search"></i></span>
+                <input type="text" id="global-fleet-search-input"
+                  class="form-control bg-slate-900 border-slate-700 text-white"
+                  placeholder="Cerca per targa, modello, marca, reparto...">
               </div>
             </div>
             <div class="col-12 col-md-5">
-              <select id="global-fleet-filter-stato" class="form-select form-select-sm bg-slate-900 border-slate-700 text-white">
+              <select id="global-fleet-filter-stato"
+                class="form-select form-select-sm bg-slate-900 border-slate-700 text-white">
                 <option value="">Tutti gli stati</option>
                 <option value="Disponibile">Disponibile</option>
                 <option value="In Uso">In Uso</option>
@@ -472,19 +493,19 @@
               <div class="row g-3">
                 <div class="col-4">
                   <div class="kpi-stat-box text-center">
-                    <div class="text-muted small fw-bold text-uppercase">Assegnati a Me</div>
+                    <div class="kpi-label"><i class="bi bi-person-workspace text-info me-1"></i> Assegnati a Me</div>
                     <div id="assistenza-stat-my" class="fw-bold text-info fs-3 mt-1">5</div>
                   </div>
                 </div>
                 <div class="col-4">
                   <div class="kpi-stat-box text-center">
-                    <div class="text-muted small fw-bold text-uppercase">Nuovi da Assegnare</div>
+                    <div class="kpi-label"><i class="bi bi-inbox-fill text-warning me-1"></i> Nuovi in Coda</div>
                     <div id="assistenza-stat-unassigned" class="fw-bold text-warning fs-3 mt-1">8</div>
                   </div>
                 </div>
                 <div class="col-4">
                   <div class="kpi-stat-box text-center">
-                    <div class="text-muted small fw-bold text-uppercase">Tempo Risposta</div>
+                    <div class="kpi-label"><i class="bi bi-stopwatch-fill text-success me-1"></i> Tempo Risposta</div>
                     <div class="fw-bold text-success fs-3 mt-1">&lt; 30 min</div>
                   </div>
                 </div>
@@ -553,19 +574,19 @@
               <div class="row g-3">
                 <div class="col-4">
                   <div class="kpi-stat-box text-center">
-                    <div class="text-muted small fw-bold text-uppercase">Membri Reparto</div>
+                    <div class="kpi-label"><i class="bi bi-people-fill text-success me-1"></i> Membri Reparto</div>
                     <div id="resp-stat-emp" class="fw-bold text-success fs-3 mt-1">14</div>
                   </div>
                 </div>
                 <div class="col-4">
                   <div class="kpi-stat-box text-center">
-                    <div class="text-muted small fw-bold text-uppercase">Assenti Oggi</div>
+                    <div class="kpi-label"><i class="bi bi-person-x-fill text-warning me-1"></i> Assenti Oggi</div>
                     <div id="resp-stat-absent" class="fw-bold text-warning fs-3 mt-1">2</div>
                   </div>
                 </div>
                 <div class="col-4">
                   <div class="kpi-stat-box text-center">
-                    <div class="text-muted small fw-bold text-uppercase">Copertura Turni</div>
+                    <div class="kpi-label"><i class="bi bi-shield-check text-info me-1"></i> Copertura Turni</div>
                     <div class="fw-bold text-white fs-3 mt-1">100%</div>
                   </div>
                 </div>
@@ -634,19 +655,19 @@
               <div class="row g-3">
                 <div class="col-4">
                   <div class="kpi-stat-box text-center">
-                    <div class="text-muted small fw-bold text-uppercase">Utenti Totali</div>
+                    <div class="kpi-label"><i class="bi bi-people-fill text-danger me-1"></i> Utenti Totali</div>
                     <div id="admin-stat-users" class="fw-bold text-danger fs-3 mt-1">42</div>
                   </div>
                 </div>
                 <div class="col-4">
                   <div class="kpi-stat-box text-center">
-                    <div class="text-muted small fw-bold text-uppercase">Reparti Attivi</div>
+                    <div class="kpi-label"><i class="bi bi-diagram-3-fill text-info me-1"></i> Reparti Attivi</div>
                     <div id="admin-stat-reparti" class="fw-bold text-white fs-3 mt-1">8</div>
                   </div>
                 </div>
                 <div class="col-4">
                   <div class="kpi-stat-box text-center">
-                    <div class="text-muted small fw-bold text-uppercase">Stato Sistema</div>
+                    <div class="kpi-label"><i class="bi bi-activity text-success me-1"></i> Stato Sistema</div>
                     <div class="fw-bold text-success fs-3 mt-1">Ottimale</div>
                   </div>
                 </div>
@@ -726,8 +747,10 @@
     </ion-page>
   </ion-app>
 
-  <!-- SPA Client Logic con Percorsi Relativi -->
-  <script src="./app.js"></script>
+  <!-- SPA Client Logic con Versione Centralizzata e Cache Busting -->
+  <script>
+    document.write('<script src="./app.js?v=' + (window.APP_VERSION || '1.0.0') + '"><\/script>');
+  </script>
 </body>
 
 </html>

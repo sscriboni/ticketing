@@ -133,7 +133,28 @@ ion-page.page-view.active {
 
 .kpi-stat-box {
   background: #0f172a;
-  border: 1px solid #334155;
+  border: 1px solid #3b4966;
   border-radius: 16px;
-  padding: 1.2rem;
+  padding: 1.1rem 0.8rem;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.35);
+  transition: transform 0.2s ease, border-color 0.2s ease, box-shadow 0.2s ease;
+}
+
+.kpi-stat-box:hover {
+  border-color: #60a5fa;
+  box-shadow: 0 6px 18px rgba(0, 0, 0, 0.5);
+  transform: translateY(-2px);
+}
+
+.kpi-stat-box .kpi-label,
+.kpi-stat-box .text-muted {
+  color: #f1f5f9 !important; /* Bianco-ghiaccio nitido ad altissimo contrasto su sfondo scuro */
+  font-size: 0.82rem;
+  font-weight: 700;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
 }
