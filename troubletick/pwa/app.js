@@ -1735,20 +1735,6 @@ document.addEventListener('DOMContentLoaded', () => {
     formCompletaViaggio.addEventListener('submit', submitCompleteViaggio);
   }
 
-  // Ricerca e Filtri Modal Prenotazioni Attive Flotta
-  const fleetSearchInput = document.getElementById('fleet-bookings-search-input');
-  if (fleetSearchInput) {
-    fleetSearchInput.addEventListener('input', () => renderFleetActiveBookingsList(currentFleetActiveBookings));
-  }
-  const fleetFilterStato = document.getElementById('fleet-bookings-filter-stato');
-  if (fleetFilterStato) {
-    fleetFilterStato.addEventListener('change', () => renderFleetActiveBookingsList(currentFleetActiveBookings));
-  }
-  const btnRefreshFleetBookings = document.getElementById('btn-refresh-fleet-bookings');
-  if (btnRefreshFleetBookings) {
-    btnRefreshFleetBookings.addEventListener('click', () => loadFleetActiveBookings(true));
-  }
-
   // Gestione Bottom Tabs Bar PWA
   document.querySelectorAll('ion-tab-button').forEach(tabBtn => {
     tabBtn.addEventListener('click', () => {
@@ -1775,13 +1761,13 @@ document.addEventListener('DOMContentLoaded', () => {
 
   // Toggle Mostra/Nascondi Password Login
   const btnTogglePassword = document.getElementById('btn-toggle-password');
-  const passwordInput = document.getElementById('login-password');
+  const loginPasswordInput = document.getElementById('login-password');
   const iconTogglePassword = document.getElementById('icon-toggle-password');
 
-  if (btnTogglePassword && passwordInput) {
+  if (btnTogglePassword && loginPasswordInput) {
     btnTogglePassword.addEventListener('click', () => {
-      const isPassword = passwordInput.type === 'password';
-      passwordInput.type = isPassword ? 'text' : 'password';
+      const isPassword = loginPasswordInput.type === 'password';
+      loginPasswordInput.type = isPassword ? 'text' : 'password';
       if (iconTogglePassword) {
         iconTogglePassword.className = isPassword ? 'bi bi-eye-slash-fill text-warning' : 'bi bi-eye';
       }
@@ -1795,10 +1781,8 @@ document.addEventListener('DOMContentLoaded', () => {
       hideLoginError();
 
       const usernameInput = document.getElementById('login-username');
-      const passwordInput = document.getElementById('login-password');
-
       const username = usernameInput ? usernameInput.value.trim() : '';
-      const password = passwordInput ? passwordInput.value.trim() : '';
+      const password = loginPasswordInput ? loginPasswordInput.value.trim() : '';
 
       if (!username || !password) {
         showLoginError('Inserisci sia lo username che la password.');
