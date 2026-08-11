@@ -2790,15 +2790,24 @@ def add_tag(r: Request, nome: str = Form(...), colore: str = Form("#0d6efd"), de
     colore_clean = colore.strip() if colore else "#0d6efd"
     desc_clean = descrizione.strip() if descrizione else None
     
-    with engine.begin() as conn:
-        exists = conn.execute(text("SELECT COUNT(*) FROM tag_automezzi WHERE LOWER(nome) = LOWER(:nome)"), {"nome": nome_clean}).scalar()
-        if not exists:
+    if not nome_clean:
+        return RedirectResponse(url=f"/admin/automezzi/tag?error={urllib.parse.quote('Il nome del tag non può essere vuoto.')}", status_code=303)
+
+    try:
+        with engine.begin() as conn:
+            exists = conn.execute(text("SELECT COUNT(*) FROM tag_automezzi WHERE LOWER(nome) = LOWER(:nome)"), {"nome": nome_clean}).scalar()
+            if exists:
+                err_msg = f"Esiste già un tag con il nome '{nome_clean}'."
+                return RedirectResponse(url=f"/admin/automezzi/tag?error={urllib.parse.quote(err_msg)}", status_code=303)
             conn.execute(text("""
                 INSERT INTO tag_automezzi (nome, colore, descrizione)
                 VALUES (:nome, :colore, :desc)
             """), {"nome": nome_clean, "colore": colore_clean, "desc": desc_clean})
+    except Exception as e:
+        err_msg = f"Errore durante la creazione del tag: {e}"
+        return RedirectResponse(url=f"/admin/automezzi/tag?error={urllib.parse.quote(err_msg)}", status_code=303)
         
-    return RedirectResponse(url="/admin/automezzi/tag", status_code=303)
+    return RedirectResponse(url=f"/admin/automezzi/tag?success={urllib.parse.quote('Tag creato con successo.')}", status_code=303)
 
 @router.post("/admin/automezzi/tag/modifica/{id}")
 def edit_tag(id: int, r: Request, nome: str = Form(...), colore: str = Form("#0d6efd"), descrizione: str = Form(None)):
@@ -2812,14 +2821,28 @@ def edit_tag(id: int, r: Request, nome: str = Form(...), colore: str = Form("#0d
     colore_clean = colore.strip() if colore else "#0d6efd"
     desc_clean = descrizione.strip() if descrizione else None
     
-    with engine.begin() as conn:
-        conn.execute(text("""
-            UPDATE tag_automezzi
-            SET nome = :nome, colore = :colore, descrizione = :desc
-            WHERE tag_id = :id
-        """), {"id": id, "nome": nome_clean, "colore": colore_clean, "desc": desc_clean})
+    if not nome_clean:
+        return RedirectResponse(url=f"/admin/automezzi/tag?error={urllib.parse.quote('Il nome del tag non può essere vuoto.')}", status_code=303)
+
+    try:
+        with engine.begin() as conn:
+            exists = conn.execute(text("""
+                SELECT COUNT(*) FROM tag_automezzi 
+                WHERE LOWER(nome) = LOWER(:nome) AND tag_id != :id
+            """), {"nome": nome_clean, "id": id}).scalar()
+            if exists:
+                err_msg = f"Esiste già un altro tag denominato '{nome_clean}'."
+                return RedirectResponse(url=f"/admin/automezzi/tag?error={urllib.parse.quote(err_msg)}", status_code=303)
+            conn.execute(text("""
+                UPDATE tag_automezzi
+                SET nome = :nome, colore = :colore, descrizione = :desc
+                WHERE tag_id = :id
+            """), {"id": id, "nome": nome_clean, "colore": colore_clean, "desc": desc_clean})
+    except Exception as e:
+        err_msg = f"Errore durante la modifica del tag: {e}"
+        return RedirectResponse(url=f"/admin/automezzi/tag?error={urllib.parse.quote(err_msg)}", status_code=303)
         
-    return RedirectResponse(url="/admin/automezzi/tag", status_code=303)
+    return RedirectResponse(url=f"/admin/automezzi/tag?success={urllib.parse.quote('Tag modificato con successo.')}", status_code=303)
 
 @router.post("/admin/automezzi/tag/elimina/{id}")
 def delete_tag(id: int, r: Request):
@@ -2829,10 +2852,14 @@ def delete_tag(id: int, r: Request):
     if user.get("ruolo") not in ("admin", "global_fleet_manager"):
         return RedirectResponse(url="/", status_code=303)
         
-    with engine.begin() as conn:
-        conn.execute(text("DELETE FROM tag_automezzi WHERE tag_id = :id"), {"id": id})
+    try:
+        with engine.begin() as conn:
+            conn.execute(text("DELETE FROM tag_automezzi WHERE tag_id = :id"), {"id": id})
+    except Exception as e:
+        err_msg = f"Errore durante l'eliminazione del tag: {e}"
+        return RedirectResponse(url=f"/admin/automezzi/tag?error={urllib.parse.quote(err_msg)}", status_code=303)
         
-    return RedirectResponse(url="/admin/automezzi/tag", status_code=303)
+    return RedirectResponse(url=f"/admin/automezzi/tag?success={urllib.parse.quote('Tag eliminato con successo.')}", status_code=303)
 
 @router.get("/admin/automezzi/viaggi", response_class=HTMLResponse)
 def list_viaggi(r: Request):
