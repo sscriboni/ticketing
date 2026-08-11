@@ -344,37 +344,44 @@ def get_me(user: dict = Depends(get_current_user)):
 @app.get("/dashboard", response_model=DashboardResponse)
 def get_dashboard_metrics(user: dict = Depends(get_current_user)):
     user_ruolo = user.get("ruolo", "normale")
+    user_roles = user.get("roles") or [user_ruolo]
+    reparto_id = user.get("reparto_id")
+    today_str = datetime.now().strftime("%Y-%m-%d")
+
+    is_global_fleet = any(r in ("admin", "global_fleet_manager") for r in user_roles) or user_ruolo in ("admin", "global_fleet_manager")
+    is_fleet_mgr = "fleet_manager" in user_roles or user_ruolo == "fleet_manager"
+
     tickets_open = 0
-    vehicles_count = 376
-    reparto_nome = None
+    tickets_in_progress = 0
+    tickets_closed = 0
+    vehicles_count = 0
+
     role_stats = {}
 
     try:
         with engine.connect() as conn:
-            # Metriche generali
+            # Conteggi generali Tickets
             try:
-                row_t = conn.execute(text("SELECT COUNT(*) FROM tickets WHERE stato IN ('nuova', 'in_lavorazione')")).scalar()
-                if row_t is not None:
-                    tickets_open = row_t
-            except Exception:
-                pass
+                row_open = conn.execute(text("SELECT COUNT(*) FROM tickets WHERE stato = 'nuova'")).scalar()
+                row_in_prog = conn.execute(text("SELECT COUNT(*) FROM tickets WHERE stato = 'in_lavorazione'")).scalar()
+                row_closed = conn.execute(text("SELECT COUNT(*) FROM tickets WHERE stato IN ('chiusa', 'risolta')")).scalar()
+                tickets_open = row_open or 0
+                tickets_in_progress = row_in_prog or 0
+                tickets_closed = row_closed or 0
+            except Exception as e:
+                api_logger.warning("[DASHBOARD] Avviso conteggio tickets: %s", e)
 
+            # Conteggio Automezzi
             try:
-                row_v = conn.execute(text("SELECT COUNT(*) FROM automezzi")).scalar()
-                if row_v is not None and row_v > 0:
-                    vehicles_count = row_v
-            except Exception:
-                pass
+                if is_fleet_mgr and not is_global_fleet and reparto_id:
+                    row_v = conn.execute(text("SELECT COUNT(*) FROM automezzi WHERE reparto_assegnato_id = :rep"), {"rep": reparto_id}).scalar()
+                else:
+                    row_v = conn.execute(text("SELECT COUNT(*) FROM automezzi")).scalar()
+                vehicles_count = row_v or 0
+            except Exception as e:
+                api_logger.warning("[DASHBOARD] Avviso conteggio automezzi: %s", e)
 
-            if user.get("reparto_id"):
-                try:
-                    row_r = conn.execute(text("SELECT nome FROM reparti WHERE reparto_id = :rid"), {"rid": user["reparto_id"]}).scalar()
-                    if row_r:
-                        reparto_nome = row_r
-                except Exception:
-                    pass
-
-            # Metriche specifiche per ruolo
+            # Statistiche specifiche per ruolo
             if user_ruolo == "admin":
                 row_u = conn.execute(text("SELECT COUNT(*) FROM users")).scalar() or 0
                 row_rep = conn.execute(text("SELECT COUNT(*) FROM reparti")).scalar() or 0
@@ -384,22 +391,35 @@ def get_dashboard_metrics(user: dict = Depends(get_current_user)):
                     "system_status": "Ottimale"
                 }
             elif user_ruolo in ("fleet_manager", "global_fleet_manager"):
-                row_trips = None
-                row_maint = None
+                row_trips = 0
+                row_maint = 0
                 try:
-                    row_trips = conn.execute(text("SELECT COUNT(*) FROM viaggi_automezzi WHERE ora_arrivo IS NULL")).scalar()
-                except Exception:
-                    try:
-                        row_trips = conn.execute(text("SELECT COUNT(*) FROM viaggi WHERE ora_arrivo_effettiva IS NULL")).scalar()
-                    except Exception:
-                        pass
-                try:
-                    row_maint = conn.execute(text("SELECT COUNT(*) FROM manutenzioni_automezzi WHERE data_fine IS NULL OR data_fine = ''")).scalar()
-                except Exception:
-                    try:
-                        row_maint = conn.execute(text("SELECT COUNT(*) FROM manutenzioni WHERE conclusa = 0")).scalar()
-                    except Exception:
-                        pass
+                    if is_fleet_mgr and not is_global_fleet and reparto_id:
+                        row_trips = conn.execute(text("""
+                            SELECT COUNT(DISTINCT a.automezzo_id) 
+                            FROM automezzi a
+                            JOIN viaggi_automezzi v ON a.automezzo_id = v.automezzo_id
+                            WHERE a.reparto_assegnato_id = :rep
+                              AND (v.ora_arrivo IS NULL OR v.ora_arrivo = '')
+                              AND (v.data_viaggio >= :today OR v.ora_partenza_effettiva IS NOT NULL)
+                        """), {"rep": reparto_id, "today": today_str}).scalar() or 0
+                        row_maint = conn.execute(text("""
+                            SELECT COUNT(*) 
+                            FROM manutenzioni_automezzi m
+                            JOIN automezzi a ON m.automezzo_id = a.automezzo_id
+                            WHERE a.reparto_assegnato_id = :rep AND (m.data_fine IS NULL OR m.data_fine = '')
+                        """), {"rep": reparto_id}).scalar() or 0
+                    else:
+                        row_trips = conn.execute(text("""
+                            SELECT COUNT(DISTINCT a.automezzo_id) 
+                            FROM automezzi a
+                            JOIN viaggi_automezzi v ON a.automezzo_id = v.automezzo_id
+                            WHERE (v.ora_arrivo IS NULL OR v.ora_arrivo = '')
+                              AND (v.data_viaggio >= :today OR v.ora_partenza_effettiva IS NOT NULL)
+                        """), {"today": today_str}).scalar() or 0
+                        row_maint = conn.execute(text("SELECT COUNT(*) FROM manutenzioni_automezzi WHERE data_fine IS NULL OR data_fine = ''")).scalar() or 0
+                except Exception as ex:
+                    api_logger.warning("[DASHBOARD] Avviso recupero metriche flotta: %s", ex)
 
                 role_stats = {
                     "active_trips": row_trips or 0,
@@ -428,27 +448,26 @@ def get_dashboard_metrics(user: dict = Depends(get_current_user)):
                 role_stats = {
                     "my_open_tickets": row_user_t,
                     "my_active_trips": 0,
-                    "attendance_today": "In Sede"
+                    "pending_requests": 0
                 }
 
     except Exception as e:
-        api_logger.error("[DASHBOARD ERROR] Errore calcolo metriche dashboard per utente ID %s: %s", user.get("user_id"), e, exc_info=True)
+        api_logger.error("[DASHBOARD ERROR] Errore recupero statistiche per utente ID %s: %s", user.get("user_id"), e, exc_info=True)
+        raise HTTPException(status_code=500, detail=f"Errore caricamento statistiche dashboard: {str(e)}")
 
-    api_logger.info("[DASHBOARD] Metriche caricate per utente '%s' (ID: %s, Ruolo: %s) - Tickets: %s, Veicoli: %s", user.get("username"), user.get("user_id"), user_ruolo, tickets_open, vehicles_count)
+    api_logger.info("[DASHBOARD] Metriche caricate per utente '%s' (ID: %s, Ruolo: %s) - Tickets: %d, Veicoli: %d", user.get("username"), user.get("user_id"), user_ruolo, (tickets_open + tickets_in_progress), vehicles_count)
 
     return DashboardResponse(
-        ruolo=user_ruolo,
         tickets_open=tickets_open,
+        tickets_in_progress=tickets_in_progress,
+        tickets_closed=tickets_closed,
         vehicles_count=vehicles_count,
-        presenze_status="Operativo",
-        user_reparto_nome=reparto_nome,
         role_stats=role_stats
     )
 
 
 @app.get("/api/automezzi", response_model=AutomezziListResponse)
 @app.get("/automezzi", response_model=AutomezziListResponse)
-@app.get("/api/autoveicoli", response_model=AutomezziListResponse)
 def get_automezzi(
     stato: Optional[str] = Query(None),
     search: Optional[str] = Query(None),
@@ -457,7 +476,6 @@ def get_automezzi(
     user_ruolo = user.get("ruolo", "normale")
     user_roles = user.get("roles") or [user_ruolo]
     reparto_id = user.get("reparto_id")
-
     is_global = any(r in ("admin", "global_fleet_manager") for r in user_roles) or user_ruolo in ("admin", "global_fleet_manager")
     is_fleet_mgr = "fleet_manager" in user_roles or user_ruolo == "fleet_manager"
     today_str = datetime.now().strftime("%Y-%m-%d")
@@ -482,11 +500,50 @@ def get_automezzi(
                           AND (v.ora_arrivo IS NULL OR v.ora_arrivo = '') 
                           AND (v.data_viaggio >= :today OR v.ora_partenza_effettiva IS NOT NULL) 
                         ORDER BY v.data_viaggio ASC, v.ora_partenza ASC LIMIT 1) as active_viaggio_id,
+                       (SELECT v.data_viaggio FROM viaggi_automezzi v 
+                        WHERE v.automezzo_id = a.automezzo_id 
+                          AND (v.ora_arrivo IS NULL OR v.ora_arrivo = '') 
+                          AND (v.data_viaggio >= :today OR v.ora_partenza_effettiva IS NOT NULL) 
+                        ORDER BY v.data_viaggio ASC, v.ora_partenza ASC LIMIT 1) as active_viaggio_data,
+                       (SELECT v.ora_partenza FROM viaggi_automezzi v 
+                        WHERE v.automezzo_id = a.automezzo_id 
+                          AND (v.ora_arrivo IS NULL OR v.ora_arrivo = '') 
+                          AND (v.data_viaggio >= :today OR v.ora_partenza_effettiva IS NOT NULL) 
+                        ORDER BY v.data_viaggio ASC, v.ora_partenza ASC LIMIT 1) as active_viaggio_ora_partenza,
+                       (SELECT v.ora_riconsegna_prevista FROM viaggi_automezzi v 
+                        WHERE v.automezzo_id = a.automezzo_id 
+                          AND (v.ora_arrivo IS NULL OR v.ora_arrivo = '') 
+                          AND (v.data_viaggio >= :today OR v.ora_partenza_effettiva IS NOT NULL) 
+                        ORDER BY v.data_viaggio ASC, v.ora_partenza ASC LIMIT 1) as active_viaggio_ora_riconsegna,
                        (SELECT v.ora_partenza_effettiva FROM viaggi_automezzi v 
                         WHERE v.automezzo_id = a.automezzo_id 
                           AND (v.ora_arrivo IS NULL OR v.ora_arrivo = '') 
                           AND (v.data_viaggio >= :today OR v.ora_partenza_effettiva IS NOT NULL) 
-                        ORDER BY v.data_viaggio ASC, v.ora_partenza ASC LIMIT 1) as active_viaggio_partenza_effettiva
+                        ORDER BY v.data_viaggio ASC, v.ora_partenza ASC LIMIT 1) as active_viaggio_partenza_effettiva,
+                       (SELECT COALESCE(u.nome || ' ' || u.cognome, v.email_conducente, '') 
+                        FROM viaggi_automezzi v 
+                        LEFT JOIN users u ON v.user_id = u.user_id 
+                        WHERE v.automezzo_id = a.automezzo_id 
+                          AND (v.ora_arrivo IS NULL OR v.ora_arrivo = '') 
+                          AND (v.data_viaggio >= :today OR v.ora_partenza_effettiva IS NOT NULL) 
+                        ORDER BY v.data_viaggio ASC, v.ora_partenza ASC LIMIT 1) as active_viaggio_conducente,
+                       (SELECT v.note FROM viaggi_automezzi v 
+                        WHERE v.automezzo_id = a.automezzo_id 
+                          AND (v.ora_arrivo IS NULL OR v.ora_arrivo = '') 
+                          AND (v.data_viaggio >= :today OR v.ora_partenza_effettiva IS NOT NULL) 
+                        ORDER BY v.data_viaggio ASC, v.ora_partenza ASC LIMIT 1) as active_viaggio_note,
+                       (SELECT m.tipo_servizio FROM manutenzioni_automezzi m 
+                        WHERE m.automezzo_id = a.automezzo_id 
+                          AND (m.data_fine IS NULL OR m.data_fine = '') 
+                        ORDER BY m.data_inizio DESC, m.ora_inizio DESC LIMIT 1) as active_manutenzione_servizio,
+                       (SELECT m.luogo FROM manutenzioni_automezzi m 
+                        WHERE m.automezzo_id = a.automezzo_id 
+                          AND (m.data_fine IS NULL OR m.data_fine = '') 
+                        ORDER BY m.data_inizio DESC, m.ora_inizio DESC LIMIT 1) as active_manutenzione_luogo,
+                       (SELECT (m.data_inizio || ' ' || m.ora_inizio) FROM manutenzioni_automezzi m 
+                        WHERE m.automezzo_id = a.automezzo_id 
+                          AND (m.data_fine IS NULL OR m.data_fine = '') 
+                        ORDER BY m.data_inizio DESC, m.ora_inizio DESC LIMIT 1) as active_manutenzione_data_inizio
                 FROM automezzi a
                 LEFT JOIN marche_automezzi m ON a.marca_id = m.marca_id
                 LEFT JOIN sedi s_ass ON a.sede_assegnata_id = s_ass.sede_id
@@ -544,13 +601,12 @@ def get_automezzi(
                     tot_in_uso += 1
                     stato_effettivo = "In Uso"
                 elif has_active_trip:
-                    tot_in_uso += 1  # Incluso in 'In Uso / Prenotati'
+                    tot_in_uso += 1
                     stato_effettivo = "Prenotata"
                 else:
                     tot_disponibili += 1
                     stato_effettivo = st or "Disponibile"
 
-                # Applicazione filtro di stato dinamico
                 if filter_st:
                     if filter_st in ("in uso", "in_uso", "prenotata", "prenotate"):
                         if stato_effettivo not in ("In Uso", "Prenotata"):
@@ -587,7 +643,17 @@ def get_automezzi(
                     fornitore=r["fornitore"] or "",
                     classe_euro=r["classe_euro"] or "",
                     escluso_prenotazione=r["escluso_prenotazione"] or 0,
-                    tags=tags_map.get(r["automezzo_id"], [])
+                    tags=tags_map.get(r["automezzo_id"], []),
+                    active_viaggio_id=r.get("active_viaggio_id"),
+                    active_viaggio_data=r.get("active_viaggio_data"),
+                    active_viaggio_ora_partenza=r.get("active_viaggio_ora_partenza"),
+                    active_viaggio_ora_riconsegna=r.get("active_viaggio_ora_riconsegna"),
+                    active_viaggio_partenza_effettiva=r.get("active_viaggio_partenza_effettiva"),
+                    active_viaggio_conducente=r.get("active_viaggio_conducente"),
+                    active_viaggio_note=r.get("active_viaggio_note"),
+                    active_manutenzione_servizio=r.get("active_manutenzione_servizio"),
+                    active_manutenzione_luogo=r.get("active_manutenzione_luogo"),
+                    active_manutenzione_data_inizio=r.get("active_manutenzione_data_inizio")
                 )
                 automezzi_list.append(item)
 
@@ -604,6 +670,170 @@ def get_automezzi(
         totale_in_manutenzione=tot_in_manutenzione,
         automezzi=automezzi_list
     )
+
+
+@app.get("/api/automezzi/{automezzo_id}", response_model=AutomezzoResponse)
+@app.get("/automezzi/{automezzo_id}", response_model=AutomezzoResponse)
+def get_automezzo_detail(automezzo_id: int, user: dict = Depends(get_current_user)):
+    user_ruolo = user.get("ruolo", "normale")
+    user_roles = user.get("roles") or [user_ruolo]
+    reparto_id = user.get("reparto_id")
+    is_global = any(r in ("admin", "global_fleet_manager") for r in user_roles) or user_ruolo in ("admin", "global_fleet_manager")
+    is_fleet_mgr = "fleet_manager" in user_roles or user_ruolo == "fleet_manager"
+    today_str = datetime.now().strftime("%Y-%m-%d")
+
+    try:
+        with engine.connect() as conn:
+            query = """
+                SELECT a.automezzo_id, a.targa, a.marca_id, COALESCE(m.nome, '') as marca_nome,
+                       a.modello, a.tipo, a.note, a.alimentazione, a.data_immatricolazione,
+                       a.proprieta, a.canone_noleggio, a.km_attuali, a.stato,
+                       a.sede_assegnata_id, COALESCE(s_ass.nome, '') as sede_assegnata_nome,
+                       a.sede_attuale_id, COALESCE(s_att.nome, '') as sede_attuale_nome,
+                       a.reparto_assegnato_id, COALESCE(r.nome, '') as reparto_assegnato_nome,
+                       a.fornitore, a.classe_euro, COALESCE(a.escluso_prenotazione, 0) as escluso_prenotazione,
+                       (SELECT v.viaggio_id FROM viaggi_automezzi v 
+                        WHERE v.automezzo_id = a.automezzo_id 
+                          AND (v.ora_arrivo IS NULL OR v.ora_arrivo = '') 
+                          AND (v.data_viaggio >= :today OR v.ora_partenza_effettiva IS NOT NULL) 
+                        ORDER BY v.data_viaggio ASC, v.ora_partenza ASC LIMIT 1) as active_viaggio_id,
+                       (SELECT v.data_viaggio FROM viaggi_automezzi v 
+                        WHERE v.automezzo_id = a.automezzo_id 
+                          AND (v.ora_arrivo IS NULL OR v.ora_arrivo = '') 
+                          AND (v.data_viaggio >= :today OR v.ora_partenza_effettiva IS NOT NULL) 
+                        ORDER BY v.data_viaggio ASC, v.ora_partenza ASC LIMIT 1) as active_viaggio_data,
+                       (SELECT v.ora_partenza FROM viaggi_automezzi v 
+                        WHERE v.automezzo_id = a.automezzo_id 
+                          AND (v.ora_arrivo IS NULL OR v.ora_arrivo = '') 
+                          AND (v.data_viaggio >= :today OR v.ora_partenza_effettiva IS NOT NULL) 
+                        ORDER BY v.data_viaggio ASC, v.ora_partenza ASC LIMIT 1) as active_viaggio_ora_partenza,
+                       (SELECT v.ora_riconsegna_prevista FROM viaggi_automezzi v 
+                        WHERE v.automezzo_id = a.automezzo_id 
+                          AND (v.ora_arrivo IS NULL OR v.ora_arrivo = '') 
+                          AND (v.data_viaggio >= :today OR v.ora_partenza_effettiva IS NOT NULL) 
+                        ORDER BY v.data_viaggio ASC, v.ora_partenza ASC LIMIT 1) as active_viaggio_ora_riconsegna,
+                       (SELECT v.ora_partenza_effettiva FROM viaggi_automezzi v 
+                        WHERE v.automezzo_id = a.automezzo_id 
+                          AND (v.ora_arrivo IS NULL OR v.ora_arrivo = '') 
+                          AND (v.data_viaggio >= :today OR v.ora_partenza_effettiva IS NOT NULL) 
+                        ORDER BY v.data_viaggio ASC, v.ora_partenza ASC LIMIT 1) as active_viaggio_partenza_effettiva,
+                       (SELECT COALESCE(u.nome || ' ' || u.cognome, v.email_conducente, '') 
+                        FROM viaggi_automezzi v 
+                        LEFT JOIN users u ON v.user_id = u.user_id 
+                        WHERE v.automezzo_id = a.automezzo_id 
+                          AND (v.ora_arrivo IS NULL OR v.ora_arrivo = '') 
+                          AND (v.data_viaggio >= :today OR v.ora_partenza_effettiva IS NOT NULL) 
+                        ORDER BY v.data_viaggio ASC, v.ora_partenza ASC LIMIT 1) as active_viaggio_conducente,
+                       (SELECT v.note FROM viaggi_automezzi v 
+                        WHERE v.automezzo_id = a.automezzo_id 
+                          AND (v.ora_arrivo IS NULL OR v.ora_arrivo = '') 
+                          AND (v.data_viaggio >= :today OR v.ora_partenza_effettiva IS NOT NULL) 
+                        ORDER BY v.data_viaggio ASC, v.ora_partenza ASC LIMIT 1) as active_viaggio_note,
+                       (SELECT m.tipo_servizio FROM manutenzioni_automezzi m 
+                        WHERE m.automezzo_id = a.automezzo_id 
+                          AND (m.data_fine IS NULL OR m.data_fine = '') 
+                        ORDER BY m.data_inizio DESC, m.ora_inizio DESC LIMIT 1) as active_manutenzione_servizio,
+                       (SELECT m.luogo FROM manutenzioni_automezzi m 
+                        WHERE m.automezzo_id = a.automezzo_id 
+                          AND (m.data_fine IS NULL OR m.data_fine = '') 
+                        ORDER BY m.data_inizio DESC, m.ora_inizio DESC LIMIT 1) as active_manutenzione_luogo,
+                       (SELECT (m.data_inizio || ' ' || m.ora_inizio) FROM manutenzioni_automezzi m 
+                        WHERE m.automezzo_id = a.automezzo_id 
+                          AND (m.data_fine IS NULL OR m.data_fine = '') 
+                        ORDER BY m.data_inizio DESC, m.ora_inizio DESC LIMIT 1) as active_manutenzione_data_inizio
+                FROM automezzi a
+                LEFT JOIN marche_automezzi m ON a.marca_id = m.marca_id
+                LEFT JOIN sedi s_ass ON a.sede_assegnata_id = s_ass.sede_id
+                LEFT JOIN sedi s_att ON a.sede_attuale_id = s_att.sede_id
+                LEFT JOIN reparti r ON a.reparto_assegnato_id = r.reparto_id
+                WHERE a.automezzo_id = :aid
+            """
+            params = {"aid": automezzo_id, "today": today_str}
+            if is_fleet_mgr and not is_global and reparto_id:
+                query += " AND a.reparto_assegnato_id = :reparto_id"
+                params["reparto_id"] = reparto_id
+
+            r = conn.execute(text(query), params).mappings().first()
+            if not r:
+                api_logger.warning("[FLEET] Scheda automezzo ID %s non trovata o non autorizzato per utente ID %s", automezzo_id, user.get("user_id"))
+                raise HTTPException(status_code=404, detail="Automezzo non trovato o accesso non autorizzato.")
+
+            tags = []
+            try:
+                tag_rows = conn.execute(text("""
+                    SELECT t.tag_id, t.nome, t.colore, t.descrizione
+                    FROM automezzi_tag at
+                    JOIN tag_automezzi t ON at.tag_id = t.tag_id
+                    WHERE at.automezzo_id = :aid
+                    ORDER BY t.nome
+                """), {"aid": automezzo_id}).mappings().all()
+                for tr in tag_rows:
+                    tags.append(TagInfo(
+                        tag_id=tr["tag_id"],
+                        nome=tr["nome"],
+                        colore=tr["colore"] or "#0d6efd",
+                        descrizione=tr["descrizione"] or ""
+                    ))
+            except Exception as te:
+                api_logger.warning("[FLEET] Avviso recupero tag singolo automezzo ID %s: %s", automezzo_id, te)
+
+            st = (r["stato"] or "").strip()
+            st_lower = st.lower()
+            has_active_trip = bool(r.get("active_viaggio_id"))
+            is_trip_started = bool(r.get("active_viaggio_partenza_effettiva"))
+
+            if st_lower == "in manutenzione":
+                stato_effettivo = "In Manutenzione"
+            elif st_lower == "in uso" or is_trip_started:
+                stato_effettivo = "In Uso"
+            elif has_active_trip:
+                stato_effettivo = "Prenotata"
+            else:
+                stato_effettivo = st or "Disponibile"
+
+            api_logger.info("[FLEET] Scheda automezzo ID %s (%s) aperta da '%s' (ID: %s)", automezzo_id, r["targa"], user.get("username"), user.get("user_id"))
+
+            return AutomezzoResponse(
+                automezzo_id=r["automezzo_id"],
+                targa=r["targa"],
+                marca_id=r["marca_id"],
+                marca_nome=r["marca_nome"],
+                modello=r["modello"],
+                tipo=r["tipo"],
+                note=r["note"] or "",
+                alimentazione=r["alimentazione"] or "",
+                data_immatricolazione=r["data_immatricolazione"] or "",
+                proprieta=r["proprieta"] or "",
+                canone_noleggio=float(r["canone_noleggio"] or 0),
+                km_attuali=r["km_attuali"] or 0,
+                stato=stato_effettivo,
+                sede_assegnata_id=r["sede_assegnata_id"],
+                sede_assegnata_nome=r["sede_assegnata_nome"],
+                sede_attuale_id=r["sede_attuale_id"],
+                sede_attuale_nome=r["sede_attuale_nome"],
+                reparto_assegnato_id=r["reparto_assegnato_id"],
+                reparto_assegnato_nome=r["reparto_assegnato_nome"],
+                fornitore=r["fornitore"] or "",
+                classe_euro=r["classe_euro"] or "",
+                escluso_prenotazione=r["escluso_prenotazione"] or 0,
+                tags=tags,
+                active_viaggio_id=r.get("active_viaggio_id"),
+                active_viaggio_data=r.get("active_viaggio_data"),
+                active_viaggio_ora_partenza=r.get("active_viaggio_ora_partenza"),
+                active_viaggio_ora_riconsegna=r.get("active_viaggio_ora_riconsegna"),
+                active_viaggio_partenza_effettiva=r.get("active_viaggio_partenza_effettiva"),
+                active_viaggio_conducente=r.get("active_viaggio_conducente"),
+                active_viaggio_note=r.get("active_viaggio_note"),
+                active_manutenzione_servizio=r.get("active_manutenzione_servizio"),
+                active_manutenzione_luogo=r.get("active_manutenzione_luogo"),
+                active_manutenzione_data_inizio=r.get("active_manutenzione_data_inizio")
+            )
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        api_logger.error("[FLEET ERROR] Errore recupero scheda automezzo ID %s: %s", automezzo_id, e, exc_info=True)
+        raise HTTPException(status_code=500, detail=f"Errore recupero scheda automezzo: {str(e)}")
 
 
 @app.get("/api/sedi", response_model=SediListResponse)

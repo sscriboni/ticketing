@@ -139,12 +139,17 @@
                   <th>Km Attuali</th>
                   <th>Sede Attuale</th>
                   <th>Stato</th>
+                  <th class="text-center">Dettagli</th>
                 </tr>
               </thead>
               <tbody>
                 {% for v in stats.fleet_vehicles_list %}
                 <tr>
-                  <td><strong class="font-monospace text-dark fs-5 text-uppercase" style="letter-spacing: 1.5px; font-weight: 800;">{{ v.targa }}</strong></td>
+                  <td>
+                    <a href="javascript:void(0)" class="text-decoration-none text-dark" onclick="mostraSchedaVeicolo({{ v | tojson | forceescape }})" title="Visualizza scheda completa">
+                      <strong class="font-monospace text-dark fs-5 text-uppercase" style="letter-spacing: 1.5px; font-weight: 800;">{{ v.targa }}</strong>
+                    </a>
+                  </td>
                   <td><strong>{{ v.marca_nome }} {{ v.modello }}</strong> <small class="text-muted d-block">{{ v.tipo }}</small></td>
                   <td><span class="fw-bold text-primary">{{ v.km_attuali or 0 }}</span> <small class="text-muted">km</small></td>
                   <td><small class="text-muted">{{ v.sede_attuale_nome or '-' }}</small></td>
@@ -162,6 +167,11 @@
                     {% else %}
                       <span class="badge bg-success text-white"><i class="bi bi-check-circle-fill me-1"></i>Disponibile</span>
                     {% endif %}
+                  </td>
+                  <td class="text-center">
+                    <button type="button" class="btn btn-sm btn-outline-primary py-1 px-2 fw-semibold d-inline-flex align-items-center gap-1" onclick="mostraSchedaVeicolo({{ v | tojson | forceescape }})">
+                      <i class="bi bi-eye"></i> Scheda
+                    </button>
                   </td>
                 </tr>
                 {% endfor %}
@@ -237,10 +247,254 @@
     </div>
   </div>
 
+  <!-- Modal Scheda Automezzo (Sola Visualizzazione Mobile & Tablet Responsive) -->
+  <div class="modal fade" id="modalSchedaAutomezzo" tabindex="-1" aria-labelledby="modalSchedaAutomezzoLabel" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered modal-dialog-scrollable modal-lg">
+      <div class="modal-content shadow-lg border-0 rounded-4">
+        <div class="modal-header bg-light border-bottom pb-3">
+          <div class="d-flex align-items-center gap-3">
+            <div class="p-2 rounded-3 bg-teal bg-opacity-10 text-teal" style="background-color: rgba(13, 148, 136, 0.1); color: #0d9488;">
+              <i class="bi bi-car-front-fill fs-3"></i>
+            </div>
+            <div>
+              <div class="d-flex align-items-center gap-2 flex-wrap">
+                <span id="modal-sv-targa" class="badge bg-dark text-warning font-monospace fs-5 px-3 py-1 border">
+                  -
+                </span>
+                <span id="modal-sv-stato-badge" class="badge bg-success px-2 py-1 fs-6">
+                  Disponibile
+                </span>
+                <span id="modal-sv-escluso-badge" class="badge bg-danger px-2 py-1 fs-6" style="display: none;">
+                  <i class="bi bi-slash-circle me-1"></i>Escluso da Prenotazioni
+                </span>
+              </div>
+              <h5 class="modal-title fw-bold mt-1 text-dark fs-5" id="modal-sv-titolo">Marca & Modello</h5>
+            </div>
+          </div>
+          <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Chiudi"></button>
+        </div>
+
+        <div class="modal-body p-3 p-md-4">
+          <!-- Box Stato Live (se prenotata o in viaggio) -->
+          <div id="modal-sv-box-live" class="mb-3" style="display: none;">
+            <div id="modal-sv-box-live-content" class="p-3 rounded-3 border"></div>
+          </div>
+
+          <!-- Griglia Scheda Dati Responsive Smartphone / Tablet -->
+          <div class="row g-3">
+            
+            <!-- Sezione 1: Dislocazione & Reparto -->
+            <div class="col-12 col-md-6">
+              <div class="card h-100 border rounded-3 p-3 bg-light bg-opacity-50">
+                <h6 class="fw-bold mb-3 d-flex align-items-center gap-2" style="color: #0d9488;">
+                  <i class="bi bi-geo-alt-fill"></i> Dislocazione & Reparto
+                </h6>
+                <div class="d-flex flex-column gap-2 small">
+                  <div class="d-flex justify-content-between align-items-center">
+                    <span class="text-muted">Sede Assegnata:</span>
+                    <strong class="text-dark text-end" id="modal-sv-sede-assegnata">-</strong>
+                  </div>
+                  <div class="d-flex justify-content-between align-items-center">
+                    <span class="text-muted">Sede Attuale:</span>
+                    <strong class="text-primary text-end" id="modal-sv-sede-attuale">-</strong>
+                  </div>
+                  <div class="d-flex justify-content-between align-items-center">
+                    <span class="text-muted">Reparto/Servizio:</span>
+                    <strong class="text-dark text-end" id="modal-sv-reparto">-</strong>
+                  </div>
+                  <div class="d-flex justify-content-between align-items-center">
+                    <span class="text-muted">Tipo Veicolo:</span>
+                    <strong class="text-dark text-end text-capitalize" id="modal-sv-tipo">-</strong>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <!-- Sezione 2: Dati Tecnici & Odometro -->
+            <div class="col-12 col-md-6">
+              <div class="card h-100 border rounded-3 p-3 bg-light bg-opacity-50">
+                <h6 class="fw-bold mb-3 d-flex align-items-center gap-2 text-warning">
+                  <i class="bi bi-speedometer2"></i> Dati Tecnici & Km
+                </h6>
+                <div class="d-flex flex-column gap-2 small">
+                  <div class="d-flex justify-content-between align-items-center">
+                    <span class="text-muted">Km Attuali:</span>
+                    <strong class="text-primary fs-6" id="modal-sv-km">-</strong>
+                  </div>
+                  <div class="d-flex justify-content-between align-items-center">
+                    <span class="text-muted">Alimentazione:</span>
+                    <strong class="text-dark" id="modal-sv-alimentazione">-</strong>
+                  </div>
+                  <div class="d-flex justify-content-between align-items-center">
+                    <span class="text-muted">Classe Ambientale:</span>
+                    <strong class="text-dark" id="modal-sv-classe-euro">-</strong>
+                  </div>
+                  <div class="d-flex justify-content-between align-items-center">
+                    <span class="text-muted">Immatricolazione:</span>
+                    <strong class="text-dark" id="modal-sv-immatricolazione">-</strong>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <!-- Sezione 3: Proprietà & Fornitura -->
+            <div class="col-12 col-md-6">
+              <div class="card h-100 border rounded-3 p-3 bg-light bg-opacity-50">
+                <h6 class="fw-bold mb-3 d-flex align-items-center gap-2 text-info">
+                  <i class="bi bi-briefcase-fill"></i> Proprietà & Fornitura
+                </h6>
+                <div class="d-flex flex-column gap-2 small">
+                  <div class="d-flex justify-content-between align-items-center">
+                    <span class="text-muted">Proprietà:</span>
+                    <strong class="text-dark" id="modal-sv-proprieta">-</strong>
+                  </div>
+                  <div class="d-flex justify-content-between align-items-center">
+                    <span class="text-muted">Fornitore / Noleggio:</span>
+                    <strong class="text-dark" id="modal-sv-fornitore">-</strong>
+                  </div>
+                  <div class="d-flex justify-content-between align-items-center" id="modal-sv-canone-row">
+                    <span class="text-muted">Canone Mensile:</span>
+                    <strong class="text-dark" id="modal-sv-canone">-</strong>
+                  </div>
+                  <div class="d-flex justify-content-between align-items-center">
+                    <span class="text-muted">Prenotabilità:</span>
+                    <strong id="modal-sv-prenotabile" class="text-success">Abilitata</strong>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <!-- Sezione 4: Note Veicolo -->
+            <div class="col-12 col-md-6">
+              <div class="card h-100 border rounded-3 p-3 bg-light bg-opacity-50">
+                <h6 class="fw-bold mb-3 d-flex align-items-center gap-2 text-secondary">
+                  <i class="bi bi-journal-text"></i> Note Mezzo
+                </h6>
+                <div>
+                  <p class="text-muted small mb-0 fst-italic" id="modal-sv-note">Nessuna nota registrata.</p>
+                </div>
+              </div>
+            </div>
+
+          </div>
+        </div>
+
+        <div class="modal-footer bg-light p-3">
+          <button type="button" class="btn btn-secondary w-100 py-2 fw-semibold rounded-3" data-bs-dismiss="modal">
+            <i class="bi bi-x-lg me-1"></i> Chiudi Scheda
+          </button>
+        </div>
+      </div>
+    </div>
+  </div>
+
   <footer class="bg-dark text-white text-center py-3 mt-auto">
     <div class="container">
       <p class="mb-0 small">{{ cfg.footer_text }}</p>
     </div>
   </footer>
+
+  <script>
+    function mostraSchedaVeicolo(v) {
+      if (!v) return;
+
+      document.getElementById('modal-sv-targa').textContent = v.targa || '-';
+      document.getElementById('modal-sv-titolo').textContent = ((v.marca_nome || '') + ' ' + (v.modello || '')).trim() || 'Automezzo Aziendale';
+
+      const statoBadge = document.getElementById('modal-sv-stato-badge');
+      if (statoBadge) {
+        if (v.stato === 'In Manutenzione') {
+          statoBadge.className = 'badge bg-danger px-2 py-1 fs-6';
+          statoBadge.innerHTML = '<i class="bi bi-wrench me-1"></i>In Manutenzione';
+        } else if (v.stato === 'In Uso' || v.active_viaggio_partenza_effettiva) {
+          statoBadge.className = 'badge bg-warning text-dark px-2 py-1 fs-6';
+          statoBadge.innerHTML = '<i class="bi bi-key-fill me-1"></i>In Uso';
+        } else if (v.active_viaggio_id) {
+          statoBadge.className = 'badge bg-primary text-white px-2 py-1 fs-6';
+          statoBadge.innerHTML = '<i class="bi bi-calendar-check me-1"></i>Prenotata';
+        } else if (v.stato === 'Eliminazione') {
+          statoBadge.className = 'badge bg-dark text-white px-2 py-1 fs-6';
+          statoBadge.textContent = v.stato;
+        } else {
+          statoBadge.className = 'badge bg-success text-white px-2 py-1 fs-6';
+          statoBadge.innerHTML = '<i class="bi bi-check-circle-fill me-1"></i>Disponibile';
+        }
+      }
+
+      const esclusoBadge = document.getElementById('modal-sv-escluso-badge');
+      if (esclusoBadge) {
+        esclusoBadge.style.display = (v.escluso_prenotazione == 1) ? 'inline-block' : 'none';
+      }
+
+      // Box Live
+      const boxLive = document.getElementById('modal-sv-box-live');
+      const boxLiveContent = document.getElementById('modal-sv-box-live-content');
+      if (boxLive && boxLiveContent) {
+        if (v.stato === 'In Uso' || v.active_viaggio_partenza_effettiva) {
+          boxLive.style.display = 'block';
+          boxLiveContent.className = 'p-3 rounded-3 bg-warning bg-opacity-10 border border-warning text-dark';
+          boxLiveContent.innerHTML = `
+            <div class="fw-bold fs-6 mb-1 text-warning-emphasis d-flex align-items-center gap-2">
+              <i class="bi bi-play-circle-fill text-warning"></i> Viaggio Attualmente in Corso
+            </div>
+            <div class="small">
+              <div>Partenza effettiva: <strong>${v.active_viaggio_partenza_effettiva || 'Oggi'}</strong></div>
+              ${v.active_viaggio_ora_riconsegna ? `<div>Rientro previsto: <strong>${v.active_viaggio_ora_riconsegna}</strong></div>` : ''}
+            </div>
+          `;
+        } else if (v.active_viaggio_id) {
+          boxLive.style.display = 'block';
+          boxLiveContent.className = 'p-3 rounded-3 bg-primary bg-opacity-10 border border-primary text-dark';
+          boxLiveContent.innerHTML = `
+            <div class="fw-bold fs-6 mb-1 text-primary d-flex align-items-center gap-2">
+              <i class="bi bi-calendar-check-fill text-primary"></i> Prenotazione Programmata
+            </div>
+            <div class="small">
+              <div>Data & Orario: <strong>${v.active_viaggio_data || 'Oggi'} (${v.active_viaggio_ora_partenza || ''} - ${v.active_viaggio_ora_riconsegna || ''})</strong></div>
+            </div>
+          `;
+        } else {
+          boxLive.style.display = 'none';
+          boxLiveContent.innerHTML = '';
+        }
+      }
+
+      // Campi Dati
+      document.getElementById('modal-sv-sede-assegnata').textContent = v.sede_assegnata_nome || 'Non Assegnata';
+      document.getElementById('modal-sv-sede-attuale').textContent = v.sede_attuale_nome || v.sede_assegnata_nome || '—';
+      document.getElementById('modal-sv-reparto').textContent = v.reparto_assegnato_nome || 'Non Assegnato';
+      document.getElementById('modal-sv-tipo').textContent = v.tipo || '—';
+
+      document.getElementById('modal-sv-km').textContent = (v.km_attuali || 0).toLocaleString('it-IT') + ' km';
+      document.getElementById('modal-sv-alimentazione').textContent = v.alimentazione || '—';
+      document.getElementById('modal-sv-classe-euro').textContent = v.classe_euro || '—';
+      document.getElementById('modal-sv-immatricolazione').textContent = v.data_immatricolazione || '—';
+
+      document.getElementById('modal-sv-proprieta').textContent = v.proprieta || '—';
+      document.getElementById('modal-sv-fornitore').textContent = v.fornitore || '—';
+
+      const canoneVal = parseFloat(v.canone_noleggio || 0);
+      document.getElementById('modal-sv-canone').textContent = canoneVal > 0 ? '€ ' + canoneVal.toFixed(2) + ' / mese' : 'N/A';
+
+      const prenotabileEl = document.getElementById('modal-sv-prenotabile');
+      if (prenotabileEl) {
+        if (v.escluso_prenotazione == 1) {
+          prenotabileEl.className = 'text-danger';
+          prenotabileEl.textContent = 'Escluso dalle prenotazioni';
+        } else {
+          prenotabileEl.className = 'text-success';
+          prenotabileEl.textContent = 'Disponibile per carpooling';
+        }
+      }
+
+      document.getElementById('modal-sv-note').textContent = v.note || 'Nessuna nota registrata.';
+
+      const modalEl = document.getElementById('modalSchedaAutomezzo');
+      if (modalEl && typeof bootstrap !== 'undefined' && bootstrap.Modal) {
+        const modal = bootstrap.Modal.getOrCreateInstance(modalEl);
+        modal.show();
+      }
+    }
+  </script>
 </body>
 </html>

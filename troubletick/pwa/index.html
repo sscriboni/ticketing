@@ -958,6 +958,147 @@
               </button>
             </div>
           </form>
+    <!-- ================= MODAL: SCHEDA AUTOMEZZO (SOLA VISUALIZZAZIONE MOBILE & TABLET) ================= -->
+    <div class="modal fade" id="modal-scheda-veicolo" tabindex="-1" aria-labelledby="modalSchedaVeicoloLabel" aria-hidden="true">
+      <div class="modal-dialog modal-dialog-centered modal-dialog-scrollable modal-lg">
+        <div class="modal-content bg-slate-900 text-white border border-slate-700 rounded-4 shadow-2xl">
+          <div class="modal-header border-slate-800 pb-3">
+            <div class="d-flex align-items-center gap-3">
+              <div class="p-2 px-3 rounded-3 bg-warning bg-opacity-10 text-warning d-flex align-items-center justify-content-center">
+                <i class="bi bi-car-front-fill fs-3"></i>
+              </div>
+              <div>
+                <div class="d-flex align-items-center gap-2 flex-wrap">
+                  <span id="sv-targa" class="badge bg-slate-800 text-warning font-monospace fs-5 px-3 py-1 border border-warning border-opacity-30">
+                    -
+                  </span>
+                  <span id="sv-stato-badge" class="badge bg-success text-white px-2 py-1 fs-6">
+                    Disponibile
+                  </span>
+                  <span id="sv-escluso-badge" class="badge bg-danger text-white px-2 py-1 fs-6" style="display: none;">
+                    <i class="bi bi-slash-circle me-1"></i>Escluso da Prenotazioni
+                  </span>
+                </div>
+                <h5 class="modal-title fw-bold mt-1 text-white fs-5" id="sv-titolo-veicolo">Marca & Modello</h5>
+              </div>
+            </div>
+            <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Chiudi"></button>
+          </div>
+
+          <div class="modal-body p-3 p-md-4">
+            <!-- Box Stato Live / Viaggio o Manutenzione in corso -->
+            <div id="sv-box-live" class="mb-3" style="display: none;">
+              <div id="sv-box-live-content" class="p-3 rounded-3 border"></div>
+            </div>
+
+            <!-- Griglia Scheda Dati Responsive Smartphone / Tablet -->
+            <div class="row g-3">
+              
+              <!-- Sezione 1: Dislocazione & Reparto -->
+              <div class="col-12 col-md-6">
+                <div class="p-3 rounded-3 bg-slate-800 bg-opacity-60 border border-slate-700 h-100">
+                  <h6 class="fw-bold text-teal mb-3 d-flex align-items-center gap-2" style="color: #2dd4bf;">
+                    <i class="bi bi-geo-alt-fill"></i> Dislocazione & Reparto
+                  </h6>
+                  <div class="d-flex flex-column gap-2 small">
+                    <div class="d-flex justify-content-between align-items-center">
+                      <span class="text-slate-400">Sede Assegnata:</span>
+                      <strong class="text-white text-end" id="sv-sede-assegnata">-</strong>
+                    </div>
+                    <div class="d-flex justify-content-between align-items-center">
+                      <span class="text-slate-400">Sede Attuale:</span>
+                      <strong class="text-warning text-end" id="sv-sede-attuale">-</strong>
+                    </div>
+                    <div class="d-flex justify-content-between align-items-center">
+                      <span class="text-slate-400">Reparto/Servizio:</span>
+                      <strong class="text-white text-end" id="sv-reparto">-</strong>
+                    </div>
+                    <div class="d-flex justify-content-between align-items-center">
+                      <span class="text-slate-400">Tipo Veicolo:</span>
+                      <strong class="text-white text-end text-capitalize" id="sv-tipo">-</strong>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              <!-- Sezione 2: Dati Tecnici & Odometro -->
+              <div class="col-12 col-md-6">
+                <div class="p-3 rounded-3 bg-slate-800 bg-opacity-60 border border-slate-700 h-100">
+                  <h6 class="fw-bold text-warning mb-3 d-flex align-items-center gap-2">
+                    <i class="bi bi-speedometer2"></i> Dati Tecnici & Km
+                  </h6>
+                  <div class="d-flex flex-column gap-2 small">
+                    <div class="d-flex justify-content-between align-items-center">
+                      <span class="text-slate-400">Km Attuali:</span>
+                      <strong class="text-warning fs-6" id="sv-km">-</strong>
+                    </div>
+                    <div class="d-flex justify-content-between align-items-center">
+                      <span class="text-slate-400">Alimentazione:</span>
+                      <strong class="text-white" id="sv-alimentazione">-</strong>
+                    </div>
+                    <div class="d-flex justify-content-between align-items-center">
+                      <span class="text-slate-400">Classe Ambientale:</span>
+                      <strong class="text-white" id="sv-classe-euro">-</strong>
+                    </div>
+                    <div class="d-flex justify-content-between align-items-center">
+                      <span class="text-slate-400">Immatricolazione:</span>
+                      <strong class="text-white" id="sv-immatricolazione">-</strong>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              <!-- Sezione 3: Proprietà & Fornitura -->
+              <div class="col-12 col-md-6">
+                <div class="p-3 rounded-3 bg-slate-800 bg-opacity-60 border border-slate-700 h-100">
+                  <h6 class="fw-bold text-info mb-3 d-flex align-items-center gap-2">
+                    <i class="bi bi-briefcase-fill"></i> Proprietà & Fornitura
+                  </h6>
+                  <div class="d-flex flex-column gap-2 small">
+                    <div class="d-flex justify-content-between align-items-center">
+                      <span class="text-slate-400">Proprietà:</span>
+                      <strong class="text-white" id="sv-proprieta">-</strong>
+                    </div>
+                    <div class="d-flex justify-content-between align-items-center">
+                      <span class="text-slate-400">Fornitore / Noleggiatore:</span>
+                      <strong class="text-white" id="sv-fornitore">-</strong>
+                    </div>
+                    <div class="d-flex justify-content-between align-items-center" id="sv-canone-row">
+                      <span class="text-slate-400">Canone Mensile:</span>
+                      <strong class="text-white" id="sv-canone">-</strong>
+                    </div>
+                    <div class="d-flex justify-content-between align-items-center">
+                      <span class="text-slate-400">Prenotabilità:</span>
+                      <strong id="sv-prenotabile" class="text-success">Abilitata</strong>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              <!-- Sezione 4: Tag & Note -->
+              <div class="col-12 col-md-6">
+                <div class="p-3 rounded-3 bg-slate-800 bg-opacity-60 border border-slate-700 h-100">
+                  <h6 class="fw-bold text-primary mb-3 d-flex align-items-center gap-2">
+                    <i class="bi bi-tags-fill"></i> Tag & Note
+                  </h6>
+                  <div class="mb-2" id="sv-tags-container">
+                    <span class="text-slate-400 small fst-italic">Nessun tag associato</span>
+                  </div>
+                  <div class="mt-2 pt-2 border-top border-slate-700">
+                    <span class="text-slate-400 extra-small d-block mb-1 fw-bold text-uppercase">Note Veicolo:</span>
+                    <p class="text-slate-300 small mb-0 fst-italic" id="sv-note">Nessuna nota presente.</p>
+                  </div>
+                </div>
+              </div>
+
+            </div>
+          </div>
+
+          <div class="modal-footer border-slate-800 p-3">
+            <button type="button" class="btn btn-secondary w-100 py-2 fw-semibold rounded-3" data-bs-dismiss="modal">
+              <i class="bi bi-x-lg me-1"></i> Chiudi Scheda
+            </button>
+          </div>
         </div>
       </div>
     </div>

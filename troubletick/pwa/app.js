@@ -1160,14 +1160,186 @@ function renderGlobalFleetList(vehicles) {
 
           ${tagsHtml ? `<div class="mb-2">${tagsHtml}</div>` : ''}
 
-          <div class="d-flex justify-content-between align-items-center pt-2 border-top border-slate-800 text-muted extra-small">
+          <div class="d-flex justify-content-between align-items-center pt-2 border-top border-slate-800 text-muted extra-small mb-2">
             <span>Proprietà: ${v.proprieta || 'N/D'}</span>
             ${v.canone_noleggio > 0 ? `<span>Canone: €${v.canone_noleggio}/mo</span>` : ''}
           </div>
+
+          <button type="button" class="btn btn-sm btn-outline-warning w-100 fw-semibold d-flex align-items-center justify-content-center gap-1 py-1 rounded-2" onclick="openSchedaVeicolo(${v.automezzo_id})">
+            <i class="bi bi-file-earmark-text-fill"></i> Scheda Veicolo
+          </button>
         </ion-card>
       </div>
     `;
   }).join('');
+}
+
+// Funzione di apertura Scheda Automezzo in sola visualizzazione (Mobile & Tablet)
+async function openSchedaVeicolo(automezzoId) {
+  let v = currentFleetVehicles.find(x => x.automezzo_id === automezzoId);
+
+  // Se non trovato in cache locale, richiedi dal server
+  if (!v) {
+    const token = localStorage.getItem('pwa_auth_token');
+    try {
+      const res = await apiFetch(`/automezzi/${automezzoId}`, {
+        headers: { 'Authorization': `Bearer ${token}` }
+      });
+      if (res && res.ok) {
+        v = await res.json();
+      }
+    } catch (e) {
+      console.error('Errore recupero dettaglio mezzo:', e);
+    }
+  }
+
+  if (!v) {
+    alert('Impossibile caricare i dati del veicolo.');
+    return;
+  }
+
+  // Popola Intestazione
+  const elTarga = document.getElementById('sv-targa');
+  const elTitolo = document.getElementById('sv-titolo-veicolo');
+  const elStatoBadge = document.getElementById('sv-stato-badge');
+  const elEsclusoBadge = document.getElementById('sv-escluso-badge');
+
+  if (elTarga) elTarga.textContent = v.targa || 'N/D';
+  if (elTitolo) elTitolo.textContent = `${v.marca_nome || ''} ${v.modello || ''}`.trim() || 'Automezzo Aziendale';
+
+  if (elStatoBadge) {
+    const st = (v.stato || 'Disponibile');
+    const stLower = st.toLowerCase();
+    elStatoBadge.textContent = st;
+    if (stLower === 'in uso') {
+      elStatoBadge.className = 'badge bg-warning text-dark px-2 py-1 fs-6';
+      elStatoBadge.innerHTML = '<i class="bi bi-key-fill me-1"></i>In Uso';
+    } else if (stLower === 'prenotata') {
+      elStatoBadge.className = 'badge bg-primary text-white px-2 py-1 fs-6';
+      elStatoBadge.innerHTML = '<i class="bi bi-calendar-check-fill me-1"></i>Prenotata';
+    } else if (stLower === 'in manutenzione') {
+      elStatoBadge.className = 'badge bg-danger text-white px-2 py-1 fs-6';
+      elStatoBadge.innerHTML = '<i class="bi bi-tools me-1"></i>In Manutenzione';
+    } else {
+      elStatoBadge.className = 'badge bg-success text-white px-2 py-1 fs-6';
+      elStatoBadge.innerHTML = '<i class="bi bi-check-circle-fill me-1"></i>Disponibile';
+    }
+  }
+
+  if (elEsclusoBadge) {
+    elEsclusoBadge.style.display = (v.escluso_prenotazione === 1) ? 'inline-block' : 'none';
+  }
+
+  // Box Stato Live (se prenotata, in uso o in manutenzione)
+  const boxLive = document.getElementById('sv-box-live');
+  const boxLiveContent = document.getElementById('sv-box-live-content');
+  if (boxLive && boxLiveContent) {
+    const stLower = (v.stato || '').toLowerCase();
+    if (stLower === 'in uso' || v.active_viaggio_partenza_effettiva) {
+      boxLive.style.display = 'block';
+      boxLiveContent.className = 'p-3 rounded-3 bg-warning bg-opacity-10 border border-warning text-warning-emphasis';
+      boxLiveContent.innerHTML = `
+        <div class="fw-bold fs-6 mb-1 text-warning d-flex align-items-center gap-2">
+          <i class="bi bi-play-circle-fill"></i> Viaggio Attualmente in Corso
+        </div>
+        <div class="small text-slate-200">
+          <div>Conducente: <strong class="text-white">${v.active_viaggio_conducente || 'N/D'}</strong></div>
+          <div>Partenza effettiva: <strong class="text-white">${v.active_viaggio_partenza_effettiva || 'Oggi'}</strong></div>
+          ${v.active_viaggio_ora_riconsegna ? `<div>Rientro previsto: <strong class="text-white">${v.active_viaggio_ora_riconsegna}</strong></div>` : ''}
+          ${v.active_viaggio_note ? `<div class="mt-1 fst-italic text-slate-300">Note: ${v.active_viaggio_note}</div>` : ''}
+        </div>
+      `;
+    } else if (stLower === 'prenotata' || v.active_viaggio_id) {
+      boxLive.style.display = 'block';
+      boxLiveContent.className = 'p-3 rounded-3 bg-primary bg-opacity-10 border border-primary text-primary-emphasis';
+      boxLiveContent.innerHTML = `
+        <div class="fw-bold fs-6 mb-1 text-info d-flex align-items-center gap-2">
+          <i class="bi bi-calendar-check-fill"></i> Prenotazione Programmata
+        </div>
+        <div class="small text-slate-200">
+          <div>Conducente: <strong class="text-white">${v.active_viaggio_conducente || 'N/D'}</strong></div>
+          <div>Data & Orario: <strong class="text-white">${v.active_viaggio_data || 'Oggi'} (${v.active_viaggio_ora_partenza || ''} - ${v.active_viaggio_ora_riconsegna || ''})</strong></div>
+          ${v.active_viaggio_note ? `<div class="mt-1 fst-italic text-slate-300">Note: ${v.active_viaggio_note}</div>` : ''}
+        </div>
+      `;
+    } else if (stLower === 'in manutenzione') {
+      boxLive.style.display = 'block';
+      boxLiveContent.className = 'p-3 rounded-3 bg-danger bg-opacity-10 border border-danger text-danger-emphasis';
+      boxLiveContent.innerHTML = `
+        <div class="fw-bold fs-6 mb-1 text-danger d-flex align-items-center gap-2">
+          <i class="bi bi-tools"></i> Intervento di Manutenzione Attivo
+        </div>
+        <div class="small text-slate-200">
+          <div>Servizio: <strong class="text-white">${v.active_manutenzione_servizio || 'Manutenzione straordinaria'}</strong></div>
+          <div>Officina / Luogo: <strong class="text-white">${v.active_manutenzione_luogo || 'Sede autorizzata'}</strong></div>
+          ${v.active_manutenzione_data_inizio ? `<div>Inizio: <strong class="text-white">${v.active_manutenzione_data_inizio}</strong></div>` : ''}
+        </div>
+      `;
+    } else {
+      boxLive.style.display = 'none';
+      boxLiveContent.innerHTML = '';
+    }
+  }
+
+  // Popola Campi Dati
+  const setElText = (id, val) => {
+    const el = document.getElementById(id);
+    if (el) el.textContent = val || '—';
+  };
+
+  setElText('sv-sede-assegnata', v.sede_assegnata_nome);
+  setElText('sv-sede-attuale', v.sede_attuale_nome || v.sede_assegnata_nome);
+  setElText('sv-reparto', v.reparto_assegnato_nome);
+  setElText('sv-tipo', v.tipo);
+
+  setElText('sv-km', `${(v.km_attuali || 0).toLocaleString('it-IT')} km`);
+  setElText('sv-alimentazione', v.alimentazione);
+  setElText('sv-classe-euro', v.classe_euro);
+  setElText('sv-immatricolazione', v.data_immatricolazione);
+
+  setElText('sv-proprieta', v.proprieta);
+  setElText('sv-fornitore', v.fornitore);
+  
+  const elCanone = document.getElementById('sv-canone');
+  if (elCanone) {
+    elCanone.textContent = (v.canone_noleggio > 0) ? `€ ${v.canone_noleggio.toFixed(2)} / mese` : 'N/A';
+  }
+
+  const elPren = document.getElementById('sv-prenotabile');
+  if (elPren) {
+    if (v.escluso_prenotazione === 1) {
+      elPren.className = 'text-danger';
+      elPren.textContent = 'Escluso dalle prenotazioni';
+    } else {
+      elPren.className = 'text-success';
+      elPren.textContent = 'Disponibile per carpooling';
+    }
+  }
+
+  // Tags
+  const tagsContainer = document.getElementById('sv-tags-container');
+  if (tagsContainer) {
+    if (v.tags && v.tags.length > 0) {
+      tagsContainer.innerHTML = v.tags.map(t =>
+        `<span class="badge me-1 mb-1 px-2 py-1" style="background-color: ${t.colore || '#0d6efd'}">${t.nome}</span>`
+      ).join('');
+    } else {
+      tagsContainer.innerHTML = '<span class="text-slate-400 small fst-italic">Nessun tag associato</span>';
+    }
+  }
+
+  // Note
+  setElText('sv-note', v.note || 'Nessuna nota registrata.');
+
+  // Mostra il modal
+  const modalEl = document.getElementById('modal-scheda-veicolo');
+  if (modalEl && typeof bootstrap !== 'undefined' && bootstrap.Modal) {
+    const modalInstance = bootstrap.Modal.getOrCreateInstance(modalEl);
+    modalInstance.show();
+  } else if (modalEl) {
+    modalEl.style.display = 'block';
+    modalEl.classList.add('show');
+  }
 }
 
 function renderGlobalFleetError(msg) {
