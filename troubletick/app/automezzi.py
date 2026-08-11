@@ -396,13 +396,24 @@ def page_dislocazioni(r: Request):
         if user.get("ruolo") == "fleet_manager":
             user_reparto_id = conn.execute(text("SELECT reparto_id FROM users WHERE user_id = :uid"), {"uid": user.get("id")}).scalar()
 
+        today_str = datetime.now().strftime("%Y-%m-%d")
         if user.get("ruolo") == "fleet_manager" and user_reparto_id is not None:
             automezzi = conn.execute(text("""
                 SELECT a.*, 
                        m.nome as marca_nome,
                        s_ass.nome as sede_assegnata_nome, 
                        s_att.nome as sede_attuale_nome, 
-                       r.nome as reparto_assegnato_nome
+                       r.nome as reparto_assegnato_nome,
+                       (SELECT v.viaggio_id FROM viaggi_automezzi v 
+                        WHERE v.automezzo_id = a.automezzo_id 
+                          AND (v.ora_arrivo IS NULL OR v.ora_arrivo = '') 
+                          AND (v.data_viaggio >= :today OR v.ora_partenza_effettiva IS NOT NULL) 
+                        ORDER BY v.data_viaggio ASC, v.ora_partenza ASC LIMIT 1) as active_viaggio_id,
+                       (SELECT v.ora_partenza_effettiva FROM viaggi_automezzi v 
+                        WHERE v.automezzo_id = a.automezzo_id 
+                          AND (v.ora_arrivo IS NULL OR v.ora_arrivo = '') 
+                          AND (v.data_viaggio >= :today OR v.ora_partenza_effettiva IS NOT NULL) 
+                        ORDER BY v.data_viaggio ASC, v.ora_partenza ASC LIMIT 1) as active_viaggio_partenza_effettiva
                 FROM automezzi a
                 JOIN marche_automezzi m ON a.marca_id = m.marca_id
                 LEFT JOIN sedi s_ass ON a.sede_assegnata_id = s_ass.sede_id
@@ -410,21 +421,31 @@ def page_dislocazioni(r: Request):
                 LEFT JOIN reparti r ON a.reparto_assegnato_id = r.reparto_id
                 WHERE a.reparto_assegnato_id = :rep
                 ORDER BY s_ass.nome, r.nome, a.targa
-            """), {"rep": user_reparto_id}).mappings().all()
+            """), {"rep": user_reparto_id, "today": today_str}).mappings().all()
         else:
             automezzi = conn.execute(text("""
                 SELECT a.*, 
                        m.nome as marca_nome,
                        s_ass.nome as sede_assegnata_nome, 
                        s_att.nome as sede_attuale_nome, 
-                       r.nome as reparto_assegnato_nome
+                       r.nome as reparto_assegnato_nome,
+                       (SELECT v.viaggio_id FROM viaggi_automezzi v 
+                        WHERE v.automezzo_id = a.automezzo_id 
+                          AND (v.ora_arrivo IS NULL OR v.ora_arrivo = '') 
+                          AND (v.data_viaggio >= :today OR v.ora_partenza_effettiva IS NOT NULL) 
+                        ORDER BY v.data_viaggio ASC, v.ora_partenza ASC LIMIT 1) as active_viaggio_id,
+                       (SELECT v.ora_partenza_effettiva FROM viaggi_automezzi v 
+                        WHERE v.automezzo_id = a.automezzo_id 
+                          AND (v.ora_arrivo IS NULL OR v.ora_arrivo = '') 
+                          AND (v.data_viaggio >= :today OR v.ora_partenza_effettiva IS NOT NULL) 
+                        ORDER BY v.data_viaggio ASC, v.ora_partenza ASC LIMIT 1) as active_viaggio_partenza_effettiva
                 FROM automezzi a
                 JOIN marche_automezzi m ON a.marca_id = m.marca_id
                 LEFT JOIN sedi s_ass ON a.sede_assegnata_id = s_ass.sede_id
                 LEFT JOIN sedi s_att ON a.sede_attuale_id = s_att.sede_id
                 LEFT JOIN reparti r ON a.reparto_assegnato_id = r.reparto_id
                 ORDER BY s_ass.nome, r.nome, a.targa
-            """)).mappings().all()
+            """), {"today": today_str}).mappings().all()
 
         marche = conn.execute(text("SELECT * FROM marche_automezzi ORDER BY nome")).mappings().all()
         sedi = conn.execute(text("SELECT * FROM sedi ORDER BY nome")).mappings().all()
@@ -447,12 +468,18 @@ def page_dislocazioni(r: Request):
         a["tag_ids"] = [t["tag_id"] for t in a["tags"]]
 
         stato = (a.get("stato") or "").strip().lower()
-        if stato == "disponibile":
-            totale_disponibili += 1
-        elif stato == "in uso":
-            totale_in_uso += 1
-        elif stato == "in manutenzione":
+        has_active_trip = bool(a.get("active_viaggio_id"))
+        is_trip_started = bool(a.get("active_viaggio_partenza_effettiva"))
+
+        if stato == "in manutenzione":
             totale_in_manutenzione += 1
+            stato_effettivo = "in manutenzione"
+        elif stato == "in uso" or is_trip_started or has_active_trip:
+            totale_in_uso += 1
+            stato_effettivo = "in uso"
+        else:
+            totale_disponibili += 1
+            stato_effettivo = "disponibile"
 
         sede_nome = a.get("sede_assegnata_nome") or "Sede Non Assegnata"
         if sede_nome not in sedi_map:
@@ -466,11 +493,11 @@ def page_dislocazioni(r: Request):
             }
         sedi_map[sede_nome]["veicoli"].append(a)
         sedi_map[sede_nome]["totale_auto"] += 1
-        if stato == "disponibile":
+        if stato_effettivo == "disponibile":
             sedi_map[sede_nome]["disponibili"] += 1
-        elif stato == "in uso":
+        elif stato_effettivo == "in uso":
             sedi_map[sede_nome]["in_uso"] += 1
-        elif stato == "in manutenzione":
+        elif stato_effettivo == "in manutenzione":
             sedi_map[sede_nome]["in_manutenzione"] += 1
 
         servizio_nome = a.get("reparto_assegnato_nome") or "Servizio Non Assegnato"
@@ -485,11 +512,11 @@ def page_dislocazioni(r: Request):
             }
         servizi_map[servizio_nome]["veicoli"].append(a)
         servizi_map[servizio_nome]["totale_auto"] += 1
-        if stato == "disponibile":
+        if stato_effettivo == "disponibile":
             servizi_map[servizio_nome]["disponibili"] += 1
-        elif stato == "in uso":
+        elif stato_effettivo == "in uso":
             servizi_map[servizio_nome]["in_uso"] += 1
-        elif stato == "in manutenzione":
+        elif stato_effettivo == "in manutenzione":
             servizi_map[servizio_nome]["in_manutenzione"] += 1
 
     elenco_sedi = sorted(list(sedi_map.values()), key=lambda x: x["nome"])

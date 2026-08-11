@@ -1095,7 +1095,10 @@ function renderGlobalFleetList(vehicles) {
       (v.reparto_assegnato_nome && v.reparto_assegnato_nome.toLowerCase().includes(query)) ||
       (v.sede_assegnata_nome && v.sede_assegnata_nome.toLowerCase().includes(query));
 
-    const matchesStato = !selectedStato || (v.stato && v.stato.toLowerCase() === selectedStato);
+    const matchesStato = !selectedStato || 
+      (selectedStato.toLowerCase() === 'in uso' 
+        ? (v.stato && (v.stato.toLowerCase() === 'in uso' || v.stato.toLowerCase() === 'prenotata'))
+        : (v.stato && v.stato.toLowerCase() === selectedStato.toLowerCase()));
     return matchesSearch && matchesStato;
   });
 
@@ -1116,8 +1119,11 @@ function renderGlobalFleetList(vehicles) {
     let statoIcon = 'bi-check-circle-fill';
     const stLower = (v.stato || '').toLowerCase();
     if (stLower === 'in uso') {
-      badgeClass = 'bg-primary';
-      statoIcon = 'bi-person-badge-fill';
+      badgeClass = 'bg-warning text-dark';
+      statoIcon = 'bi-key-fill';
+    } else if (stLower === 'prenotata') {
+      badgeClass = 'bg-primary text-white';
+      statoIcon = 'bi-calendar-check-fill';
     } else if (stLower === 'in manutenzione') {
       badgeClass = 'bg-danger';
       statoIcon = 'bi-tools';

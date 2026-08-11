@@ -460,6 +460,7 @@ def get_automezzi(
 
     is_global = any(r in ("admin", "global_fleet_manager") for r in user_roles) or user_ruolo in ("admin", "global_fleet_manager")
     is_fleet_mgr = "fleet_manager" in user_roles or user_ruolo == "fleet_manager"
+    today_str = datetime.now().strftime("%Y-%m-%d")
 
     automezzi_list = []
     tot_disponibili = 0
@@ -475,7 +476,17 @@ def get_automezzi(
                        a.sede_assegnata_id, COALESCE(s_ass.nome, '') as sede_assegnata_nome,
                        a.sede_attuale_id, COALESCE(s_att.nome, '') as sede_attuale_nome,
                        a.reparto_assegnato_id, COALESCE(r.nome, '') as reparto_assegnato_nome,
-                       a.fornitore, a.classe_euro, COALESCE(a.escluso_prenotazione, 0) as escluso_prenotazione
+                       a.fornitore, a.classe_euro, COALESCE(a.escluso_prenotazione, 0) as escluso_prenotazione,
+                       (SELECT v.viaggio_id FROM viaggi_automezzi v 
+                        WHERE v.automezzo_id = a.automezzo_id 
+                          AND (v.ora_arrivo IS NULL OR v.ora_arrivo = '') 
+                          AND (v.data_viaggio >= :today OR v.ora_partenza_effettiva IS NOT NULL) 
+                        ORDER BY v.data_viaggio ASC, v.ora_partenza ASC LIMIT 1) as active_viaggio_id,
+                       (SELECT v.ora_partenza_effettiva FROM viaggi_automezzi v 
+                        WHERE v.automezzo_id = a.automezzo_id 
+                          AND (v.ora_arrivo IS NULL OR v.ora_arrivo = '') 
+                          AND (v.data_viaggio >= :today OR v.ora_partenza_effettiva IS NOT NULL) 
+                        ORDER BY v.data_viaggio ASC, v.ora_partenza ASC LIMIT 1) as active_viaggio_partenza_effettiva
                 FROM automezzi a
                 LEFT JOIN marche_automezzi m ON a.marca_id = m.marca_id
                 LEFT JOIN sedi s_ass ON a.sede_assegnata_id = s_ass.sede_id
@@ -483,15 +494,11 @@ def get_automezzi(
                 LEFT JOIN reparti r ON a.reparto_assegnato_id = r.reparto_id
                 WHERE 1=1
             """
-            params = {}
+            params = {"today": today_str}
 
             if is_fleet_mgr and not is_global and reparto_id:
                 query += " AND a.reparto_assegnato_id = :reparto_id"
                 params["reparto_id"] = reparto_id
-
-            if isinstance(stato, str) and stato.strip():
-                query += " AND LOWER(a.stato) = LOWER(:stato)"
-                params["stato"] = stato.strip()
 
             if isinstance(search, str) and search.strip():
                 query += " AND (a.targa LIKE :search OR a.modello LIKE :search OR m.nome LIKE :search OR r.nome LIKE :search)"
@@ -522,15 +529,40 @@ def get_automezzi(
             except Exception as te:
                 api_logger.warning("[FLEET] Avviso recupero tag automezzi API: %s", te)
 
+            filter_st = stato.strip().lower() if isinstance(stato, str) else ""
+
             for r in rows:
                 st = (r["stato"] or "").strip()
                 st_lower = st.lower()
-                if st_lower == "disponibile":
-                    tot_disponibili += 1
-                elif st_lower == "in uso":
-                    tot_in_uso += 1
-                elif st_lower == "in manutenzione":
+                has_active_trip = bool(r.get("active_viaggio_id"))
+                is_trip_started = bool(r.get("active_viaggio_partenza_effettiva"))
+
+                if st_lower == "in manutenzione":
                     tot_in_manutenzione += 1
+                    stato_effettivo = "In Manutenzione"
+                elif st_lower == "in uso" or is_trip_started:
+                    tot_in_uso += 1
+                    stato_effettivo = "In Uso"
+                elif has_active_trip:
+                    tot_in_uso += 1  # Incluso in 'In Uso / Prenotati'
+                    stato_effettivo = "Prenotata"
+                else:
+                    tot_disponibili += 1
+                    stato_effettivo = st or "Disponibile"
+
+                # Applicazione filtro di stato dinamico
+                if filter_st:
+                    if filter_st in ("in uso", "in_uso", "prenotata", "prenotate"):
+                        if stato_effettivo not in ("In Uso", "Prenotata"):
+                            continue
+                    elif filter_st in ("disponibile", "disponibili"):
+                        if stato_effettivo != "Disponibile":
+                            continue
+                    elif filter_st in ("in manutenzione", "in_manutenzione", "manutenzione"):
+                        if stato_effettivo != "In Manutenzione":
+                            continue
+                    elif filter_st != stato_effettivo.lower() and filter_st != st_lower:
+                        continue
 
                 item = AutomezzoResponse(
                     automezzo_id=r["automezzo_id"],
@@ -545,7 +577,7 @@ def get_automezzi(
                     proprieta=r["proprieta"] or "",
                     canone_noleggio=float(r["canone_noleggio"] or 0),
                     km_attuali=r["km_attuali"] or 0,
-                    stato=st or "Disponibile",
+                    stato=stato_effettivo,
                     sede_assegnata_id=r["sede_assegnata_id"],
                     sede_assegnata_nome=r["sede_assegnata_nome"],
                     sede_attuale_id=r["sede_attuale_id"],

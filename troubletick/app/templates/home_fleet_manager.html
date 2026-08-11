@@ -149,9 +149,19 @@
                   <td><span class="fw-bold text-primary">{{ v.km_attuali or 0 }}</span> <small class="text-muted">km</small></td>
                   <td><small class="text-muted">{{ v.sede_attuale_nome or '-' }}</small></td>
                   <td>
-                    <span class="badge bg-{{ 'success' if v.stato == 'Disponibile' else 'warning text-dark' if v.stato == 'In Uso' else 'dark' if v.stato == 'Eliminazione' else 'danger' }} text-white">
-                      {{ v.stato }}
-                    </span>
+                    {% if v.stato == 'In Manutenzione' %}
+                      <span class="badge bg-danger text-white"><i class="bi bi-wrench me-1"></i>In Manutenzione</span>
+                    {% elif v.stato == 'In Uso' or v.active_viaggio_partenza_effettiva %}
+                      <span class="badge bg-warning text-dark"><i class="bi bi-key-fill me-1"></i>In Uso</span>
+                    {% elif v.active_viaggio_id %}
+                      <span class="badge bg-primary text-white" title="Prenotata il {{ v.active_viaggio_data }} ({{ v.active_viaggio_ora_partenza }}-{{ v.active_viaggio_ora_riconsegna }})">
+                        <i class="bi bi-calendar-check me-1"></i>Prenotata
+                      </span>
+                    {% elif v.stato == 'Eliminazione' %}
+                      <span class="badge bg-dark text-white">{{ v.stato }}</span>
+                    {% else %}
+                      <span class="badge bg-success text-white"><i class="bi bi-check-circle-fill me-1"></i>Disponibile</span>
+                    {% endif %}
                   </td>
                 </tr>
                 {% endfor %}

@@ -854,25 +854,83 @@ def home(r: Request):
             return templates.TemplateResponse(r, "home_assistenza.html", {"request": r, "cfg": CFG, "avvisi": avvisi, "user": user, "stats": stats})
             
         elif ruolo in ("fleet_manager", "global_fleet_manager"):
+            today_str = datetime.now().strftime("%Y-%m-%d")
+
             if ruolo == "fleet_manager":
                 user_rep_id = c.execute(text("SELECT reparto_id FROM users WHERE user_id = :uid"), {"uid": uid}).scalar()
             else:
                 user_rep_id = None
                 
             if user_rep_id is not None and user_rep_id > 0:
-                fleet_total = c.execute(text("SELECT COUNT(*) FROM automezzi WHERE reparto_assegnato_id = :rep OR reparto_assegnato_id IS NULL OR reparto_assegnato_id = 0"), {"rep": user_rep_id}).scalar() or 0
-                fleet_available = c.execute(text("SELECT COUNT(*) FROM automezzi WHERE stato = 'Disponibile' AND (reparto_assegnato_id = :rep OR reparto_assegnato_id IS NULL OR reparto_assegnato_id = 0)"), {"rep": user_rep_id}).scalar() or 0
-                fleet_in_use = c.execute(text("SELECT COUNT(*) FROM automezzi WHERE stato = 'In Uso' AND (reparto_assegnato_id = :rep OR reparto_assegnato_id IS NULL OR reparto_assegnato_id = 0)"), {"rep": user_rep_id}).scalar() or 0
-                fleet_maintenance = c.execute(text("SELECT COUNT(*) FROM automezzi WHERE stato = 'In Manutenzione' AND (reparto_assegnato_id = :rep OR reparto_assegnato_id IS NULL OR reparto_assegnato_id = 0)"), {"rep": user_rep_id}).scalar() or 0
+                fleet_total = c.execute(text("""
+                    SELECT COUNT(*) FROM automezzi 
+                    WHERE reparto_assegnato_id = :rep OR reparto_assegnato_id IS NULL OR reparto_assegnato_id = 0
+                """), {"rep": user_rep_id}).scalar() or 0
+
+                fleet_maintenance = c.execute(text("""
+                    SELECT COUNT(*) FROM automezzi 
+                    WHERE stato = 'In Manutenzione' 
+                      AND (reparto_assegnato_id = :rep OR reparto_assegnato_id IS NULL OR reparto_assegnato_id = 0)
+                """), {"rep": user_rep_id}).scalar() or 0
+
+                fleet_in_use = c.execute(text("""
+                    SELECT COUNT(DISTINCT a.automezzo_id)
+                    FROM automezzi a
+                    LEFT JOIN viaggi_automezzi v ON a.automezzo_id = v.automezzo_id 
+                        AND (v.ora_arrivo IS NULL OR v.ora_arrivo = '')
+                        AND (v.data_viaggio >= :today OR v.ora_partenza_effettiva IS NOT NULL)
+                    WHERE (a.reparto_assegnato_id = :rep OR a.reparto_assegnato_id IS NULL OR a.reparto_assegnato_id = 0)
+                      AND a.stato != 'In Manutenzione'
+                      AND (a.stato = 'In Uso' OR v.viaggio_id IS NOT NULL)
+                """), {"rep": user_rep_id, "today": today_str}).scalar() or 0
+
+                fleet_available = c.execute(text("""
+                    SELECT COUNT(*) FROM automezzi a
+                    WHERE a.stato = 'Disponibile' 
+                      AND (a.reparto_assegnato_id = :rep OR a.reparto_assegnato_id IS NULL OR a.reparto_assegnato_id = 0)
+                      AND a.automezzo_id NOT IN (
+                          SELECT DISTINCT v.automezzo_id 
+                          FROM viaggi_automezzi v 
+                          WHERE (v.ora_arrivo IS NULL OR v.ora_arrivo = '') 
+                            AND (v.data_viaggio >= :today OR v.ora_partenza_effettiva IS NOT NULL)
+                      )
+                """), {"rep": user_rep_id, "today": today_str}).scalar() or 0
+
                 fleet_active_maintenance = c.execute(text("""
                     SELECT COUNT(*) 
                     FROM manutenzioni_automezzi m
                     JOIN automezzi a ON m.automezzo_id = a.automezzo_id
-                    WHERE (a.reparto_assegnato_id = :rep OR a.reparto_assegnato_id IS NULL OR a.reparto_assegnato_id = 0) AND (m.data_fine IS NULL OR m.data_fine = '')
+                    WHERE (a.reparto_assegnato_id = :rep OR a.reparto_assegnato_id IS NULL OR a.reparto_assegnato_id = 0) 
+                      AND (m.data_fine IS NULL OR m.data_fine = '')
                 """), {"rep": user_rep_id}).scalar() or 0
                 
                 fleet_vehicles_list = c.execute(text("""
-                    SELECT a.*, m.nome as marca_nome, s1.nome as sede_assegnata_nome, s2.nome as sede_attuale_nome, r.nome as reparto_assegnato_nome
+                    SELECT a.*, m.nome as marca_nome, s1.nome as sede_assegnata_nome, s2.nome as sede_attuale_nome, r.nome as reparto_assegnato_nome,
+                           (SELECT v.viaggio_id FROM viaggi_automezzi v 
+                            WHERE v.automezzo_id = a.automezzo_id 
+                              AND (v.ora_arrivo IS NULL OR v.ora_arrivo = '') 
+                              AND (v.data_viaggio >= :today OR v.ora_partenza_effettiva IS NOT NULL) 
+                            ORDER BY v.data_viaggio ASC, v.ora_partenza ASC LIMIT 1) as active_viaggio_id,
+                           (SELECT v.ora_partenza_effettiva FROM viaggi_automezzi v 
+                            WHERE v.automezzo_id = a.automezzo_id 
+                              AND (v.ora_arrivo IS NULL OR v.ora_arrivo = '') 
+                              AND (v.data_viaggio >= :today OR v.ora_partenza_effettiva IS NOT NULL) 
+                            ORDER BY v.data_viaggio ASC, v.ora_partenza ASC LIMIT 1) as active_viaggio_partenza_effettiva,
+                           (SELECT v.data_viaggio FROM viaggi_automezzi v 
+                            WHERE v.automezzo_id = a.automezzo_id 
+                              AND (v.ora_arrivo IS NULL OR v.ora_arrivo = '') 
+                              AND (v.data_viaggio >= :today OR v.ora_partenza_effettiva IS NOT NULL) 
+                            ORDER BY v.data_viaggio ASC, v.ora_partenza ASC LIMIT 1) as active_viaggio_data,
+                           (SELECT v.ora_partenza FROM viaggi_automezzi v 
+                            WHERE v.automezzo_id = a.automezzo_id 
+                              AND (v.ora_arrivo IS NULL OR v.ora_arrivo = '') 
+                              AND (v.data_viaggio >= :today OR v.ora_partenza_effettiva IS NOT NULL) 
+                            ORDER BY v.data_viaggio ASC, v.ora_partenza ASC LIMIT 1) as active_viaggio_ora_partenza,
+                           (SELECT v.ora_riconsegna_prevista FROM viaggi_automezzi v 
+                            WHERE v.automezzo_id = a.automezzo_id 
+                              AND (v.ora_arrivo IS NULL OR v.ora_arrivo = '') 
+                              AND (v.data_viaggio >= :today OR v.ora_partenza_effettiva IS NOT NULL) 
+                            ORDER BY v.data_viaggio ASC, v.ora_partenza ASC LIMIT 1) as active_viaggio_ora_riconsegna
                     FROM automezzi a
                     JOIN marche_automezzi m ON a.marca_id = m.marca_id
                     LEFT JOIN sedi s1 ON a.sede_assegnata_id = s1.sede_id
@@ -880,18 +938,43 @@ def home(r: Request):
                     LEFT JOIN reparti r ON a.reparto_assegnato_id = r.reparto_id
                     WHERE (a.reparto_assegnato_id = :rep OR a.reparto_assegnato_id IS NULL OR a.reparto_assegnato_id = 0)
                     ORDER BY a.targa
-                """), {"rep": user_rep_id}).mappings().all()
+                """), {"rep": user_rep_id, "today": today_str}).mappings().all()
 
                 if not fleet_vehicles_list:
                     fleet_vehicles_list = c.execute(text("""
-                        SELECT a.*, m.nome as marca_nome, s1.nome as sede_assegnata_nome, s2.nome as sede_attuale_nome, r.nome as reparto_assegnato_nome
+                        SELECT a.*, m.nome as marca_nome, s1.nome as sede_assegnata_nome, s2.nome as sede_attuale_nome, r.nome as reparto_assegnato_nome,
+                               (SELECT v.viaggio_id FROM viaggi_automezzi v 
+                                WHERE v.automezzo_id = a.automezzo_id 
+                                  AND (v.ora_arrivo IS NULL OR v.ora_arrivo = '') 
+                                  AND (v.data_viaggio >= :today OR v.ora_partenza_effettiva IS NOT NULL) 
+                                ORDER BY v.data_viaggio ASC, v.ora_partenza ASC LIMIT 1) as active_viaggio_id,
+                               (SELECT v.ora_partenza_effettiva FROM viaggi_automezzi v 
+                                WHERE v.automezzo_id = a.automezzo_id 
+                                  AND (v.ora_arrivo IS NULL OR v.ora_arrivo = '') 
+                                  AND (v.data_viaggio >= :today OR v.ora_partenza_effettiva IS NOT NULL) 
+                                ORDER BY v.data_viaggio ASC, v.ora_partenza ASC LIMIT 1) as active_viaggio_partenza_effettiva,
+                               (SELECT v.data_viaggio FROM viaggi_automezzi v 
+                                WHERE v.automezzo_id = a.automezzo_id 
+                                  AND (v.ora_arrivo IS NULL OR v.ora_arrivo = '') 
+                                  AND (v.data_viaggio >= :today OR v.ora_partenza_effettiva IS NOT NULL) 
+                                ORDER BY v.data_viaggio ASC, v.ora_partenza ASC LIMIT 1) as active_viaggio_data,
+                               (SELECT v.ora_partenza FROM viaggi_automezzi v 
+                                WHERE v.automezzo_id = a.automezzo_id 
+                                  AND (v.ora_arrivo IS NULL OR v.ora_arrivo = '') 
+                                  AND (v.data_viaggio >= :today OR v.ora_partenza_effettiva IS NOT NULL) 
+                                ORDER BY v.data_viaggio ASC, v.ora_partenza ASC LIMIT 1) as active_viaggio_ora_partenza,
+                               (SELECT v.ora_riconsegna_prevista FROM viaggi_automezzi v 
+                                WHERE v.automezzo_id = a.automezzo_id 
+                                  AND (v.ora_arrivo IS NULL OR v.ora_arrivo = '') 
+                                  AND (v.data_viaggio >= :today OR v.ora_partenza_effettiva IS NOT NULL) 
+                                ORDER BY v.data_viaggio ASC, v.ora_partenza ASC LIMIT 1) as active_viaggio_ora_riconsegna
                         FROM automezzi a
                         JOIN marche_automezzi m ON a.marca_id = m.marca_id
                         LEFT JOIN sedi s1 ON a.sede_assegnata_id = s1.sede_id
                         LEFT JOIN sedi s2 ON a.sede_attuale_id = s2.sede_id
                         LEFT JOIN reparti r ON a.reparto_assegnato_id = r.reparto_id
                         ORDER BY a.targa
-                    """)).mappings().all()
+                    """), {"today": today_str}).mappings().all()
 
                 fleet_prenotazioni_list = c.execute(text("""
                     SELECT v.*, v.ora_riconsegna_prevista as ora_arrivo_presunta,
@@ -909,20 +992,65 @@ def home(r: Request):
                 """)).mappings().all()
             else:
                 fleet_total = c.execute(text("SELECT COUNT(*) FROM automezzi")).scalar() or 0
-                fleet_available = c.execute(text("SELECT COUNT(*) FROM automezzi WHERE stato = 'Disponibile'")).scalar() or 0
-                fleet_in_use = c.execute(text("SELECT COUNT(*) FROM automezzi WHERE stato = 'In Uso'")).scalar() or 0
                 fleet_maintenance = c.execute(text("SELECT COUNT(*) FROM automezzi WHERE stato = 'In Manutenzione'")).scalar() or 0
+
+                fleet_in_use = c.execute(text("""
+                    SELECT COUNT(DISTINCT a.automezzo_id)
+                    FROM automezzi a
+                    LEFT JOIN viaggi_automezzi v ON a.automezzo_id = v.automezzo_id 
+                        AND (v.ora_arrivo IS NULL OR v.ora_arrivo = '')
+                        AND (v.data_viaggio >= :today OR v.ora_partenza_effettiva IS NOT NULL)
+                    WHERE a.stato != 'In Manutenzione'
+                      AND (a.stato = 'In Uso' OR v.viaggio_id IS NOT NULL)
+                """), {"today": today_str}).scalar() or 0
+
+                fleet_available = c.execute(text("""
+                    SELECT COUNT(*) FROM automezzi a
+                    WHERE a.stato = 'Disponibile' 
+                      AND a.automezzo_id NOT IN (
+                          SELECT DISTINCT v.automezzo_id 
+                          FROM viaggi_automezzi v 
+                          WHERE (v.ora_arrivo IS NULL OR v.ora_arrivo = '') 
+                            AND (v.data_viaggio >= :today OR v.ora_partenza_effettiva IS NOT NULL)
+                      )
+                """), {"today": today_str}).scalar() or 0
+
                 fleet_active_maintenance = c.execute(text("SELECT COUNT(*) FROM manutenzioni_automezzi WHERE data_fine IS NULL OR data_fine = ''")).scalar() or 0
                 
                 fleet_vehicles_list = c.execute(text("""
-                    SELECT a.*, m.nome as marca_nome, s1.nome as sede_assegnata_nome, s2.nome as sede_attuale_nome, r.nome as reparto_assegnato_nome
+                    SELECT a.*, m.nome as marca_nome, s1.nome as sede_assegnata_nome, s2.nome as sede_attuale_nome, r.nome as reparto_assegnato_nome,
+                           (SELECT v.viaggio_id FROM viaggi_automezzi v 
+                            WHERE v.automezzo_id = a.automezzo_id 
+                              AND (v.ora_arrivo IS NULL OR v.ora_arrivo = '') 
+                              AND (v.data_viaggio >= :today OR v.ora_partenza_effettiva IS NOT NULL) 
+                            ORDER BY v.data_viaggio ASC, v.ora_partenza ASC LIMIT 1) as active_viaggio_id,
+                           (SELECT v.ora_partenza_effettiva FROM viaggi_automezzi v 
+                            WHERE v.automezzo_id = a.automezzo_id 
+                              AND (v.ora_arrivo IS NULL OR v.ora_arrivo = '') 
+                              AND (v.data_viaggio >= :today OR v.ora_partenza_effettiva IS NOT NULL) 
+                            ORDER BY v.data_viaggio ASC, v.ora_partenza ASC LIMIT 1) as active_viaggio_partenza_effettiva,
+                           (SELECT v.data_viaggio FROM viaggi_automezzi v 
+                            WHERE v.automezzo_id = a.automezzo_id 
+                              AND (v.ora_arrivo IS NULL OR v.ora_arrivo = '') 
+                              AND (v.data_viaggio >= :today OR v.ora_partenza_effettiva IS NOT NULL) 
+                            ORDER BY v.data_viaggio ASC, v.ora_partenza ASC LIMIT 1) as active_viaggio_data,
+                           (SELECT v.ora_partenza FROM viaggi_automezzi v 
+                            WHERE v.automezzo_id = a.automezzo_id 
+                              AND (v.ora_arrivo IS NULL OR v.ora_arrivo = '') 
+                              AND (v.data_viaggio >= :today OR v.ora_partenza_effettiva IS NOT NULL) 
+                            ORDER BY v.data_viaggio ASC, v.ora_partenza ASC LIMIT 1) as active_viaggio_ora_partenza,
+                           (SELECT v.ora_riconsegna_prevista FROM viaggi_automezzi v 
+                            WHERE v.automezzo_id = a.automezzo_id 
+                              AND (v.ora_arrivo IS NULL OR v.ora_arrivo = '') 
+                              AND (v.data_viaggio >= :today OR v.ora_partenza_effettiva IS NOT NULL) 
+                            ORDER BY v.data_viaggio ASC, v.ora_partenza ASC LIMIT 1) as active_viaggio_ora_riconsegna
                     FROM automezzi a
                     JOIN marche_automezzi m ON a.marca_id = m.marca_id
                     LEFT JOIN sedi s1 ON a.sede_assegnata_id = s1.sede_id
                     LEFT JOIN sedi s2 ON a.sede_attuale_id = s2.sede_id
                     LEFT JOIN reparti r ON a.reparto_assegnato_id = r.reparto_id
                     ORDER BY a.targa
-                """)).mappings().all()
+                """), {"today": today_str}).mappings().all()
 
                 fleet_prenotazioni_list = c.execute(text("""
                     SELECT v.*, v.ora_riconsegna_prevista as ora_arrivo_presunta,
