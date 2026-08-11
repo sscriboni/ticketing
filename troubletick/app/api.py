@@ -438,8 +438,15 @@ def get_dashboard_metrics(user: dict = Depends(get_current_user)):
                     "fleet_availability": "94%"
                 }
             elif user_ruolo == "assistenza":
-                uid = user.get("user_id", 0)
-                row_my_t = conn.execute(text("SELECT COUNT(*) FROM tickets WHERE operatore_id = :uid AND stato IN ('nuova', 'in_lavorazione')"), {"uid": uid}).scalar() or 0
+                rep_id = user.get("reparto_id")
+                row_my_t = 0
+                try:
+                    if rep_id:
+                        row_my_t = conn.execute(text("SELECT COUNT(*) FROM tickets WHERE reparto_id = :rep AND stato IN ('nuova', 'in_lavorazione')"), {"rep": rep_id}).scalar() or 0
+                    else:
+                        row_my_t = conn.execute(text("SELECT COUNT(*) FROM tickets WHERE stato IN ('nuova', 'in_lavorazione')")).scalar() or 0
+                except Exception as ex_a:
+                    api_logger.warning("[DASHBOARD] Avviso conteggio ticket assistenza: %s", ex_a)
                 role_stats = {
                     "my_assigned_tickets": row_my_t,
                     "unassigned_tickets": tickets_open,
@@ -447,15 +454,24 @@ def get_dashboard_metrics(user: dict = Depends(get_current_user)):
                 }
             elif user_ruolo == "responsabile":
                 rep_id = user.get("reparto_id", 0)
-                row_emp = conn.execute(text("SELECT COUNT(*) FROM users WHERE reparto_id = :repid"), {"repid": rep_id}).scalar() or 0
+                row_emp = 0
+                try:
+                    row_emp = conn.execute(text("SELECT COUNT(*) FROM users WHERE reparto_id = :repid"), {"repid": rep_id}).scalar() or 0
+                except Exception as ex_r:
+                    api_logger.warning("[DASHBOARD] Avviso conteggio dipendenti responsabile: %s", ex_r)
                 role_stats = {
                     "department_employees": row_emp,
                     "absent_today": 0,
                     "pending_approvals": 0
                 }
             else: # normale
-                uid = user.get("user_id", 0)
-                row_user_t = conn.execute(text("SELECT COUNT(*) FROM tickets WHERE creatore_id = :uid AND stato IN ('nuova', 'in_lavorazione')"), {"uid": uid}).scalar() or 0
+                u_email = (user.get("email") or "").strip()
+                row_user_t = 0
+                try:
+                    if u_email:
+                        row_user_t = conn.execute(text("SELECT COUNT(*) FROM tickets WHERE LOWER(email) = LOWER(:email) AND stato IN ('nuova', 'in_lavorazione')"), {"email": u_email}).scalar() or 0
+                except Exception as ex_n:
+                    api_logger.warning("[DASHBOARD] Avviso conteggio ticket utente normale: %s", ex_n)
                 role_stats = {
                     "my_open_tickets": row_user_t,
                     "my_active_trips": 0,

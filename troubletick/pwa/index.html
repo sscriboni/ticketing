@@ -196,50 +196,48 @@
             <button type="button" class="btn btn-outline-primary" data-role-view="admin">👑 Admin</button>
           </div>
         </div>
-      </ion-header>
-
       <ion-content class="ion-padding" color="dark">
 
         <!-- ================= VISTA HOME 1: UTENTE NORMALE ================= -->
         <div id="role-dashboard-normale" class="role-dashboard-view">
-          <ion-card class="dashboard-card p-3 p-md-4 mb-4 border-start border-4 border-primary">
-            <ion-card-header class="p-0 mb-3">
+          <ion-card class="dashboard-card p-3 mb-3 border-start border-4 border-primary">
+            <ion-card-header class="p-0 mb-2">
               <div class="d-flex justify-content-between align-items-center flex-wrap gap-2">
                 <div>
-                  <ion-card-subtitle color="primary" class="fw-bold text-uppercase tracking-wider">
+                  <span class="summary-card-subtitle text-primary">
                     Portale Dipendente — Carpooling & Viaggi
-                  </ion-card-subtitle>
-                  <ion-card-title class="fw-bold text-white fs-3 mb-0">
+                  </span>
+                  <h5 class="summary-card-title">
                     Ciao, <span class="user-display-name">Utente</span>!
-                  </ion-card-title>
+                  </h5>
                 </div>
-                <ion-badge color="primary" class="px-3 py-2 rounded-pill fs-6">
-                  Ruolo: Standard Dipendente
+                <ion-badge color="primary" class="summary-card-badge">
+                  Dipendente
                 </ion-badge>
               </div>
-              <p class="text-muted small mt-2 mb-0">
-                Benvenuto nel tuo hub personale per la gestione delle prenotazioni autoveicoli di servizio e carpooling.
+              <p class="summary-card-desc">
+                Hub personale per la gestione delle prenotazioni autoveicoli di servizio e carpooling.
               </p>
             </ion-card-header>
 
             <ion-card-content class="p-0">
-              <div class="row g-3">
+              <div class="row g-2">
                 <div class="col-4">
                   <div class="kpi-stat-box text-center">
-                    <div class="kpi-label"><i class="bi bi-calendar-check-fill text-primary me-1"></i> Prenotazioni Attive</div>
-                    <div id="normale-stat-trips" class="fw-bold text-primary fs-3 mt-1">0</div>
+                    <div class="kpi-label"><i class="bi bi-calendar-check-fill text-primary me-1"></i> Prenotazioni</div>
+                    <div id="normale-stat-trips" class="kpi-stat-value text-primary">0</div>
                   </div>
                 </div>
                 <div class="col-4">
                   <div class="kpi-stat-box text-center">
                     <div class="kpi-label"><i class="bi bi-car-front-fill text-warning me-1"></i> Veicoli Flotta</div>
-                    <div id="normale-stat-vehicles" class="fw-bold text-warning fs-3 mt-1">0</div>
+                    <div id="normale-stat-vehicles" class="kpi-stat-value text-warning">0</div>
                   </div>
                 </div>
                 <div class="col-4">
                   <div class="kpi-stat-box text-center">
-                    <div class="kpi-label"><i class="bi bi-person-check-fill text-success me-1"></i> Presenza Oggi</div>
-                    <div class="fw-bold text-success fs-3 mt-1">In Sede</div>
+                    <div class="kpi-label"><i class="bi bi-person-check-fill text-success me-1"></i> Presenza</div>
+                    <div class="kpi-stat-value text-success">In Sede</div>
                   </div>
                 </div>
               </div>
@@ -247,16 +245,15 @@
           </ion-card>
 
           <!-- Sezione Azione Nuova Prenotazione Auto -->
-          <div class="row g-3 mb-4">
+          <div class="row g-3 mb-3">
             <div class="col-12">
               <ion-card class="dashboard-card m-0 p-3 border-start border-4 border-success">
                 <div class="d-flex align-items-center justify-content-between flex-wrap gap-3">
                   <div class="d-flex align-items-center gap-3">
-                    <ion-icon name="car-sport-outline" color="success" style="font-size: 2.5rem;"></ion-icon>
+                    <ion-icon name="car-sport-outline" color="success" style="font-size: 2.2rem;"></ion-icon>
                     <div>
-                      <h5 class="text-white fw-bold mb-1">Nuova Prenotazione Veicolo</h5>
-                      <p class="text-slate-300 small mb-0">Riserva un automezzo aziendale per i tuoi trasferimenti e
-                        viaggi di servizio.</p>
+                      <h6 class="text-white fw-bold mb-1">Nuova Prenotazione Veicolo</h6>
+                      <p class="text-slate-300 small mb-0">Riserva un automezzo aziendale per i tuoi trasferimenti e viaggi di servizio.</p>
                     </div>
                   </div>
                   <ion-button fill="solid" color="success" class="fw-bold" id="btn-open-booking-normale" onclick="openBookingForm()">
@@ -268,10 +265,10 @@
           </div>
 
           <!-- Sezione Elenco Prenotazioni Veicoli Attive -->
-          <div class="d-flex align-items-center justify-content-between flex-wrap gap-2 mb-3">
-            <h5 class="fw-bold text-white mb-0">
+          <div class="d-flex align-items-center justify-content-between flex-wrap gap-2 mb-2">
+            <h6 class="fw-bold text-white mb-0">
               <i class="bi bi-calendar-check-fill text-primary me-2"></i> Le Mie Prenotazioni Attive
-            </h5>
+            </h6>
             <button id="btn-refresh-user-trips" class="btn btn-sm btn-outline-primary d-flex align-items-center gap-1">
               <i class="bi bi-arrow-clockwise"></i> Aggiorna
             </button>
@@ -292,103 +289,56 @@
 
         <!-- ================= VISTA HOME 2: FLEET MANAGER ================= -->
         <div id="role-dashboard-fleet_manager" class="role-dashboard-view" style="display: none;">
-          <ion-card class="dashboard-card p-3 p-md-4 mb-4 border-start border-4 border-warning">
-            <ion-card-header class="p-0 mb-3">
+          <ion-card class="dashboard-card p-3 mb-3 border-start border-4 border-warning">
+            <ion-card-header class="p-0 mb-2">
               <div class="d-flex justify-content-between align-items-center flex-wrap gap-2">
                 <div>
-                  <ion-card-subtitle color="warning" class="fw-bold text-uppercase tracking-wider">
+                  <span class="summary-card-subtitle text-warning">
                     Gestione Flotta Aziendale
-                  </ion-card-subtitle>
-                  <ion-card-title class="fw-bold text-white fs-3 mb-0">
+                  </span>
+                  <h5 class="summary-card-title">
                     Benvenuto, Fleet Manager <span class="user-display-name"></span>!
-                  </ion-card-title>
+                  </h5>
                 </div>
-                <ion-badge color="warning" class="px-3 py-2 rounded-pill fs-6 text-dark">
-                  Ruolo: Fleet Manager
+                <ion-badge color="warning" class="summary-card-badge text-dark">
+                  Fleet Manager
                 </ion-badge>
               </div>
-              <p class="text-muted small mt-2 mb-0">
-                Pannello di controllo della flotta aziendale, registro manutenzioni programmate e controllo
-                partenze/rientri viaggi.
+              <p class="summary-card-desc">
+                Controllo flotta aziendale, registro manutenzioni e partenze/rientri viaggi.
               </p>
             </ion-card-header>
 
             <ion-card-content class="p-0">
-              <div class="row g-3">
+              <div class="row g-2">
                 <div class="col-4">
                   <div class="kpi-stat-box text-center">
                     <div class="kpi-label"><i class="bi bi-car-front-fill text-warning me-1"></i> Parco Auto</div>
-                    <div id="fleet-stat-vehicles" class="fw-bold text-warning fs-3 mt-1">0</div>
+                    <div id="fleet-stat-vehicles" class="kpi-stat-value text-warning">0</div>
                   </div>
                 </div>
                 <div class="col-4">
                   <div class="kpi-stat-box text-center">
-                    <div class="kpi-label"><i class="bi bi-calendar-check-fill text-warning me-1"></i> Prenotazioni Attive</div>
-                    <div id="fleet-stat-trips" class="fw-bold text-warning fs-3 mt-1">0</div>
+                    <div class="kpi-label"><i class="bi bi-calendar-check-fill text-warning me-1"></i> Prenotazioni</div>
+                    <div id="fleet-stat-trips" class="kpi-stat-value text-warning">0</div>
                   </div>
                 </div>
                 <div class="col-4">
                   <div class="kpi-stat-box text-center">
                     <div class="kpi-label"><i class="bi bi-wrench-adjustable text-danger me-1"></i> Manutenzioni</div>
-                    <div id="fleet-stat-maint" class="fw-bold text-danger fs-3 mt-1">0</div>
+                    <div id="fleet-stat-maint" class="kpi-stat-value text-danger">0</div>
                   </div>
                 </div>
               </div>
             </ion-card-content>
           </ion-card>
 
-          <h5 class="fw-bold text-white mb-3"><i class="bi bi-car-front-fill text-warning me-2"></i> Operazioni Flotta &
-            Carpooling</h5>
-          <div class="row g-3 mb-4">
-            <div class="col-12 col-md-4">
-              <ion-card class="dashboard-card h-100 m-0 p-3">
-                <ion-card-header class="p-0 mb-2">
-                  <ion-icon name="list-outline" color="warning" style="font-size: 2rem;"></ion-icon>
-                  <ion-card-title class="text-white fs-6 fw-bold mt-1">Elenco Automezzi</ion-card-title>
-                </ion-card-header>
-                <ion-card-content class="p-0">
-                  <p class="text-slate-300 small mb-3">Gestisci le schede dei veicoli, km attuali e scadenze
-                    assicurazioni.</p>
-                  <ion-button expand="block" fill="solid" color="warning" size="small"
-                    onclick="switchRoleDashboardView('global_fleet_manager')">Registro Veicoli (Flotta
-                    Globale)</ion-button>
-                </ion-card-content>
-              </ion-card>
-            </div>
-            <div class="col-12 col-md-4">
-              <ion-card class="dashboard-card h-100 m-0 p-3">
-                <ion-card-header class="p-0 mb-2">
-                  <ion-icon name="construct-outline" color="warning" style="font-size: 2rem;"></ion-icon>
-                  <ion-card-title class="text-white fs-6 fw-bold mt-1">Manutenzioni Programmate</ion-card-title>
-                </ion-card-header>
-                <ion-card-content class="p-0">
-                  <p class="text-slate-300 small mb-3">Pianifica e gestisci gli interventi di tagliando e riparazione
-                    flotta.</p>
-                  <ion-button expand="block" fill="outline" color="warning" size="small">Manutenzioni</ion-button>
-                </ion-card-content>
-              </ion-card>
-            </div>
-            <div class="col-12 col-md-4">
-              <ion-card class="dashboard-card h-100 m-0 p-3">
-                <ion-card-header class="p-0 mb-2">
-                  <ion-icon name="document-text-outline" color="warning" style="font-size: 2rem;"></ion-icon>
-                  <ion-card-title class="text-white fs-6 fw-bold mt-1">Stampa Indisponibilità</ion-card-title>
-                </ion-card-header>
-                <ion-card-content class="p-0">
-                  <p class="text-slate-300 small mb-3">Genera e stampa l'attestato di indisponibilità veicolo per
-                    rimborso.</p>
-                  <ion-button expand="block" fill="outline" color="warning" size="small">Stampa Attestato</ion-button>
-                </ion-card-content>
-              </ion-card>
-            </div>
-          </div>
-
-          <!-- ================= SEZIONE: PRENOTAZIONI AUTOMEZZI (FLEET MANAGER) ================= -->
-          <div class="mb-4">
-            <h5 class="fw-bold text-white mb-3 d-flex align-items-center gap-2">
+          <!-- ================= SEZIONE: PRENOTAZIONI AUTOMEZZI (IN ALTO) ================= -->
+          <div class="mb-3">
+            <h6 class="fw-bold text-white mb-2 d-flex align-items-center gap-2">
               <i class="bi bi-calendar-check-fill text-warning"></i> Prenotazioni Automezzi
-            </h5>
-            <ion-card class="dashboard-card m-0 p-3 p-md-4 border-start border-4 border-warning">
+            </h6>
+            <ion-card class="dashboard-card m-0 p-3 border-start border-4 border-warning">
               <div class="d-flex flex-column flex-md-row justify-content-between align-items-start align-items-md-center gap-3">
                 <div>
                   <h6 class="text-white fw-bold mb-1 d-flex align-items-center gap-2">
@@ -405,62 +355,108 @@
               </div>
             </ion-card>
           </div>
+
+          <h6 class="fw-bold text-white mb-2"><i class="bi bi-car-front-fill text-warning me-2"></i> Operazioni Flotta &
+            Carpooling</h6>
+          <div class="row g-3 mb-4">
+            <div class="col-12 col-md-4">
+              <ion-card class="dashboard-card h-100 m-0 p-3">
+                <ion-card-header class="p-0 mb-2">
+                  <ion-icon name="list-outline" color="warning" style="font-size: 2rem;"></ion-icon>
+                  <ion-card-title class="text-white fs-6 fw-bold mt-1">Elenco Automezzi</ion-card-title>
+                </ion-card-header>
+                <ion-card-content class="p-0">
+                  <p class="text-slate-300 small mb-3">Gestisci le schede dei veicoli, km attuali e scadenze assicurazioni.</p>
+                  <ion-button expand="block" fill="solid" color="warning" size="small"
+                    onclick="switchRoleDashboardView('global_fleet_manager')">Registro Veicoli (Flotta Globale)</ion-button>
+                </ion-card-content>
+              </ion-card>
+            </div>
+            <div class="col-12 col-md-4">
+              <ion-card class="dashboard-card h-100 m-0 p-3">
+                <ion-card-header class="p-0 mb-2">
+                  <ion-icon name="construct-outline" color="warning" style="font-size: 2rem;"></ion-icon>
+                  <ion-card-title class="text-white fs-6 fw-bold mt-1">Manutenzioni Programmate</ion-card-title>
+                </ion-card-header>
+                <ion-card-content class="p-0">
+                  <p class="text-slate-300 small mb-3">Pianifica e gestisci gli interventi di tagliando e riparazione flotta.</p>
+                  <ion-button expand="block" fill="outline" color="warning" size="small">Manutenzioni</ion-button>
+                </ion-card-content>
+              </ion-card>
+            </div>
+            <div class="col-12 col-md-4">
+              <ion-card class="dashboard-card h-100 m-0 p-3">
+                <ion-card-header class="p-0 mb-2">
+                  <ion-icon name="document-text-outline" color="warning" style="font-size: 2rem;"></ion-icon>
+                  <ion-card-title class="text-white fs-6 fw-bold mt-1">Stampa Indisponibilità</ion-card-title>
+                </ion-card-header>
+                <ion-card-content class="p-0">
+                  <p class="text-slate-300 small mb-3">Genera e stampa l'attestato di indisponibilità veicolo per rimborso.</p>
+                  <ion-button expand="block" fill="outline" color="warning" size="small">Stampa Attestato</ion-button>
+                </ion-card-content>
+              </ion-card>
+            </div>
+          </div>
         </div>
 
         <!-- ================= VISTA HOME 2B: GLOBAL FLEET MANAGER ================= -->
         <div id="role-dashboard-global_fleet_manager" class="role-dashboard-view" style="display: none;">
-          <ion-card class="dashboard-card p-3 p-md-4 mb-4 border-start border-4 border-warning">
-            <ion-card-header class="p-0 mb-3">
+          <ion-card class="dashboard-card p-3 mb-3 border-start border-4 border-warning">
+            <ion-card-header class="p-0 mb-2">
               <div class="d-flex justify-content-between align-items-center flex-wrap gap-2">
                 <div>
-                  <ion-card-subtitle color="warning" class="fw-bold text-uppercase tracking-wider">
+                  <span class="summary-card-subtitle text-warning">
                     Console Global Fleet Manager
-                  </ion-card-subtitle>
-
+                  </span>
+                  <h5 class="summary-card-title">
+                    Supervisione Globale Flotta
+                  </h5>
                 </div>
-
+                <ion-badge color="warning" class="summary-card-badge text-dark">
+                  Global Fleet
+                </ion-badge>
               </div>
-              <p class="text-muted small mt-2 mb-0">
+              <p class="summary-card-desc">
                 Supervisione completa di tutti gli autoveicoli aziendali dislocati in ogni sede e reparto.
               </p>
             </ion-card-header>
 
             <ion-card-content class="p-0">
-              <div class="row g-3">
+              <div class="row g-2">
                 <div class="col-6 col-md-3">
                   <div class="kpi-stat-box text-center p-2">
                     <div class="kpi-label"><i class="bi bi-truck-front-fill text-warning me-1"></i> Totale Auto</div>
-                    <div id="global-fleet-stat-total" class="fw-bold text-warning fs-3 mt-1">0</div>
+                    <div id="global-fleet-stat-total" class="kpi-stat-value text-warning">0</div>
                   </div>
                 </div>
                 <div class="col-6 col-md-3">
                   <div class="kpi-stat-box text-center p-2">
                     <div class="kpi-label"><i class="bi bi-check-circle-fill text-success me-1"></i> Disponibili</div>
-                    <div id="global-fleet-stat-disponibili" class="fw-bold text-success fs-3 mt-1">0</div>
+                    <div id="global-fleet-stat-disponibili" class="kpi-stat-value text-success">0</div>
                   </div>
                 </div>
                 <div class="col-6 col-md-3">
                   <div class="kpi-stat-box text-center p-2">
                     <div class="kpi-label"><i class="bi bi-key-fill text-warning me-1"></i> In Uso / Prenotati</div>
-                    <div id="global-fleet-stat-inuso" class="fw-bold text-warning fs-3 mt-1">0</div>
+                    <div id="global-fleet-stat-inuso" class="kpi-stat-value text-warning">0</div>
                   </div>
                 </div>
                 <div class="col-6 col-md-3">
                   <div class="kpi-stat-box text-center p-2">
                     <div class="kpi-label"><i class="bi bi-tools text-danger me-1"></i> In Manutenzione</div>
-                    <div id="global-fleet-stat-manutenzione" class="fw-bold text-danger fs-3 mt-1">0</div>
+                    <div id="global-fleet-stat-manutenzione" class="kpi-stat-value text-danger">0</div>
                   </div>
                 </div>
               </div>
             </ion-card-content>
           </ion-card>
 
-          <!-- ================= SEZIONE: PRENOTAZIONI AUTOMEZZI (GLOBAL FLEET) ================= -->
-          <div class="mb-4">
-            <h5 class="fw-bold text-white mb-3 d-flex align-items-center gap-2">
+          <!-- ================= SEZIONE: PRENOTAZIONI AUTOMEZZI (GLOBAL FLEET IN ALTO) ================= -->
+          <div class="mb-3">
+            <h6 class="fw-bold text-white mb-2 d-flex align-items-center gap-2">
               <i class="bi bi-calendar-check-fill text-warning"></i> Prenotazioni Automezzi
-            </h5>
-            <ion-card class="dashboard-card m-0 p-3 p-md-4 border-start border-4 border-warning">
+            </h6>
+            <ion-card class="dashboard-card m-0 p-3 border-start border-4 border-warning">
               <div class="d-flex flex-column flex-md-row justify-content-between align-items-start align-items-md-center gap-3">
                 <div>
                   <h6 class="text-white fw-bold mb-1 d-flex align-items-center gap-2">
@@ -527,78 +523,73 @@
 
         <!-- ================= VISTA HOME 3: OPERATORE ASSISTENZA ================= -->
         <div id="role-dashboard-assistenza" class="role-dashboard-view" style="display: none;">
-          <ion-card class="dashboard-card p-3 p-md-4 mb-4 border-start border-4 border-info">
-            <ion-card-header class="p-0 mb-3">
+          <ion-card class="dashboard-card p-3 mb-3 border-start border-4 border-info">
+            <ion-card-header class="p-0 mb-2">
               <div class="d-flex justify-content-between align-items-center flex-wrap gap-2">
                 <div>
-                  <ion-card-subtitle color="tertiary" class="fw-bold text-uppercase tracking-wider">
+                  <span class="summary-card-subtitle text-info">
                     Console Assistenza & Helpdesk IT
-                  </ion-card-subtitle>
-                  <ion-card-title class="fw-bold text-white fs-3 mb-0">
+                  </span>
+                  <h5 class="summary-card-title">
                     Ciao, Operatore <span class="user-display-name"></span>!
-                  </ion-card-title>
+                  </h5>
                 </div>
-                <ion-badge color="tertiary" class="px-3 py-2 rounded-pill fs-6">
-                  Ruolo: Operatore Assistenza
+                <ion-badge color="tertiary" class="summary-card-badge">
+                  Assistenza IT
                 </ion-badge>
               </div>
-              <p class="text-muted small mt-2 mb-0">
+              <p class="summary-card-desc">
                 Panoramica dei ticket in coda, assegnazioni di supporto e gestione richieste materiale da magazzino.
               </p>
             </ion-card-header>
 
             <ion-card-content class="p-0">
-              <div class="row g-3">
+              <div class="row g-2">
                 <div class="col-4">
                   <div class="kpi-stat-box text-center">
-                    <div class="kpi-label"><i class="bi bi-person-workspace text-info me-1"></i> Assegnati a Me</div>
-                    <div id="assistenza-stat-my" class="fw-bold text-info fs-3 mt-1">5</div>
+                    <div class="kpi-label"><i class="bi bi-person-workspace text-info me-1"></i> Assegnati</div>
+                    <div id="assistenza-stat-my" class="kpi-stat-value text-info">0</div>
                   </div>
                 </div>
                 <div class="col-4">
                   <div class="kpi-stat-box text-center">
-                    <div class="kpi-label"><i class="bi bi-inbox-fill text-warning me-1"></i> Nuovi in Coda</div>
-                    <div id="assistenza-stat-unassigned" class="fw-bold text-warning fs-3 mt-1">8</div>
+                    <div class="kpi-label"><i class="bi bi-inbox-fill text-warning me-1"></i> In Coda</div>
+                    <div id="assistenza-stat-unassigned" class="kpi-stat-value text-warning">0</div>
                   </div>
                 </div>
                 <div class="col-4">
                   <div class="kpi-stat-box text-center">
-                    <div class="kpi-label"><i class="bi bi-stopwatch-fill text-success me-1"></i> Tempo Risposta</div>
-                    <div class="fw-bold text-success fs-3 mt-1">&lt; 30 min</div>
+                    <div class="kpi-label"><i class="bi bi-stopwatch-fill text-success me-1"></i> Risposta</div>
+                    <div class="kpi-stat-value text-success">&lt; 30m</div>
                   </div>
                 </div>
               </div>
             </ion-card-content>
           </ion-card>
 
-          <h5 class="fw-bold text-white mb-3"><i class="bi bi-headset text-info me-2"></i> Strumenti Assistenza Tecnica
-          </h5>
+          <h6 class="fw-bold text-white mb-2"><i class="bi bi-headset text-info me-2"></i> Strumenti Assistenza Tecnica</h6>
           <div class="row g-3 mb-4">
             <div class="col-12 col-md-6">
               <ion-card class="dashboard-card h-100 m-0 p-3">
                 <ion-card-header class="p-0 mb-2">
-                  <ion-icon name="ticket-outline" color="tertiary" style="font-size: 2.2rem;"></ion-icon>
-                  <ion-card-title class="text-white fs-5 fw-bold mt-1">Gestione Coda Ticket Reparto</ion-card-title>
+                  <ion-icon name="ticket-outline" color="tertiary" style="font-size: 2rem;"></ion-icon>
+                  <ion-card-title class="text-white fs-6 fw-bold mt-1">Gestione Coda Ticket Reparto</ion-card-title>
                 </ion-card-header>
                 <ion-card-content class="p-0">
-                  <p class="text-slate-300 small mb-3">Prendi in carico i ticket in attesa, assegna le priorità ed
-                    aggiorna la risoluzione.</p>
-                  <ion-button expand="block" fill="solid" color="tertiary" size="small">Elenco Ticket
-                    Reparto</ion-button>
+                  <p class="text-slate-300 small mb-3">Prendi in carico i ticket in attesa, assegna le priorità ed aggiorna la risoluzione.</p>
+                  <ion-button expand="block" fill="solid" color="tertiary" size="small">Elenco Ticket Reparto</ion-button>
                 </ion-card-content>
               </ion-card>
             </div>
             <div class="col-12 col-md-6">
               <ion-card class="dashboard-card h-100 m-0 p-3">
                 <ion-card-header class="p-0 mb-2">
-                  <ion-icon name="cube-outline" color="tertiary" style="font-size: 2.2rem;"></ion-icon>
-                  <ion-card-title class="text-white fs-5 fw-bold mt-1">Richieste Materiale Magazzino</ion-card-title>
+                  <ion-icon name="cube-outline" color="tertiary" style="font-size: 2rem;"></ion-icon>
+                  <ion-card-title class="text-white fs-6 fw-bold mt-1">Richieste Materiale Magazzino</ion-card-title>
                 </ion-card-header>
                 <ion-card-content class="p-0">
-                  <p class="text-slate-300 small mb-3">Verifica la disponibilità di componenti IT e richiedi ricambi per
-                    le riparazioni.</p>
-                  <ion-button expand="block" fill="outline" color="tertiary" size="small">Gestione
-                    Magazzino</ion-button>
+                  <p class="text-slate-300 small mb-3">Verifica la disponibilità di componenti IT e richiedi ricambi per le riparazioni.</p>
+                  <ion-button expand="block" fill="outline" color="tertiary" size="small">Gestione Magazzino</ion-button>
                 </ion-card-content>
               </ion-card>
             </div>
@@ -607,79 +598,73 @@
 
         <!-- ================= VISTA HOME 4: RESPONSABILE REPARTO ================= -->
         <div id="role-dashboard-responsabile" class="role-dashboard-view" style="display: none;">
-          <ion-card class="dashboard-card p-3 p-md-4 mb-4 border-start border-4 border-success">
-            <ion-card-header class="p-0 mb-3">
+          <ion-card class="dashboard-card p-3 mb-3 border-start border-4 border-success">
+            <ion-card-header class="p-0 mb-2">
               <div class="d-flex justify-content-between align-items-center flex-wrap gap-2">
                 <div>
-                  <ion-card-subtitle color="success" class="fw-bold text-uppercase tracking-wider">
+                  <span class="summary-card-subtitle text-success">
                     Gestione & Monitoraggio Reparto
-                  </ion-card-subtitle>
-                  <ion-card-title class="fw-bold text-white fs-3 mb-0">
+                  </span>
+                  <h5 class="summary-card-title">
                     Benvenuto, Responsabile <span class="user-display-name"></span>!
-                  </ion-card-title>
+                  </h5>
                 </div>
-                <ion-badge color="success" class="px-3 py-2 rounded-pill fs-6">
-                  Ruolo: Responsabile Reparto
+                <ion-badge color="success" class="summary-card-badge">
+                  Responsabile
                 </ion-badge>
               </div>
-              <p class="text-muted small mt-2 mb-0">
-                Pannello di supervisione delle presenze mensili, piano ferie del personale e copertura dei servizi di
-                reparto.
+              <p class="summary-card-desc">
+                Pannello di supervisione delle presenze mensili, piano ferie del personale e copertura dei servizi.
               </p>
             </ion-card-header>
 
             <ion-card-content class="p-0">
-              <div class="row g-3">
+              <div class="row g-2">
                 <div class="col-4">
                   <div class="kpi-stat-box text-center">
-                    <div class="kpi-label"><i class="bi bi-people-fill text-success me-1"></i> Membri Reparto</div>
-                    <div id="resp-stat-emp" class="fw-bold text-success fs-3 mt-1">14</div>
+                    <div class="kpi-label"><i class="bi bi-people-fill text-success me-1"></i> Membri</div>
+                    <div id="resp-stat-emp" class="kpi-stat-value text-success">0</div>
                   </div>
                 </div>
                 <div class="col-4">
                   <div class="kpi-stat-box text-center">
-                    <div class="kpi-label"><i class="bi bi-person-x-fill text-warning me-1"></i> Assenti Oggi</div>
-                    <div id="resp-stat-absent" class="fw-bold text-warning fs-3 mt-1">2</div>
+                    <div class="kpi-label"><i class="bi bi-person-x-fill text-warning me-1"></i> Assenti</div>
+                    <div id="resp-stat-absent" class="kpi-stat-value text-warning">0</div>
                   </div>
                 </div>
                 <div class="col-4">
                   <div class="kpi-stat-box text-center">
-                    <div class="kpi-label"><i class="bi bi-shield-check text-info me-1"></i> Copertura Turni</div>
-                    <div class="fw-bold text-white fs-3 mt-1">100%</div>
+                    <div class="kpi-label"><i class="bi bi-shield-check text-info me-1"></i> Copertura</div>
+                    <div class="kpi-stat-value text-white">100%</div>
                   </div>
                 </div>
               </div>
             </ion-card-content>
           </ion-card>
 
-          <h5 class="fw-bold text-white mb-3"><i class="bi bi-calendar-check-fill text-success me-2"></i> Strumenti
-            Responsabile</h5>
+          <h6 class="fw-bold text-white mb-2"><i class="bi bi-calendar-check-fill text-success me-2"></i> Strumenti Responsabile</h6>
           <div class="row g-3 mb-4">
             <div class="col-12 col-md-6">
               <ion-card class="dashboard-card h-100 m-0 p-3">
                 <ion-card-header class="p-0 mb-2">
-                  <ion-icon name="calendar-clear-outline" color="success" style="font-size: 2.2rem;"></ion-icon>
-                  <ion-card-title class="text-white fs-5 fw-bold mt-1">Matrice Mensile Presenze</ion-card-title>
+                  <ion-icon name="calendar-clear-outline" color="success" style="font-size: 2rem;"></ion-icon>
+                  <ion-card-title class="text-white fs-6 fw-bold mt-1">Matrice Mensile Presenze</ion-card-title>
                 </ion-card-header>
                 <ion-card-content class="p-0">
-                  <p class="text-slate-300 small mb-3">Consulta il tabellone grafico con la situazione di presenze,
-                    ferie e smartworking del mese.</p>
-                  <ion-button expand="block" fill="solid" color="success" size="small">Visualizza Matrice
-                    Reparto</ion-button>
+                  <p class="text-slate-300 small mb-3">Consulta il tabellone grafico con la situazione di presenze, ferie e smartworking del mese.</p>
+                  <ion-button expand="block" fill="solid" color="success" size="small">Visualizza Matrice Reparto</ion-button>
                 </ion-card-content>
               </ion-card>
             </div>
             <div class="col-12 col-md-6">
               <ion-card class="dashboard-card h-100 m-0 p-3">
                 <ion-card-header class="p-0 mb-2">
-                  <ion-icon name="people-outline" color="success" style="font-size: 2.2rem;"></ion-icon>
-                  <ion-card-title class="text-white fs-5 fw-bold mt-1">Verifica Copertura Servizi</ion-card-title>
+                  <ion-icon name="people-outline" color="success" style="font-size: 2rem;"></ion-icon>
+                  <ion-card-title class="text-white fs-6 fw-bold mt-1">Verifica Copertura Servizi</ion-card-title>
                 </ion-card-header>
                 <ion-card-content class="p-0">
-                  <p class="text-slate-300 small mb-3">Accerta la disponibilità minima di operatori per la garanzia del
-                    servizio nelle festività.</p>
-                  <ion-button expand="block" fill="outline" color="success" size="small">Piano Copertura
-                    Turni</ion-button>
+                  <p class="text-slate-300 small mb-3">Accerta la disponibilità minima di operatori per la garanzia del servizio nelle festività.</p>
+                  <ion-button expand="block" fill="outline" color="success" size="small">Piano Copertura Turni</ion-button>
                 </ion-card-content>
               </ion-card>
             </div>
@@ -688,53 +673,52 @@
 
         <!-- ================= VISTA HOME 5: AMMINISTRATORE ================= -->
         <div id="role-dashboard-admin" class="role-dashboard-view" style="display: none;">
-          <ion-card class="dashboard-card p-3 p-md-4 mb-4 border-start border-4 border-danger">
-            <ion-card-header class="p-0 mb-3">
+          <ion-card class="dashboard-card p-3 mb-3 border-start border-4 border-danger">
+            <ion-card-header class="p-0 mb-2">
               <div class="d-flex justify-content-between align-items-center flex-wrap gap-2">
                 <div>
-                  <ion-card-subtitle color="danger" class="fw-bold text-uppercase tracking-wider">
-                    Pannello di Controllo Amministratore
-                  </ion-card-subtitle>
-                  <ion-card-title class="fw-bold text-white fs-3 mb-0">
+                  <span class="summary-card-subtitle text-danger">
+                    Pannello Amministratore
+                  </span>
+                  <h5 class="summary-card-title">
                     Benvenuto, Admin <span class="user-display-name"></span>!
-                  </ion-card-title>
+                  </h5>
                 </div>
-                <ion-badge color="danger" class="px-3 py-2 rounded-pill fs-6">
-                  Ruolo: Amministratore Globale
+                <ion-badge color="danger" class="summary-card-badge">
+                  Admin Globale
                 </ion-badge>
               </div>
-              <p class="text-muted small mt-2 mb-0">
-                Controllo globale del sistema Troubletick, configurazioni avanzate, amministrazione utenti, reparti e
-                flotta.
+              <p class="summary-card-desc">
+                Controllo globale di Troubletick, utenti, reparti, configurazioni e parco automezzi.
               </p>
             </ion-card-header>
 
             <ion-card-content class="p-0">
-              <div class="row g-3">
+              <div class="row g-2">
                 <div class="col-4">
                   <div class="kpi-stat-box text-center">
-                    <div class="kpi-label"><i class="bi bi-people-fill text-danger me-1"></i> Utenti Totali</div>
-                    <div id="admin-stat-users" class="fw-bold text-danger fs-3 mt-1">42</div>
+                    <div class="kpi-label"><i class="bi bi-people-fill text-danger me-1"></i> Utenti</div>
+                    <div id="admin-stat-users" class="kpi-stat-value text-danger">0</div>
                   </div>
                 </div>
                 <div class="col-4">
                   <div class="kpi-stat-box text-center">
-                    <div class="kpi-label"><i class="bi bi-diagram-3-fill text-info me-1"></i> Reparti Attivi</div>
-                    <div id="admin-stat-reparti" class="fw-bold text-white fs-3 mt-1">8</div>
+                    <div class="kpi-label"><i class="bi bi-diagram-3-fill text-info me-1"></i> Reparti</div>
+                    <div id="admin-stat-reparti" class="kpi-stat-value text-white">0</div>
                   </div>
                 </div>
                 <div class="col-4">
                   <div class="kpi-stat-box text-center">
-                    <div class="kpi-label"><i class="bi bi-activity text-success me-1"></i> Stato Sistema</div>
-                    <div class="fw-bold text-success fs-3 mt-1">Ottimale</div>
+                    <div class="kpi-label"><i class="bi bi-activity text-success me-1"></i> Sistema</div>
+                    <div class="kpi-stat-value text-success">Online</div>
                   </div>
                 </div>
               </div>
             </ion-card-content>
           </ion-card>
 
-          <h5 class="fw-bold text-white mb-3"><i class="bi bi-shield-lock-fill text-danger me-2"></i> Funzioni di
-            Amministrazione Globale</h5>
+          <h6 class="fw-bold text-white mb-2"><i class="bi bi-shield-lock-fill text-danger me-2"></i> Funzioni di
+            Amministrazione Globale</h6>
           <div class="row g-3 mb-4">
             <div class="col-12 col-md-4">
               <ion-card class="dashboard-card h-100 m-0 p-3">
