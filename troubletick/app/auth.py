@@ -5,7 +5,7 @@ from fastapi import APIRouter, Request, Form, BackgroundTasks
 from fastapi.responses import HTMLResponse, RedirectResponse, JSONResponse
 from sqlalchemy import text
 
-from core import engine, CFG, templates, BASE_DIR
+from core import engine, CFG, templates, BASE_DIR, LOG_DIR
 from utils import ok
 from email_utils import send_email_async
 
@@ -123,7 +123,7 @@ def login_action(r: Request, username: str=Form(...), password: str=Form(...)):
 
     ip = r.client.host if r.client else "Sconosciuto"
     now = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-    with open(os.path.join(BASE_DIR, "failed_logins.log"), "a", encoding="utf-8") as f:
+    with open(os.path.join(LOG_DIR, "failed_logins.log"), "a", encoding="utf-8") as f:
         f.write(f"[{now}] IP: {ip} - Tentativo fallito per: {username}\n")
 
     return templates.TemplateResponse(r, "login.html", {"request": r, "cfg": CFG, "error": "Credenziali errate"})
@@ -543,8 +543,6 @@ class PwaLoginReq(BaseModel):
     password: str
 
 # Logger Errori di Autenticazione PWA
-LOG_DIR = os.path.join(BASE_DIR, "logs")
-os.makedirs(LOG_DIR, exist_ok=True)
 AUTH_LOG_FILE = os.path.join(LOG_DIR, "pwa_auth_errors.log")
 
 auth_logger = logging.getLogger("pwa_auth_errors")

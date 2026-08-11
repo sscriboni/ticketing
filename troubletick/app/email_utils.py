@@ -5,12 +5,12 @@ from datetime import datetime
 from email.mime.text import MIMEText
 from email.mime.multipart import MIMEMultipart
 
-from core import CFG, BASE_DIR
+from core import CFG, BASE_DIR, LOG_DIR
 
 def _log_email_event(log_message: str):
     """Scrive un messaggio sia su emails.log che su app_events.log per garantire il tracciamento completo"""
-    log_file_path = os.path.join(BASE_DIR, "emails.log")
-    app_events_path = os.path.join(BASE_DIR, "app_events.log")
+    log_file_path = os.path.join(LOG_DIR, "emails.log")
+    app_events_path = os.path.join(LOG_DIR, "app_events.log")
     
     for path in [log_file_path, app_events_path]:
         try:

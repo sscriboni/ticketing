@@ -28,6 +28,9 @@ DB_PK = "INTEGER PRIMARY KEY AUTOINCREMENT" if DB_DRIVER.startswith("sqlite") el
 UPLOAD_DIR = os.path.join(BASE_DIR, "uploads")
 os.makedirs(UPLOAD_DIR, exist_ok=True)
 
+LOG_DIR = os.path.join(os.path.dirname(BASE_DIR), "logs")
+os.makedirs(LOG_DIR, exist_ok=True)
+
 templates = Jinja2Templates(directory=os.path.join(BASE_DIR, "templates"))
 
 def get_last_inserted_id(conn):

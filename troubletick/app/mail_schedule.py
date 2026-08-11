@@ -13,7 +13,7 @@ if script_dir not in sys.path:
 
 try:
     from sqlalchemy import text
-    from core import engine, CFG, BASE_DIR
+    from core import engine, CFG, BASE_DIR, LOG_DIR
     from email_utils import send_email_async
 except ImportError as e:
     print(f"[ERRORE] Impossibile importare moduli core. Assicurati che l'ambiente virtuale sia attivo. Dettagli: {e}")
@@ -236,7 +236,7 @@ def query_admin_status(conn):
 
     # 5. Ultimi 10 accessi falliti (da log file)
     failed_logins = []
-    log_file = os.path.join(BASE_DIR, "failed_logins.log")
+    log_file = os.path.join(LOG_DIR, "failed_logins.log")
     if os.path.exists(log_file):
         try:
             with open(log_file, "r", encoding="utf-8") as f:

@@ -10,7 +10,7 @@ from starlette.middleware.sessions import SessionMiddleware
 from sqlalchemy import create_engine, text
 import bcrypt
 
-from core import CFG, BASE_DIR, UPLOAD_DIR, engine, DB_TYPE, DB_PK, DB_DRIVER, templates
+from core import CFG, BASE_DIR, UPLOAD_DIR, LOG_DIR, engine, DB_TYPE, DB_PK, DB_DRIVER, templates
 from utils import current_user, require_superuser, save_upload, save_user_roles
 from email_utils import send_email_async
 import auth
@@ -528,7 +528,7 @@ async def morning_recap_scheduler():
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     now = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-    log_file = os.path.join(BASE_DIR, "app_events.log")
+    log_file = os.path.join(LOG_DIR, "app_events.log")
     try:
         with open(log_file, "a", encoding="utf-8") as f:
             f.write(f"[{now}] Server AVVIATO - Troubletick ({DB_TYPE})\n")
@@ -717,12 +717,12 @@ templates.env.globals["get_pending_requests_count"] = get_pending_requests_count
 async def global_exception_handler(request: Request, exc: Exception):
     now = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
     try:
-        with open(os.path.join(BASE_DIR, "app_events.log"), "a", encoding="utf-8") as f:
+        with open(os.path.join(LOG_DIR, "app_events.log"), "a", encoding="utf-8") as f:
             f.write(f"\n[{now}] ERRORE 500 su {request.url.path}:\n")
             f.write(traceback.format_exc() + "\n")
     except Exception:
         pass
-    return HTMLResponse("<h1>500 Internal Server Error</h1><p>Si è verificato un errore imprevisto sul server. Controlla il file <b>app_events.log</b> per visualizzare i dettagli tecnici.</p>", status_code=500)
+    return HTMLResponse("<h1>500 Internal Server Error</h1><p>Si è verificato un errore imprevisto sul server. Controlla il file <b>logs/app_events.log</b> per visualizzare i dettagli tecnici.</p>", status_code=500)
 
 app.include_router(auth.router)
 app.include_router(magazzini.router)

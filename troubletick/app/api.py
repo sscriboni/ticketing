@@ -106,10 +106,12 @@ class LoginResponse(BaseModel):
     user: UserResponse
 
 class DashboardResponse(BaseModel):
-    ruolo: str
-    tickets_open: int
-    vehicles_count: int
-    presenze_status: str
+    ruolo: Optional[str] = "normale"
+    tickets_open: int = 0
+    tickets_in_progress: Optional[int] = 0
+    tickets_closed: Optional[int] = 0
+    vehicles_count: int = 0
+    presenze_status: Optional[str] = "Operativo"
     user_reparto_nome: Optional[str] = None
     role_stats: Optional[Dict[str, Any]] = None
 
@@ -485,6 +487,8 @@ def get_dashboard_metrics(user: dict = Depends(get_current_user)):
     api_logger.info("[DASHBOARD] Metriche caricate per utente '%s' (ID: %s, Ruolo: %s) - Tickets: %d, Veicoli: %d", user.get("username"), user.get("user_id"), user_ruolo, (tickets_open + tickets_in_progress), vehicles_count)
 
     return DashboardResponse(
+        ruolo=user_ruolo,
+        presenze_status="Operativo",
         tickets_open=tickets_open,
         tickets_in_progress=tickets_in_progress,
         tickets_closed=tickets_closed,
