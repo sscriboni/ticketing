@@ -310,6 +310,40 @@ try:
             tipo_servizio TEXT,
             creato_il TEXT DEFAULT CURRENT_TIMESTAMP
         )"""))
+
+        c.execute(text(f"""CREATE TABLE IF NOT EXISTS tag_operatori (
+            tag_id {DB_PK},
+            nome TEXT UNIQUE NOT NULL,
+            colore TEXT DEFAULT '#0d6efd',
+            descrizione TEXT
+        )"""))
+
+        c.execute(text(f"""CREATE TABLE IF NOT EXISTS operatori_tag (
+            user_id INTEGER NOT NULL,
+            tag_id INTEGER NOT NULL,
+            PRIMARY KEY(user_id, tag_id),
+            FOREIGN KEY(user_id) REFERENCES users(user_id) ON DELETE CASCADE,
+            FOREIGN KEY(tag_id) REFERENCES tag_operatori(tag_id) ON DELETE CASCADE
+        )"""))
+
+        count_op_tags = c.execute(text("SELECT COUNT(*) FROM tag_operatori")).scalar() or 0
+        if count_op_tags == 0:
+            default_op_tags = [
+                ("Reperibile", "#198754", "Operatore disponibile in reperibilità"),
+                ("Turnista", "#0d6efd", "Operatore con orario di lavoro su turni"),
+                ("Part-Time", "#ffc107", "Operatore con contratto a tempo parziale"),
+                ("Full-Time", "#0dcaf0", "Operatore con contratto a tempo pieno"),
+                ("Coordinatore", "#6f42c1", "Coordinatore o referente di servizio"),
+                ("Tecnico Hardware", "#fd7e14", "Specializzato in supporto e manutenzione hardware")
+            ]
+            for t_nome, t_col, t_desc in default_op_tags:
+                try:
+                    c.execute(text("""
+                        INSERT INTO tag_operatori (nome, colore, descrizione)
+                        VALUES (:nome, :colore, :desc)
+                    """), {"nome": t_nome, "colore": t_col, "desc": t_desc})
+                except Exception:
+                    pass
     
         for stmt in [
             "ALTER TABLE tickets ADD COLUMN argomento_id INTEGER",
@@ -2924,24 +2958,46 @@ def admin_operatori(r: Request):
              GROUP BY u.user_id, u.username, u.nome, u.cognome, u.email, u.telefono, u.reparto_id, u.attivo, u.is_test, u.ultimo_accesso, u.ultimo_ip, r.nome, sd.nome
              ORDER BY u.nome
         """)).mappings().all()
+
+        all_tags = c.execute(text("SELECT tag_id, nome, colore, descrizione FROM tag_operatori ORDER BY nome")).mappings().all()
+        op_tags_rows = c.execute(text("""
+            SELECT ot.user_id, t.tag_id, t.nome, t.colore
+            FROM operatori_tag ot
+            JOIN tag_operatori t ON ot.tag_id = t.tag_id
+            ORDER BY t.nome
+        """)).mappings().all()
+        op_tags_map = {}
+        for otr in op_tags_rows:
+            uid = otr["user_id"]
+            if uid not in op_tags_map:
+                op_tags_map[uid] = []
+            op_tags_map[uid].append({"tag_id": otr["tag_id"], "nome": otr["nome"], "colore": otr["colore"]})
+
+        operatori_list = []
+        for op in operatori:
+            op_d = dict(op)
+            op_d["tags"] = op_tags_map.get(op_d["user_id"], [])
+            operatori_list.append(op_d)
+
         reparti = c.execute(text("SELECT reparto_id, nome FROM reparti ORDER BY nome")).mappings().all()
         servizi = c.execute(text("SELECT servizio_id, descrizione, reparto_id FROM servizi ORDER BY descrizione")).mappings().all()
         sedi = c.execute(text("SELECT sede_id, nome FROM sedi ORDER BY nome")).mappings().all()
         ruoli = c.execute(text("SELECT nome, descrizione FROM ruoli ORDER BY ruolo_id")).mappings().all()
         magazzini = c.execute(text("SELECT magazzino_id, nome, reparto_id FROM magazzini ORDER BY nome")).mappings().all()
-    return templates.TemplateResponse(r, "manage_operatori.html", {"request": r, "cfg": CFG, "user": user, "operatori": operatori, "reparti": reparti, "servizi": servizi, "sedi": sedi, "ruoli": ruoli, "magazzini": magazzini})
+    return templates.TemplateResponse(r, "manage_operatori.html", {"request": r, "cfg": CFG, "user": user, "operatori": operatori_list, "reparti": reparti, "servizi": servizi, "sedi": sedi, "ruoli": ruoli, "magazzini": magazzini, "all_tags": all_tags})
 
 @app.post("/admin/operatore/nuovo")
 def new_operatore(r: Request, username: str=Form(...), password: str=Form(...), nome: str=Form(...), 
                   cognome: str=Form(...), email: str=Form(...), telefono: str=Form(None), 
                   reparto_id: str=Form(None), ruoli: list=Form(None), sede_id: str=Form(None), is_test: int=Form(0),
-                  servizi: list=Form(None), magazzini: list=Form(None)):
+                  servizi: list=Form(None), magazzini: list=Form(None), tag_ids: list=Form(None)):
     user = require_superuser(r)
     if isinstance(user, RedirectResponse):
         return user
     
     ruoli = ruoli or []
     servizi = servizi or []
+    tag_ids = tag_ids or []
     username = (username or "").strip()
     password = (password or "").strip()
     nome = (nome or "").strip()
@@ -2989,6 +3045,13 @@ def new_operatore(r: Request, username: str=Form(...), password: str=Form(...), 
                         c.execute(text("""
                             INSERT INTO operatori_magazzini (user_id, magazzino_id) VALUES (:uid, :mid)
                         """), {"uid": user_id, "mid": int(mag_id)})
+                    except:
+                        pass
+                for tag_id in tag_ids:
+                    try:
+                        c.execute(text("""
+                            INSERT INTO operatori_tag (user_id, tag_id) VALUES (:uid, :tid)
+                        """), {"uid": user_id, "tid": int(tag_id)})
                     except:
                         pass
         return RedirectResponse(url="/admin/operatori", status_code=303)
@@ -3041,6 +3104,10 @@ def edit_operatore_form(r: Request, user_id: int):
         magazzini_assegnati = c.execute(text("""
             SELECT magazzino_id FROM operatori_magazzini WHERE user_id = :uid
         """), {"uid": user_id}).scalars().all()
+        operatore_tag_ids = c.execute(text("""
+            SELECT tag_id FROM operatori_tag WHERE user_id = :uid
+        """), {"uid": user_id}).scalars().all()
+        all_tags = c.execute(text("SELECT tag_id, nome, colore, descrizione FROM tag_operatori ORDER BY nome")).mappings().all()
         servizi = c.execute(text("SELECT servizio_id, descrizione, reparto_id FROM servizi ORDER BY descrizione")).mappings().all()
         sedi = c.execute(text("SELECT sede_id, nome FROM sedi ORDER BY nome")).mappings().all()
         ruoli = c.execute(text("SELECT nome, descrizione FROM ruoli ORDER BY ruolo_id")).mappings().all()
@@ -3048,20 +3115,23 @@ def edit_operatore_form(r: Request, user_id: int):
     
     return templates.TemplateResponse(r, "edit_operatore.html", {
         "request": r, "cfg": CFG, "user": user, "operatore": operatore, "operatore_ruoli": operatore_ruoli,
-        "reparti": reparti, "servizi": servizi, "servizi_assegnati": servizi_assegnati, "sedi": sedi, "ruoli": ruoli, "magazzini": magazzini, "magazzini_assegnati": magazzini_assegnati
+        "reparti": reparti, "servizi": servizi, "servizi_assegnati": servizi_assegnati, "sedi": sedi, "ruoli": ruoli, "magazzini": magazzini, "magazzini_assegnati": magazzini_assegnati,
+        "all_tags": all_tags, "operatore_tag_ids": operatore_tag_ids
     })
 
 @app.post("/admin/operatore/{user_id}/modifica")
 def edit_operatore(r: Request, user_id: int, background_tasks: BackgroundTasks, nome: str=Form(...), cognome: str=Form(...), 
                    email: str=Form(...), telefono: str=Form(None), 
                    reparto_id: str=Form(None), ruoli: list=Form(None), attivo: int=Form(0),
-                   password: str=Form(""), servizi: list=Form(None), sede_id: str=Form(None), magazzini: list=Form(None), is_test: int=Form(0)):
+                   password: str=Form(""), servizi: list=Form(None), sede_id: str=Form(None), magazzini: list=Form(None), is_test: int=Form(0),
+                   tag_ids: list=Form(None)):
     user = require_superuser(r)
     if isinstance(user, RedirectResponse):
         return user
     
     ruoli = ruoli or []
     servizi = servizi or []
+    tag_ids = tag_ids or []
     email = email.strip()
     password = password.strip()
     def h(p): return bcrypt.hashpw(p.encode('utf-8'), bcrypt.gensalt()).decode('utf-8')
@@ -3107,6 +3177,16 @@ def edit_operatore(r: Request, user_id: int, background_tasks: BackgroundTasks, 
                 """), {"uid": user_id, "mid": int(mag_id)})
             except:
                 pass
+
+        # Aggiorna tag assegnati
+        c.execute(text("DELETE FROM operatori_tag WHERE user_id = :uid"), {"uid": user_id})
+        for tag_id in tag_ids:
+            try:
+                c.execute(text("""
+                    INSERT INTO operatori_tag (user_id, tag_id) VALUES (:uid, :tid)
+                """), {"uid": user_id, "tid": int(tag_id)})
+            except:
+                pass
                 
         if attivo == 1 and op_prev and op_prev["attivo"] == 0 and op_prev["email"]:
             subject = f"[{CFG.get('company_name', 'Helpdesk')}] Account Attivato"
@@ -3123,6 +3203,82 @@ def edit_operatore(r: Request, user_id: int, background_tasks: BackgroundTasks, 
             background_tasks.add_task(send_email_async, op_prev["email"], subject, body, "Attivazione account operatore")
     
     return RedirectResponse(url="/admin/operatori", status_code=303)
+
+# ================= GESTIONE TAG OPERATORI =================
+@app.get("/admin/operatori/tag", response_class=HTMLResponse)
+def list_operatori_tags(r: Request):
+    user = require_superuser(r)
+    if isinstance(user, RedirectResponse):
+        return user
+        
+    with engine.connect() as conn:
+        tags_rows = conn.execute(text("""
+            SELECT t.tag_id, t.nome, t.colore, t.descrizione,
+                   (SELECT COUNT(*) FROM operatori_tag ot WHERE ot.tag_id = t.tag_id) as count_operatori
+            FROM tag_operatori t
+            ORDER BY t.nome
+        """)).mappings().all()
+        tags = [dict(t) for t in tags_rows]
+        
+    return templates.TemplateResponse(r, "admin_operatori_tag.html", {
+        "request": r, "cfg": CFG, "user": user, "tags": tags
+    })
+
+@app.post("/admin/operatori/tag/nuovo")
+def add_operatore_tag(r: Request, nome: str = Form(...), colore: str = Form("#0d6efd"), descrizione: str = Form(None)):
+    user = require_superuser(r)
+    if isinstance(user, RedirectResponse):
+        return user
+        
+    nome_clean = (nome or "").strip()
+    colore_clean = (colore or "#0d6efd").strip()
+    desc_clean = (descrizione or "").strip() if descrizione else None
+    
+    if not nome_clean:
+        return RedirectResponse(url="/admin/operatori/tag", status_code=303)
+        
+    with engine.begin() as conn:
+        exists = conn.execute(text("SELECT COUNT(*) FROM tag_operatori WHERE LOWER(nome) = LOWER(:nome)"), {"nome": nome_clean}).scalar()
+        if not exists:
+            conn.execute(text("""
+                INSERT INTO tag_operatori (nome, colore, descrizione)
+                VALUES (:nome, :colore, :desc)
+            """), {"nome": nome_clean, "colore": colore_clean, "desc": desc_clean})
+        
+    return RedirectResponse(url="/admin/operatori/tag", status_code=303)
+
+@app.post("/admin/operatori/tag/modifica/{id}")
+def edit_operatore_tag(id: int, r: Request, nome: str = Form(...), colore: str = Form("#0d6efd"), descrizione: str = Form(None)):
+    user = require_superuser(r)
+    if isinstance(user, RedirectResponse):
+        return user
+        
+    nome_clean = (nome or "").strip()
+    colore_clean = (colore or "#0d6efd").strip()
+    desc_clean = (descrizione or "").strip() if descrizione else None
+    
+    if not nome_clean:
+        return RedirectResponse(url="/admin/operatori/tag", status_code=303)
+        
+    with engine.begin() as conn:
+        conn.execute(text("""
+            UPDATE tag_operatori
+            SET nome = :nome, colore = :colore, descrizione = :desc
+            WHERE tag_id = :id
+        """), {"id": id, "nome": nome_clean, "colore": colore_clean, "desc": desc_clean})
+        
+    return RedirectResponse(url="/admin/operatori/tag", status_code=303)
+
+@app.post("/admin/operatori/tag/elimina/{id}")
+def delete_operatore_tag(id: int, r: Request):
+    user = require_superuser(r)
+    if isinstance(user, RedirectResponse):
+        return user
+        
+    with engine.begin() as conn:
+        conn.execute(text("DELETE FROM tag_operatori WHERE tag_id = :id"), {"id": id})
+        
+    return RedirectResponse(url="/admin/operatori/tag", status_code=303)
 
 @app.post("/admin/operatore/{user_id}/toggle")
 def toggle_operatore(r: Request, user_id: int, background_tasks: BackgroundTasks):

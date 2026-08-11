@@ -164,6 +164,34 @@
                         </div>
                     </div>
 
+                    <div class="mb-4">
+                        <label class="form-label fw-bold"><i class="bi bi-tags-fill text-primary me-1"></i>Tag Operatore</label>
+                        <div class="border p-3 rounded bg-light">
+                            {% if all_tags %}
+                                <div class="d-flex flex-wrap gap-3">
+                                    {% for tag in all_tags %}
+                                    <div class="form-check">
+                                        <input class="form-check-input" type="checkbox" name="tag_ids" 
+                                               value="{{ tag.tag_id }}" 
+                                               id="tag_{{ tag.tag_id }}"
+                                               {% if tag.tag_id in operatore_tag_ids %}checked{% endif %}>
+                                        <label class="form-check-label" for="tag_{{ tag.tag_id }}">
+                                            <span class="badge shadow-sm" style="background-color: {{ tag.colore or '#0d6efd' }}; color: #ffffff; font-size: 0.88rem; font-weight: 600;">
+                                                <i class="bi bi-tag-fill me-1"></i>{{ tag.nome }}
+                                            </span>
+                                            {% if tag.descrizione %}
+                                            <small class="text-muted d-block ms-1" style="font-size: 0.78rem;">{{ tag.descrizione }}</small>
+                                            {% endif %}
+                                        </label>
+                                    </div>
+                                    {% endfor %}
+                                </div>
+                            {% else %}
+                                <p class="text-muted mb-0 small">Nessun tag operatore disponibile. Crea i tag nella sezione <a href="/admin/operatori/tag" target="_blank" class="fw-bold">Gestione Tag Operatori</a>.</p>
+                            {% endif %}
+                        </div>
+                    </div>
+
                     <div class="d-flex gap-2">
                         <button type="submit" class="btn btn-primary">Salva Modifiche</button>
                         <a href="/admin/operatori" class="btn btn-outline-secondary">Annulla</a>

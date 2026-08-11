@@ -200,11 +200,22 @@
                     </select>
                 </div>
                 {% endif %}
+                {% if all_tags %}
+                <div class="d-flex align-items-center gap-2">
+                    <label class="form-label fw-bold mb-0 text-nowrap"><i class="bi bi-tags-fill me-1"></i>Tag:</label>
+                    <select class="form-select form-select-sm" id="tagSelect" onchange="changeTag(this)">
+                        <option value="">Tutti i Tag</option>
+                        {% for t in all_tags %}
+                        <option value="{{ t.tag_id }}" {% if t.tag_id==tag_id %}selected{% endif %}>{{ t.nome }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+                {% endif %}
                 <div class="btn-group btn-group-sm">
-                    <a href="/assenze-mese?mese={{ prev_mese }}&anno={{ prev_anno }}{% if user.ruolo == 'admin' %}&reparto_id={{ reparto_id }}{% endif %}{% if sede_id %}&sede_id={{ sede_id }}{% endif %}"
+                    <a href="/assenze-mese?mese={{ prev_mese }}&anno={{ prev_anno }}{% if user.ruolo == 'admin' %}&reparto_id={{ reparto_id }}{% endif %}{% if sede_id %}&sede_id={{ sede_id }}{% endif %}{% if tag_id %}&tag_id={{ tag_id }}{% endif %}"
                         class="btn btn-outline-primary"><i class="bi bi-chevron-left"></i> Mese Prec.</a>
                     <span class="btn btn-primary disabled fw-bold text-white">{{ nome_mese }} {{ anno }}</span>
-                    <a href="/assenze-mese?mese={{ next_mese }}&anno={{ next_anno }}{% if user.ruolo == 'admin' %}&reparto_id={{ reparto_id }}{% endif %}{% if sede_id %}&sede_id={{ sede_id }}{% endif %}"
+                    <a href="/assenze-mese?mese={{ next_mese }}&anno={{ next_anno }}{% if user.ruolo == 'admin' %}&reparto_id={{ reparto_id }}{% endif %}{% if sede_id %}&sede_id={{ sede_id }}{% endif %}{% if tag_id %}&tag_id={{ tag_id }}{% endif %}"
                         class="btn btn-outline-primary">Mese Succ. <i class="bi bi-chevron-right"></i></a>
                 </div>
             </div>
@@ -246,6 +257,15 @@
                                 <strong>{{ row.operator_nome }}</strong><br>
                                 <small class="text-muted" style="font-size: 0.7rem;">{{ row.operator_ruolo|capitalize
                                     }}{% if row.sede_nome %} &bull; {{ row.sede_nome }}{% endif %}</small>
+                                {% if row.tags %}
+                                <div class="d-flex flex-wrap gap-1 mt-1">
+                                    {% for tag in row.tags %}
+                                    <span class="badge px-1.5 py-0.5" style="background-color: {{ tag.colore or '#0d6efd' }}; color: #ffffff; font-size: 0.65rem; font-weight: 600;">
+                                        {{ tag.nome }}
+                                    </span>
+                                    {% endfor %}
+                                </div>
+                                {% endif %}
                             </td>
                             {% for cell in row.giorni_stato %}
                             <td class="{% if cell.is_today %}today-cell{% endif %}
@@ -261,113 +281,146 @@
                                        {% else %}cell-absent-altro
                                        {% endif %}
                                    {% else %}cell-presente{% endif %}" {% if cell.holiday %} title="{{ cell.holiday }}"
-                                {% elif cell.is_weekend %} title="{{ cell.weekday_name }}" {% elif cell.absent %}
-                                title="{{ row.operator_nome }}: Assente"
-                                {% elif cell.present %}
-                                title="{{ row.operator_nome }}: Presente in {{ cell.presenza_tipo|title }}{% if cell.presenza_nota %} - NOTA: {{ cell.presenza_nota }}{% endif %}"
-                                {% endif %}
-                                data-holiday-weekend-class="{% if cell.holiday %}holiday-cell{% elif cell.is_weekend %}weekend-cell{% endif %}"
-                                data-holiday="{{ '1' if (cell.holiday or cell.is_weekend) else '0' }}"
-                                data-holiday-title="{{ cell.holiday or cell.weekday_name or '' }}"
-                                data-absent="{{ '1' if (cell.absent and not cell.holiday and not cell.is_weekend) else '0' }}"
-                                data-absent-class="cell-absent"
-                                data-absent-text="A"
-                                data-absent-title="{{ row.operator_nome }}: Assente"
-                                data-present="{{ '1' if (cell.present and not cell.holiday and not cell.is_weekend) else '0' }}"
-                                data-present-class="{% if cell.presenza_tipo == 'smartwork' %}cell-presenza-smartwork{% elif cell.presenza_tipo == 'corsi' %}cell-presenza-corsi{% elif cell.presenza_tipo == 'trasferta' %}cell-presenza-trasferta{% elif cell.presenza_tipo == 'altra sede' %}cell-presenza-altra-sede{% elif cell.presenza_tipo == 'presente 1/2 gg' %}cell-presenza-mezza{% else %}cell-absent-altro{% endif %}"
-                                data-present-text="{% if cell.presenza_tipo == 'smartwork' %}SW{% elif cell.presenza_tipo == 'corsi' %}CO{% elif cell.presenza_tipo == 'trasferta' %}TR{% elif cell.presenza_tipo == 'altra sede' %}AS{% elif cell.presenza_tipo == 'presente 1/2 gg' %}1/2{% else %}P{% endif %}"
-                                data-present-title="{{ row.operator_nome }}: Presente in {{ cell.presenza_tipo|title }}{% if cell.presenza_nota %} - NOTA: {{ cell.presenza_nota }}{% endif %}">
-                                {% if cell.holiday or cell.is_weekend %}
-                                {% elif cell.absent %}A
-                                {% elif cell.present %}
-                                {% if cell.presenza_tipo == 'smartwork' %}SW
-                                {% elif cell.presenza_tipo == 'corsi' %}CO
-                                {% elif cell.presenza_tipo == 'trasferta' %}TR
-                                {% elif cell.presenza_tipo == 'altra sede' %}AS
-                                {% elif cell.presenza_tipo == 'presente 1/2 gg' %}1/2
-                                {% else %}P
-                                {% endif %}
-                                {% endif %}
-                            </td>
-                            {% endfor %}
-                        </tr>
-                        {% else %}
-                        <tr>
-                            <td colspan="{{ giorni|length + 1 }}" class="text-muted text-center py-4">Nessun operatore
-                                attivo in questo reparto.</td>
-                        </tr>
-                        {% endfor %}
-                    </tbody>
-                </table>
-            </div>
+                                 {% elif cell.is_weekend %} title="{{ cell.weekday_name }}" {% elif cell.absent %}
+                                 title="{{ row.operator_nome }}: Assente"
+                                 {% elif cell.present %}
+                                 title="{{ row.operator_nome }}: Presente in {{ cell.presenza_tipo|title }}{% if cell.presenza_nota %} - NOTA: {{ cell.presenza_nota }}{% endif %}"
+                                 {% endif %}
+                                 data-holiday-weekend-class="{% if cell.holiday %}holiday-cell{% elif cell.is_weekend %}weekend-cell{% endif %}"
+                                 data-holiday="{{ '1' if (cell.holiday or cell.is_weekend) else '0' }}"
+                                 data-holiday-title="{{ cell.holiday or cell.weekday_name or '' }}"
+                                 data-absent="{{ '1' if (cell.absent and not cell.holiday and not cell.is_weekend) else '0' }}"
+                                 data-absent-class="cell-absent"
+                                 data-absent-text="A"
+                                 data-absent-title="{{ row.operator_nome }}: Assente"
+                                 data-present="{{ '1' if (cell.present and not cell.holiday and not cell.is_weekend) else '0' }}"
+                                 data-present-class="{% if cell.presenza_tipo == 'smartwork' %}cell-presenza-smartwork{% elif cell.presenza_tipo == 'corsi' %}cell-presenza-corsi{% elif cell.presenza_tipo == 'trasferta' %}cell-presenza-trasferta{% elif cell.presenza_tipo == 'altra sede' %}cell-presenza-altra-sede{% elif cell.presenza_tipo == 'presente 1/2 gg' %}cell-presenza-mezza{% else %}cell-absent-altro{% endif %}"
+                                 data-present-text="{% if cell.presenza_tipo == 'smartwork' %}SW{% elif cell.presenza_tipo == 'corsi' %}CO{% elif cell.presenza_tipo == 'trasferta' %}TR{% elif cell.presenza_tipo == 'altra sede' %}AS{% elif cell.presenza_tipo == 'presente 1/2 gg' %}1/2{% else %}P{% endif %}"
+                                 data-present-title="{{ row.operator_nome }}: Presente in {{ cell.presenza_tipo|title }}{% if cell.presenza_nota %} - NOTA: {{ cell.presenza_nota }}{% endif %}">
+                                 {% if cell.holiday or cell.is_weekend %}
+                                 {% elif cell.absent %}A
+                                 {% elif cell.present %}
+                                 {% if cell.presenza_tipo == 'smartwork' %}SW
+                                 {% elif cell.presenza_tipo == 'corsi' %}CO
+                                 {% elif cell.presenza_tipo == 'trasferta' %}TR
+                                 {% elif cell.presenza_tipo == 'altra sede' %}AS
+                                 {% elif cell.presenza_tipo == 'presente 1/2 gg' %}1/2
+                                 {% else %}P
+                                 {% endif %}
+                                 {% endif %}
+                             </td>
+                             {% endfor %}
+                         </tr>
+                         {% else %}
+                         <tr>
+                             <td colspan="{{ giorni|length + 1 }}" class="text-muted text-center py-4">Nessun operatore
+                                 attivo in questo reparto.</td>
+                         </tr>
+                         {% endfor %}
+                     </tbody>
+                     {% if matrix and conteggio_presenti %}
+                     <tfoot>
+                         <tr class="fw-bold border-top border-2 table-light">
+                             <td class="operator-col" style="background-color: #f1f3f5 !important;">
+                                 <i class="bi bi-people-fill text-success me-1"></i> Operatori Presenti
+                             </td>
+                             {% for cnt in conteggio_presenti %}
+                             <td class="text-center fw-bold {% if cnt.is_today %}today-cell{% elif cnt.is_holiday %}holiday-cell{% elif cnt.is_weekend %}weekend-cell{% endif %}"
+                                 style="font-size: 0.85rem;"
+                                 title="{% if cnt.is_holiday %}Festività{% elif cnt.is_weekend %}Fine settimana{% else %}Giorno {{ cnt.day_num }}: {{ cnt.presenti }} presenti su {{ cnt.totale }}{% endif %}">
+                                 {% if cnt.is_holiday or cnt.is_weekend %}
+                                     <span class="text-muted small">-</span>
+                                 {% else %}
+                                     <span class="badge {% if cnt.presenti == 0 %}bg-danger{% elif cnt.presenti < cnt.totale %}bg-warning text-dark{% else %}bg-success{% endif %} px-1.5 py-1" style="font-size: 0.8rem;">
+                                         {{ cnt.presenti }}
+                                     </span>
+                                 {% endif %}
+                             </td>
+                             {% endfor %}
+                         </tr>
+                     </tfoot>
+                     {% endif %}
+                 </table>
+             </div>
+ 
+             <div class="mt-4 pt-3 border-top d-flex flex-wrap gap-4 align-items-center">
+                 <div class="fw-bold me-2"><i class="bi bi-info-circle-fill text-primary me-1"></i> Legenda:
+                 </div>
+                 <div class="d-flex align-items-center gap-1"><span class="badge bg-danger px-2 py-1">A</span> <small
+                         class="text-muted">Assente</small></div>
+ 
+                 <div class="vr mx-2"></div>
+ 
+                 <div class="fw-bold me-2"><i class="bi bi-info-circle-fill text-success me-1"></i> Presenze:
+                 </div>
+                 <div class="d-flex align-items-center gap-1"><span class="badge bg-success px-2 py-1"
+                         style="background-color: #198754 !important;">SW</span> <small
+                         class="text-muted">Smartwork</small></div>
+                 <div class="d-flex align-items-center gap-1"><span class="badge bg-purple px-2 py-1"
+                         style="background-color: #6f42c1 !important;">CO</span> <small class="text-muted">Corsi</small>
+                 </div>
+                 <div class="d-flex align-items-center gap-1"><span class="badge bg-primary px-2 py-1"
+                         style="background-color: #0d6efd !important;">TR</span> <small
+                         class="text-muted">Trasferta</small></div>
+                 <div class="d-flex align-items-center gap-1"><span class="badge bg-warning text-dark px-2 py-1"
+                         style="background-color: #fd7e14 !important;">AS</span> <small class="text-muted">Altra
+                         Sede</small></div>
+ 
+                 <div class="vr mx-2"></div>
+ 
+                 <div class="d-flex align-items-center gap-1"><span class="badge bg-light text-dark border px-2 py-1"
+                         style="background-color: #e9ecef !important;">S / D</span> <small class="text-muted">Fine
+                         Settimana</small></div>
+                 <div class="d-flex align-items-center gap-1"><span class="badge bg-light text-dark border px-2 py-1"
+                         style="background-color: #f8d7da !important;">Festa</span> <small
+                         class="text-muted">Festività</small></div>
+             </div>
+         </div>
+         {% endif %}
+     </div>
+ 
+     <script>
+         function changeReparto(selectElement) {
+             const val = selectElement.value;
+             const urlParams = new URLSearchParams(window.location.search);
+             urlParams.set('reparto_id', val);
+             urlParams.delete('sede_id');
+             window.location.search = urlParams.toString();
+         }
+ 
+         function changeSede(selectElement) {
+             const val = selectElement.value;
+             const urlParams = new URLSearchParams(window.location.search);
+             if (val) {
+                 urlParams.set('sede_id', val);
+             } else {
+                 urlParams.delete('sede_id');
+             }
+             window.location.search = urlParams.toString();
+         }
 
-            <div class="mt-4 pt-3 border-top d-flex flex-wrap gap-4 align-items-center">
-                <div class="fw-bold me-2"><i class="bi bi-info-circle-fill text-primary me-1"></i> Legenda:
-                </div>
-                <div class="d-flex align-items-center gap-1"><span class="badge bg-danger px-2 py-1">A</span> <small
-                        class="text-muted">Assente</small></div>
-
-                <div class="vr mx-2"></div>
-
-                <div class="fw-bold me-2"><i class="bi bi-info-circle-fill text-success me-1"></i> Presenze:
-                </div>
-                <div class="d-flex align-items-center gap-1"><span class="badge bg-success px-2 py-1"
-                        style="background-color: #198754 !important;">SW</span> <small
-                        class="text-muted">Smartwork</small></div>
-                <div class="d-flex align-items-center gap-1"><span class="badge bg-purple px-2 py-1"
-                        style="background-color: #6f42c1 !important;">CO</span> <small class="text-muted">Corsi</small>
-                </div>
-                <div class="d-flex align-items-center gap-1"><span class="badge bg-primary px-2 py-1"
-                        style="background-color: #0d6efd !important;">TR</span> <small
-                        class="text-muted">Trasferta</small></div>
-                <div class="d-flex align-items-center gap-1"><span class="badge bg-warning text-dark px-2 py-1"
-                        style="background-color: #fd7e14 !important;">AS</span> <small class="text-muted">Altra
-                        Sede</small></div>
-
-                <div class="vr mx-2"></div>
-
-                <div class="d-flex align-items-center gap-1"><span class="badge bg-light text-dark border px-2 py-1"
-                        style="background-color: #e9ecef !important;">S / D</span> <small class="text-muted">Fine
-                        Settimana</small></div>
-                <div class="d-flex align-items-center gap-1"><span class="badge bg-light text-dark border px-2 py-1"
-                        style="background-color: #f8d7da !important;">Festa</span> <small
-                        class="text-muted">Festività</small></div>
-            </div>
-        </div>
-        {% endif %}
-    </div>
-
-    <script>
-        function changeReparto(selectElement) {
-            const val = selectElement.value;
-            const urlParams = new URLSearchParams(window.location.search);
-            urlParams.set('reparto_id', val);
-            urlParams.delete('sede_id');
-            window.location.search = urlParams.toString();
-        }
-
-        function changeSede(selectElement) {
-            const val = selectElement.value;
-            const urlParams = new URLSearchParams(window.location.search);
-            if (val) {
-                urlParams.set('sede_id', val);
-            } else {
-                urlParams.delete('sede_id');
-            }
-            window.location.search = urlParams.toString();
-        }
-
-        function updateCalendarCells() {
-            const showAbsences = document.getElementById('showAbsencesSwitch').checked;
-            const showPresences = document.getElementById('showPresencesSwitch').checked;
-
-            document.querySelectorAll('.matrix-table tbody tr').forEach(row => {
-                row.querySelectorAll('td').forEach(td => {
-                    if (td.classList.contains('operator-col')) return;
-
-                    const isHolidayWeekend = td.dataset.holidayWeekendClass || '';
-                    const isHoliday = td.dataset.holiday === '1';
-                    const isAbsent = td.dataset.absent === '1' && !isHoliday;
+         function changeTag(selectElement) {
+             const val = selectElement.value;
+             const urlParams = new URLSearchParams(window.location.search);
+             if (val) {
+                 urlParams.set('tag_id', val);
+             } else {
+                 urlParams.delete('tag_id');
+             }
+             window.location.search = urlParams.toString();
+         }
+ 
+         function updateCalendarCells() {
+             const showAbsences = document.getElementById('showAbsencesSwitch').checked;
+             const showPresences = document.getElementById('showPresencesSwitch').checked;
+ 
+             document.querySelectorAll('.matrix-table tbody tr').forEach(row => {
+                 row.querySelectorAll('td').forEach(td => {
+                     if (td.classList.contains('operator-col')) return;
+ 
+                     const isHolidayWeekend = td.dataset.holidayWeekendClass || '';
+                     const isHoliday = td.dataset.holiday === '1';
+                     const isAbsent = td.dataset.absent === '1' && !isHoliday;
                     const isPresent = td.dataset.present === '1' && !isHoliday;
 
                     // Clear current classes and text

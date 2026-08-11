@@ -378,7 +378,7 @@ def copertura_servizi(r: Request, mese: int = None, anno: int = None, reparto_id
     })
 
 @router.get("/assenze-mese", response_class=HTMLResponse)
-def assenze_mese(r: Request, mese: int = None, anno: int = None, reparto_id: int = None, sede_id: int = None):
+def assenze_mese(r: Request, mese: int = None, anno: int = None, reparto_id: int = None, sede_id: int = None, tag_id: int = None):
     if not CFG.get('modulo_presenze', True):
         return RedirectResponse(url="/")
     if "user" not in r.session: return RedirectResponse(url="/login")
@@ -402,12 +402,18 @@ def assenze_mese(r: Request, mese: int = None, anno: int = None, reparto_id: int
         else:
             reparto_id = c.execute(text("SELECT reparto_id FROM users WHERE user_id = :uid"), {"uid": user.get("id")}).scalar()
             
+        all_tags = []
+        try:
+            all_tags = c.execute(text("SELECT tag_id, nome, colore, descrizione FROM tag_operatori ORDER BY nome")).mappings().all()
+        except Exception:
+            pass
+
         if reparto_id is None:
             return templates.TemplateResponse(r, "matrice_assenze.html", {
                 "request": r, "cfg": CFG, "user": user, 
                 "error": "Non sei assegnato a nessun reparto. Contatta l'amministratore.", 
                 "mese": mese, "anno": anno, "reparto_id": None, "reparti": reparti_list,
-                "sedi_reparto": [], "sede_id": None
+                "sedi_reparto": [], "sede_id": None, "all_tags": all_tags, "tag_id": tag_id, "conteggio_presenti": []
             })
             
         reparto_nome = c.execute(text("SELECT nome FROM reparti WHERE reparto_id = :rid"), {"rid": reparto_id}).scalar()
@@ -421,12 +427,15 @@ def assenze_mese(r: Request, mese: int = None, anno: int = None, reparto_id: int
             ORDER BY s.nome
         """), {"rid": reparto_id}).mappings().all()
         
-        # Query active operators in this department (filtered by sede_id if provided)
+        # Query active operators in this department (filtered by sede_id and tag_id if provided)
         op_where = "u.reparto_id = :rid AND u.attivo = 1"
         op_params = {"rid": reparto_id}
         if sede_id:
             op_where += " AND u.sede_id = :sid"
             op_params["sid"] = sede_id
+        if tag_id:
+            op_where += " AND u.user_id IN (SELECT user_id FROM operatori_tag WHERE tag_id = :tid)"
+            op_params["tid"] = tag_id
 
         operators = c.execute(text(f"""
             SELECT u.user_id, u.nome, u.cognome, u.username, u.ruolo, u.sede_id, s.nome AS sede_nome, s.comune_id AS op_comune_id
@@ -436,6 +445,27 @@ def assenze_mese(r: Request, mese: int = None, anno: int = None, reparto_id: int
             ORDER BY u.cognome, u.nome
         """), op_params).mappings().all()
         
+        # Mapping tag per ciascun operatore
+        op_tags_map = {}
+        try:
+            op_tags_rows = c.execute(text("""
+                SELECT ot.user_id, t.tag_id, t.nome, t.colore
+                FROM operatori_tag ot
+                JOIN tag_operatori t ON ot.tag_id = t.tag_id
+                ORDER BY t.nome
+            """)).mappings().all()
+            for otr in op_tags_rows:
+                uid = otr["user_id"]
+                if uid not in op_tags_map:
+                    op_tags_map[uid] = []
+                op_tags_map[uid].append({
+                    "tag_id": otr["tag_id"],
+                    "nome": otr["nome"],
+                    "colore": otr["colore"]
+                })
+        except Exception:
+            pass
+
         _, num_days = calendar.monthrange(anno, mese)
         first_day_of_month = date(anno, mese, 1)
         last_day_of_month = date(anno, mese, num_days)
@@ -545,10 +575,29 @@ def assenze_mese(r: Request, mese: int = None, anno: int = None, reparto_id: int
                 })
                 
             matrix.append({
+                "operator_id": op["user_id"],
                 "operator_nome": f"{op['nome']} {op['cognome']}".strip() or op['username'],
                 "operator_ruolo": op["ruolo"] or "operatore",
                 "sede_nome": op["sede_nome"] or "",
+                "tags": op_tags_map.get(op["user_id"], []),
                 "giorni_stato": giorni_stato
+            })
+
+        # Calcolo del conteggio operatori presenti per ciascun giorno
+        tot_operators = len(matrix)
+        conteggio_presenti = []
+        for day_idx, day_info in enumerate(giorni):
+            if day_info["is_weekend"] or day_info["holiday"]:
+                presenti_count = 0
+            else:
+                presenti_count = sum(1 for row in matrix if not row["giorni_stato"][day_idx]["absent"])
+            conteggio_presenti.append({
+                "day_num": day_info["day_num"],
+                "is_today": day_info["is_today"],
+                "is_weekend": day_info["is_weekend"],
+                "is_holiday": bool(day_info["holiday"]),
+                "presenti": presenti_count,
+                "totale": tot_operators
             })
             
         months_it = {
@@ -574,6 +623,7 @@ def assenze_mese(r: Request, mese: int = None, anno: int = None, reparto_id: int
         "user": user,
         "giorni": giorni,
         "matrix": matrix,
+        "conteggio_presenti": conteggio_presenti,
         "mese": mese,
         "anno": anno,
         "nome_mese": nome_mese,
@@ -585,7 +635,9 @@ def assenze_mese(r: Request, mese: int = None, anno: int = None, reparto_id: int
         "reparto_nome": reparto_nome,
         "reparti": reparti_list,
         "sedi_reparto": sedi_reparto,
-        "sede_id": sede_id
+        "sede_id": sede_id,
+        "all_tags": all_tags,
+        "tag_id": tag_id
     })
 
 @router.get("/servizi-assegnati", response_class=HTMLResponse)

@@ -15,6 +15,9 @@
 <div class="container py-4">
     <div class="d-flex justify-content-between align-items-center mb-4">
         <h2>Gestione Operatori</h2>
+        <a href="/admin/operatori/tag" class="btn btn-outline-primary shadow-sm">
+            <i class="bi bi-tags-fill me-1"></i> Gestione Tag Operatori
+        </a>
     </div>
 
     <div class="row g-4">
@@ -75,6 +78,14 @@
                                     <option value="inattivo">Da Approvare / Inattivi</option>
                                 </select>
                             </div>
+                            <div class="col-md-3">
+                                <select id="filterTag" class="form-select form-select-sm">
+                                    <option value="">Tutti i Tag</option>
+                                    {% for t in all_tags %}
+                                    <option value="{{ t.nome|lower }}">{{ t.nome }}</option>
+                                    {% endfor %}
+                                </select>
+                            </div>
                         </div>
                     </div>
                 </div>
@@ -86,7 +97,7 @@
                             <tr>
                                 <th>Nome</th>
                                 <th>Email / Telefono/Cell</th>
-                                <th>Ruolo</th>
+                                <th>Ruolo / Tag</th>
                                 <th>Reparto / Sede / Magazzino</th>
                                 <th>Ultimo Accesso / IP</th>
                                 <th>Stato</th>
@@ -99,6 +110,7 @@
                                 data-nome="{{ op.nome }} {{ op.cognome }} {{ op.username }}" 
                                 data-email="{{ op.email }} {{ op.telefono or '' }}" 
                                 data-ruoli="{% for r in op.ruoli %}{{ r.ruolo }} {% endfor %}"
+                                data-tags="{% for t in op.tags %}{{ t.nome|lower }} {% endfor %}"
                                 data-reparto="{{ op.reparto_nome or '' }}"
                                 data-sede="{{ op.sede_nome or '' }}"
                                 data-stato="{% if op.attivo %}attivo{% else %}inattivo{% endif %}">
@@ -124,6 +136,15 @@
                                         {% endfor %}
                                     {% else %}
                                         <span class="badge bg-secondary">{{ op.ruolo }}</span>
+                                    {% endif %}
+                                    {% if op.tags %}
+                                    <div class="d-flex flex-wrap gap-1 mt-1">
+                                        {% for t in op.tags %}
+                                        <span class="badge shadow-sm" style="background-color: {{ t.colore or '#0d6efd' }}; color: #ffffff; font-size: 0.72rem;">
+                                            <i class="bi bi-tag-fill me-1"></i>{{ t.nome }}
+                                        </span>
+                                        {% endfor %}
+                                    </div>
                                     {% endif %}
                                 </td>
                                 <td>
@@ -287,6 +308,28 @@
                         </div>
 
                         <div class="col-12">
+                            <label class="form-label fw-bold"><i class="bi bi-tags-fill text-primary me-1"></i>Tag Operatore</label>
+                            <div class="border p-2 rounded bg-light" style="max-height: 140px; overflow-y: auto;">
+                                {% if all_tags %}
+                                    <div class="d-flex flex-wrap gap-3">
+                                        {% for tag in all_tags %}
+                                        <div class="form-check">
+                                            <input class="form-check-input" type="checkbox" name="tag_ids" value="{{ tag.tag_id }}" id="new_tag_{{ tag.tag_id }}">
+                                            <label class="form-check-label" for="new_tag_{{ tag.tag_id }}">
+                                                <span class="badge shadow-sm" style="background-color: {{ tag.colore or '#0d6efd' }}; color: #ffffff; font-size: 0.85rem;">
+                                                    <i class="bi bi-tag-fill me-1"></i>{{ tag.nome }}
+                                                </span>
+                                            </label>
+                                        </div>
+                                        {% endfor %}
+                                    </div>
+                                {% else %}
+                                    <small class="text-muted">Nessun tag configurato. Creali in <a href="/admin/operatori/tag" target="_blank">Gestione Tag</a>.</small>
+                                {% endif %}
+                            </div>
+                        </div>
+
+                        <div class="col-12">
                             <div class="form-check form-switch">
                                 <input class="form-check-input" type="checkbox" name="is_test" value="1" id="newTestSwitch">
                                 <label class="form-check-label fw-bold" for="newTestSwitch">Utente di Test</label>
@@ -380,6 +423,7 @@ function filterOperators() {
     const repartoVal = (document.getElementById('filterReparto')?.value || '').toLowerCase().trim();
     const sedeVal = (document.getElementById('filterSede')?.value || '').toLowerCase().trim();
     const statoVal = (document.getElementById('filterStato')?.value || '').toLowerCase().trim();
+    const tagVal = (document.getElementById('filterTag')?.value || '').toLowerCase().trim();
 
     const rows = document.querySelectorAll('.operator-row');
     let visibleCount = 0;
@@ -387,6 +431,7 @@ function filterOperators() {
     rows.forEach(row => {
         const textData = ((row.dataset.nome || '') + " " + (row.dataset.email || '')).toLowerCase();
         const ruoliData = (row.dataset.ruoli || '').toLowerCase();
+        const tagsData = (row.dataset.tags || '').toLowerCase();
         const repartoData = (row.dataset.reparto || '').toLowerCase();
         const sedeData = (row.dataset.sede || '').toLowerCase();
         const statoData = (row.dataset.stato || '').toLowerCase();
@@ -394,6 +439,7 @@ function filterOperators() {
         let show = true;
         if (textVal && !textData.includes(textVal)) show = false;
         if (ruoloVal && !ruoliData.includes(ruoloVal)) show = false;
+        if (tagVal && !tagsData.includes(tagVal)) show = false;
         if (repartoVal && !repartoData.includes(repartoVal)) show = false;
         if (sedeVal && !sedeData.includes(sedeVal)) show = false;
         if (statoVal && statoData !== statoVal) show = false;
@@ -409,6 +455,7 @@ function filterOperators() {
 function resetOperatorFilters() {
     if (document.getElementById('filterText')) document.getElementById('filterText').value = '';
     if (document.getElementById('filterRuolo')) document.getElementById('filterRuolo').value = '';
+    if (document.getElementById('filterTag')) document.getElementById('filterTag').value = '';
     if (document.getElementById('filterReparto')) document.getElementById('filterReparto').value = '';
     if (document.getElementById('filterSede')) document.getElementById('filterSede').value = '';
     if (document.getElementById('filterStato')) document.getElementById('filterStato').value = '';
@@ -416,7 +463,7 @@ function resetOperatorFilters() {
 }
 
 document.addEventListener('DOMContentLoaded', function() {
-    ['filterText', 'filterRuolo', 'filterReparto', 'filterSede', 'filterStato'].forEach(id => {
+    ['filterText', 'filterRuolo', 'filterTag', 'filterReparto', 'filterSede', 'filterStato'].forEach(id => {
         const el = document.getElementById(id);
         if (el) {
             el.addEventListener('keyup', filterOperators);

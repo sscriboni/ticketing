@@ -1,0 +1,238 @@
+<!doctype html>
+<html lang="it">
+<head>
+    <meta charset="utf-8">
+    <title>Gestione Tag Operatori — {{ cfg.app_title }}</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css">
+</head>
+<body class="bg-light">
+{% include 'navbar.html' %}
+<div class="container py-4">
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <div>
+            <h2 class="mb-1"><i class="bi bi-tags-fill text-primary me-2"></i>Gestione Tag Operatori</h2>
+            <p class="text-muted small mb-0">Crea e gestisci le etichette (tag) da attribuire agli operatori per filtrarli nei calendari e nell'anagrafica</p>
+        </div>
+        <a href="/admin/operatori" class="btn btn-outline-secondary btn-sm shadow-sm">
+            <i class="bi bi-arrow-left me-1"></i> Torna a Gestione Operatori
+        </a>
+    </div>
+
+    <div class="row g-4">
+        <!-- Elenco Tag -->
+        <div class="col-12 col-lg-8">
+            <div class="bg-white p-4 rounded shadow-sm border">
+                <div class="d-flex justify-content-between align-items-center mb-3">
+                    <h5 class="fw-bold text-dark mb-0">Tag Registrati nel Sistema</h5>
+                    <span class="badge bg-primary rounded-pill">{{ tags|length }} tag totali</span>
+                </div>
+                
+                <div class="table-responsive">
+                    <table class="table table-hover align-middle mb-0">
+                        <thead class="table-light">
+                            <tr>
+                                <th>Badge Anteprima</th>
+                                <th>Descrizione</th>
+                                <th>Operatori Associati</th>
+                                <th class="text-end">Azioni</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                        {% for tag in tags %}
+                        <tr>
+                            <td>
+                                <span class="badge shadow-sm px-2.5 py-1.5" style="background-color: {{ tag.colore or '#0d6efd' }}; color: #ffffff; font-size: 0.88rem; font-weight: 700;">
+                                    <i class="bi bi-tag-fill me-1"></i>{{ tag.nome }}
+                                </span>
+                            </td>
+                            <td><small class="text-muted">{{ tag.descrizione or '-' }}</small></td>
+                            <td>
+                                <span class="badge bg-light text-dark border">
+                                    <i class="bi bi-person-fill me-1"></i>{{ tag.count_operatori }} {{ 'operatore' if tag.count_operatori == 1 else 'operatori' }}
+                                </span>
+                            </td>
+                            <td class="text-end text-nowrap">
+                                <div class="d-inline-flex gap-2">
+                                    <button type="button" class="btn btn-sm btn-outline-primary fw-semibold" 
+                                            data-id="{{ tag.tag_id }}"
+                                            data-nome="{{ tag.nome }}"
+                                            data-colore="{{ tag.colore or '#0d6efd' }}"
+                                            data-desc="{{ tag.descrizione or '' }}"
+                                            onclick="showEditTagModal(this)">
+                                        <i class="bi bi-pencil me-1"></i>Modifica
+                                    </button>
+                                    <form method="post" action="/admin/operatori/tag/elimina/{{ tag.tag_id }}" class="d-inline" onsubmit="return confirm('Eliminare questo tag? Verrà rimosso anche da tutti gli operatori a cui è stato associato.');">
+                                        <button type="submit" class="btn btn-sm btn-outline-danger">
+                                            <i class="bi bi-trash me-1"></i>Elimina
+                                        </button>
+                                    </form>
+                                </div>
+                            </td>
+                        </tr>
+                        {% else %}
+                        <tr>
+                            <td colspan="4" class="text-center text-muted py-4">
+                                <i class="bi bi-tag text-muted fs-4 d-block mb-2"></i>
+                                Nessun tag operatori registrato. Utilizza il modulo a destra per crearne uno.
+                            </td>
+                        </tr>
+                        {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+
+        <!-- Nuovo Tag Form -->
+        <div class="col-12 col-lg-4">
+            <div class="bg-white p-4 rounded shadow-sm border">
+                <h5 class="fw-bold text-dark mb-3"><i class="bi bi-plus-circle me-2 text-primary"></i>Nuovo Tag Operatore</h5>
+                <form method="post" action="/admin/operatori/tag/nuovo">
+                    <div class="mb-3">
+                        <label class="form-label fw-bold text-dark">Nome Tag <span class="text-danger">*</span></label>
+                        <input name="nome" class="form-control" placeholder="Es. Reperibile, Turnista, Part-Time..." required>
+                    </div>
+
+                    <div class="mb-3">
+                        <label class="form-label fw-bold text-dark">Colore Distintivo</label>
+                        <div class="d-flex align-items-center gap-2">
+                            <input type="color" name="colore" id="newTagColorInput" class="form-control form-control-color" value="#0d6efd" title="Scegli il colore del tag">
+                            <span class="badge" id="newTagBadgePreview" style="background-color: #0d6efd; color: #fff; font-size: 0.88rem;">Anteprima Tag</span>
+                        </div>
+                        <!-- Tavolozza di scelta rapida -->
+                        <div class="d-flex gap-1.5 mt-2 flex-wrap">
+                            <button type="button" class="btn btn-sm p-2 rounded-circle border-0" style="background-color: #0d6efd;" onclick="setNewColor('#0d6efd')"></button>
+                            <button type="button" class="btn btn-sm p-2 rounded-circle border-0" style="background-color: #198754;" onclick="setNewColor('#198754')"></button>
+                            <button type="button" class="btn btn-sm p-2 rounded-circle border-0" style="background-color: #ffc107;" onclick="setNewColor('#ffc107')"></button>
+                            <button type="button" class="btn btn-sm p-2 rounded-circle border-0" style="background-color: #dc3545;" onclick="setNewColor('#dc3545')"></button>
+                            <button type="button" class="btn btn-sm p-2 rounded-circle border-0" style="background-color: #6f42c1;" onclick="setNewColor('#6f42c1')"></button>
+                            <button type="button" class="btn btn-sm p-2 rounded-circle border-0" style="background-color: #20c997;" onclick="setNewColor('#20c997')"></button>
+                            <button type="button" class="btn btn-sm p-2 rounded-circle border-0" style="background-color: #fd7e14;" onclick="setNewColor('#fd7e14')"></button>
+                            <button type="button" class="btn btn-sm p-2 rounded-circle border-0" style="background-color: #6c757d;" onclick="setNewColor('#6c757d')"></button>
+                        </div>
+                    </div>
+
+                    <div class="mb-3">
+                        <label class="form-label fw-bold text-dark">Descrizione / Note</label>
+                        <textarea name="descrizione" class="form-control" rows="2" placeholder="Spiegazione facoltativa dell'utilizzo del tag..."></textarea>
+                    </div>
+
+                    <button type="submit" class="btn btn-primary w-100 fw-bold shadow-sm">
+                        <i class="bi bi-save me-1"></i> Salva Tag
+                    </button>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Modal Modifica Tag -->
+<div class="modal fade" id="editTagModal" tabindex="-1" aria-labelledby="editTagModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content shadow-lg border-0">
+            <div class="modal-header bg-primary text-white">
+                <h5 class="modal-title fw-bold" id="editTagModalLabel"><i class="bi bi-pencil-square me-2"></i> Modifica Tag Operatore</h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <form id="editTagForm" method="post">
+                <div class="modal-body p-4">
+                    <div class="mb-3">
+                        <label class="form-label fw-bold text-dark">Nome Tag <span class="text-danger">*</span></label>
+                        <input name="nome" id="editTagNome" class="form-control" required>
+                    </div>
+
+                    <div class="mb-3">
+                        <label class="form-label fw-bold text-dark">Colore Distintivo</label>
+                        <div class="d-flex align-items-center gap-2">
+                            <input type="color" name="colore" id="editTagColorInput" class="form-control form-control-color" value="#0d6efd">
+                            <span class="badge" id="editTagBadgePreview" style="background-color: #0d6efd; color: #fff; font-size: 0.88rem;">Anteprima Tag</span>
+                        </div>
+                        <div class="d-flex gap-1.5 mt-2 flex-wrap">
+                            <button type="button" class="btn btn-sm p-2 rounded-circle border-0" style="background-color: #0d6efd;" onclick="setEditColor('#0d6efd')"></button>
+                            <button type="button" class="btn btn-sm p-2 rounded-circle border-0" style="background-color: #198754;" onclick="setEditColor('#198754')"></button>
+                            <button type="button" class="btn btn-sm p-2 rounded-circle border-0" style="background-color: #ffc107;" onclick="setEditColor('#ffc107')"></button>
+                            <button type="button" class="btn btn-sm p-2 rounded-circle border-0" style="background-color: #dc3545;" onclick="setEditColor('#dc3545')"></button>
+                            <button type="button" class="btn btn-sm p-2 rounded-circle border-0" style="background-color: #6f42c1;" onclick="setEditColor('#6f42c1')"></button>
+                            <button type="button" class="btn btn-sm p-2 rounded-circle border-0" style="background-color: #20c997;" onclick="setEditColor('#20c997')"></button>
+                            <button type="button" class="btn btn-sm p-2 rounded-circle border-0" style="background-color: #fd7e14;" onclick="setEditColor('#fd7e14')"></button>
+                            <button type="button" class="btn btn-sm p-2 rounded-circle border-0" style="background-color: #6c757d;" onclick="setEditColor('#6c757d')"></button>
+                        </div>
+                    </div>
+
+                    <div class="mb-3">
+                        <label class="form-label fw-bold text-dark">Descrizione / Note</label>
+                        <textarea name="descrizione" id="editTagDescrizione" class="form-control" rows="2"></textarea>
+                    </div>
+                </div>
+                <div class="modal-footer bg-light">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Annulla</button>
+                    <button type="submit" class="btn btn-primary fw-bold px-4">Salva Modifiche</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
+<script>
+    let editTagModalInstance;
+
+    document.addEventListener('DOMContentLoaded', () => {
+        const modalEl = document.getElementById('editTagModal');
+        if (modalEl) {
+            editTagModalInstance = new bootstrap.Modal(modalEl);
+        }
+
+        const newColorInput = document.getElementById('newTagColorInput');
+        if (newColorInput) {
+            newColorInput.addEventListener('input', function() {
+                document.getElementById('newTagBadgePreview').style.backgroundColor = this.value;
+            });
+        }
+
+        const editColorInput = document.getElementById('editTagColorInput');
+        if (editColorInput) {
+            editColorInput.addEventListener('input', function() {
+                document.getElementById('editTagBadgePreview').style.backgroundColor = this.value;
+            });
+        }
+    });
+
+    function setNewColor(hex) {
+        const inp = document.getElementById('newTagColorInput');
+        if (inp) {
+            inp.value = hex;
+            document.getElementById('newTagBadgePreview').style.backgroundColor = hex;
+        }
+    }
+
+    function setEditColor(hex) {
+        const inp = document.getElementById('editTagColorInput');
+        if (inp) {
+            inp.value = hex;
+            document.getElementById('editTagBadgePreview').style.backgroundColor = hex;
+        }
+    }
+
+    function showEditTagModal(btn) {
+        const id = btn.getAttribute('data-id');
+        const nome = btn.getAttribute('data-nome') || '';
+        const colore = btn.getAttribute('data-colore') || '#0d6efd';
+        const desc = btn.getAttribute('data-desc') || '';
+
+        document.getElementById('editTagNome').value = nome;
+        document.getElementById('editTagColorInput').value = colore;
+        document.getElementById('editTagBadgePreview').style.backgroundColor = colore;
+        document.getElementById('editTagDescrizione').value = desc;
+
+        const form = document.getElementById('editTagForm');
+        form.action = `/admin/operatori/tag/modifica/${id}`;
+
+        if (editTagModalInstance) {
+            editTagModalInstance.show();
+        }
+    }
+</script>
+</body>
+</html>
