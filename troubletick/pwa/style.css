@@ -309,3 +309,27 @@ ion-page.page-view.active {
   --background: rgba(245, 158, 11, 0.25);
   transform: translateY(-1px);
 }
+
+/* ==========================================================================
+   Bootstrap Modal & Backdrop Layering Fix with Ionic PWA
+   ========================================================================== */
+.modal {
+  z-index: 1060 !important;
+}
+
+.modal-backdrop {
+  z-index: 1050 !important;
+  opacity: 0.75 !important;
+}
+
+.modal-dialog {
+  z-index: 1065 !important;
+}
+
+.modal.show .modal-dialog {
+  pointer-events: auto !important;
+}
+
+.modal-content {
+  box-shadow: 0 25px 60px -15px rgba(0, 0, 0, 0.9) !important;
+}

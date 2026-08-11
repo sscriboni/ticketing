@@ -668,7 +668,7 @@ async function loadFleetActiveBookings(showModal = false) {
     if (showModal) renderFleetActiveBookingsError('Errore di connessione con il server.');
   } finally {
     if (showModal && spinner) spinner.style.display = 'none';
-    if (showModal && listContainer) listContainer.style.display = 'flex';
+    if (showModal && listContainer) listContainer.style.display = '';
   }
 }
 
@@ -1733,6 +1733,20 @@ document.addEventListener('DOMContentLoaded', () => {
   const formCompletaViaggio = document.getElementById('form-completa-viaggio');
   if (formCompletaViaggio) {
     formCompletaViaggio.addEventListener('submit', submitCompleteViaggio);
+  }
+
+  // Ricerca e Filtri Modal Prenotazioni Attive Flotta
+  const fleetSearchInput = document.getElementById('fleet-bookings-search-input');
+  if (fleetSearchInput) {
+    fleetSearchInput.addEventListener('input', () => renderFleetActiveBookingsList(currentFleetActiveBookings));
+  }
+  const fleetFilterStato = document.getElementById('fleet-bookings-filter-stato');
+  if (fleetFilterStato) {
+    fleetFilterStato.addEventListener('change', () => renderFleetActiveBookingsList(currentFleetActiveBookings));
+  }
+  const btnRefreshFleetBookings = document.getElementById('btn-refresh-fleet-bookings');
+  if (btnRefreshFleetBookings) {
+    btnRefreshFleetBookings.addEventListener('click', () => loadFleetActiveBookings(true));
   }
 
   // Gestione Bottom Tabs Bar PWA
