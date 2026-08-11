@@ -884,6 +884,7 @@ def get_sedi(user: dict = Depends(get_current_user)):
 @app.get("/api/viaggi/miei", response_model=PrenotazioniListResponse)
 def get_user_prenotazioni(
     all_trips: Optional[bool] = Query(False, alias="all"),
+    active_only: Optional[bool] = Query(False, alias="active_only"),
     user: dict = Depends(get_current_user)
 ):
     uid = user.get("user_id", 0)
@@ -933,9 +934,13 @@ def get_user_prenotazioni(
             """
             params = {}
 
+            if active_only:
+                query += " AND (v.ora_arrivo IS NULL OR v.ora_arrivo = '') AND (v.data_viaggio >= :today OR v.ora_partenza_effettiva IS NOT NULL)"
+                params["today"] = today_str
+
             if all_trips:
                 if is_fleet_mgr and not is_global and reparto_id:
-                    query += " AND u.reparto_id = :reparto_id"
+                    query += " AND (u.reparto_id = :reparto_id OR a.reparto_assegnato_id = :reparto_id OR a.reparto_assegnato_id IS NULL OR a.reparto_assegnato_id = 0)"
                     params["reparto_id"] = reparto_id
                 elif not is_global and not is_fleet_mgr:
                     query += " AND (v.user_id = :uid OR (LOWER(v.email_conducente) = :email AND :email != ''))"
@@ -946,7 +951,7 @@ def get_user_prenotazioni(
                 params["uid"] = uid
                 params["email"] = email
 
-            query += " ORDER BY v.data_viaggio DESC, v.ora_partenza DESC"
+            query += " ORDER BY v.data_viaggio ASC, v.ora_partenza ASC" if active_only else " ORDER BY v.data_viaggio DESC, v.ora_partenza DESC"
 
             rows = conn.execute(text(query), params).mappings().all()
 

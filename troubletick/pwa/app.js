@@ -9,6 +9,48 @@ function getApiBaseUrl() {
 
 const API_RELATIVE_BASE_URL = getApiBaseUrl();
 
+// ============================================================================
+// GESTIONE INSTALLAZIONE PWA (Icona su Desktop / Schermata Home dello Smartphone)
+// ============================================================================
+let deferredPwaInstallPrompt = null;
+
+window.addEventListener('beforeinstallprompt', (e) => {
+  e.preventDefault();
+  deferredPwaInstallPrompt = e;
+  const nativeBtnContainer = document.getElementById('install-native-prompt-container');
+  if (nativeBtnContainer) nativeBtnContainer.style.display = 'block';
+  console.log('[PWA] Prompt di installazione nativo intercettato e pronto.');
+});
+
+window.addEventListener('appinstalled', () => {
+  deferredPwaInstallPrompt = null;
+  const nativeBtnContainer = document.getElementById('install-native-prompt-container');
+  if (nativeBtnContainer) nativeBtnContainer.style.display = 'none';
+  console.log('[PWA] Applicazione installata con successo sulla schermata home.');
+});
+
+async function triggerPwaInstall() {
+  if (deferredPwaInstallPrompt) {
+    try {
+      deferredPwaInstallPrompt.prompt();
+      const { outcome } = await deferredPwaInstallPrompt.userChoice;
+      if (outcome === 'accepted') {
+        deferredPwaInstallPrompt = null;
+        return;
+      }
+    } catch (err) {
+      console.warn('[PWA] Errore trigger prompt installazione:', err);
+    }
+  }
+
+  // Se il prompt nativo non è supportato (es. iOS Safari o già gestito), mostra la guida visiva
+  const modalEl = document.getElementById('modal-install-pwa-guide');
+  if (modalEl && typeof bootstrap !== 'undefined' && bootstrap.Modal) {
+    const modalInstance = bootstrap.Modal.getOrCreateInstance(modalEl);
+    modalInstance.show();
+  }
+}
+
 // Gestione Navigazione SPA tra Pagine (<ion-page>)
 function navigateToPage(pageId) {
   document.querySelectorAll('ion-page.page-view').forEach(p => {
@@ -288,7 +330,7 @@ async function loadGlobalFleetVehicles() {
       const data = await res.json();
       currentFleetVehicles = data.automezzi || [];
 
-      // Aggiorna contatori KPI
+      // Aggiorna contatori KPI Global Fleet
       const elTotal = document.getElementById('global-fleet-stat-total');
       const elDisp = document.getElementById('global-fleet-stat-disponibili');
       const elUso = document.getElementById('global-fleet-stat-inuso');
@@ -298,6 +340,15 @@ async function loadGlobalFleetVehicles() {
       if (elDisp) elDisp.textContent = data.totale_disponibili || 0;
       if (elUso) elUso.textContent = data.totale_in_uso || 0;
       if (elMaint) elMaint.textContent = data.totale_in_manutenzione || 0;
+
+      // Aggiorna contatori KPI Fleet Manager
+      const elFleetVehicles = document.getElementById('fleet-stat-vehicles');
+      const elFleetMaint = document.getElementById('fleet-stat-maint');
+      if (elFleetVehicles) elFleetVehicles.textContent = data.totale || 0;
+      if (elFleetMaint) elFleetMaint.textContent = data.totale_in_manutenzione || 0;
+
+      // Aggiorna prenotazioni attive per il cruscotto
+      loadFleetActiveBookings(false);
 
       renderGlobalFleetList(currentFleetVehicles);
     } else if (res && res.status === 401) {
@@ -565,6 +616,214 @@ async function cancelPrenotazione(viaggioId) {
     }
   } catch (err) {
     console.error('Errore annullamento prenotazione:', err);
+    alert('Errore di connessione durante l\'annullamento.');
+  }
+}
+
+// ============================================================================
+// GESTIONE PRENOTAZIONI ATTIVE PER FLEET MANAGER & GLOBAL FLEET MANAGER
+// ============================================================================
+let currentFleetActiveBookings = [];
+
+async function loadFleetActiveBookings(showModal = false) {
+  const token = localStorage.getItem('pwa_auth_token');
+  const spinner = document.getElementById('fleet-bookings-loading-spinner');
+  const listContainer = document.getElementById('fleet-bookings-modal-list');
+
+  if (showModal && spinner) spinner.style.display = 'block';
+  if (showModal && listContainer) listContainer.style.display = 'none';
+
+  try {
+    const res = await apiFetch('/prenotazioni?all=1&active_only=1', {
+      headers: {
+        'Authorization': `Bearer ${token}`,
+        'Content-Type': 'application/json'
+      }
+    });
+
+    if (res && res.ok) {
+      const data = await res.json();
+      currentFleetActiveBookings = data.prenotazioni || [];
+      const totalCount = data.totale !== undefined ? data.totale : currentFleetActiveBookings.length;
+
+      // Aggiorna KPI Home Fleet Manager (Prenotazioni Attive)
+      const statTripsEl = document.getElementById('fleet-stat-trips');
+      if (statTripsEl) statTripsEl.textContent = totalCount;
+
+      // Aggiorna badge nelle sezioni "Prenotazioni Automezzi"
+      const badgeFleet = document.getElementById('fleet-active-bookings-count-badge');
+      if (badgeFleet) badgeFleet.textContent = `${totalCount} ${totalCount === 1 ? 'attiva' : 'attive'}`;
+
+      const badgeGlobal = document.getElementById('global-fleet-active-bookings-count-badge');
+      if (badgeGlobal) badgeGlobal.textContent = `${totalCount} ${totalCount === 1 ? 'attiva' : 'attive'}`;
+
+      if (showModal) {
+        renderFleetActiveBookingsList(currentFleetActiveBookings);
+      }
+    } else {
+      if (showModal) renderFleetActiveBookingsError('Impossibile recuperare l\'elenco delle prenotazioni.');
+    }
+  } catch (err) {
+    console.error('Errore recupero prenotazioni flotta:', err);
+    if (showModal) renderFleetActiveBookingsError('Errore di connessione con il server.');
+  } finally {
+    if (showModal && spinner) spinner.style.display = 'none';
+    if (showModal && listContainer) listContainer.style.display = 'flex';
+  }
+}
+
+function openFleetBookingsModal() {
+  const activeRole = localStorage.getItem('pwa_active_role') || 'fleet_manager';
+  const scopeBadge = document.getElementById('fleet-modal-scope-badge');
+  if (scopeBadge) {
+    scopeBadge.textContent = (activeRole === 'global_fleet_manager') ? 'Flotta Globale' : 'Flotta di Reparto';
+  }
+
+  const modalEl = document.getElementById('modal-fleet-prenotazioni-attive');
+  if (modalEl && typeof bootstrap !== 'undefined' && bootstrap.Modal) {
+    const modalInstance = bootstrap.Modal.getOrCreateInstance(modalEl);
+    modalInstance.show();
+  } else if (modalEl) {
+    modalEl.style.display = 'block';
+    modalEl.classList.add('show');
+  }
+
+  loadFleetActiveBookings(true);
+}
+
+function renderFleetActiveBookingsList(trips) {
+  const listContainer = document.getElementById('fleet-bookings-modal-list');
+  if (!listContainer) return;
+
+  const searchInput = document.getElementById('fleet-bookings-search-input');
+  const filterStato = document.getElementById('fleet-bookings-filter-stato');
+
+  const query = searchInput ? searchInput.value.trim().toLowerCase() : '';
+  const selectedStato = filterStato ? filterStato.value.trim().toLowerCase() : '';
+
+  const filtered = trips.filter(t => {
+    const matchesSearch = !query ||
+      (t.targa && t.targa.toLowerCase().includes(query)) ||
+      (t.modello && t.modello.toLowerCase().includes(query)) ||
+      (t.marca_nome && t.marca_nome.toLowerCase().includes(query)) ||
+      (t.driver_nome && t.driver_nome.toLowerCase().includes(query)) ||
+      (t.driver_cognome && t.driver_cognome.toLowerCase().includes(query)) ||
+      (t.driver_email && t.driver_email.toLowerCase().includes(query)) ||
+      (t.sede_partenza_nome && t.sede_partenza_nome.toLowerCase().includes(query)) ||
+      (t.sede_arrivo_nome && t.sede_arrivo_nome.toLowerCase().includes(query)) ||
+      (t.note && t.note.toLowerCase().includes(query));
+
+    const matchesStato = !selectedStato || (t.stato && t.stato.toLowerCase() === selectedStato.toLowerCase());
+    return matchesSearch && matchesStato;
+  });
+
+  if (filtered.length === 0) {
+    listContainer.innerHTML = `
+      <div class="col-12 text-center py-5">
+        <i class="bi bi-calendar2-x fs-1 text-muted opacity-50"></i>
+        <h6 class="text-white fw-bold mt-2">Nessuna prenotazione attiva trovata</h6>
+        <p class="text-slate-400 small mb-0">Non vi sono viaggi attivi o prenotazioni corrispondenti ai filtri.</p>
+      </div>
+    `;
+    return;
+  }
+
+  listContainer.innerHTML = filtered.map(t => {
+    let badgeClass = 'bg-primary';
+    let statusText = 'Confermata';
+    if (t.stato === 'in corso') {
+      badgeClass = 'bg-warning text-dark';
+      statusText = '🚀 In Corso';
+    } else if (t.stato === 'in pausa') {
+      badgeClass = 'bg-warning text-dark';
+      statusText = '⏸️ In Pausa';
+    } else if (t.stato === 'oggi') {
+      badgeClass = 'bg-success';
+      statusText = '🗓️ In Programma Oggi';
+    }
+
+    const targa = t.targa || 'N/D';
+    const autoName = `${t.marca_nome || ''} ${t.modello || ''}`.trim() || 'Automezzo Aziendale';
+    const driverName = `${t.driver_nome || ''} ${t.driver_cognome || ''}`.trim() || t.driver_email || 'Conducente';
+    const dataViaggio = t.data_viaggio || 'Data N/D';
+    const orario = `${t.ora_partenza || ''} — ${t.ora_riconsegna_prevista || ''}`;
+
+    return `
+      <div class="col-12 col-lg-6">
+        <ion-card class="dashboard-card h-100 m-0 p-3 border-top border-3 border-warning">
+          <div class="d-flex justify-content-between align-items-start mb-2">
+            <div>
+              <span class="badge bg-slate-800 text-warning font-monospace fs-6 px-2 py-1 border border-warning border-opacity-25 me-1">
+                ${targa}
+              </span>
+              <span class="badge ${badgeClass} text-white px-2 py-1">
+                ${statusText}
+              </span>
+            </div>
+            <span class="text-warning small fw-bold font-monospace">
+              <i class="bi bi-calendar3 me-1"></i>${dataViaggio}
+            </span>
+          </div>
+
+          <h6 class="fw-bold text-white mb-2">${autoName}</h6>
+
+          <div class="small text-slate-300 mb-3 d-flex flex-column gap-1">
+            <div><i class="bi bi-person-fill text-info me-1"></i>Conducente: <strong class="text-white">${driverName}</strong> ${t.driver_email && t.driver_email !== driverName ? `<span class="text-muted extra-small">(${t.driver_email})</span>` : ''}</div>
+            <div><i class="bi bi-clock-fill text-warning me-1"></i>Orario: <strong>${orario}</strong></div>
+            <div><i class="bi bi-geo-alt-fill text-danger me-1"></i>Tratta: <strong>${t.sede_partenza_nome || 'Sede N/D'}</strong> &rarr; <strong>${t.sede_arrivo_nome || 'Stessa Sede'}</strong></div>
+            ${t.note ? `<div><i class="bi bi-pencil text-muted me-1"></i>Note: <em class="text-slate-400">${t.note}</em></div>` : ''}
+          </div>
+
+          <div class="d-flex gap-2 justify-content-end align-items-center pt-2 border-top border-slate-800 flex-wrap">
+            ${t.automezzo_id ? `
+              <button type="button" class="btn btn-sm btn-outline-warning rounded-2 px-2 py-1 small fw-semibold" onclick="openSchedaVeicolo(${t.automezzo_id})">
+                <i class="bi bi-file-earmark-text-fill me-1"></i> Scheda Veicolo
+              </button>
+            ` : ''}
+            <button type="button" class="btn btn-sm btn-outline-danger rounded-2 px-2 py-1 small fw-semibold" onclick="annullaPrenotazioneFleet(${t.viaggio_id})">
+              <i class="bi bi-x-circle-fill me-1"></i> Annulla
+            </button>
+          </div>
+        </ion-card>
+      </div>
+    `;
+  }).join('');
+}
+
+function renderFleetActiveBookingsError(msg) {
+  const listContainer = document.getElementById('fleet-bookings-modal-list');
+  if (!listContainer) return;
+  listContainer.innerHTML = `
+    <div class="col-12 text-center py-4 text-danger">
+      <i class="bi bi-exclamation-triangle-fill fs-3"></i>
+      <p class="mt-2 mb-0 small">${msg}</p>
+    </div>
+  `;
+}
+
+async function annullaPrenotazioneFleet(viaggioId) {
+  if (!confirm('Sei sicuro di voler annullare questa prenotazione? Il veicolo tornerà immediatamente disponibile per tutta la flotta.')) return;
+  const token = localStorage.getItem('pwa_auth_token');
+
+  try {
+    const res = await apiFetch(`/prenotazioni/${viaggioId}/annulla`, {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${token}`,
+        'Content-Type': 'application/json'
+      }
+    });
+
+    const data = await res.json();
+    if (res && res.ok) {
+      alert(data.message || 'Prenotazione annullata con successo.');
+      loadFleetActiveBookings(true);
+      loadGlobalFleetVehicles();
+    } else {
+      alert(data.detail || 'Impossibile annullare la prenotazione.');
+    }
+  } catch (err) {
+    console.error('Errore annullamento prenotazione fleet:', err);
     alert('Errore di connessione durante l\'annullamento.');
   }
 }
@@ -1362,6 +1621,21 @@ document.addEventListener('DOMContentLoaded', () => {
   const loginErrorText = document.getElementById('login-error-text');
   const btnLogout = document.getElementById('btn-logout');
 
+  // Listener per pulsanti Installazione Icona PWA su Desktop Smartphone
+  document.querySelectorAll('.btn-install-pwa-trigger').forEach(btn => {
+    btn.addEventListener('click', (e) => {
+      e.preventDefault();
+      triggerPwaInstall();
+    });
+  });
+
+  const btnInstallNativeAction = document.getElementById('btn-install-native-action');
+  if (btnInstallNativeAction) {
+    btnInstallNativeAction.addEventListener('click', () => {
+      triggerPwaInstall();
+    });
+  }
+
   // Listener per ricerca e filtri autoveicoli Global Fleet
   const btnRefreshFleet = document.getElementById('btn-refresh-global-fleet');
   const searchInputFleet = document.getElementById('global-fleet-search-input');
@@ -1382,6 +1656,23 @@ document.addEventListener('DOMContentLoaded', () => {
 
   if (filterStatoFleet) {
     filterStatoFleet.addEventListener('change', () => renderGlobalFleetList(currentFleetVehicles));
+  }
+
+  // Listener per ricerca e filtri prenotazioni attive Flotta (Fleet & Global)
+  const searchInputFleetBookings = document.getElementById('fleet-bookings-search-input');
+  const filterStatoFleetBookings = document.getElementById('fleet-bookings-filter-stato');
+  const btnRefreshFleetBookings = document.getElementById('btn-refresh-fleet-bookings');
+
+  if (searchInputFleetBookings) {
+    searchInputFleetBookings.addEventListener('input', () => renderFleetActiveBookingsList(currentFleetActiveBookings));
+  }
+
+  if (filterStatoFleetBookings) {
+    filterStatoFleetBookings.addEventListener('change', () => renderFleetActiveBookingsList(currentFleetActiveBookings));
+  }
+
+  if (btnRefreshFleetBookings) {
+    btnRefreshFleetBookings.addEventListener('click', () => loadFleetActiveBookings(true));
   }
 
   // Gestione click sui pulsanti del selettore ruolo

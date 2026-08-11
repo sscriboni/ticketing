@@ -250,3 +250,20 @@ ion-page.page-view.active {
 .text-slate-300 {
   color: #cbd5e1 !important;
 }
+
+/* Install PWA Header Button */
+.btn-install-pwa-trigger {
+  --color: #f59e0b;
+  --background: rgba(245, 158, 11, 0.12);
+  --border-radius: 20px;
+  font-size: 0.8rem;
+  border: 1px solid rgba(245, 158, 11, 0.4);
+  margin-right: 6px;
+  transition: all 0.2s ease;
+  height: 32px;
+}
+
+.btn-install-pwa-trigger:hover {
+  --background: rgba(245, 158, 11, 0.25);
+  transform: translateY(-1px);
+}

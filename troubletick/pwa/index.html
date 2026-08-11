@@ -53,6 +53,13 @@
       <ion-header class="ion-no-border">
         <ion-toolbar color="dark">
           <ion-title class="fw-bold"><i class="bi bi-phone-vibrate text-primary me-2"></i> Troubletick</ion-title>
+          <ion-buttons slot="end">
+            <ion-button color="warning" class="btn-install-pwa-trigger" title="Aggiungi icona sul desktop dello smartphone">
+              <i class="bi bi-phone-fill text-warning me-1"></i>
+              <i class="bi bi-plus-circle-fill text-warning me-1" style="font-size: 0.75rem;"></i>
+              <span class="small fw-bold">Installa Icona</span>
+            </ion-button>
+          </ion-buttons>
         </ion-toolbar>
       </ion-header>
 
@@ -157,6 +164,11 @@
         <ion-toolbar color="dark">
           <ion-title class="fw-bold">Troubletick</ion-title>
           <ion-buttons slot="end">
+            <ion-button color="warning" class="btn-install-pwa-trigger" title="Aggiungi icona sul desktop dello smartphone">
+              <i class="bi bi-phone-fill text-warning me-1"></i>
+              <i class="bi bi-plus-circle-fill text-warning me-1" style="font-size: 0.75rem;"></i>
+              <span class="small fw-bold d-none d-sm-inline">Installa Icona</span>
+            </ion-button>
             <ion-badge color="success" id="api-status-badge" class="me-2">
               <ion-icon name="pulse-outline"></ion-icon> API Online
             </ion-badge>
@@ -306,19 +318,19 @@
                 <div class="col-4">
                   <div class="kpi-stat-box text-center">
                     <div class="kpi-label"><i class="bi bi-car-front-fill text-warning me-1"></i> Parco Auto</div>
-                    <div id="fleet-stat-vehicles" class="fw-bold text-warning fs-3 mt-1">376</div>
+                    <div id="fleet-stat-vehicles" class="fw-bold text-warning fs-3 mt-1">0</div>
                   </div>
                 </div>
                 <div class="col-4">
                   <div class="kpi-stat-box text-center">
-                    <div class="kpi-label"><i class="bi bi-geo-alt-fill text-info me-1"></i> Viaggi In Corso</div>
-                    <div id="fleet-stat-trips" class="fw-bold text-white fs-3 mt-1">12</div>
+                    <div class="kpi-label"><i class="bi bi-calendar-check-fill text-warning me-1"></i> Prenotazioni Attive</div>
+                    <div id="fleet-stat-trips" class="fw-bold text-warning fs-3 mt-1">0</div>
                   </div>
                 </div>
                 <div class="col-4">
                   <div class="kpi-stat-box text-center">
                     <div class="kpi-label"><i class="bi bi-wrench-adjustable text-danger me-1"></i> Manutenzioni</div>
-                    <div id="fleet-stat-maint" class="fw-bold text-danger fs-3 mt-1">4</div>
+                    <div id="fleet-stat-maint" class="fw-bold text-danger fs-3 mt-1">0</div>
                   </div>
                 </div>
               </div>
@@ -370,6 +382,29 @@
               </ion-card>
             </div>
           </div>
+
+          <!-- ================= SEZIONE: PRENOTAZIONI AUTOMEZZI (FLEET MANAGER) ================= -->
+          <div class="mb-4">
+            <h5 class="fw-bold text-white mb-3 d-flex align-items-center gap-2">
+              <i class="bi bi-calendar-check-fill text-warning"></i> Prenotazioni Automezzi
+            </h5>
+            <ion-card class="dashboard-card m-0 p-3 p-md-4 border-start border-4 border-warning">
+              <div class="d-flex flex-column flex-md-row justify-content-between align-items-start align-items-md-center gap-3">
+                <div>
+                  <h6 class="text-white fw-bold mb-1 d-flex align-items-center gap-2">
+                    <span>Registro Prenotazioni Flotta</span>
+                    <span id="fleet-active-bookings-count-badge" class="badge bg-warning text-dark font-monospace">0 attive</span>
+                  </h6>
+                  <p class="text-slate-300 small mb-0">
+                    Consulta l'elenco completo delle prenotazioni attive e dei viaggi programmati per la tua flotta.
+                  </p>
+                </div>
+                <button type="button" class="btn btn-warning fw-bold px-3 py-2 rounded-3 shadow d-flex align-items-center gap-2 flex-shrink-0" onclick="openFleetBookingsModal()">
+                  <i class="bi bi-calendar2-range-fill"></i> Elenco Prenotazioni Attive
+                </button>
+              </div>
+            </ion-card>
+          </div>
         </div>
 
         <!-- ================= VISTA HOME 2B: GLOBAL FLEET MANAGER ================= -->
@@ -419,6 +454,29 @@
               </div>
             </ion-card-content>
           </ion-card>
+
+          <!-- ================= SEZIONE: PRENOTAZIONI AUTOMEZZI (GLOBAL FLEET) ================= -->
+          <div class="mb-4">
+            <h5 class="fw-bold text-white mb-3 d-flex align-items-center gap-2">
+              <i class="bi bi-calendar-check-fill text-warning"></i> Prenotazioni Automezzi
+            </h5>
+            <ion-card class="dashboard-card m-0 p-3 p-md-4 border-start border-4 border-warning">
+              <div class="d-flex flex-column flex-md-row justify-content-between align-items-start align-items-md-center gap-3">
+                <div>
+                  <h6 class="text-white fw-bold mb-1 d-flex align-items-center gap-2">
+                    <span>Registro Globale Prenotazioni Aziendali</span>
+                    <span id="global-fleet-active-bookings-count-badge" class="badge bg-warning text-dark font-monospace">0 attive</span>
+                  </h6>
+                  <p class="text-slate-300 small mb-0">
+                    Supervisiona in tempo reale tutte le prenotazioni attive e i viaggi in svolgimento in tutte le sedi aziendali.
+                  </p>
+                </div>
+                <button type="button" class="btn btn-warning fw-bold px-3 py-2 rounded-3 shadow d-flex align-items-center gap-2 flex-shrink-0" onclick="openFleetBookingsModal()">
+                  <i class="bi bi-calendar2-range-fill"></i> Elenco Prenotazioni Attive
+                </button>
+              </div>
+            </ion-card>
+          </div>
 
           <!-- Sezione Registro Autoveicoli REST API -->
           <div class="d-flex align-items-center justify-content-between flex-wrap gap-2 mb-3">
@@ -1101,6 +1159,140 @@
           <div class="modal-footer border-slate-800 p-3">
             <button type="button" class="btn btn-secondary w-100 py-2 fw-semibold rounded-3" data-bs-dismiss="modal">
               <i class="bi bi-x-lg me-1"></i> Chiudi Scheda
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ================= MODAL: GUIDA INSTALLAZIONE ICONA DESKTOP SMARTPHONE ================= -->
+    <div class="modal fade" id="modal-install-pwa-guide" tabindex="-1" aria-labelledby="modalInstallPwaLabel" aria-hidden="true">
+      <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content bg-slate-900 text-white border border-slate-700 rounded-4 shadow-2xl">
+          <div class="modal-header border-slate-800">
+            <div class="d-flex align-items-center gap-2">
+              <div class="p-2 rounded-3 bg-warning bg-opacity-10 text-warning d-flex align-items-center justify-content-center">
+                <i class="bi bi-phone-fill fs-4 text-warning"></i>
+              </div>
+              <div>
+                <h5 class="modal-title fw-bold text-white mb-0" id="modalInstallPwaLabel">Aggiungi Icona sul Telefono</h5>
+                <small class="text-slate-400">Installa l'app sulla schermata Home</small>
+              </div>
+            </div>
+            <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Chiudi"></button>
+          </div>
+          <div class="modal-body p-3 p-md-4">
+            <!-- Pulsante Diretto per Browser Supportati (Chrome / Edge / Android) -->
+            <div id="install-native-prompt-container" class="mb-3 text-center" style="display: none;">
+              <button type="button" id="btn-install-native-action" class="btn btn-warning w-100 py-2.5 fw-bold rounded-3 shadow d-flex align-items-center justify-content-center gap-2">
+                <i class="bi bi-download fs-5"></i> Installa App sul Desktop Adesso
+              </button>
+              <div class="text-muted extra-small mt-2">Crea l'icona sul tuo smartphone per aprirla rapidamente a schermo intero.</div>
+              <hr class="my-3 border-slate-700">
+            </div>
+
+            <!-- Istruzioni per Android / Chrome -->
+            <div class="mb-3 p-3 rounded-3 bg-slate-800 border border-slate-700">
+              <h6 class="fw-bold text-warning mb-2 d-flex align-items-center gap-2">
+                <i class="bi bi-android2 fs-5"></i> Su Android (Google Chrome / Edge)
+              </h6>
+              <ol class="small text-slate-300 mb-0 ps-3">
+                <li class="mb-1">Tocca i tre puntini <strong>⋮</strong> in alto a destra nel browser.</li>
+                <li>Seleziona <strong>"Installa app"</strong> oppure <strong>"Aggiungi a schermata Home"</strong>.</li>
+              </ol>
+            </div>
+
+            <!-- Istruzioni per iPhone / iPad (Safari) -->
+            <div class="p-3 rounded-3 bg-slate-800 border border-slate-700">
+              <h6 class="fw-bold text-info mb-2 d-flex align-items-center gap-2">
+                <i class="bi bi-apple fs-5"></i> Su iPhone / iPad (Safari)
+              </h6>
+              <ol class="small text-slate-300 mb-0 ps-3">
+                <li class="mb-1">Tocca il tasto di condivisione <strong><i class="bi bi-box-arrow-up text-info"></i> Condividi</strong> nella barra di Safari in basso.</li>
+                <li>Scorri le opzioni verso il basso e seleziona <strong>"Aggiungi alla schermata Home" <i class="bi bi-plus-square text-info"></i></strong>.</li>
+              </ol>
+            </div>
+          </div>
+          <div class="modal-footer border-slate-800 p-3">
+            <button type="button" class="btn btn-secondary w-100 rounded-3 py-2 fw-semibold" data-bs-dismiss="modal">
+              Ho capito
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ================= MODAL: ELENCO PRENOTAZIONI ATTIVE FLOTTA (FLEET & GLOBAL) ================= -->
+    <div class="modal fade" id="modal-fleet-prenotazioni-attive" tabindex="-1" aria-labelledby="modalFleetBookingsLabel" aria-hidden="true">
+      <div class="modal-dialog modal-dialog-centered modal-dialog-scrollable modal-xl">
+        <div class="modal-content bg-slate-900 text-white border border-slate-700 rounded-4 shadow-2xl">
+          <div class="modal-header border-slate-800 pb-3">
+            <div class="d-flex align-items-center gap-3">
+              <div class="p-2 px-3 rounded-3 bg-warning bg-opacity-10 text-warning d-flex align-items-center justify-content-center">
+                <i class="bi bi-calendar-check-fill fs-3"></i>
+              </div>
+              <div>
+                <div class="d-flex align-items-center gap-2 flex-wrap">
+                  <h5 class="modal-title fw-bold text-white mb-0" id="modalFleetBookingsLabel">
+                    Prenotazioni Automezzi Attive
+                  </h5>
+                  <span id="fleet-modal-scope-badge" class="badge bg-warning text-dark font-monospace px-2 py-1">
+                    Flotta
+                  </span>
+                </div>
+                <small class="text-slate-400">Elenco di tutti i viaggi in corso e delle prenotazioni programmate</small>
+              </div>
+            </div>
+            <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Chiudi"></button>
+          </div>
+
+          <div class="modal-body p-3 p-md-4">
+            <!-- Barra Ricerca, Filtri & Refresh -->
+            <div class="row g-2 mb-3 align-items-center">
+              <div class="col-12 col-md-6">
+                <div class="input-group input-group-sm">
+                  <span class="input-group-text bg-slate-800 border-slate-700 text-muted">
+                    <i class="bi bi-search"></i>
+                  </span>
+                  <input type="text" id="fleet-bookings-search-input"
+                    class="form-control bg-slate-800 border-slate-700 text-white"
+                    placeholder="Cerca per targa, modello, conducente, sede...">
+                </div>
+              </div>
+              <div class="col-8 col-md-4">
+                <select id="fleet-bookings-filter-stato"
+                  class="form-select form-select-sm bg-slate-800 border-slate-700 text-white">
+                  <option value="">Tutti gli stati</option>
+                  <option value="in corso">🚀 In Corso</option>
+                  <option value="oggi">🗓️ In Programma Oggi</option>
+                  <option value="confermata">⏳ Programmate Future</option>
+                  <option value="in pausa">⏸️ In Pausa</option>
+                </select>
+              </div>
+              <div class="col-4 col-md-2 text-end">
+                <button type="button" id="btn-refresh-fleet-bookings" class="btn btn-sm btn-outline-warning w-100 d-flex align-items-center justify-content-center gap-1">
+                  <i class="bi bi-arrow-clockwise"></i> Aggiorna
+                </button>
+              </div>
+            </div>
+
+            <!-- Loading Spinner -->
+            <div id="fleet-bookings-loading-spinner" class="text-center py-5" style="display: none;">
+              <div class="spinner-border text-warning" role="status">
+                <span class="visually-hidden">Caricamento prenotazioni...</span>
+              </div>
+              <p class="text-muted small mt-2">Recupero prenotazioni flotta in corso...</p>
+            </div>
+
+            <!-- Contenitore Lista Prenotazioni -->
+            <div id="fleet-bookings-modal-list" class="row g-3">
+              <!-- Prenotazioni caricate dinamicamente via JS -->
+            </div>
+          </div>
+
+          <div class="modal-footer border-slate-800 p-3">
+            <button type="button" class="btn btn-secondary w-100 py-2 fw-semibold rounded-3" data-bs-dismiss="modal">
+              <i class="bi bi-x-lg me-1"></i> Chiudi Finestra
             </button>
           </div>
         </div>
