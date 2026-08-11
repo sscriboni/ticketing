@@ -111,6 +111,39 @@ ion-page.page-view.active {
   outline: none;
 }
 
+.password-input-wrapper {
+  display: flex;
+  align-items: center;
+  width: 100%;
+}
+
+.password-input-wrapper input {
+  flex: 1;
+}
+
+.btn-toggle-password {
+  background: transparent;
+  border: none;
+  color: #94a3b8;
+  padding: 4px 6px;
+  font-size: 1.15rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  outline: none;
+  transition: color 0.2s ease, transform 0.15s ease;
+}
+
+.btn-toggle-password:hover {
+  color: #38bdf8;
+  transform: scale(1.1);
+}
+
+.btn-toggle-password:active {
+  transform: scale(0.95);
+}
+
 /* High Contrast Submit Button */
 .btn-login-submit {
   --background: #0d6efd;

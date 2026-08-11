@@ -1773,6 +1773,21 @@ document.addEventListener('DOMContentLoaded', () => {
     });
   });
 
+  // Toggle Mostra/Nascondi Password Login
+  const btnTogglePassword = document.getElementById('btn-toggle-password');
+  const passwordInput = document.getElementById('login-password');
+  const iconTogglePassword = document.getElementById('icon-toggle-password');
+
+  if (btnTogglePassword && passwordInput) {
+    btnTogglePassword.addEventListener('click', () => {
+      const isPassword = passwordInput.type === 'password';
+      passwordInput.type = isPassword ? 'text' : 'password';
+      if (iconTogglePassword) {
+        iconTogglePassword.className = isPassword ? 'bi bi-eye-slash-fill text-warning' : 'bi bi-eye';
+      }
+    });
+  }
+
   // Submit Form di Login (Azione API POST sul percorso relativo)
   if (loginForm) {
     loginForm.addEventListener('submit', async (e) => {

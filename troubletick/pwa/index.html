@@ -88,16 +88,19 @@
               <form id="login-form">
                 <!-- Username Input -->
                 <div class="form-input-container">
-                  <label for="login-username"><i class="bi bi-person-fill me-1 text-primary"></i> Username o
-                    Email</label>
-                  <input type="text" id="login-username" value="admin" placeholder="Inserisci username o email"
-                    required>
+                  <label for="login-username"><i class="bi bi-person-fill me-1 text-primary"></i> Username o Email</label>
+                  <input type="text" id="login-username" placeholder="Inserisci username o email" required autocomplete="username">
                 </div>
 
-                <!-- Password Input -->
+                <!-- Password Input con Toggle Mostra/Nascondi -->
                 <div class="form-input-container">
                   <label for="login-password"><i class="bi bi-lock-fill me-1 text-primary"></i> Password</label>
-                  <input type="password" id="login-password" value="admin" placeholder="Inserisci password" required>
+                  <div class="password-input-wrapper">
+                    <input type="password" id="login-password" placeholder="Inserisci password" required autocomplete="current-password">
+                    <button type="button" id="btn-toggle-password" class="btn-toggle-password" title="Mostra/Nascondi password" aria-label="Mostra/Nascondi password">
+                      <i class="bi bi-eye" id="icon-toggle-password"></i>
+                    </button>
+                  </div>
                 </div>
 
                 <!-- Remember Checkbox -->
