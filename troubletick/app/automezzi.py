@@ -396,7 +396,7 @@ def page_dislocazioni(r: Request):
         if user.get("ruolo") == "fleet_manager":
             user_reparto_id = conn.execute(text("SELECT reparto_id FROM users WHERE user_id = :uid"), {"uid": user.get("id")}).scalar()
 
-        today_str = datetime.now().strftime("%Y-%m-%d")
+        today_str = datetime.date.today().strftime("%Y-%m-%d")
         if user.get("ruolo") == "fleet_manager" and user_reparto_id is not None:
             automezzi = conn.execute(text("""
                 SELECT a.*, 
