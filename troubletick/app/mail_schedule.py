@@ -749,8 +749,7 @@ def build_html_resp_status(data):
             today_assenti_html += f"""
             <div style="padding: 10px; background-color: #fef2f2; border: 1px solid #fca5a5; border-radius: 8px; margin-bottom: 8px; display: inline-block; width: 45%; margin-right: 10px; vertical-align: top; box-sizing: border-box;">
                 <strong style="color: #991b1b; font-size: 13px;">{op['nome']} {op['cognome']}</strong> 
-                <span style="font-size: 10px; color: #b91c1c; background: #fee2e2; padding: 1px 5px; border-radius: 4px; font-weight: bold;">{ruolo_lbl}</span><br>
-                <span style="font-size: 11px; color: #7f1d1d; display: inline-block; margin-top: 4px;">ℹ️ Assenza: <em>{op['motivo']}</em></span>
+                <span style="font-size: 10px; color: #b91c1c; background: #fee2e2; padding: 1px 5px; border-radius: 4px; font-weight: bold;">{ruolo_lbl}</span>
             </div>
             """
     else:
@@ -780,8 +779,7 @@ def build_html_resp_status(data):
             tomorrow_assenti_html += f"""
             <div style="padding: 10px; background-color: #fef2f2; border: 1px solid #fca5a5; border-radius: 8px; margin-bottom: 8px; display: inline-block; width: 45%; margin-right: 10px; vertical-align: top; box-sizing: border-box;">
                 <strong style="color: #991b1b; font-size: 13px;">{op['nome']} {op['cognome']}</strong> 
-                <span style="font-size: 10px; color: #b91c1c; background: #fee2e2; padding: 1px 5px; border-radius: 4px; font-weight: bold;">{ruolo_lbl}</span><br>
-                <span style="font-size: 11px; color: #7f1d1d; display: inline-block; margin-top: 4px;">ℹ️ Assenza: <em>{op['motivo']}</em></span>
+                <span style="font-size: 10px; color: #b91c1c; background: #fee2e2; padding: 1px 5px; border-radius: 4px; font-weight: bold;">{ruolo_lbl}</span>
             </div>
             """
     else:
@@ -1093,7 +1091,7 @@ def query_ope_status(conn, op_id, op_nome, op_cognome, reparto_id, reparto_nome)
         """), {"uid": op_id, "target": date_str}).mappings().all()
         
         if absent_row:
-            op_status = f"Assente ({absent_row[0]['motivo'] or 'Ferie/Altro'})"
+            op_status = "Assente"
             is_op_absent = True
         elif pres_row:
             op_status = f"Presente ({pres_row[0]['tipo']}{' - ' + pres_row[0]['nota'] if pres_row[0]['nota'] else ''})"

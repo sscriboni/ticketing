@@ -68,7 +68,6 @@
                                     <th>Reparto</th>
                                     <th>Dal</th>
                                     <th>Al</th>
-                                    <th>Motivo</th>
                                     <th>Azioni</th>
                                 </tr>
                             </thead>
@@ -79,7 +78,6 @@
                                     <td>{{ a.reparto_nome or '—' }}</td>
                                     <td>{{ a.data_inizio }}</td>
                                     <td>{{ a.data_fine }}</td>
-                                    <td>{{ a.motivo or '—' }}</td>
                                     <td>
                                         {% if user.ruolo == 'admin' or user.id == a.user_id %}
                                         <form method="post" action="/calendario/{{ a.assenza_id }}/elimina"
@@ -93,7 +91,7 @@
                                 </tr>
                                 {% else %}
                                 <tr>
-                                    <td colspan="6" class="text-muted text-center py-4">Nessuna assenza registrata.</td>
+                                    <td colspan="5" class="text-muted text-center py-4">Nessuna assenza registrata.</td>
                                 </tr>
                                 {% endfor %}
                             </tbody>
@@ -112,14 +110,7 @@
                                 class="form-control" required></div>
                         <div class="mb-3"><label class="form-label fw-bold">Data Fine</label><input type="date"
                                 name="data_fine" class="form-control"></div>
-                        <div class="mb-4">
-                            <label class="form-label fw-bold">Motivo (opzionale)</label>
-                            <select name="motivo" class="form-select">
-                                <option value="">-- Seleziona motivo --</option>
-                                <option value="assente">Assente dal lavoro</option>
-                                <option value="festività">Festività</option>
-                            </select>
-                        </div>
+                        <input type="hidden" name="motivo" value="assente">
                         <button type="submit" class="btn btn-primary w-100">Salva Assenza</button>
                     </form>
                 </div>
@@ -150,8 +141,8 @@
 
         {% for a in assenze %}
         (function () {
-            var title = '{{ a.nome|replace("'", "\\'") }} {{ a.cognome|replace("'", "\\'") }}{% if a.motivo %} ({{ a.motivo|replace("'", "\\'") }}){% endif %}';
-            var color = '{% if user.id == a.user_id %}#198754{% else %}#0d6efd{% endif %}';
+            var title = '{{ a.nome }} {{ a.cognome }} (Assente)';
+            var color = '#dc3545';
 
             var curStart = null;
             var curEnd = null;

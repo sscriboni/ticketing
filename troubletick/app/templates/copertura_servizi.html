@@ -197,7 +197,6 @@
                                             <li class="operator-item" title="{{ op.nome_completo }}">
                                                 {% if op.assente %}
                                                 <span class="operator-assente"><i class="bi bi-x-circle-fill text-danger"></i> {{ op.nome_completo }}</span>
-                                                <span class="motivo-tooltip" title="Motivo dell'assenza: {{ op.motivo or '—' }}">({{ op.motivo or 'Assente' }})</span>
                                                 {% else %}
                                                 <span class="operator-presente"><i class="bi bi-check-circle-fill text-success"></i> {{ op.nome_completo }}</span>
                                                 {% endif %}
