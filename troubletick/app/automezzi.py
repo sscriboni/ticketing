@@ -3261,12 +3261,17 @@ def get_autopark(r: Request, msg: str = None, error: str = None):
         instant_actual_time = now.strftime("%H:%M")
         info = r.query_params.get("info")
 
-    webapp_url = CFG.get("webapp_url", "") or "http://localhost:5002/"
+    # URL registrato nel file di configurazione (config.json)
+    pwa_url = (CFG.get("webapp_url") or CFG.get("pwa_url") or "").strip()
+    if not pwa_url:
+        base = str(r.base_url).rstrip("/")
+        pwa_url = f"{base}/pwa/"
+
     qr_code_b64 = ""
     try:
         import qrcode, io, base64
         qr = qrcode.QRCode(version=1, box_size=6, border=2)
-        qr.add_data(webapp_url)
+        qr.add_data(pwa_url)
         qr.make(fit=True)
         img = qr.make_image(fill_color="#1e3c72", back_color="white")
         buf = io.BytesIO()
@@ -3291,7 +3296,8 @@ def get_autopark(r: Request, msg: str = None, error: str = None):
         "instant_hour": instant_hour,
         "instant_actual_time": instant_actual_time,
         "today_str": now.strftime("%Y-%m-%d"),
-        "webapp_url": webapp_url,
+        "webapp_url": pwa_url,
+        "pwa_url": pwa_url,
         "qr_code_b64": qr_code_b64
     })
 

@@ -357,27 +357,33 @@
                 {% endif %}
             </div>
 
-            <!-- BOX QR CODE WEBAPP (Temporaneamente Nascosto) -->
-            <div class="glass-card p-4 mt-4 text-center" style="display: none !important;">
-                <h5 class="fw-bold mb-3" style="color: #1e3c72;">
-                    <i class="bi bi-qr-code-scan me-2 text-primary"></i>Webapp Mobile
+            <!-- BOX QR CODE WEBAPP PWA MOBILE -->
+            <div class="glass-card p-4 mt-4 text-center border-0 shadow-sm rounded-4" style="background: linear-gradient(180deg, #ffffff 0%, #f8fafc 100%);">
+                <div class="d-inline-flex p-2 rounded-3 bg-primary bg-opacity-10 text-primary mb-2">
+                    <i class="bi bi-phone-fill fs-3 text-primary"></i>
+                </div>
+                <h5 class="fw-bold mb-1" style="color: #1e3c72;">
+                    Webapp PWA Mobile
                 </h5>
+                <p class="text-muted mb-3" style="font-size: 0.82rem; line-height: 1.4;">
+                    Inquadra il QR Code con il tuo smartphone o tablet per aprire la Webapp PWA per prenotare e gestire i viaggi in mobilità.
+                </p>
                 <div class="d-flex justify-content-center my-2">
-                    <div id="qrcode-box" class="p-2 bg-white rounded border shadow-sm d-flex justify-content-center align-items-center" style="display: inline-block; min-width: 166px; min-height: 166px;">
+                    <div id="qrcode-box" class="p-2 bg-white rounded-3 border shadow-sm d-flex justify-content-center align-items-center" style="display: inline-block; min-width: 170px; min-height: 170px;">
                         {% if qr_code_b64 %}
-                            <img src="{{ qr_code_b64 }}" alt="QR Code Webapp" style="width:150px; height:150px;">
+                            <img src="{{ qr_code_b64 }}" id="qr-img-element" alt="QR Code Webapp PWA" style="width:160px; height:160px; border-radius: 8px;">
                         {% else %}
-                            <img src="https://api.qrserver.com/v1/create-qr-code/?size=150x150&data={{ (webapp_url or cfg.get('webapp_url', 'http://localhost:5002/')) | urlencode }}" alt="QR Code Webapp" style="width:150px; height:150px;">
+                            <img src="https://api.qrserver.com/v1/create-qr-code/?size=160x160&data={{ (pwa_url or webapp_url or 'http://localhost:5002/pwa/') | urlencode }}" id="qr-img-element" alt="QR Code Webapp PWA" style="width:160px; height:160px; border-radius: 8px;">
                         {% endif %}
                     </div>
                 </div>
-                <div class="text-muted small fw-semibold mt-2">
-                    <i class="bi bi-phone me-1 text-primary"></i>inquadra il QR per registrare i viaggi con il telefono
-                </div>
-                <div class="mt-2">
-                    <a href="{{ webapp_url or cfg.get('webapp_url', '') or 'http://localhost:5002/' }}" target="_blank" class="small text-decoration-none text-primary fw-bold">
-                        <i class="bi bi-box-arrow-up-right me-1"></i>Apri Webapp nel browser
+                <div class="mt-3 d-flex flex-column gap-1">
+                    <a href="{{ pwa_url or webapp_url or '/pwa/' }}" id="pwa-direct-link" target="_blank" class="btn btn-sm btn-outline-primary fw-semibold rounded-pill py-1.5 px-3">
+                        <i class="bi bi-box-arrow-up-right me-1"></i> Apri Webapp PWA
                     </a>
+                    <span class="text-muted font-monospace text-truncate d-block mt-1" id="pwa-url-text" style="font-size: 0.75rem;">
+                        {{ pwa_url or webapp_url }}
+                    </span>
                 </div>
             </div>
         </div>
@@ -925,22 +931,31 @@
                 }
             });
         }
-        /* ── Webapp QR Code fallback ── */
-        const webappUrl = {{ (webapp_url or cfg.get('webapp_url', '') or 'http://localhost:5002/') | tojson }};
-        const qrContainer = document.getElementById("qrcode-box");
-        if (qrContainer && !qrContainer.querySelector("img")) {
-            if (typeof QRCode !== 'undefined') {
-                new QRCode(qrContainer, {
-                    text: webappUrl,
-                    width: 150,
-                    height: 150,
-                    colorDark : "#1e3c72",
-                    colorLight : "#ffffff",
-                    correctLevel : QRCode.CorrectLevel.M
-                });
-            } else {
-                qrContainer.innerHTML = `<img src="https://api.qrserver.com/v1/create-qr-code/?size=150x150&data=${encodeURIComponent(webappUrl)}" alt="QR Code Webapp" style="width:150px; height:150px;">`;
+        /* ── Webapp PWA QR Code da File di Configurazione ── */
+        try {
+            const configPwaUrl = {{ (pwa_url or cfg.get('webapp_url', '') or cfg.get('pwa_url', '') or '') | tojson }};
+            const pwaDirectLink = document.getElementById('pwa-direct-link');
+            const pwaUrlText = document.getElementById('pwa-url-text');
+            if (pwaDirectLink && configPwaUrl) pwaDirectLink.href = configPwaUrl;
+            if (pwaUrlText && configPwaUrl) pwaUrlText.textContent = configPwaUrl;
+
+            const qrContainer = document.getElementById("qrcode-box");
+            if (qrContainer && configPwaUrl && !qrContainer.querySelector("img")) {
+                if (typeof QRCode !== 'undefined') {
+                    new QRCode(qrContainer, {
+                        text: configPwaUrl,
+                        width: 160,
+                        height: 160,
+                        colorDark : "#1e3c72",
+                        colorLight : "#ffffff",
+                        correctLevel : QRCode.CorrectLevel.M
+                    });
+                } else {
+                    qrContainer.innerHTML = `<img src="https://api.qrserver.com/v1/create-qr-code/?size=160x160&data=${encodeURIComponent(configPwaUrl)}" alt="QR Code Webapp PWA" style="width:160px; height:160px; border-radius: 8px;">`;
+                }
             }
+        } catch (qrErr) {
+            console.warn("Avviso visualizzazione QR PWA:", qrErr);
         }
     });
 

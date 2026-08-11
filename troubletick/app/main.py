@@ -583,6 +583,9 @@ async def trigger_morning_recap_middleware(request: Request, call_next):
     return await call_next(request)
 app.mount("/static", StaticFiles(directory=os.path.join(BASE_DIR,"static")), name="static")
 app.mount("/uploads", StaticFiles(directory=UPLOAD_DIR), name="uploads")
+pwa_dir = os.path.join(os.path.dirname(BASE_DIR), "pwa")
+if os.path.isdir(pwa_dir):
+    app.mount("/pwa", StaticFiles(directory=pwa_dir, html=True), name="pwa")
 
 @app.get("/favicon.ico", include_in_schema=False)
 async def favicon():
