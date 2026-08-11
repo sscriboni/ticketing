@@ -126,13 +126,16 @@
                                 <td><span class="text-muted small">{{ v.note or '-' }}</span></td>
                                 <td class="text-end">
                                     <div class="d-inline-flex gap-2 align-items-center">
+                                         <button class="btn btn-sm btn-outline-success fw-bold d-inline-flex align-items-center gap-1" onclick="registraViaggioDaPrenotazione({{ v | tojson | forceescape }})" title="Registra viaggio per questa prenotazione (la prenotazione verrà eliminata)">
+                                             <i class="bi bi-compass"></i> Registra Viaggio
+                                         </button>
                                          {% set is_future_date = (v.data_viaggio > today_str) %}
                                          <form action="../../autopark/avvia/{{ v.viaggio_id }}" method="post" class="m-0">
                                              <button class="btn btn-sm btn-outline-primary fw-bold" type="submit" {% if is_future_date %}disabled title="Il viaggio potrà essere avviato solo a partire dal giorno di prenotazione ({{ v.data_viaggio }})"{% endif %}>
-                                                 <i class="bi bi-play-fill me-1"></i> Avvia Viaggio
+                                                 <i class="bi bi-play-fill me-1"></i> Avvia
                                              </button>
                                          </form>
-                                        <button class="btn btn-sm btn-outline-danger" onclick="confirmDeleteTrip({{ v.viaggio_id }}, '{{ v.targa }}', {{ v.km_iniziali or 0 }}, false)">
+                                        <button class="btn btn-sm btn-outline-danger" onclick="confirmDeleteTrip({{ v.viaggio_id }}, '{{ v.targa }}', {{ v.km_iniziali or 0 }}, false)" title="Elimina/Annulla prenotazione">
                                             <i class="bi bi-trash"></i>
                                         </button>
                                     </div>
@@ -226,7 +229,13 @@
                     <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
                 </div>
                 <form action="../automezzi/viaggi/nuovo" method="post" id="addTripForm" onsubmit="return validateNewTripForm()">
+                    <input type="hidden" name="prenotazione_id" id="addTripPrenotazioneId" value="">
                     <div class="modal-body">
+                        <!-- Banner Informativo se aperto da una Prenotazione -->
+                        <div id="addTripPrenotazioneBanner" class="alert alert-warning py-2 px-3 mb-3 small d-none">
+                            <i class="bi bi-info-circle-fill me-1"></i> <strong>Registrazione viaggio da prenotazione:</strong> La prenotazione selezionata verrà eliminata e registrata come viaggio effettivo.
+                        </div>
+
                         <!-- 1. Scelta Autovettura con ricerca parziale targa -->
                         <div class="row g-3 mb-3">
                             <div class="col-12">
@@ -434,6 +443,10 @@
         });
 
         function showAddTripModal() {
+            document.getElementById('addTripPrenotazioneId').value = '';
+            const banner = document.getElementById('addTripPrenotazioneBanner');
+            if (banner) banner.classList.add('d-none');
+
             const searchInput = document.getElementById('cercaTargaVeicoloInput');
             if (searchInput) {
                 searchInput.value = '';
@@ -444,6 +457,54 @@
                 repSelect.value = '';
                 onRepartoChange('');
             }
+            addTripModalEl.show();
+        }
+
+        function registraViaggioDaPrenotazione(p) {
+            if (!p) return;
+
+            document.getElementById('addTripPrenotazioneId').value = p.viaggio_id || '';
+            const banner = document.getElementById('addTripPrenotazioneBanner');
+            if (banner) banner.classList.remove('d-none');
+
+            // Preseleziona Veicolo
+            const vehSelect = document.getElementById('addTripAutomezzoId');
+            if (vehSelect) {
+                vehSelect.value = p.automezzo_id;
+                onVehicleSelect();
+            }
+
+            // Imposta Data e Ora
+            if (p.data_viaggio) {
+                document.getElementById('addTripData').value = p.data_viaggio;
+            }
+            if (p.ora_partenza) {
+                document.getElementById('addTripOraPartenza').value = p.ora_partenza;
+            }
+            if (p.sede_partenza_id) {
+                document.getElementById('addTripSedePartenzaId').value = p.sede_partenza_id;
+            }
+            if (p.km_iniziali !== null && p.km_iniziali !== undefined) {
+                document.getElementById('addTripKmIniziali').value = p.km_iniziali;
+            }
+
+            // Preseleziona Conducente se presente
+            if (p.user_id) {
+                const userSelect = document.getElementById('addTripUserId');
+                if (userSelect) {
+                    userSelect.disabled = false;
+                    for (let i = 0; i < userSelect.options.length; i++) {
+                        userSelect.options[i].style.display = '';
+                    }
+                    userSelect.value = p.user_id;
+                }
+            }
+
+            const noteInput = document.querySelector('textarea[name="note"]');
+            if (noteInput && p.note) {
+                noteInput.value = p.note;
+            }
+
             addTripModalEl.show();
         }
 

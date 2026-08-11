@@ -2979,7 +2979,8 @@ def add_viaggio(
     sede_partenza_id: int = Form(...),
     sede_arrivo_id: int = Form(None),
     user_id: typing.Optional[int] = Form(None),
-    note: str = Form(None)
+    note: str = Form(None),
+    prenotazione_id: typing.Optional[int] = Form(None)
 ):
     if "user" not in r.session: 
         return RedirectResponse(url="/login", status_code=303)
@@ -3001,12 +3002,26 @@ def add_viaggio(
     user_id_val = user_id if user_id else None
     
     with engine.begin() as conn:
+        # Se viene registrato un viaggio per una prenotazione, elimina la prenotazione corrispondente
+        if prenotazione_id:
+            conn.execute(text("DELETE FROM viaggi_automezzi WHERE viaggio_id = :pid"), {"pid": prenotazione_id})
+        else:
+            # Se esiste una prenotazione attiva (non ancora avviata) per lo stesso veicolo e data, eliminala per evitare duplicazioni
+            conn.execute(text("""
+                DELETE FROM viaggi_automezzi 
+                WHERE automezzo_id = :aid 
+                  AND data_viaggio = :dv 
+                  AND ora_partenza_effettiva IS NULL 
+                  AND (ora_arrivo IS NULL OR ora_arrivo = '')
+                  AND (:uid IS NULL OR user_id = :uid)
+            """), {"aid": automezzo_id, "dv": data_viaggio, "uid": user_id_val})
+
         conn.execute(text("""
             INSERT INTO viaggi_automezzi (
-                automezzo_id, data_viaggio, ora_partenza, ora_arrivo, 
+                automezzo_id, data_viaggio, ora_partenza, ora_partenza_effettiva, ora_arrivo, 
                 km_iniziali, km_finali, sede_partenza_id, sede_arrivo_id, user_id, note
             ) VALUES (
-                :automezzo_id, :data_viaggio, :ora_partenza, :ora_arrivo,
+                :automezzo_id, :data_viaggio, :ora_partenza, :ora_partenza, :ora_arrivo,
                 :km_iniziali, :km_finali, :sede_partenza_id, :sede_arrivo_id, :user_id, :note
             )
         """), {

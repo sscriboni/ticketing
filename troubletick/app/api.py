@@ -207,6 +207,17 @@ class AutomezzoResponse(BaseModel):
     classe_euro: Optional[str] = ""
     escluso_prenotazione: Optional[int] = 0
     tags: Optional[List[TagInfo]] = []
+    # Campi per visualizzazione scheda mezzo live
+    active_viaggio_id: Optional[int] = None
+    active_viaggio_data: Optional[str] = None
+    active_viaggio_ora_partenza: Optional[str] = None
+    active_viaggio_ora_riconsegna: Optional[str] = None
+    active_viaggio_partenza_effettiva: Optional[str] = None
+    active_viaggio_conducente: Optional[str] = None
+    active_viaggio_note: Optional[str] = None
+    active_manutenzione_servizio: Optional[str] = None
+    active_manutenzione_luogo: Optional[str] = None
+    active_manutenzione_data_inizio: Optional[str] = None
 
 class AutomezziListResponse(BaseModel):
     totale: int
