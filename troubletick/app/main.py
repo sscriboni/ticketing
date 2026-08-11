@@ -1,7 +1,7 @@
 import os, json, csv, io, shutil, uuid, traceback, random, asyncio, typing
 from typing import Optional
 from contextlib import asynccontextmanager
-from datetime import datetime, timedelta
+from datetime import datetime, date, time, timedelta
 from fastapi import FastAPI, Request, Form, UploadFile, File, BackgroundTasks
 from fastapi.responses import HTMLResponse, RedirectResponse, Response, FileResponse
 from fastapi.templating import Jinja2Templates
@@ -1070,14 +1070,30 @@ def home(r: Request):
                     LIMIT 30
                 """)).mappings().all()
 
+            fleet_vehicles_dicts = []
+            for v in (fleet_vehicles_list or []):
+                v_dict = dict(v)
+                for k, val in v_dict.items():
+                    if isinstance(val, (date, datetime, time)):
+                        v_dict[k] = str(val)
+                fleet_vehicles_dicts.append(v_dict)
+
+            fleet_prenotazioni_dicts = []
+            for p in (fleet_prenotazioni_list or []):
+                p_dict = dict(p)
+                for k, val in p_dict.items():
+                    if isinstance(val, (date, datetime, time)):
+                        p_dict[k] = str(val)
+                fleet_prenotazioni_dicts.append(p_dict)
+
             stats = {
                 "fleet_total": fleet_total,
                 "fleet_available": fleet_available,
                 "fleet_in_use": fleet_in_use,
                 "fleet_maintenance": fleet_maintenance,
                 "fleet_active_maintenance": fleet_active_maintenance,
-                "fleet_vehicles_list": fleet_vehicles_list,
-                "fleet_prenotazioni_list": fleet_prenotazioni_list
+                "fleet_vehicles_list": fleet_vehicles_dicts,
+                "fleet_prenotazioni_list": fleet_prenotazioni_dicts
             }
             return templates.TemplateResponse(r, "home_fleet_manager.html", {"request": r, "cfg": CFG, "avvisi": avvisi, "user": user, "stats": stats})
             

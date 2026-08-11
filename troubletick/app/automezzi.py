@@ -2914,7 +2914,7 @@ def list_viaggi(r: Request):
                 ORDER BY v.data_viaggio DESC, v.ora_partenza DESC
             """)).mappings().all()
 
-            prenotazioni = conn.execute(text("""
+            prenotazioni_raw = conn.execute(text("""
                 SELECT v.*, a.targa, b.nome as marca, a.modello,
                        s_part.nome as sede_partenza_nome,
                        u.nome as user_nome, u.cognome as user_cognome
@@ -2927,6 +2927,14 @@ def list_viaggi(r: Request):
                   AND (v.ora_arrivo IS NULL OR v.km_finali IS NULL)
                 ORDER BY v.data_viaggio DESC, v.ora_partenza DESC
             """)).mappings().all()
+
+            prenotazioni = []
+            for p in prenotazioni_raw:
+                p_dict = dict(p)
+                for k, val in p_dict.items():
+                    if isinstance(val, (datetime.date, datetime.datetime, datetime.time)):
+                        p_dict[k] = str(val)
+                prenotazioni.append(p_dict)
             
             viaggi_completati = conn.execute(text("""
                 SELECT v.*, a.targa, b.nome as marca, a.modello,

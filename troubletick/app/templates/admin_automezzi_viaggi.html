@@ -126,7 +126,17 @@
                                 <td><span class="text-muted small">{{ v.note or '-' }}</span></td>
                                 <td class="text-end">
                                     <div class="d-inline-flex gap-2 align-items-center">
-                                         <button class="btn btn-sm btn-outline-success fw-bold d-inline-flex align-items-center gap-1" onclick="registraViaggioDaPrenotazione({{ v | tojson | forceescape }})" title="Registra viaggio per questa prenotazione (la prenotazione verrà eliminata)">
+                                         <button type="button" class="btn btn-sm btn-outline-success fw-bold d-inline-flex align-items-center gap-1"
+                                                 data-viaggio-id="{{ v.viaggio_id }}"
+                                                 data-automezzo-id="{{ v.automezzo_id }}"
+                                                 data-data-viaggio="{{ v.data_viaggio }}"
+                                                 data-ora-partenza="{{ v.ora_partenza }}"
+                                                 data-sede-partenza-id="{{ v.sede_partenza_id or '' }}"
+                                                 data-km-iniziali="{{ v.km_iniziali or 0 }}"
+                                                 data-user-id="{{ v.user_id or '' }}"
+                                                 data-note="{{ v.note or '' }}"
+                                                 onclick="registraViaggioDaPrenotazioneBtn(this)"
+                                                 title="Registra viaggio per questa prenotazione (la prenotazione verrà eliminata)">
                                              <i class="bi bi-compass"></i> Registra Viaggio
                                          </button>
                                          {% set is_future_date = (v.data_viaggio > today_str) %}
@@ -458,6 +468,21 @@
                 onRepartoChange('');
             }
             addTripModalEl.show();
+        }
+
+        function registraViaggioDaPrenotazioneBtn(btn) {
+            if (!btn) return;
+            const p = {
+                viaggio_id: btn.getAttribute('data-viaggio-id'),
+                automezzo_id: btn.getAttribute('data-automezzo-id'),
+                data_viaggio: btn.getAttribute('data-data-viaggio'),
+                ora_partenza: btn.getAttribute('data-ora-partenza'),
+                sede_partenza_id: btn.getAttribute('data-sede-partenza-id'),
+                km_iniziali: btn.getAttribute('data-km-iniziali'),
+                user_id: btn.getAttribute('data-user-id'),
+                note: btn.getAttribute('data-note')
+            };
+            registraViaggioDaPrenotazione(p);
         }
 
         function registraViaggioDaPrenotazione(p) {

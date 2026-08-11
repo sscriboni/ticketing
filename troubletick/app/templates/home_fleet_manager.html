@@ -146,7 +146,7 @@
                 {% for v in stats.fleet_vehicles_list %}
                 <tr>
                   <td>
-                    <a href="javascript:void(0)" class="text-decoration-none text-dark" onclick="mostraSchedaVeicolo({{ v | tojson | forceescape }})" title="Visualizza scheda completa">
+                    <a href="javascript:void(0)" class="text-decoration-none text-dark" onclick="mostraSchedaVeicoloById({{ v.automezzo_id }})" title="Visualizza scheda completa">
                       <strong class="font-monospace text-dark fs-5 text-uppercase" style="letter-spacing: 1.5px; font-weight: 800;">{{ v.targa }}</strong>
                     </a>
                   </td>
@@ -169,7 +169,7 @@
                     {% endif %}
                   </td>
                   <td class="text-center">
-                    <button type="button" class="btn btn-sm btn-outline-primary py-1 px-2 fw-semibold d-inline-flex align-items-center gap-1" onclick="mostraSchedaVeicolo({{ v | tojson | forceescape }})">
+                    <button type="button" class="btn btn-sm btn-outline-primary py-1 px-2 fw-semibold d-inline-flex align-items-center gap-1" onclick="mostraSchedaVeicoloById({{ v.automezzo_id }})">
                       <i class="bi bi-eye"></i> Scheda
                     </button>
                   </td>
@@ -395,6 +395,23 @@
   </footer>
 
   <script>
+    const FLEET_VEHICLES_DATA = {{ (stats.fleet_vehicles_list or []) | tojson | safe }};
+    const FLEET_MAP = {};
+    if (Array.isArray(FLEET_VEHICLES_DATA)) {
+      FLEET_VEHICLES_DATA.forEach(function(item) {
+        if (item && item.automezzo_id) {
+          FLEET_MAP[item.automezzo_id] = item;
+        }
+      });
+    }
+
+    function mostraSchedaVeicoloById(id) {
+      const v = FLEET_MAP[id];
+      if (v) {
+        mostraSchedaVeicolo(v);
+      }
+    }
+
     function mostraSchedaVeicolo(v) {
       if (!v) return;
 
