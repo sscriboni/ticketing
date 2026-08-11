@@ -905,6 +905,7 @@ def get_sedi(user: dict = Depends(get_current_user)):
 def get_user_prenotazioni(
     all_trips: Optional[bool] = Query(False, alias="all"),
     active_only: Optional[bool] = Query(False, alias="active_only"),
+    for_overlap: Optional[bool] = Query(False, alias="for_overlap"),
     user: dict = Depends(get_current_user)
 ):
     uid = user.get("user_id", 0)
@@ -958,7 +959,12 @@ def get_user_prenotazioni(
                 query += " AND (v.ora_arrivo IS NULL OR v.ora_arrivo = '') AND (v.data_viaggio >= :today OR v.ora_partenza_effettiva IS NOT NULL)"
                 params["today"] = today_str
 
-            if all_trips:
+            if for_overlap:
+                # Per il controllo overlap restituiamo TUTTE le prenotazioni attive
+                # (non completate) a partire da oggi, senza filtro utente/reparto
+                query += " AND (v.ora_arrivo IS NULL OR v.ora_arrivo = '') AND v.data_viaggio >= :today_overlap"
+                params["today_overlap"] = today_str
+            elif all_trips:
                 if is_fleet_mgr and not is_global and reparto_id:
                     query += " AND (u.reparto_id = :reparto_id OR a.reparto_assegnato_id = :reparto_id OR a.reparto_assegnato_id IS NULL OR a.reparto_assegnato_id = 0)"
                     params["reparto_id"] = reparto_id

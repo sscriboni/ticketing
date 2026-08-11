@@ -912,7 +912,7 @@ async function loadBookingData() {
       apiFetch('/automezzi', {
         headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' }
       }),
-      apiFetch('/prenotazioni?all=1', {
+      apiFetch('/prenotazioni?for_overlap=1', {
         headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' }
       })
     ]);
@@ -1102,10 +1102,13 @@ function updateBookingVehicleOptions() {
     opt.setAttribute('data-modello', `${v.marca_nome || ''} ${v.modello || ''}`.trim());
     opt.setAttribute('data-targa', v.targa || '');
 
-    const isGeneralAvailable = (v.stato === 'Disponibile' && v.escluso_prenotazione === 0);
+    // Veicoli realmente non disponibili: In Manutenzione, escluso prenotazione, o In Uso (viaggio avviato)
+    const isHardUnavailable = (v.escluso_prenotazione === 1) ||
+      (v.stato === 'In Manutenzione') ||
+      (v.stato === 'In Uso');
     const overlap = hasBookingOverlap(v.automezzo_id, dateStr, startStr, endStr);
 
-    if (!isGeneralAvailable) {
+    if (isHardUnavailable) {
       opt.disabled = true;
       let reason = v.stato || 'Non disponibile';
       if (v.escluso_prenotazione === 1) reason = 'Escluso';
