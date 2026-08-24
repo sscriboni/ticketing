@@ -33,15 +33,15 @@
             </div>
             
             <div class="col-12">
-              <label class="form-label">Servizio (opzionale)</label>
-              <select name="servizio_id" class="form-select" id="servizioSelect">
-                <option value="">Nessun servizio</option>
+              <label class="form-label">Servizio <span class="text-danger">*</span></label>
+              <select name="servizio_id" class="form-select" id="servizioSelect" required>
+                <option value="" disabled selected>Seleziona un servizio...</option>
                 {% for servizio in servizi %}
                 <option value="{{ servizio.servizio_id }}" data-reparto="{{ servizio.reparto_id }}" data-description="{{ servizio.descrizione_lunga or '' }}" data-note="{{ (servizio.note or '') | e }}">{{ servizio.descrizione }}{% if servizio.descrizione_lunga %} — {{ servizio.descrizione_lunga | truncate(50, False, '...') }}{% endif %}</option>
                 {% endfor %}
               </select>
               <div class="form-text text-muted mt-1">
-                <small>ℹ️ Il Servizio serve a prendere in carico più velocemente il ticket, ma se non è conosciuto verrà assegnato da un operatore. Nel dubbio non inserire niente.</small>
+                <small>ℹ️ Seleziona il Servizio di riferimento per inoltrare la richiesta direttamente agli operatori di competenza.</small>
               </div>
             </div>
 
@@ -222,14 +222,19 @@ document.addEventListener('DOMContentLoaded', function() {
 
         function filterServizi() {
             const repId = parseInt(repartoSelect.value);
+            let hasValidSelection = false;
             Array.from(servizioSelect.options).forEach(opt => {
-                if (opt.value === "") return; // Mantiene "Nessun servizio"
-                let isMatch = parseInt(opt.dataset.reparto) === repId;
+                if (opt.value === "") return;
+                let isMatch = !isNaN(repId) && parseInt(opt.dataset.reparto) === repId;
                 opt.hidden = !isMatch;
                 opt.style.display = isMatch ? '' : 'none';
-                // Seleziona "Nessun servizio" in automatico se il servizio scelto prima scompare
-                if (!isMatch && opt.selected) servizioSelect.value = "";
+                if (isMatch && opt.selected) {
+                    hasValidSelection = true;
+                }
             });
+            if (!hasValidSelection) {
+                servizioSelect.value = "";
+            }
             updateServiceDescription();
             updateArgomenti();
         }

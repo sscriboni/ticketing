@@ -16,18 +16,17 @@ Puoi aprire un ticket sia dalla pagina principale senza login (Self-Service) sia
 
 1. **Accedi alla form di invio:**
    - Dalla Home Page clicca sul pulsante **"Invia Nuova Richiesta"** o **"Nuovo Ticket"**.
-2. **Compila i campi richiesti:**
-   - **Nome e Cognome / Email:** Inserisci i tuoi dati di contatto per ricevere notifiche e aggiornamenti via email.
-   - **Sede di Destinazione:** Seleziona la sede aziendale a cui si riferisce il problema.
-   - **Reparto di Competenza:** Scegli il reparto a cui indirizzare la richiesta (es. *IT / Sistemi Informativi*, *Manutenzione*, *Amministrazione*).
-   - **Servizio Specifico:** Seleziona la tipologia esatta del problema (es. *Assistenza PC*, *Stampanti e Toner*, *Problemi di Rete*, *Manutenzione Elettrica*).
-   - **Oggetto e Descrizione:** Descrivi il problema o la richiesta in modo chiaro e dettagliato.
-3. **Allega eventuali file o immagini (Opzionale):**
-   - Se necessario, puoi allegare screenshot del problema, foto o documenti (es. messaggi di errore).
-   - *Nota:* Il file non deve superare i **10MB**. Per ragioni di sicurezza, i file eseguibili (`.exe`, `.bat`, ecc.) vengono bloccati automaticamente.
+2. **Compila i campi obbligatori (contrassegnati con \*):**
+   - **Destinatario (Reparto di Competenza):** Scegli il reparto a cui indirizzare la richiesta (es. *IT / Sistemi Informativi*, *Manutenzione*, *Ufficio Tecnico*).
+   - **Servizio:** Seleziona obbligatoriamente il servizio specifico di supporto (es. *Assistenza PC*, *Stampanti e Toner*, *Manutenzione Elettrica*) per consentire la corretta notifica e tempestiva presa in carico da parte degli operatori preposti.
+   - **Richiesta (Descrizione):** Descrivi il problema o la richiesta in modo chiaro e dettagliato (evitando l'inserimento di dati sensibili o personali non necessari ai sensi del GDPR).
+   - **Dati del Richiedente:** Inserisci Nominativo (Nome e Cognome), Sede di appartenenza, Reparto di appartenenza, Email aziendale e Telefono per consentire comunicazioni tempestive e aggiornamenti di stato.
+3. **Campi Opzionali:**
+   - **Argomento (Opzionale):** Se disponibile per il servizio scelto, permette di specificare ulteriormente il sotto-argomento della richiesta.
+   - **Allegato (Opzionale):** Se necessario, puoi allegare uno screenshot del problema, foto o documento a supporto (limite massimo di **10MB**; per motivi di sicurezza i file eseguibili sono bloccati).
 4. **Invia la richiesta:**
    - Clicca sul pulsante **"Invia richiesta"**.
-   - Riceverai a video la conferma con il **Numero Identificativo del Ticket** (es. `#TK-1042`) e una mail automatica di riscontro.
+   - Riceverai a video la conferma con il **Numero Identificativo del Ticket** (es. `#123456`) e una mail automatica di riscontro.
 
 ---
 

@@ -1201,15 +1201,18 @@ def create_ticket(r: Request,
                   nominativo: str=Form(...), email: str=Form(""), telefono: str=Form(""),
                   sede: str=Form(""),
                   reparto_appartenenza: str=Form(...),
-                  reparto_id: int=Form(...), servizio_id: str = Form(None),
+                  reparto_id: int=Form(...), servizio_id: str = Form(""),
                   argomento_id: str = Form(None),
                   descrizione: str=Form(...),
                   allegato: UploadFile = File(None)):
-    if not email.strip() or not telefono.strip() or not reparto_appartenenza.strip() or not nominativo.strip() or not sede.strip() or not descrizione.strip():
+    if not email.strip() or not telefono.strip() or not reparto_appartenenza.strip() or not nominativo.strip() or not sede.strip() or not descrizione.strip() or not servizio_id or not str(servizio_id).strip():
+        return RedirectResponse(url="/new?error=campi_obbligatori", status_code=303)
+    try:
+        servizio_id = int(servizio_id)
+    except (ValueError, TypeError):
         return RedirectResponse(url="/new?error=campi_obbligatori", status_code=303)
     priorita = "media"
     ip = r.client.host if r.client else None
-    servizio_id = int(servizio_id) if servizio_id else None
     argomento_id = int(argomento_id) if argomento_id else None
     
     allegato_filename = save_upload(allegato)
