@@ -3753,6 +3753,115 @@ def elimina_prenotazione(id: int, r: Request, nuovi_km: int = Form(None)):
             
     return RedirectResponse(url="/autopark?msg=deleted", status_code=303)
 
+@router.post("/autopark/modifica/{id}")
+@router.post("/admin/automezzi/viaggi/modifica/{id}")
+def modifica_viaggio(
+    id: int,
+    r: Request,
+    data_viaggio: str = Form(...),
+    ora_partenza: str = Form(...),
+    km_iniziali: int = Form(...),
+    sede_partenza_id: int = Form(...),
+    ora_arrivo: typing.Optional[str] = Form(None),
+    km_finali: typing.Optional[int] = Form(None),
+    sede_arrivo_id: typing.Optional[int] = Form(None),
+    note: typing.Optional[str] = Form(None),
+    return_url: typing.Optional[str] = Form(None)
+):
+    if "user" not in r.session:
+        return RedirectResponse(url="/login", status_code=303)
+    user = r.session.get("user")
+    uid = user.get("id")
+    role = user.get("ruolo")
+    user_email = (user.get("email") or "").strip().lower()
+    
+    redirect_target = return_url or ("/admin/automezzi/viaggi" if r.url.path.startswith("/admin/") else "/autopark")
+    import urllib.parse
+
+    with engine.begin() as conn:
+        if role in ("admin", "global_fleet_manager"):
+            v = conn.execute(text("SELECT automezzo_id, user_id, email_conducente FROM viaggi_automezzi WHERE viaggio_id = :id"), {"id": id}).mappings().first()
+        elif role == "fleet_manager":
+            user_reparto_id = conn.execute(text("SELECT reparto_id FROM users WHERE user_id = :uid"), {"uid": uid}).scalar() or 0
+            v = conn.execute(text("""
+                SELECT v.automezzo_id, v.user_id, v.email_conducente
+                FROM viaggi_automezzi v
+                JOIN automezzi a ON v.automezzo_id = a.automezzo_id
+                WHERE v.viaggio_id = :id AND (a.reparto_assegnato_id = :rep OR v.user_id = :uid)
+            """), {"id": id, "rep": user_reparto_id, "uid": uid}).mappings().first()
+        else:
+            # Normal user or operator (assistenza): can edit own recorded trip
+            v = conn.execute(text("""
+                SELECT automezzo_id, user_id, email_conducente
+                FROM viaggi_automezzi
+                WHERE viaggio_id = :id AND (user_id = :uid OR (email_conducente IS NOT NULL AND LOWER(email_conducente) = :email AND :email != ''))
+            """), {"id": id, "uid": uid, "email": user_email}).mappings().first()
+
+        if not v:
+            err_msg = urllib.parse.quote("Viaggio non trovato o non sei autorizzato a modificarlo.")
+            sep = "&" if "?" in redirect_target else "?"
+            return RedirectResponse(url=f"{redirect_target}{sep}error={err_msg}", status_code=303)
+
+        ora_arrivo_clean = ora_arrivo.strip() if ora_arrivo and ora_arrivo.strip() else None
+        km_finali_val = km_finali if km_finali is not None else None
+        sede_arrivo_val = sede_arrivo_id if sede_arrivo_id else None
+
+        if km_finali_val is not None and km_finali_val < km_iniziali:
+            err_msg = urllib.parse.quote(f"I km di arrivo ({km_finali_val}) non possono essere inferiori ai km di partenza ({km_iniziali}).")
+            sep = "&" if "?" in redirect_target else "?"
+            return RedirectResponse(url=f"{redirect_target}{sep}error={err_msg}", status_code=303)
+
+        if ora_arrivo_clean and ora_arrivo_clean <= ora_partenza:
+            err_msg = urllib.parse.quote(f"L'orario di arrivo ({ora_arrivo_clean}) deve essere successivo all'orario di partenza ({ora_partenza}).")
+            sep = "&" if "?" in redirect_target else "?"
+            return RedirectResponse(url=f"{redirect_target}{sep}error={err_msg}", status_code=303)
+
+        aid = v["automezzo_id"]
+
+        conn.execute(text("""
+            UPDATE viaggi_automezzi
+            SET data_viaggio = :data_v,
+                ora_partenza = :ora_p,
+                ora_partenza_effettiva = COALESCE(ora_partenza_effettiva, :ora_p),
+                km_iniziali = :km_i,
+                ora_arrivo = :ora_a,
+                ora_riconsegna_prevista = COALESCE(:ora_a, ora_riconsegna_prevista),
+                km_finali = :km_f,
+                sede_partenza_id = :sede_p,
+                sede_arrivo_id = :sede_a,
+                note = :note
+            WHERE viaggio_id = :id
+        """), {
+            "id": id,
+            "data_v": data_viaggio,
+            "ora_p": ora_partenza,
+            "km_i": km_iniziali,
+            "ora_a": ora_arrivo_clean,
+            "km_f": km_finali_val,
+            "sede_p": sede_partenza_id,
+            "sede_a": sede_arrivo_val,
+            "note": note
+        })
+
+        if km_finali_val is not None:
+            max_km = conn.execute(text("SELECT MAX(COALESCE(km_finali, km_iniziali)) FROM viaggi_automezzi WHERE automezzo_id = :aid"), {"aid": aid}).scalar()
+            if max_km is not None:
+                conn.execute(text("UPDATE automezzi SET km_attuali = :km WHERE automezzo_id = :aid"), {"km": max_km, "aid": aid})
+
+            latest_sede = conn.execute(text("""
+                SELECT sede_arrivo_id FROM viaggi_automezzi
+                WHERE automezzo_id = :aid AND ora_arrivo IS NOT NULL AND sede_arrivo_id IS NOT NULL AND sede_arrivo_id != 0
+                ORDER BY data_viaggio DESC, ora_arrivo DESC, viaggio_id DESC LIMIT 1
+            """), {"aid": aid}).scalar()
+            if latest_sede:
+                conn.execute(text("UPDATE automezzi SET sede_attuale_id = :sid WHERE automezzo_id = :aid"), {"sid": latest_sede, "aid": aid})
+
+            registra_storico_km(conn, aid, km_finali_val, "Modifica Viaggio", data_reg=data_viaggio, user_id=uid, note=f"Modifica Viaggio #{id}")
+
+    succ_msg = urllib.parse.quote("Viaggio modificato con successo.")
+    sep = "&" if "?" in redirect_target else "?"
+    return RedirectResponse(url=f"{redirect_target}{sep}msg={succ_msg}", status_code=303)
+
 @router.post("/admin/automezzi/{id}/toggle-prenotazione")
 def toggle_prenotazione_veicolo(id: int, r: Request):
     if "user" not in r.session:

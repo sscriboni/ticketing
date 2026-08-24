@@ -122,9 +122,10 @@ Il sistema implementa un controllo degli accessi basato sui ruoli (**Role-Based 
 * **Gestione Flusso Viaggio (Check-in / Check-out):**
   - **Partenza:** Il sistema preleva i km iniziali dalla scheda dell'auto.
   - **Rientro:** L'utente inserisce i km finali, l'orario effettivo di riconsegna e la sede di stazionamento. Il chilometraggio dell'auto viene aggiornato automaticamente.
+  - **Modifica Viaggi Registrati:** Utenti normali e operatori possono modificare a posteriori i propri viaggi registrati per correggere eventuali errori di inserimento di km, orari o sedi.
 * **Registro Rifornimenti Carburante:** Modulo per la tracciabilità delle schede carburante e delle uscite per rifornimento. Permette di registrare data, veicolo, km al momento del rifornimento, litri erogati, importo complessivo (€), tipo di carburante e metodo di pagamento utilizzato.
 * **Gestione Manutenzioni e Tagliandi:** Registro delle riparazioni ordinarie e straordinarie con indicazione di costi, officina esecutrice e descrizione degli interventi svolti.
-* **Registro Viaggi e Percorrenze:** Storico analitico di tutte le prenotazioni e dei chilometri percorsi da ciascun dipendente.
+* **Registro Viaggi e Percorrenze:** Storico analitico di tutte le prenotazioni e dei chilometri percorsi da ciascun dipendente con funzioni di modifica e cancellazione tracciate.
 * **Esclusioni Flotta dalla Prenotazione:** Funzione per escludere temporaneamente o permanentemente un mezzo dalle prenotazioni pubbliche (es. per guasti, manutenzione o uso esclusivo). I Fleet Manager di reparto possono operare sui mezzi del proprio reparto, mentre i Global Fleet Manager e gli Admin su tutta la flotta aziendale.
 
 ### 6. Sistema di Email Transazionali e Scheduler (Morning Recap)

@@ -169,6 +169,9 @@ Al rientro della vettura:
 #### 4. Annullamento Prenotazione
 Qualora una trasferta venga cancellata, l'utente o un Fleet Manager può annullare la prenotazione liberando istantaneamente il mezzo.
 
+#### 5. Modifica dei Viaggi Registrati (Self-Service & Admin)
+Sia gli utenti normali che gli operatori di assistenza hanno la facoltà di modificare a posteriori i dati dei propri viaggi registrati o completati (date, orari, chilometri iniziali e finali, sedi e note). Gli Amministratori ed i Fleet Manager possono intervenire sui viaggi di propria competenza direttamente dal registro viaggi `/admin/automezzi/viaggi` o dal pannello Carpooling `/autopark`. All'aggiornamento dei chilometri o della sede finale, il sistema ricalcola automaticamente il chilometraggio e la posizione attuale del veicolo.
+
 ---
 
 ### 4.3 Registro Viaggi (`/admin/automezzi/viaggi`)
@@ -177,6 +180,7 @@ Accessibile ai Fleet Manager e agli Amministratori per il monitoraggio e il cont
 
 * **Archivio Analitico:** Elenco storico di tutti i viaggi effettuati dalla flotta aziendale.
 * **Filtri Avanzati:** Ricerca per targa, conducente, reparto o intervallo di date.
+* **Modifica e Rettifica Viaggi:** Facoltà di modificare i dati di qualsiasi viaggio registrato (km, orari, sedi, note) con aggiornamento automatico del contachilometri dell'auto.
 * **Gestione ed Interventi Straordinari:** Facoltà per i Fleet Manager di rettificare km inseriti erroneamente dagli utenti o di chiudere d'ufficio viaggi non conclusi regolarmente.
 
 ---
