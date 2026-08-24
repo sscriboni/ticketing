@@ -921,14 +921,16 @@ async def magazzino_movimento_action(
             if mag_dest_id_val and trsf_id_val:
                 print_param = "&print=1" if genera_pdf == "1" else ""
                 return RedirectResponse(url=f"/magazzini?msg=trasferimento_avviato&trsf_id={trsf_id_val}{print_param}", status_code=303)
-            elif genera_pdf == "1":
+            else:
                 mov_id = c.execute(text("""
                     SELECT movimento_id FROM movimenti_magazzino
                     WHERE user_id = :uid AND magazzino_id = :mag AND materiale_id = :mat AND operazione = 'scarico'
                     ORDER BY movimento_id DESC LIMIT 1
                 """), {"uid": user["id"], "mag": magazzino_id, "mat": materiale_id}).scalar()
-                if mov_id:
-                    return RedirectResponse(url=f"/magazzini/stampa-consegna/scarico/{mov_id}?msg=consegna_effettuata", status_code=303)
+                print_param = f"&print_mov={mov_id}" if (genera_pdf == "1" and mov_id) else ""
+                if richiesta_id:
+                    return RedirectResponse(url=f"/richieste-materiale?msg=consegna_effettuata{print_param}", status_code=303)
+                return RedirectResponse(url=f"/magazzini?msg=consegna_effettuata{print_param}", status_code=303)
             
     if operazione == "scarico" and richiesta_id:
         return RedirectResponse(url="/richieste-materiale?msg=consegna_effettuata", status_code=303)
@@ -2159,13 +2161,12 @@ async def post_scarico_multiplo(
         print_param = "&print=1" if genera_pdf == "1" else ""
         return RedirectResponse(url=f"/magazzini?msg=trasferimento_avviato&trsf_id={first_trsf_id}{print_param}", status_code=303)
 
-    if genera_pdf == "1":
-        return RedirectResponse(url=f"/magazzini/stampa-consegna/multiplo/{gruppo_scarico_id}", status_code=303)
+    print_param = f"&print_multiplo={gruppo_scarico_id}" if genera_pdf == "1" else ""
     if ticket_id:
-        return RedirectResponse(url=f"/ticket/{ticket_id}", status_code=303)
+        return RedirectResponse(url=f"/ticket/{ticket_id}?msg=consegna_effettuata{print_param}", status_code=303)
     if any_request_evasa:
-        return RedirectResponse(url="/richieste-materiale?msg=consegna_effettuata", status_code=303)
-    return RedirectResponse(url="/magazzini", status_code=303)
+        return RedirectResponse(url=f"/richieste-materiale?msg=consegna_effettuata{print_param}", status_code=303)
+    return RedirectResponse(url=f"/magazzini?msg=consegna_effettuata{print_param}", status_code=303)
 
 @router.get("/magazzini/report", response_class=HTMLResponse)
 def magazzini_report(r: Request, mese: int = None, anno: int = None, magazzino_id: str = None):

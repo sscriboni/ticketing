@@ -292,7 +292,18 @@
                 <i class="bi bi-envelope-check-fill text-success" style="font-size: 4rem;"></i>
                 <p class="fs-5 mt-3 fw-bold">Materiale consegnato con successo!</p>
                 <p class="text-muted">Il materiale è stato consegnato ed è stata inviata una e-mail di riepilogo al destinatario (con copia agli operatori abilitati al magazzino di partenza).</p>
-                <button type="button" class="btn btn-success px-4 mt-2" data-bs-dismiss="modal">Ok</button>
+                <div class="d-flex justify-content-center gap-2 mt-3">
+                    {% if request.query_params.get('print_multiplo') %}
+                    <a href="/magazzini/stampa-consegna/multiplo/{{ request.query_params.get('print_multiplo') }}" target="_blank" class="btn btn-outline-success">
+                        <i class="bi bi-printer-fill me-1"></i> Stampa Buono di Movimento
+                    </a>
+                    {% elif request.query_params.get('print_mov') %}
+                    <a href="/magazzini/stampa-consegna/scarico/{{ request.query_params.get('print_mov') }}" target="_blank" class="btn btn-outline-success">
+                        <i class="bi bi-printer-fill me-1"></i> Stampa Buono di Movimento
+                    </a>
+                    {% endif %}
+                    <button type="button" class="btn btn-success px-4" data-bs-dismiss="modal">Ok</button>
+                </div>
             </div>
         </div>
     </div>
@@ -304,6 +315,11 @@
             var myModal = new bootstrap.Modal(myModalElement);
             myModal.show();
         }
+        {% if request.query_params.get('print_multiplo') %}
+        window.open(window.getRelativeUrl ? window.getRelativeUrl('/magazzini/stampa-consegna/multiplo/{{ request.query_params.get("print_multiplo") }}') : '/magazzini/stampa-consegna/multiplo/{{ request.query_params.get("print_multiplo") }}', '_blank');
+        {% elif request.query_params.get('print_mov') %}
+        window.open(window.getRelativeUrl ? window.getRelativeUrl('/magazzini/stampa-consegna/scarico/{{ request.query_params.get("print_mov") }}') : '/magazzini/stampa-consegna/scarico/{{ request.query_params.get("print_mov") }}', '_blank');
+        {% endif %}
     });
 </script>
 {% endif %}

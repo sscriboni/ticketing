@@ -507,11 +507,11 @@
         <!-- Action Buttons (no-print) -->
         <div class="text-center mt-4 no-print border-top pt-3">
             <button class="btn btn-primary btn-lg px-4 shadow-sm" onclick="window.print()">
-                <i class="bi bi-printer-fill"></i> Stampa o Salva PDF
+                <i class="bi bi-printer-fill me-1"></i> Stampa o Salva PDF
             </button>
-            <a href="/magazzini" class="btn btn-outline-secondary btn-lg ms-2">
-                Torna Indietro
-            </a>
+            <button class="btn btn-outline-secondary btn-lg ms-2" onclick="if(window.opener){window.close();}else if(window.history.length > 1){window.history.back();}else{window.location.href='/magazzini';}">
+                <i class="bi bi-x-circle me-1"></i> Chiudi Finestra
+            </button>
         </div>
     </div>
 
