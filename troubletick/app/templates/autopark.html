@@ -591,8 +591,8 @@
                                                         data-ora-arrivo="{{ p.ora_arrivo or '' }}"
                                                         data-km-iniziali="{{ p.km_iniziali or 0 }}"
                                                         data-km-finali="{{ p.km_finali or '' }}"
-                                                        data-sede-partenza-id="{{ p.sede_partenza_id or '' }}"
-                                                        data-sede-arrivo-id="{{ p.sede_arrivo_id or '' }}"
+                                                        data-sede-partenza-nome="{{ p.sede_partenza_nome or '-' }}"
+                                                        data-sede-arrivo-nome="{{ p.sede_arrivo_nome or p.sede_partenza_nome or '-' }}"
                                                         data-note="{{ (p.note or '') | e }}"
                                                         onclick="openEditTripModal(this)"
                                                         title="Modifica dettagli del viaggio registrato">
@@ -1013,8 +1013,8 @@
         const oraArrivo = btn.dataset.oraArrivo;
         const kmIniziali = btn.dataset.kmIniziali;
         const kmFinali = btn.dataset.kmFinali;
-        const sedePartenzaId = btn.dataset.sedePartenzaId;
-        const sedeArrivoId = btn.dataset.sedeArrivoId;
+        const sedePartenzaNome = btn.dataset.sedePartenzaNome;
+        const sedeArrivoNome = btn.dataset.sedeArrivoNome;
         const note = btn.dataset.note;
 
         const form = document.getElementById('editTripForm');
@@ -1022,13 +1022,14 @@
         
         document.getElementById('editTripVeicoloLabel').textContent = marcaModello || 'Veicolo';
         document.getElementById('editTripTargaLabel').textContent = targa || '';
-        document.getElementById('editTripData').value = dataViaggio || '';
+        document.getElementById('editTripDataDisplay').value = dataViaggio || '';
         document.getElementById('editTripOraPartenza').value = oraPartenza || '';
         document.getElementById('editTripOraArrivo').value = oraArrivo || '';
-        document.getElementById('editTripKmIniziali').value = kmIniziali || 0;
+        document.getElementById('editTripKmInizialiDisplay').value = (kmIniziali || 0) + ' km';
+        document.getElementById('editTripKmInizialiHidden').value = kmIniziali || 0;
         document.getElementById('editTripKmFinali').value = kmFinali || '';
-        document.getElementById('editTripSedePartenza').value = sedePartenzaId || '';
-        document.getElementById('editTripSedeArrivo').value = sedeArrivoId || '';
+        document.getElementById('editTripSedePartenzaDisplay').value = sedePartenzaNome || '-';
+        document.getElementById('editTripSedeArrivoDisplay').value = sedeArrivoNome || '-';
         document.getElementById('editTripNote').value = note || '';
 
         const modalEl = document.getElementById('editTripModal');
@@ -1037,12 +1038,12 @@
     }
 
     function validateEditTripForm() {
-        const kmInit = parseInt(document.getElementById('editTripKmIniziali').value, 10);
+        const kmInit = parseInt(document.getElementById('editTripKmInizialiHidden').value, 10);
         const kmFinVal = document.getElementById('editTripKmFinali').value;
         if (kmFinVal !== '') {
             const kmFin = parseInt(kmFinVal, 10);
             if (kmFin < kmInit) {
-                alert("I chilometri di arrivo non possono essere inferiori a quelli di partenza.");
+                alert(`I chilometri di arrivo (${kmFin} km) non possono essere inferiori a quelli di partenza (${kmInit} km).`);
                 return false;
             }
         }
@@ -1066,6 +1067,7 @@
             </div>
             <form action="" method="post" id="editTripForm" onsubmit="return validateEditTripForm()">
                 <input type="hidden" name="return_url" value="/autopark">
+                <input type="hidden" id="editTripKmInizialiHidden" value="0">
                 <div class="modal-body p-4">
                     <div class="alert alert-info py-2 px-3 mb-3 d-flex align-items-center justify-content-between">
                         <div>
@@ -1074,49 +1076,51 @@
                         <span class="badge bg-dark font-monospace fs-6" id="editTripTargaLabel"></span>
                     </div>
 
+                    <!-- Dati Fissi / Non modificabili -->
+                    <div class="card bg-light border-0 mb-3">
+                        <div class="card-body py-2 px-3">
+                            <div class="d-flex align-items-center mb-2">
+                                <i class="bi bi-lock-fill text-muted me-1 small"></i>
+                                <span class="text-muted fw-bold small text-uppercase" style="font-size: 0.75rem; letter-spacing: 0.5px;">Dati fissi non modificabili</span>
+                            </div>
+                            <div class="row g-2">
+                                <div class="col-md-4">
+                                    <label class="form-label text-muted small mb-0">Data Viaggio</label>
+                                    <input type="text" id="editTripDataDisplay" class="form-control form-control-sm bg-white border-0 fw-semibold text-dark" readonly tabindex="-1">
+                                </div>
+                                <div class="col-md-4">
+                                    <label class="form-label text-muted small mb-0">KM Partenza</label>
+                                    <input type="text" id="editTripKmInizialiDisplay" class="form-control form-control-sm bg-white border-0 fw-semibold text-dark" readonly tabindex="-1">
+                                </div>
+                                <div class="col-md-4">
+                                    <label class="form-label text-muted small mb-0">Sede Partenza / Arrivo</label>
+                                    <div class="d-flex gap-1 align-items-center">
+                                        <input type="text" id="editTripSedePartenzaDisplay" class="form-control form-control-sm bg-white border-0 fw-semibold text-dark p-1" readonly tabindex="-1" style="font-size: 0.8rem;">
+                                        <i class="bi bi-arrow-right text-muted small"></i>
+                                        <input type="text" id="editTripSedeArrivoDisplay" class="form-control form-control-sm bg-white border-0 fw-semibold text-dark p-1" readonly tabindex="-1" style="font-size: 0.8rem;">
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Dati Modificabili -->
                     <div class="row g-3">
                         <div class="col-md-4">
-                            <label class="form-label small fw-bold text-muted mb-1">Data Viaggio <span class="text-danger">*</span></label>
-                            <input type="date" name="data_viaggio" id="editTripData" class="form-control" required>
-                        </div>
-                        <div class="col-md-4">
-                            <label class="form-label small fw-bold text-muted mb-1">Ora Partenza <span class="text-danger">*</span></label>
+                            <label class="form-label small fw-bold text-primary mb-1"><i class="bi bi-clock me-1"></i>Ora Partenza <span class="text-danger">*</span></label>
                             <input type="time" name="ora_partenza" id="editTripOraPartenza" class="form-control" required>
                         </div>
                         <div class="col-md-4">
-                            <label class="form-label small fw-bold text-muted mb-1">Ora Arrivo / Rientro</label>
+                            <label class="form-label small fw-bold text-primary mb-1"><i class="bi bi-clock-history me-1"></i>Ora Arrivo / Rientro</label>
                             <input type="time" name="ora_arrivo" id="editTripOraArrivo" class="form-control">
                         </div>
-
-                        <div class="col-md-6">
-                            <label class="form-label small fw-bold text-muted mb-1">KM Partenza <span class="text-danger">*</span></label>
-                            <input type="number" name="km_iniziali" id="editTripKmIniziali" class="form-control" min="0" required>
-                        </div>
-                        <div class="col-md-6">
-                            <label class="form-label small fw-bold text-muted mb-1">KM Arrivo / Rientro</label>
-                            <input type="number" name="km_finali" id="editTripKmFinali" class="form-control" min="0">
-                        </div>
-
-                        <div class="col-md-6">
-                            <label class="form-label small fw-bold text-muted mb-1">Sede di Partenza <span class="text-danger">*</span></label>
-                            <select name="sede_partenza_id" id="editTripSedePartenza" class="form-select" required>
-                                {% for s in sedi %}
-                                <option value="{{ s.sede_id }}">{{ s.nome }}</option>
-                                {% endfor %}
-                            </select>
-                        </div>
-                        <div class="col-md-6">
-                            <label class="form-label small fw-bold text-muted mb-1">Sede di Arrivo</label>
-                            <select name="sede_arrivo_id" id="editTripSedeArrivo" class="form-select">
-                                <option value="">-- Stessa sede o seleziona --</option>
-                                {% for s in sedi %}
-                                <option value="{{ s.sede_id }}">{{ s.nome }}</option>
-                                {% endfor %}
-                            </select>
+                        <div class="col-md-4">
+                            <label class="form-label small fw-bold text-success mb-1"><i class="bi bi-speedometer2 me-1"></i>KM Arrivo / Rientro</label>
+                            <input type="number" name="km_finali" id="editTripKmFinali" class="form-control" min="0" placeholder="Es. 45200">
                         </div>
 
                         <div class="col-12">
-                            <label class="form-label small fw-bold text-muted mb-1">Note Viaggio</label>
+                            <label class="form-label small fw-bold text-muted mb-1"><i class="bi bi-journal-text me-1"></i>Note Viaggio</label>
                             <textarea name="note" id="editTripNote" class="form-control" rows="2" placeholder="Note facoltative..."></textarea>
                         </div>
                     </div>

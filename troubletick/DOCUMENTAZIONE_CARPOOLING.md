@@ -170,7 +170,12 @@ Al rientro della vettura:
 Qualora una trasferta venga cancellata, l'utente o un Fleet Manager può annullare la prenotazione liberando istantaneamente il mezzo.
 
 #### 5. Modifica dei Viaggi Registrati (Self-Service & Admin)
-Sia gli utenti normali che gli operatori di assistenza hanno la facoltà di modificare a posteriori i dati dei propri viaggi registrati o completati (date, orari, chilometri iniziali e finali, sedi e note). Gli Amministratori ed i Fleet Manager possono intervenire sui viaggi di propria competenza direttamente dal registro viaggi `/admin/automezzi/viaggi` o dal pannello Carpooling `/autopark`. All'aggiornamento dei chilometri o della sede finale, il sistema ricalcola automaticamente il chilometraggio e la posizione attuale del veicolo.
+Sia gli utenti normali che gli operatori di assistenza hanno la facoltà di modificare a posteriori i dati dei propri viaggi registrati o completati. I campi modificabili sono:
+- **Orario di Partenza** e **Orario di Arrivo / Rientro**
+- **Chilometri di Arrivo** (KM Finali)
+- **Note del Viaggio**
+
+*I campi relativi a Data del Viaggio, KM di Partenza e Sedi di Partenza/Arrivo rimangono bloccati per preservare l'integrità e la coerenza del registro.* Gli Amministratori ed i Fleet Manager possono intervenire sui viaggi di propria competenza direttamente dal registro viaggi `/admin/automezzi/viaggi` o dal pannello Carpooling `/autopark`. All'aggiornamento dei chilometri finali, il sistema ricalcola automaticamente il chilometraggio attuale del veicolo e aggiorna lo storico km.
 
 ---
 
@@ -180,7 +185,7 @@ Accessibile ai Fleet Manager e agli Amministratori per il monitoraggio e il cont
 
 * **Archivio Analitico:** Elenco storico di tutti i viaggi effettuati dalla flotta aziendale.
 * **Filtri Avanzati:** Ricerca per targa, conducente, reparto o intervallo di date.
-* **Modifica e Rettifica Viaggi:** Facoltà di modificare i dati di qualsiasi viaggio registrato (km, orari, sedi, note) con aggiornamento automatico del contachilometri dell'auto.
+* **Modifica e Rettifica Viaggi:** Facoltà di rettificare orari, km finali e note dei viaggi registrati con aggiornamento automatico del contachilometri dell'auto.
 * **Gestione ed Interventi Straordinari:** Facoltà per i Fleet Manager di rettificare km inseriti erroneamente dagli utenti o di chiudere d'ufficio viaggi non conclusi regolarmente.
 
 ---

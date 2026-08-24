@@ -97,10 +97,10 @@ Sia gli utenti normali che gli operatori possono modificare a posteriori i propr
 1. Accedi alla sezione **Carpooling ➔ Prenotazioni** e scorri fino alla tabella **"Storico dei miei Viaggi"**.
 2. Individua il viaggio da correggere e clicca sul pulsante **"Modifica"**.
 3. Nella finestra modale puoi rettificare:
-   - **Data del Viaggio** e **Orari (Partenza e Rientro)**.
-   - **Chilometri (Iniziali e Finali)**.
-   - **Sede di Partenza e Sede di Rientro**.
+   - **Orario di Partenza** e **Orario di Arrivo / Rientro**.
+   - **Chilometri di Arrivo / Rientro** (KM Finali).
    - **Note del Viaggio**.
+   *(Nota: per garantire la tracciabilità e la consistenza storica del parco auto, la data del viaggio, i chilometri di partenza e le sedi di partenza/arrivo rimangono bloccati e non modificabili).*
 4. Clicca su **"Salva Modifiche"**: il sistema aggiornerà automaticamente i dati del viaggio e ricalcolerà i chilometri attuali del veicolo.
 
 ---
@@ -109,8 +109,8 @@ Sia gli utenti normali che gli operatori possono modificare a posteriori i propr
 
 - **Posso chiudere da solo un mio ticket?**
   I ticket vengono risolti e chiusi dagli operatori di supporto al completamento dell'intervento. Tu potrai comunque rispondere o aggiungere note in qualsiasi momento se il problema persiste.
-- **Cosa succede se ho sbagliato a inserire i chilometri o l'orario di un viaggio?**
-  Puoi correggere qualsiasi dato del viaggio in autonomia: clicca sul pulsante **"Modifica"** presente nella riga del viaggio nello storico per aggiornare km, orari o sede.
+- **Cosa succede se ho sbagliato a inserire i chilometri o l'orario di arrivo di un viaggio?**
+  Puoi correggere tali dati in autonomia: clicca sul pulsante **"Modifica"** presente nella riga del viaggio nello storico per aggiornare orari, km finali o note.
 - **Posso prenotare un'auto per più giorni?**
   Sì, seleziona semplicemente la data e l'ora di rientro corrispondenti al termine della tua trasferta.
 

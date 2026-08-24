@@ -181,13 +181,9 @@ class PrenotazioneCompletaRequest(BaseModel):
     note: Optional[str] = None
 
 class PrenotazioneModificaRequest(BaseModel):
-    data_viaggio: Optional[str] = None
     ora_partenza: Optional[str] = None
-    km_iniziali: Optional[int] = None
     ora_arrivo: Optional[str] = None
     km_finali: Optional[int] = None
-    sede_partenza_id: Optional[int] = None
-    sede_arrivo_id: Optional[int] = None
     note: Optional[str] = None
 
 class PrenotazioneActionResponse(BaseModel):
@@ -1421,17 +1417,17 @@ def edit_prenotazione_api(viaggio_id: int, req: PrenotazioneModificaRequest, use
     try:
         with engine.begin() as conn:
             if is_global:
-                v = conn.execute(text("SELECT automezzo_id, user_id, email_conducente FROM viaggi_automezzi WHERE viaggio_id = :id"), {"id": viaggio_id}).mappings().first()
+                v = conn.execute(text("SELECT automezzo_id, user_id, email_conducente, data_viaggio, km_iniziali, ora_partenza, ora_arrivo, km_finali, note FROM viaggi_automezzi WHERE viaggio_id = :id"), {"id": viaggio_id}).mappings().first()
             elif is_fleet_mgr and reparto_id:
                 v = conn.execute(text("""
-                    SELECT v.automezzo_id, v.user_id, v.email_conducente
+                    SELECT v.automezzo_id, v.user_id, v.email_conducente, v.data_viaggio, v.km_iniziali, v.ora_partenza, v.ora_arrivo, v.km_finali, v.note
                     FROM viaggi_automezzi v
                     JOIN automezzi a ON v.automezzo_id = a.automezzo_id
                     WHERE v.viaggio_id = :id AND (a.reparto_assegnato_id = :rep OR v.user_id = :uid)
                 """), {"id": viaggio_id, "rep": reparto_id, "uid": uid}).mappings().first()
             else:
                 v = conn.execute(text("""
-                    SELECT automezzo_id, user_id, email_conducente
+                    SELECT automezzo_id, user_id, email_conducente, data_viaggio, km_iniziali, ora_partenza, ora_arrivo, km_finali, note
                     FROM viaggi_automezzi
                     WHERE viaggio_id = :id AND (user_id = :uid OR (email_conducente IS NOT NULL AND LOWER(email_conducente) = :email AND :email != ''))
                 """), {"id": viaggio_id, "uid": uid, "email": email}).mappings().first()
@@ -1440,45 +1436,33 @@ def edit_prenotazione_api(viaggio_id: int, req: PrenotazioneModificaRequest, use
                 raise HTTPException(status_code=404, detail="Viaggio non trovato o non sei autorizzato a modificarlo.")
 
             aid = v["automezzo_id"]
-            existing = conn.execute(text("SELECT * FROM viaggi_automezzi WHERE viaggio_id = :id"), {"id": viaggio_id}).mappings().first()
+            km_iniziali_orig = v["km_iniziali"] or 0
 
-            new_data_viaggio = req.data_viaggio.strip() if req.data_viaggio is not None and req.data_viaggio.strip() else existing["data_viaggio"]
-            new_ora_partenza = req.ora_partenza.strip() if req.ora_partenza is not None and req.ora_partenza.strip() else existing["ora_partenza"]
-            new_km_iniziali = req.km_iniziali if req.km_iniziali is not None else (existing["km_iniziali"] or 0)
-            new_ora_arrivo = req.ora_arrivo.strip() if req.ora_arrivo is not None and req.ora_arrivo.strip() else existing["ora_arrivo"]
-            new_km_finali = req.km_finali if req.km_finali is not None else existing["km_finali"]
-            new_sede_partenza_id = req.sede_partenza_id if req.sede_partenza_id is not None else existing["sede_partenza_id"]
-            new_sede_arrivo_id = req.sede_arrivo_id if req.sede_arrivo_id is not None else existing["sede_arrivo_id"]
-            new_note = req.note if req.note is not None else existing["note"]
+            new_ora_partenza = req.ora_partenza.strip() if req.ora_partenza is not None and req.ora_partenza.strip() else v["ora_partenza"]
+            new_ora_arrivo = req.ora_arrivo.strip() if req.ora_arrivo is not None and req.ora_arrivo.strip() else v["ora_arrivo"]
+            new_km_finali = req.km_finali if req.km_finali is not None else v["km_finali"]
+            new_note = req.note if req.note is not None else v["note"]
 
-            if new_km_finali is not None and new_km_finali < new_km_iniziali:
-                raise HTTPException(status_code=400, detail=f"I km di arrivo ({new_km_finali}) non possono essere inferiori ai km di partenza ({new_km_iniziali}).")
+            if new_km_finali is not None and new_km_finali < km_iniziali_orig:
+                raise HTTPException(status_code=400, detail=f"I km di arrivo ({new_km_finali}) non possono essere inferiori ai km di partenza ({km_iniziali_orig}).")
 
             if new_ora_arrivo and new_ora_partenza and new_ora_arrivo <= new_ora_partenza:
                 raise HTTPException(status_code=400, detail="L'orario di arrivo deve essere successivo all'orario di partenza.")
 
             conn.execute(text("""
                 UPDATE viaggi_automezzi
-                SET data_viaggio = :data_v,
-                    ora_partenza = :ora_p,
+                SET ora_partenza = :ora_p,
                     ora_partenza_effettiva = COALESCE(ora_partenza_effettiva, :ora_p),
-                    km_iniziali = :km_i,
                     ora_arrivo = :ora_a,
                     ora_riconsegna_prevista = COALESCE(:ora_a, ora_riconsegna_prevista),
                     km_finali = :km_f,
-                    sede_partenza_id = :sede_p,
-                    sede_arrivo_id = :sede_a,
                     note = :note
                 WHERE viaggio_id = :id
             """), {
                 "id": viaggio_id,
-                "data_v": new_data_viaggio,
                 "ora_p": new_ora_partenza,
-                "km_i": new_km_iniziali,
                 "ora_a": new_ora_arrivo,
                 "km_f": new_km_finali,
-                "sede_p": new_sede_partenza_id,
-                "sede_a": new_sede_arrivo_id,
                 "note": new_note
             })
 
@@ -1486,14 +1470,6 @@ def edit_prenotazione_api(viaggio_id: int, req: PrenotazioneModificaRequest, use
                 max_km = conn.execute(text("SELECT MAX(COALESCE(km_finali, km_iniziali)) FROM viaggi_automezzi WHERE automezzo_id = :aid"), {"aid": aid}).scalar()
                 if max_km is not None:
                     conn.execute(text("UPDATE automezzi SET km_attuali = :km WHERE automezzo_id = :aid"), {"km": max_km, "aid": aid})
-
-                latest_sede = conn.execute(text("""
-                    SELECT sede_arrivo_id FROM viaggi_automezzi
-                    WHERE automezzo_id = :aid AND ora_arrivo IS NOT NULL AND sede_arrivo_id IS NOT NULL AND sede_arrivo_id != 0
-                    ORDER BY data_viaggio DESC, ora_arrivo DESC, viaggio_id DESC LIMIT 1
-                """), {"aid": aid}).scalar()
-                if latest_sede:
-                    conn.execute(text("UPDATE automezzi SET sede_attuale_id = :sid WHERE automezzo_id = :aid"), {"sid": latest_sede, "aid": aid})
 
     except HTTPException:
         raise
