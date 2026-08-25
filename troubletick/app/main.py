@@ -17,10 +17,55 @@ import auth
 import magazzini
 import automezzi
 import presenze
+import fornitori
 
 # Init schema + seed
 try:
     with engine.begin() as c:
+        c.execute(text(f"""CREATE TABLE IF NOT EXISTS fornitori (
+            fornitore_id {DB_PK},
+            ragione_sociale TEXT NOT NULL,
+            partita_iva TEXT,
+            codice_fiscale TEXT,
+            descrizione TEXT,
+            indirizzo TEXT,
+            sito_web TEXT,
+            email_generale TEXT,
+            telefono_generale TEXT,
+            pec TEXT,
+            note TEXT,
+            attivo INTEGER DEFAULT 1,
+            creato_il TEXT DEFAULT CURRENT_TIMESTAMP
+        )"""))
+
+        c.execute(text(f"""CREATE TABLE IF NOT EXISTS fornitori_contatti (
+            contatto_id {DB_PK},
+            fornitore_id INTEGER NOT NULL,
+            titolo TEXT NOT NULL,
+            nome_referente TEXT,
+            telefono TEXT,
+            telefono_secondario TEXT,
+            email TEXT,
+            email_secondaria TEXT,
+            url TEXT,
+            orari_disponibilita TEXT,
+            istruzioni_ingaggio TEXT,
+            note TEXT,
+            ordine INTEGER DEFAULT 0,
+            creato_il TEXT DEFAULT CURRENT_TIMESTAMP,
+            FOREIGN KEY(fornitore_id) REFERENCES fornitori(fornitore_id) ON DELETE CASCADE
+        )"""))
+
+        c.execute(text(f"""CREATE TABLE IF NOT EXISTS servizi_fornitori (
+            servizio_id INTEGER NOT NULL,
+            fornitore_id INTEGER NOT NULL,
+            note TEXT,
+            principale INTEGER DEFAULT 0,
+            PRIMARY KEY (servizio_id, fornitore_id),
+            FOREIGN KEY(servizio_id) REFERENCES servizi(servizio_id) ON DELETE CASCADE,
+            FOREIGN KEY(fornitore_id) REFERENCES fornitori(fornitore_id) ON DELETE CASCADE
+        )"""))
+
         c.execute(text(f"""CREATE TABLE IF NOT EXISTS reparti (
             reparto_id {DB_PK},
             nome TEXT NOT NULL,
@@ -762,6 +807,7 @@ app.include_router(auth.router)
 app.include_router(magazzini.router)
 app.include_router(automezzi.router)
 app.include_router(presenze.router)
+app.include_router(fornitori.router)
 
 @app.get("/", response_class=HTMLResponse)
 def home(r: Request):
@@ -1632,6 +1678,25 @@ def ticket_detail(r: Request, ticket_id: int):
             giacenze_json.append({"magazzino_id": g["magazzino_id"], "materiale_id": g["materiale_id"], "quantita": int(g["quantita"]) if g["quantita"] is not None else 0})
             
         giacenze_json_str = json.dumps(giacenze_json)
+
+        fornitori_servizio = []
+        if ticket.get("servizio_id"):
+            fornitori_raw = c.execute(text("""
+                SELECT f.*, sf.principale, sf.note as sf_note
+                FROM servizi_fornitori sf
+                JOIN fornitori f ON sf.fornitore_id = f.fornitore_id
+                WHERE sf.servizio_id = :sid AND f.attivo = 1
+                ORDER BY sf.principale DESC, f.ragione_sociale ASC
+            """), {"sid": ticket["servizio_id"]}).mappings().all()
+            for f in fornitori_raw:
+                f_dict = dict(f)
+                contatti = c.execute(text("""
+                    SELECT * FROM fornitori_contatti
+                    WHERE fornitore_id = :fid
+                    ORDER BY ordine ASC, contatto_id ASC
+                """), {"fid": f["fornitore_id"]}).mappings().all()
+                f_dict["contatti"] = [dict(cnt) for cnt in contatti]
+                fornitori_servizio.append(f_dict)
         
     return templates.TemplateResponse(r, "ticket_detail.html", {
         "request": r, 
@@ -1645,7 +1710,8 @@ def ticket_detail(r: Request, ticket_id: int):
         "categorie": categorie,
         "materiali": materiali,
         "magazzini": magazzini,
-        "giacenze_json": giacenze_json_str
+        "giacenze_json": giacenze_json_str,
+        "fornitori_servizio": fornitori_servizio
     })
 
 @app.post("/ticket/{ticket_id}/note")
@@ -2129,9 +2195,25 @@ def admin_servizi(r: Request, error: str = None):
     if isinstance(user, RedirectResponse):
         return user
     with engine.connect() as c:
-        servizi = c.execute(text("SELECT s.servizio_id, s.descrizione, s.descrizione_lunga, s.reparto_id, s.accetta_ticket, s.note, r.nome AS reparto_nome FROM servizi s LEFT JOIN reparti r ON s.reparto_id = r.reparto_id ORDER BY r.nome, s.descrizione")).mappings().all()
+        servizi_raw = c.execute(text("SELECT s.servizio_id, s.descrizione, s.descrizione_lunga, s.reparto_id, s.accetta_ticket, s.note, r.nome AS reparto_nome FROM servizi s LEFT JOIN reparti r ON s.reparto_id = r.reparto_id ORDER BY r.nome, s.descrizione")).mappings().all()
         reparti = c.execute(text("SELECT reparto_id, nome FROM reparti ORDER BY nome")).mappings().all()
         argomenti = c.execute(text("SELECT a.argomento_id, a.descrizione, a.servizio_id, s.descrizione AS servizio_nome FROM argomenti a JOIN servizi s ON a.servizio_id = s.servizio_id ORDER BY s.descrizione, a.descrizione")).mappings().all()
+        
+        # Aggrega fornitori associati a ciascun servizio
+        servizi = []
+        for s in servizi_raw:
+            sid = s["servizio_id"]
+            fornitori_list = c.execute(text("""
+                SELECT f.fornitore_id, f.ragione_sociale, sf.principale
+                FROM servizi_fornitori sf
+                JOIN fornitori f ON sf.fornitore_id = f.fornitore_id
+                WHERE sf.servizio_id = :sid
+                ORDER BY sf.principale DESC, f.ragione_sociale ASC
+            """), {"sid": sid}).mappings().all()
+            s_dict = dict(s)
+            s_dict["fornitori"] = [dict(f) for f in fornitori_list]
+            servizi.append(s_dict)
+
     return templates.TemplateResponse(r, "admin_servizi.html", {"request": r, "cfg": CFG, "user": user, "servizi": servizi, "reparti": reparti, "argomenti": argomenti, "error": error})
 
 @app.post("/admin/reparto")
@@ -2194,15 +2276,39 @@ def edit_servizio_form(r: Request, servizio_id: int):
         servizio = c.execute(text("SELECT * FROM servizi WHERE servizio_id = :id"), {"id": servizio_id}).mappings().first()
         if not servizio: return RedirectResponse(url="/admin/servizi")
         reparti = c.execute(text("SELECT reparto_id, nome FROM reparti ORDER BY nome")).mappings().all()
-    return templates.TemplateResponse(r, "edit_servizio.html", {"request": r, "cfg": CFG, "user": user, "servizio": servizio, "reparti": reparti})
+        tutti_fornitori = c.execute(text("SELECT fornitore_id, ragione_sociale FROM fornitori WHERE attivo = 1 ORDER BY ragione_sociale")).mappings().all()
+        fornitori_associati = c.execute(text("""
+            SELECT sf.fornitore_id, sf.note as sf_note, sf.principale, f.ragione_sociale
+            FROM servizi_fornitori sf
+            JOIN fornitori f ON sf.fornitore_id = f.fornitore_id
+            WHERE sf.servizio_id = :sid
+            ORDER BY sf.principale DESC, f.ragione_sociale ASC
+        """), {"sid": servizio_id}).mappings().all()
+        fornitori_ids = [fa["fornitore_id"] for fa in fornitori_associati]
+    return templates.TemplateResponse(r, "edit_servizio.html", {
+        "request": r, "cfg": CFG, "user": user, "servizio": servizio, "reparti": reparti,
+        "tutti_fornitori": tutti_fornitori, "fornitori_associati": fornitori_associati, "fornitori_ids": fornitori_ids
+    })
 
 @app.post("/admin/servizio/{servizio_id}/modifica")
-def edit_servizio_action(r: Request, servizio_id: int, descrizione: str = Form(...), descrizione_lunga: str = Form(""), note: str = Form(""), reparto_id: int = Form(...), accetta_ticket: int = Form(0)):
+async def edit_servizio_action(r: Request, servizio_id: int, descrizione: str = Form(...), descrizione_lunga: str = Form(""), note: str = Form(""), reparto_id: int = Form(...), accetta_ticket: int = Form(0)):
     user = require_superuser(r)
     if isinstance(user, RedirectResponse): return user
+    
+    # Leggi form data per raccogliere eventuali fornitori_ids selezionati
+    form_data = await r.form()
+    fornitori_ids = form_data.getlist("fornitori_ids")
+
     with engine.begin() as c:
         c.execute(text("UPDATE servizi SET descrizione = :desc, descrizione_lunga = :desc_lunga, reparto_id = :rid, accetta_ticket = :at, note = :note WHERE servizio_id = :id"),
                   {"desc": descrizione, "desc_lunga": descrizione_lunga, "rid": reparto_id, "at": accetta_ticket, "note": note, "id": servizio_id})
+        
+        # Aggiorna associazioni fornitori
+        c.execute(text("DELETE FROM servizi_fornitori WHERE servizio_id = :sid"), {"sid": servizio_id})
+        for fid in fornitori_ids:
+            if fid and str(fid).isdigit():
+                c.execute(text("INSERT INTO servizi_fornitori (servizio_id, fornitore_id) VALUES (:sid, :fid)"), {"sid": servizio_id, "fid": int(fid)})
+
     return RedirectResponse(url="/admin/servizi", status_code=303)
 
 @app.post("/admin/servizio/{servizio_id}/toggle-accetta")

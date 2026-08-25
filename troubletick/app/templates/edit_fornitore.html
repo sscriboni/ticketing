@@ -1,0 +1,597 @@
+<!doctype html>
+<html lang="it">
+<head>
+    <meta charset="utf-8">
+    <title>{{ fornitore.ragione_sociale }} — Scheda Fornitore — {{ cfg.app_title }}</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css">
+    <style>
+        .nav-tabs .nav-link { font-weight: 500; color: #495057; }
+        .nav-tabs .nav-link.active { font-weight: 700; color: #0d6efd; border-bottom: 3px solid #0d6efd; }
+        .contact-card { transition: all 0.2s ease; border-left: 4px solid #0d6efd !important; }
+        .contact-card:hover { transform: translateY(-2px); box-shadow: 0 6px 16px rgba(0,0,0,0.08) !important; }
+        .instruction-box { background-color: #f8f9fa; border-radius: 6px; border: 1px dashed #ced4da; }
+    </style>
+</head>
+<body class="bg-light">
+{% include 'navbar.html' %}
+
+<div class="container-fluid px-4 py-3">
+    <!-- Top Breadcrumb & Actions -->
+    <div class="d-flex justify-content-between align-items-center mb-3 flex-wrap gap-2">
+        <div>
+            <nav aria-label="breadcrumb">
+                <ol class="breadcrumb mb-1 small">
+                    <li class="breadcrumb-item"><a href="/admin" class="text-decoration-none">Amministrazione</a></li>
+                    <li class="breadcrumb-item"><a href="/admin/fornitori" class="text-decoration-none">Fornitori</a></li>
+                    <li class="breadcrumb-item active" aria-current="page">{{ fornitore.ragione_sociale }}</li>
+                </ol>
+            </nav>
+            <h2 class="h3 mb-0 fw-bold text-dark d-flex align-items-center gap-2">
+                <i class="bi bi-building text-primary"></i>
+                {{ fornitore.ragione_sociale }}
+                {% if fornitore.attivo %}
+                <span class="badge bg-success fs-6 fw-normal">Attivo</span>
+                {% else %}
+                <span class="badge bg-secondary fs-6 fw-normal">Inattivo</span>
+                {% endif %}
+            </h2>
+        </div>
+        <div class="d-flex gap-2">
+            <a href="/fornitori" class="btn btn-outline-secondary btn-sm"><i class="bi bi-journal-bookmark me-1"></i>Rubrica</a>
+            <a href="/admin/fornitori" class="btn btn-outline-primary btn-sm"><i class="bi bi-arrow-left me-1"></i>Torna all'elenco</a>
+        </div>
+    </div>
+
+    <!-- Alert Notifications -->
+    {% if success == 'salvato' %}
+    <div class="alert alert-success alert-dismissible fade show" role="alert">
+        <i class="bi bi-check-circle-fill me-2"></i>Dati anagrafici fornitore aggiornati con successo.
+        <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+    </div>
+    {% elif success == 'contatto_aggiunto' %}
+    <div class="alert alert-success alert-dismissible fade show" role="alert">
+        <i class="bi bi-check-circle-fill me-2"></i>Nuova scheda di contatto aggiunta con successo.
+        <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+    </div>
+    {% elif success == 'contatto_modificato' %}
+    <div class="alert alert-success alert-dismissible fade show" role="alert">
+        <i class="bi bi-check-circle-fill me-2"></i>Scheda di contatto aggiornata con successo.
+        <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+    </div>
+    {% elif success == 'contatto_eliminato' %}
+    <div class="alert alert-success alert-dismissible fade show" role="alert">
+        <i class="bi bi-check-circle-fill me-2"></i>Scheda di contatto rimossa.
+        <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+    </div>
+    {% elif success == 'servizio_associato' %}
+    <div class="alert alert-success alert-dismissible fade show" role="alert">
+        <i class="bi bi-check-circle-fill me-2"></i>Servizio associato al fornitore con successo.
+        <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+    </div>
+    {% elif success == 'servizio_disassociato' %}
+    <div class="alert alert-success alert-dismissible fade show" role="alert">
+        <i class="bi bi-check-circle-fill me-2"></i>Associazione servizio rimossa.
+        <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+    </div>
+    {% elif error %}
+    <div class="alert alert-danger alert-dismissible fade show" role="alert">
+        <i class="bi bi-exclamation-triangle-fill me-2"></i>{{ error }}
+        <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+    </div>
+    {% endif %}
+
+    <!-- Navigation Tabs -->
+    <ul class="nav nav-tabs mb-4" id="fornitoreTabs" role="tablist">
+        <li class="nav-item" role="presentation">
+            <button class="nav-link active" id="tab-anagrafica-btn" data-bs-toggle="tab" data-bs-target="#tab-anagrafica" type="button" role="tab">
+                <i class="bi bi-info-circle me-1"></i>Dati Anagrafici
+            </button>
+        </li>
+        <li class="nav-item" role="presentation">
+            <button class="nav-link" id="tab-contatti-btn" data-bs-toggle="tab" data-bs-target="#tab-contatti" type="button" role="tab">
+                <i class="bi bi-person-lines-fill me-1"></i>Schede Contatto & Ingaggio
+                <span class="badge bg-primary rounded-pill ms-1">{{ contatti|length }}</span>
+            </button>
+        </li>
+        <li class="nav-item" role="presentation">
+            <button class="nav-link" id="tab-servizi-btn" data-bs-toggle="tab" data-bs-target="#tab-servizi" type="button" role="tab">
+                <i class="bi bi-tools me-1"></i>Servizi Associati
+                <span class="badge bg-secondary rounded-pill ms-1">{{ servizi_associati|length }}</span>
+            </button>
+        </li>
+    </ul>
+
+    <!-- Tab Content -->
+    <div class="tab-content" id="fornitoreTabsContent">
+
+        <!-- ============================================== -->
+        <!-- TAB 1: ANAGRAFICA -->
+        <!-- ============================================== -->
+        <div class="tab-pane fade show active" id="tab-anagrafica" role="tabpanel">
+            <div class="row">
+                <div class="col-12 col-lg-8">
+                    <div class="card border-0 shadow-sm mb-4">
+                        <div class="card-header bg-white py-3">
+                            <h5 class="card-title mb-0 fw-bold"><i class="bi bi-pencil-square text-primary me-2"></i>Modifica Dati Aziendali</h5>
+                        </div>
+                        <div class="card-body p-4">
+                            <form method="post" action="/admin/fornitore/{{ fornitore.fornitore_id }}/modifica">
+                                <div class="row g-3">
+                                    <div class="col-12 col-md-8">
+                                        <label class="form-label fw-bold small">Ragione Sociale / Denominazione *</label>
+                                        <input type="text" name="ragione_sociale" class="form-control" value="{{ fornitore.ragione_sociale }}" required>
+                                    </div>
+                                    <div class="col-12 col-md-4">
+                                        <label class="form-label fw-bold small">Partita IVA</label>
+                                        <input type="text" name="partita_iva" class="form-control" value="{{ fornitore.partita_iva or '' }}">
+                                    </div>
+                                    <div class="col-12 col-md-4">
+                                        <label class="form-label fw-bold small">Codice Fiscale</label>
+                                        <input type="text" name="codice_fiscale" class="form-control" value="{{ fornitore.codice_fiscale or '' }}">
+                                    </div>
+                                    <div class="col-12 col-md-4">
+                                        <label class="form-label fw-bold small">Telefono Generale</label>
+                                        <input type="text" name="telefono_generale" class="form-control" value="{{ fornitore.telefono_generale or '' }}">
+                                    </div>
+                                    <div class="col-12 col-md-4">
+                                        <label class="form-label fw-bold small">Email Generale</label>
+                                        <input type="email" name="email_generale" class="form-control" value="{{ fornitore.email_generale or '' }}">
+                                    </div>
+                                    <div class="col-12 col-md-6">
+                                        <label class="form-label fw-bold small">Indirizzo Sede Legale / Operativa</label>
+                                        <input type="text" name="indirizzo" class="form-control" value="{{ fornitore.indirizzo or '' }}">
+                                    </div>
+                                    <div class="col-12 col-md-6">
+                                        <label class="form-label fw-bold small">Sito Web / Portale Ufficiale</label>
+                                        <input type="url" name="sito_web" class="form-control" value="{{ fornitore.sito_web or '' }}" placeholder="https://...">
+                                    </div>
+                                    <div class="col-12 col-md-6">
+                                        <label class="form-label fw-bold small">PEC (Posta Elettronica Certificata)</label>
+                                        <input type="email" name="pec" class="form-control" value="{{ fornitore.pec or '' }}">
+                                    </div>
+                                    <div class="col-12 col-md-6 d-flex align-items-end">
+                                        <div class="form-check form-switch mb-2">
+                                            <input type="checkbox" name="attivo" class="form-check-input" value="1" id="editAttivo" {% if fornitore.attivo %}checked{% endif %}>
+                                            <label class="form-check-label fw-bold small" for="editAttivo">Azienda Fornitrice Attiva</label>
+                                        </div>
+                                    </div>
+                                    <div class="col-12">
+                                        <label class="form-label fw-bold small">Descrizione Attività e Competenze</label>
+                                        <textarea name="descrizione" class="form-control" rows="3" placeholder="Sintesi delle forniture o servizi erogati...">{{ fornitore.descrizione or '' }}</textarea>
+                                    </div>
+                                    <div class="col-12">
+                                        <label class="form-label fw-bold small">Note Interne Riservate</label>
+                                        <textarea name="note" class="form-control" rows="2" placeholder="Codici contrattuali interni, scadenze accordi, condizioni...">{{ fornitore.note or '' }}</textarea>
+                                    </div>
+                                </div>
+                                <div class="mt-4 pt-3 border-top d-flex justify-content-between">
+                                    <button type="submit" class="btn btn-primary"><i class="bi bi-save me-1"></i>Salva Modifiche Anagrafica</button>
+                                    <form method="post" action="/admin/fornitore/{{ fornitore.fornitore_id }}/elimina" class="d-inline" onsubmit="return confirm('Attenzione: eliminando questo fornitore verranno eliminate anche tutte le sue schede di contatto. Continuare?');">
+                                        <button type="submit" class="btn btn-outline-danger"><i class="bi bi-trash me-1"></i>Elimina Fornitore</button>
+                                    </form>
+                                </div>
+                            </form>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Info Box Destra -->
+                <div class="col-12 col-lg-4">
+                    <div class="card border-0 shadow-sm mb-4">
+                        <div class="card-header bg-white py-3">
+                            <h6 class="card-title mb-0 fw-bold"><i class="bi bi-speedometer2 text-info me-2"></i>Riepilogo Rapido</h6>
+                        </div>
+                        <div class="card-body p-3">
+                            <ul class="list-group list-group-flush small">
+                                <li class="list-group-item d-flex justify-content-between align-items-center px-0">
+                                    <span>Schede Contatto Censite:</span>
+                                    <span class="badge bg-primary rounded-pill">{{ contatti|length }}</span>
+                                </li>
+                                <li class="list-group-item d-flex justify-content-between align-items-center px-0">
+                                    <span>Servizi Collegati:</span>
+                                    <span class="badge bg-secondary rounded-pill">{{ servizi_associati|length }}</span>
+                                </li>
+                                <li class="list-group-item d-flex justify-content-between align-items-center px-0">
+                                    <span>Registrato il:</span>
+                                    <span class="text-muted">{{ fornitore.creato_il or '—' }}</span>
+                                </li>
+                            </ul>
+                            {% if fornitore.sito_web %}
+                            <div class="mt-3">
+                                <a href="{{ fornitore.sito_web }}" target="_blank" class="btn btn-sm btn-outline-primary w-100"><i class="bi bi-box-arrow-up-right me-1"></i>Visita Sito Web Fornitore</a>
+                            </div>
+                            {% endif %}
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- ============================================== -->
+        <!-- TAB 2: SCHEDE CONTATTO & ISTRUZIONI ENGAGEMENT -->
+        <!-- ============================================== -->
+        <div class="tab-pane fade" id="tab-contatti" role="tabpanel">
+            <div class="d-flex justify-content-between align-items-center mb-3">
+                <div>
+                    <h4 class="h5 mb-0 fw-bold"><i class="bi bi-headset text-primary me-2"></i>Schede di Contatto, Escalation e Assistenza</h4>
+                    <p class="text-muted small mb-0">Recapiti telefonici, email, portali ticket e istruzioni per l'ingaggio in caso di problemi</p>
+                </div>
+                <button type="button" class="btn btn-primary btn-sm" data-bs-toggle="modal" data-bs-target="#modalNuovoContatto">
+                    <i class="bi bi-plus-lg me-1"></i>Aggiungi Scheda Contatto
+                </button>
+            </div>
+
+            <div class="row g-3">
+                {% for c in contatti %}
+                <div class="col-12 col-lg-6">
+                    <div class="card h-100 border-0 shadow-sm contact-card">
+                        <div class="card-header bg-white py-2 d-flex justify-content-between align-items-center">
+                            <div>
+                                <span class="fw-bold text-primary fs-6">{{ c.titolo }}</span>
+                                {% if c.orari_disponibilita %}
+                                <span class="badge bg-light text-dark border ms-2 small"><i class="bi bi-clock me-1 text-warning"></i>{{ c.orari_disponibilita }}</span>
+                                {% endif %}
+                            </div>
+                            <div class="btn-group btn-group-sm">
+                                <button type="button" class="btn btn-outline-primary btn-sm btn-edit-contatto" 
+                                        data-id="{{ c.contatto_id }}"
+                                        data-titolo="{{ c.titolo }}"
+                                        data-referente="{{ c.nome_referente or '' }}"
+                                        data-tel="{{ c.telefono or '' }}"
+                                        data-tel2="{{ c.telefono_secondario or '' }}"
+                                        data-email="{{ c.email or '' }}"
+                                        data-email2="{{ c.email_secondaria or '' }}"
+                                        data-url="{{ c.url or '' }}"
+                                        data-orari="{{ c.orari_disponibilita or '' }}"
+                                        data-istruzioni="{{ c.istruzioni_ingaggio or '' }}"
+                                        data-note="{{ c.note or '' }}"
+                                        data-ordine="{{ c.ordine or 0 }}">
+                                    <i class="bi bi-pencil"></i>
+                                </button>
+                                <form method="post" action="/admin/fornitore/{{ fornitore.fornitore_id }}/contatto/{{ c.contatto_id }}/elimina" class="d-inline" onsubmit="return confirm('Eliminare questa scheda di contatto?');">
+                                    <button type="submit" class="btn btn-outline-danger btn-sm"><i class="bi bi-trash"></i></button>
+                                </form>
+                            </div>
+                        </div>
+                        <div class="card-body p-3">
+                            {% if c.nome_referente %}
+                            <div class="mb-2 text-dark fw-semibold small"><i class="bi bi-person-fill text-secondary me-1"></i>Referente: {{ c.nome_referente }}</div>
+                            {% endif %}
+
+                            <div class="row g-2 mb-3">
+                                {% if c.telefono %}
+                                <div class="col-6">
+                                    <a href="tel:{{ c.telefono }}" class="btn btn-sm btn-outline-success w-100 text-start text-truncate">
+                                        <i class="bi bi-telephone-fill me-1"></i>{{ c.telefono }}
+                                    </a>
+                                </div>
+                                {% endif %}
+                                {% if c.telefono_secondario %}
+                                <div class="col-6">
+                                    <a href="tel:{{ c.telefono_secondario }}" class="btn btn-sm btn-outline-secondary w-100 text-start text-truncate">
+                                        <i class="bi bi-telephone me-1"></i>{{ c.telefono_secondario }}
+                                    </a>
+                                </div>
+                                {% endif %}
+                                {% if c.email %}
+                                <div class="col-12">
+                                    <a href="mailto:{{ c.email }}" class="btn btn-sm btn-outline-primary w-100 text-start text-truncate">
+                                        <i class="bi bi-envelope-fill me-1"></i>{{ c.email }}
+                                    </a>
+                                </div>
+                                {% endif %}
+                                {% if c.email_secondaria %}
+                                <div class="col-12">
+                                    <a href="mailto:{{ c.email_secondaria }}" class="btn btn-sm btn-outline-secondary w-100 text-start text-truncate">
+                                        <i class="bi bi-envelope me-1"></i>{{ c.email_secondaria }}
+                                    </a>
+                                </div>
+                                {% endif %}
+                                {% if c.url %}
+                                <div class="col-12">
+                                    <a href="{{ c.url }}" target="_blank" class="btn btn-sm btn-info text-dark w-100 text-start text-truncate">
+                                        <i class="bi bi-box-arrow-up-right me-1"></i>Portale Ticket / Assistenza
+                                    </a>
+                                </div>
+                                {% endif %}
+                            </div>
+
+                            {% if c.istruzioni_ingaggio %}
+                            <div class="instruction-box p-2 mb-2">
+                                <div class="fw-bold small text-danger mb-1"><i class="bi bi-shield-exclamation me-1"></i>Istruzioni per Ingaggio / Apertura Incident:</div>
+                                <div class="small text-dark" style="white-space: pre-wrap;">{{ c.istruzioni_ingaggio }}</div>
+                            </div>
+                            {% endif %}
+
+                            {% if c.note %}
+                            <div class="text-muted small border-top pt-2 mt-2"><i class="bi bi-sticky me-1"></i>{{ c.note }}</div>
+                            {% endif %}
+                        </div>
+                    </div>
+                </div>
+                {% endfor %}
+                {% if not contatti %}
+                <div class="col-12">
+                    <div class="card border-0 shadow-sm text-center py-5 text-muted">
+                        <i class="bi bi-person-x fs-1 d-block mb-2 text-secondary"></i>
+                        <p class="mb-3">Nessuna scheda di contatto o escalation registrata per questa azienda.</p>
+                        <div>
+                            <button type="button" class="btn btn-primary btn-sm" data-bs-toggle="modal" data-bs-target="#modalNuovoContatto">
+                                <i class="bi bi-plus-lg me-1"></i>Crea Prima Scheda di Contatto
+                            </button>
+                        </div>
+                    </div>
+                </div>
+                {% endif %}
+            </div>
+        </div>
+
+        <!-- ============================================== -->
+        <!-- TAB 3: SERVIZI ASSOCIATI -->
+        <!-- ============================================== -->
+        <div class="tab-pane fade" id="tab-servizi" role="tabpanel">
+            <div class="row">
+                <div class="col-12 col-lg-8">
+                    <div class="card border-0 shadow-sm mb-4">
+                        <div class="card-header bg-white py-3">
+                            <h5 class="card-title mb-0 fw-bold"><i class="bi bi-list-check text-primary me-2"></i>Servizi del Database Associati</h5>
+                        </div>
+                        <div class="card-body p-0">
+                            <div class="table-responsive">
+                                <table class="table table-hover align-middle mb-0">
+                                    <thead class="table-light">
+                                        <tr>
+                                            <th class="ps-3">Servizio</th>
+                                            <th>Reparto</th>
+                                            <th>Ruolo Fornitore</th>
+                                            <th>Note di Erogazione / SLA</th>
+                                            <th class="text-end pe-3">Azione</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        {% for s in servizi_associati %}
+                                        <tr>
+                                            <td class="ps-3 fw-bold">{{ s.servizio_nome }}</td>
+                                            <td><span class="badge bg-light text-dark border">{{ s.reparto_nome or '—' }}</span></td>
+                                            <td>
+                                                {% if s.principale %}
+                                                <span class="badge bg-success"><i class="bi bi-star-fill me-1"></i>Primario</span>
+                                                {% else %}
+                                                <span class="badge bg-secondary">Secondario</span>
+                                                {% endif %}
+                                            </td>
+                                            <td class="small text-muted">{{ s.sf_note or '—' }}</td>
+                                            <td class="text-end pe-3">
+                                                <form method="post" action="/admin/fornitore/{{ fornitore.fornitore_id }}/disassocia-servizio" class="d-inline" onsubmit="return confirm('Rimuovere associazione a questo servizio?');">
+                                                    <input type="hidden" name="servizio_id" value="{{ s.servizio_id }}">
+                                                    <button type="submit" class="btn btn-sm btn-outline-danger" title="Disassocia">
+                                                        <i class="bi bi-x-lg"></i>
+                                                    </button>
+                                                </form>
+                                            </td>
+                                        </tr>
+                                        {% endfor %}
+                                        {% if not servizi_associati %}
+                                        <tr>
+                                            <td colspan="5" class="text-center py-4 text-muted">
+                                                Nessun servizio attualmente associato a questo fornitore.
+                                            </td>
+                                        </tr>
+                                        {% endif %}
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="col-12 col-lg-4">
+                    <div class="card border-0 shadow-sm mb-4">
+                        <div class="card-header bg-white py-3">
+                            <h6 class="card-title mb-0 fw-bold"><i class="bi bi-link-45deg text-success me-2"></i>Associa Nuovo Servizio</h6>
+                        </div>
+                        <div class="card-body p-3">
+                            <form method="post" action="/admin/fornitore/{{ fornitore.fornitore_id }}/associa-servizio">
+                                <div class="mb-3">
+                                    <label class="form-label fw-bold small">Seleziona Servizio *</label>
+                                    <select name="servizio_id" class="form-select form-select-sm" required>
+                                        <option value="" disabled selected>Seleziona un servizio...</option>
+                                        {% for srv in tutti_servizi %}
+                                        <option value="{{ srv.servizio_id }}">{{ srv.descrizione }} ({{ srv.reparto_nome }})</option>
+                                        {% endfor %}
+                                    </select>
+                                </div>
+                                <div class="mb-3 form-check">
+                                    <input type="checkbox" name="principale" class="form-check-input" value="1" id="chkPrincipale">
+                                    <label class="form-check-label small fw-bold" for="chkPrincipale">Fornitore Principale per questo servizio</label>
+                                </div>
+                                <div class="mb-3">
+                                    <label class="form-label fw-bold small">Note di Servizio / SLA / Codice Contratto</label>
+                                    <textarea name="note" class="form-control form-control-sm" rows="3" placeholder="Specificare eventuali SLA o codici contrattuali specifici per questo servizio..."></textarea>
+                                </div>
+                                <button type="submit" class="btn btn-sm btn-success w-100"><i class="bi bi-plus-circle me-1"></i>Collega Servizio</button>
+                            </form>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+    </div>
+</div>
+
+<!-- Modal Nuovo Contatto -->
+<div class="modal fade" id="modalNuovoContatto" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+            <form method="post" action="/admin/fornitore/{{ fornitore.fornitore_id }}/contatto">
+                <div class="modal-header bg-primary text-white">
+                    <h5 class="modal-title"><i class="bi bi-person-plus-fill me-2"></i>Nuova Scheda di Contatto ed Escalation</h5>
+                    <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <div class="modal-body">
+                    <div class="row g-3">
+                        <div class="col-12 col-md-6">
+                            <label class="form-label fw-bold small">Titolo / Ruolo del Contatto *</label>
+                            <input type="text" name="titolo" class="form-control" placeholder="es. Assistenza H24, Supporto Livello 1, Account Manager" required>
+                        </div>
+                        <div class="col-12 col-md-6">
+                            <label class="form-label fw-bold small">Nome Referente</label>
+                            <input type="text" name="nome_referente" class="form-control" placeholder="es. Mario Rossi">
+                        </div>
+                        <div class="col-12 col-md-6">
+                            <label class="form-label fw-bold small">Telefono Principale (Click-to-Call)</label>
+                            <input type="text" name="telefono" class="form-control" placeholder="es. 800 123 456 oppure +39 02 1234567">
+                        </div>
+                        <div class="col-12 col-md-6">
+                            <label class="form-label fw-bold small">Telefono Secondario / Emergenza</label>
+                            <input type="text" name="telefono_secondario" class="form-control" placeholder="es. +39 333 1234567">
+                        </div>
+                        <div class="col-12 col-md-6">
+                            <label class="form-label fw-bold small">Email di Assistenza</label>
+                            <input type="email" name="email" class="form-control" placeholder="es. helpdesk@fornitore.it">
+                        </div>
+                        <div class="col-12 col-md-6">
+                            <label class="form-label fw-bold small">Email Secondaria / PEC</label>
+                            <input type="email" name="email_secondaria" class="form-control" placeholder="es. escalation@fornitore.it">
+                        </div>
+                        <div class="col-12 col-md-8">
+                            <label class="form-label fw-bold small">URL Portale Web / Ticketing Fornitore</label>
+                            <input type="url" name="url" class="form-control" placeholder="https://support.fornitore.it">
+                        </div>
+                        <div class="col-12 col-md-4">
+                            <label class="form-label fw-bold small">Orari Reperibilità / SLA</label>
+                            <input type="text" name="orari_disponibilita" class="form-control" placeholder="es. H24 7/7 oppure Lun-Ven 8-18">
+                        </div>
+                        <div class="col-12">
+                            <label class="form-label fw-bold small text-danger"><i class="bi bi-shield-exclamation me-1"></i>Istruzioni per Ingaggio in caso di Problemi o Assistenza</label>
+                            <textarea name="istruzioni_ingaggio" class="form-control" rows="4" placeholder="Specificare la procedura operativa: es. 1) Aprire ticket su portale indicando codice cliente XXXXX; 2) In caso di blocco totale chiamare numero verde H24 con PIN 1234; 3) SLA presa in carico: 2 ore..."></textarea>
+                        </div>
+                        <div class="col-12 col-md-8">
+                            <label class="form-label fw-bold small">Note Aggiuntive</label>
+                            <input type="text" name="note" class="form-control" placeholder="Eventuali annotazioni...">
+                        </div>
+                        <div class="col-12 col-md-4">
+                            <label class="form-label fw-bold small">Ordine Visualizzazione</label>
+                            <input type="number" name="ordine" class="form-control" value="0">
+                        </div>
+                    </div>
+                </div>
+                <div class="modal-footer bg-light">
+                    <button type="button" class="btn btn-secondary btn-sm" data-bs-dismiss="modal">Annulla</button>
+                    <button type="submit" class="btn btn-primary btn-sm"><i class="bi bi-check-lg me-1"></i>Salva Scheda Contatto</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+<!-- Modal Modifica Contatto -->
+<div class="modal fade" id="modalModificaContatto" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+            <form method="post" id="formModificaContatto" action="">
+                <div class="modal-header bg-primary text-white">
+                    <h5 class="modal-title"><i class="bi bi-pencil-square me-2"></i>Modifica Scheda di Contatto</h5>
+                    <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <div class="modal-body">
+                    <div class="row g-3">
+                        <div class="col-12 col-md-6">
+                            <label class="form-label fw-bold small">Titolo / Ruolo del Contatto *</label>
+                            <input type="text" name="titolo" id="edit_titolo" class="form-control" required>
+                        </div>
+                        <div class="col-12 col-md-6">
+                            <label class="form-label fw-bold small">Nome Referente</label>
+                            <input type="text" name="nome_referente" id="edit_referente" class="form-control">
+                        </div>
+                        <div class="col-12 col-md-6">
+                            <label class="form-label fw-bold small">Telefono Principale</label>
+                            <input type="text" name="telefono" id="edit_telefono" class="form-control">
+                        </div>
+                        <div class="col-12 col-md-6">
+                            <label class="form-label fw-bold small">Telefono Secondario</label>
+                            <input type="text" name="telefono_secondario" id="edit_telefono_secondario" class="form-control">
+                        </div>
+                        <div class="col-12 col-md-6">
+                            <label class="form-label fw-bold small">Email di Assistenza</label>
+                            <input type="email" name="email" id="edit_email" class="form-control">
+                        </div>
+                        <div class="col-12 col-md-6">
+                            <label class="form-label fw-bold small">Email Secondaria</label>
+                            <input type="email" name="email_secondaria" id="edit_email_secondaria" class="form-control">
+                        </div>
+                        <div class="col-12 col-md-8">
+                            <label class="form-label fw-bold small">URL Portale Web / Ticketing</label>
+                            <input type="url" name="url" id="edit_url" class="form-control">
+                        </div>
+                        <div class="col-12 col-md-4">
+                            <label class="form-label fw-bold small">Orari Reperibilità / SLA</label>
+                            <input type="text" name="orari_disponibilita" id="edit_orari" class="form-control">
+                        </div>
+                        <div class="col-12">
+                            <label class="form-label fw-bold small text-danger"><i class="bi bi-shield-exclamation me-1"></i>Istruzioni per Ingaggio in caso di Problemi o Assistenza</label>
+                            <textarea name="istruzioni_ingaggio" id="edit_istruzioni" class="form-control" rows="4"></textarea>
+                        </div>
+                        <div class="col-12 col-md-8">
+                            <label class="form-label fw-bold small">Note Aggiuntive</label>
+                            <input type="text" name="note" id="edit_note" class="form-control">
+                        </div>
+                        <div class="col-12 col-md-4">
+                            <label class="form-label fw-bold small">Ordine Visualizzazione</label>
+                            <input type="number" name="ordine" id="edit_ordine" class="form-control">
+                        </div>
+                    </div>
+                </div>
+                <div class="modal-footer bg-light">
+                    <button type="button" class="btn btn-secondary btn-sm" data-bs-dismiss="modal">Annulla</button>
+                    <button type="submit" class="btn btn-primary btn-sm"><i class="bi bi-check-lg me-1"></i>Aggiorna Scheda</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    // Preserve active tab from hash
+    if (window.location.hash) {
+        const hash = window.location.hash;
+        if (hash === '#contatti') {
+            const tabBtn = document.getElementById('tab-contatti-btn');
+            if (tabBtn) new bootstrap.Tab(tabBtn).show();
+        } else if (hash === '#servizi') {
+            const tabBtn = document.getElementById('tab-servizi-btn');
+            if (tabBtn) new bootstrap.Tab(tabBtn).show();
+        }
+    }
+
+    // Modal Edit Contatto population
+    const editBtns = document.querySelectorAll('.btn-edit-contatto');
+    const modalModifica = new bootstrap.Modal(document.getElementById('modalModificaContatto'));
+    const formModifica = document.getElementById('formModificaContatto');
+
+    editBtns.forEach(btn => {
+        btn.addEventListener('click', function() {
+            const cid = this.dataset.id;
+            formModifica.action = `/admin/fornitore/{{ fornitore.fornitore_id }}/contatto/${cid}/modifica`;
+            document.getElementById('edit_titolo').value = this.dataset.titolo || '';
+            document.getElementById('edit_referente').value = this.dataset.referente || '';
+            document.getElementById('edit_telefono').value = this.dataset.tel || '';
+            document.getElementById('edit_telefono_secondario').value = this.dataset.tel2 || '';
+            document.getElementById('edit_email').value = this.dataset.email || '';
+            document.getElementById('edit_email_secondaria').value = this.dataset.email2 || '';
+            document.getElementById('edit_url').value = this.dataset.url || '';
+            document.getElementById('edit_orari').value = this.dataset.orari || '';
+            document.getElementById('edit_istruzioni').value = this.dataset.istruzioni || '';
+            document.getElementById('edit_note').value = this.dataset.note || '';
+            document.getElementById('edit_ordine').value = this.dataset.ordine || '0';
+            modalModifica.show();
+        });
+    });
+});
+</script>
+</body>
+</html>

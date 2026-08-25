@@ -190,6 +190,8 @@
               </li>
               <li><a class="dropdown-item" href="/admin/reparti">Gestione Reparti</a></li>
               <li><a class="dropdown-item" href="/admin/servizi">Gestione Servizi</a></li>
+              <li><a class="dropdown-item" href="/admin/fornitori"><i class="bi bi-building-gear me-2"></i>Gestione Fornitori</a></li>
+              <li><a class="dropdown-item" href="/fornitori"><i class="bi bi-journal-bookmark me-2"></i>Rubrica Fornitori</a></li>
               <li><a class="dropdown-item" href="/admin/sedi">Gestione Sedi</a></li>
               <li><a class="dropdown-item" href="/admin/magazzini">Gestione Magazzini</a></li>
               <li><a class="dropdown-item" href="/admin/comuni">Gestione Comuni</a></li>
@@ -278,6 +280,12 @@
           </li>
           {% endif %}
 
+          <li class="nav-item">
+            <a class="nav-link {% if request.url.path == '/fornitori' %}active fw-bold{% endif %}" href="/fornitori">
+              <i class="bi bi-journal-bookmark"></i> Fornitori
+            </a>
+          </li>
+
           <li class="nav-item dropdown">
             <a class="nav-link dropdown-toggle {% if request.url.path == '/admin/report-copertura' or request.url.path == '/magazzini/report' %}active fw-bold{% endif %}" href="#" id="reportDropdown" role="button" data-bs-toggle="dropdown" aria-expanded="false">
               <i class="bi bi-bar-chart"></i> Report
@@ -359,6 +367,12 @@
             </ul>
           </li>
           {% endif %}
+
+          <li class="nav-item">
+            <a class="nav-link {% if request.url.path == '/fornitori' %}active fw-bold{% endif %}" href="/fornitori">
+              <i class="bi bi-journal-bookmark"></i> Fornitori
+            </a>
+          </li>
 
         <!-- NAVBAR FLEET MANAGER -->
         {% elif user.ruolo in ('fleet_manager', 'global_fleet_manager') %}

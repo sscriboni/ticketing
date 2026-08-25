@@ -10,8 +10,8 @@
     {% if error == 'in_uso' %}
     <div class="alert alert-danger py-2 mt-2">Impossibile eliminare: il servizio è associato a ticket o operatori attivi.</div>
     {% endif %}
-    <table class="table table-sm table-striped mt-3">
-      <thead><tr><th>Servizio</th><th>Descrizione</th><th>Reparto</th><th>Stato</th><th>Azioni</th></tr></thead>
+    <table class="table table-sm table-striped mt-3 align-middle">
+      <thead><tr><th>Servizio</th><th>Descrizione</th><th>Reparto</th><th>Fornitori Collegati</th><th>Stato</th><th>Azioni</th></tr></thead>
       <tbody>
       {% for servizio in servizi %}
       <tr>
@@ -23,6 +23,17 @@
         </td>
         <td>{{ servizio.descrizione_lunga or '—' }}</td>
         <td>{{ servizio.reparto_nome or '—' }}</td>
+        <td>
+          {% if servizio.fornitori %}
+            {% for f in servizio.fornitori %}
+            <a href="/admin/fornitore/{{ f.fornitore_id }}" class="badge {% if f.principale %}bg-success{% else %}bg-primary{% endif %} text-decoration-none me-1 mb-1 d-inline-block">
+              <i class="bi bi-building me-1"></i>{{ f.ragione_sociale }}
+            </a>
+            {% endfor %}
+          {% else %}
+            <span class="text-muted small">Nessuno</span>
+          {% endif %}
+        </td>
         <td>
           <div class="form-check form-switch">
             <input type="checkbox" class="form-check-input toggle-accetta" data-id="{{ servizio.servizio_id }}" {% if servizio.accetta_ticket %}checked{% endif %}>
