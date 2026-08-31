@@ -490,6 +490,25 @@ def assenze_mese(r: Request, mese: int = None, anno: int = None, reparto_id: int
             JOIN users u ON p.user_id = u.user_id
             WHERE u.reparto_id = :rid AND p.data_inizio <= :end AND p.data_fine >= :start
         """), {"rid": reparto_id, "start": first_day_of_month.isoformat(), "end": last_day_of_month.isoformat()}).mappings().all()
+
+        # Check today's absences specifically
+        today_str = today.isoformat()
+        is_today_weekend = today.weekday() in (5, 6)
+
+        today_festivita = c.execute(text("""
+            SELECT f.data, f.descrizione, f.comune_id, c.nome as comune_nome 
+            FROM festivita f
+            LEFT JOIN comuni c ON f.comune_id = c.comune_id
+            WHERE f.data = :today
+        """), {"today": today_str}).mappings().all()
+
+        today_assenze = c.execute(text("""
+            SELECT a.user_id, a.motivo
+            FROM assenze a
+            JOIN users u ON a.user_id = u.user_id
+            WHERE u.reparto_id = :rid AND a.data_inizio <= :today AND a.data_fine >= :today
+        """), {"rid": reparto_id, "today": today_str}).mappings().all()
+        today_absent_map = {a["user_id"]: a["motivo"] for a in today_assenze}
         
         giorni = []
         wd_names = ["Lunedì", "Martedì", "Mercoledì", "Giovedì", "Venerdì", "Sabato", "Domenica"]
@@ -521,6 +540,19 @@ def assenze_mese(r: Request, mese: int = None, anno: int = None, reparto_id: int
             giorni_stato = []
             op_id = op["user_id"]
             op_comune_id = op["op_comune_id"]
+
+            is_today_holiday = False
+            for f in today_festivita:
+                if f["comune_id"] is None or (op_comune_id is not None and f["comune_id"] == op_comune_id):
+                    is_today_holiday = True
+                    break
+
+            is_absent_today = False
+            today_absent_motivo = None
+            if not is_today_weekend and not is_today_holiday:
+                if op_id in today_absent_map:
+                    is_absent_today = True
+                    today_absent_motivo = today_absent_map[op_id]
             
             for day_num in range(1, num_days + 1):
                 d = date(anno, mese, day_num)
@@ -576,11 +608,13 @@ def assenze_mese(r: Request, mese: int = None, anno: int = None, reparto_id: int
                 
             matrix.append({
                 "operator_id": op["user_id"],
-                "operator_nome": f"{op['nome']} {op['cognome']}".strip() or op['username'],
+                "operator_nome": f"{(op['cognome'] or '').strip()} {(op['nome'] or '').strip()}".strip() or op['username'],
                 "operator_ruolo": op["ruolo"] or "operatore",
                 "sede_nome": op["sede_nome"] or "",
                 "tags": op_tags_map.get(op["user_id"], []),
-                "giorni_stato": giorni_stato
+                "giorni_stato": giorni_stato,
+                "is_absent_today": is_absent_today,
+                "today_absent_motivo": today_absent_motivo
             })
 
         # Calcolo del conteggio operatori presenti per ciascun giorno

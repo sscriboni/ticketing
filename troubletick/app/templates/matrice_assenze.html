@@ -42,9 +42,9 @@
             font-weight: bold;
             text-align: left !important;
             padding-left: 12px !important;
-            width: 150px;
-            min-width: 150px;
-            max-width: 150px;
+            width: 170px;
+            min-width: 170px;
+            max-width: 170px;
             z-index: 10;
             box-shadow: 2px 0 5px rgba(0, 0, 0, 0.05);
         }
@@ -254,7 +254,16 @@
                         {% for row in matrix %}
                         <tr>
                             <td class="operator-col">
-                                <strong>{{ row.operator_nome }}</strong><br>
+                                <div class="d-flex align-items-center justify-content-between">
+                                    <span class="text-truncate" title="{{ row.operator_nome }}"><strong>{{ row.operator_nome }}</strong></span>
+                                    {% if row.is_absent_today %}
+                                    <span class="badge bg-danger-subtle text-danger border border-danger-subtle ms-1 px-1.5 py-0.5" 
+                                          title="Assente oggi{% if row.today_absent_motivo %}: {{ row.today_absent_motivo }}{% endif %}" 
+                                          data-bs-toggle="tooltip">
+                                        <i class="bi bi-person-x-fill" style="font-size: 0.75rem;"></i>
+                                    </span>
+                                    {% endif %}
+                                </div>
                                 <small class="text-muted" style="font-size: 0.7rem;">{{ row.operator_ruolo|capitalize
                                     }}{% if row.sede_nome %} &bull; {{ row.sede_nome }}{% endif %}</small>
                                 {% if row.tags %}
@@ -348,6 +357,10 @@
                  </div>
                  <div class="d-flex align-items-center gap-1"><span class="badge bg-danger px-2 py-1">A</span> <small
                          class="text-muted">Assente</small></div>
+                 <div class="d-flex align-items-center gap-1">
+                     <span class="badge bg-danger-subtle text-danger border border-danger-subtle px-1.5 py-0.5"><i class="bi bi-person-x-fill"></i></span>
+                     <small class="text-muted">Assente oggi</small>
+                 </div>
  
                  <div class="vr mx-2"></div>
  
@@ -398,7 +411,7 @@
              }
              window.location.search = urlParams.toString();
          }
-
+ 
          function changeTag(selectElement) {
              const val = selectElement.value;
              const urlParams = new URLSearchParams(window.location.search);
@@ -421,31 +434,39 @@
                      const isHolidayWeekend = td.dataset.holidayWeekendClass || '';
                      const isHoliday = td.dataset.holiday === '1';
                      const isAbsent = td.dataset.absent === '1' && !isHoliday;
-                    const isPresent = td.dataset.present === '1' && !isHoliday;
+                     const isPresent = td.dataset.present === '1' && !isHoliday;
+ 
+                     // Clear current classes and text
+                     td.className = isHolidayWeekend + ' cell-presente';
+                     td.textContent = '';
+                     td.removeAttribute('title');
+ 
+                     if (isHoliday) {
+                         td.setAttribute('title', td.dataset.holidayTitle || '');
+                     }
+ 
+                     // Reapply depending on switches
+                     if (isAbsent && showAbsences) {
+                         td.classList.add(td.dataset.absentClass);
+                         td.textContent = td.dataset.absentText;
+                         td.setAttribute('title', td.dataset.absentTitle);
+                     } else if (isPresent && showPresences) {
+                         td.classList.add(td.dataset.presentClass);
+                         td.textContent = td.dataset.presentText;
+                         td.setAttribute('title', td.dataset.presentTitle);
+                     }
+                 });
+             });
+         }
 
-                    // Clear current classes and text
-                    td.className = isHolidayWeekend + ' cell-presente';
-                    td.textContent = '';
-                    td.removeAttribute('title');
-
-                    if (isHoliday) {
-                        td.setAttribute('title', td.dataset.holidayTitle || '');
-                    }
-
-                    // Reapply depending on switches
-                    if (isAbsent && showAbsences) {
-                        td.classList.add(td.dataset.absentClass);
-                        td.textContent = td.dataset.absentText;
-                        td.setAttribute('title', td.dataset.absentTitle);
-                    } else if (isPresent && showPresences) {
-                        td.classList.add(td.dataset.presentClass);
-                        td.textContent = td.dataset.presentText;
-                        td.setAttribute('title', td.dataset.presentTitle);
-                    }
-                });
-            });
-        }
-    </script>
+ 
+         document.addEventListener("DOMContentLoaded", function() {
+             var tooltipTriggerList = [].slice.call(document.querySelectorAll('[data-bs-toggle="tooltip"]'));
+             tooltipTriggerList.map(function (tooltipTriggerEl) {
+                 return new bootstrap.Tooltip(tooltipTriggerEl);
+             });
+         });
+     </script>
 </body>
 
 </html>
