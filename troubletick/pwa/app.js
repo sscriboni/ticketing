@@ -1278,12 +1278,14 @@ async function submitCompleteViaggio(e) {
   const idInput = document.getElementById('completa-viaggio-id');
   const kmInput = document.getElementById('completa-km-finali');
   const sedeSelect = document.getElementById('completa-sede-arrivo');
+  const posInput = document.getElementById('completa-posizione-parcheggio');
   const noteInput = document.getElementById('completa-note');
   const submitBtn = document.getElementById('btn-submit-completa-viaggio');
 
   const viaggioId = idInput ? parseInt(idInput.value) : 0;
   const kmFinali = kmInput ? parseInt(kmInput.value) : 0;
   const sedeArrivoId = sedeSelect && sedeSelect.value ? parseInt(sedeSelect.value) : null;
+  const posizioneParcheggio = posInput ? posInput.value.trim() : '';
   const note = noteInput ? noteInput.value.trim() : '';
 
   if (!viaggioId || isNaN(kmFinali) || kmFinali < 0) {
@@ -1307,7 +1309,8 @@ async function submitCompleteViaggio(e) {
       body: JSON.stringify({
         km_finali: kmFinali,
         sede_arrivo_id: sedeArrivoId,
-        note: note || undefined
+        note: note || undefined,
+        posizione_parcheggio: posizioneParcheggio || undefined
       })
     });
 

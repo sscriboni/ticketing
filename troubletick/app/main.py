@@ -104,6 +104,10 @@ try:
             c.execute(text("UPDATE automezzi SET note = colore WHERE (note IS NULL OR note = '') AND colore IS NOT NULL AND colore != ''"))
         except Exception:
             pass
+        try:
+            c.execute(text("ALTER TABLE automezzi ADD COLUMN posizione_parcheggio TEXT"))
+        except Exception:
+            pass
         c.execute(text(f"""CREATE TABLE IF NOT EXISTS users (
             user_id {DB_PK},
             username TEXT UNIQUE NOT NULL,

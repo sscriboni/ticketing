@@ -66,6 +66,11 @@ with engine.begin() as conn:
         conn.execute(text("ALTER TABLE automezzi ADD COLUMN marca_id INTEGER DEFAULT 1"))
     except Exception:
         pass
+
+    try:
+        conn.execute(text("ALTER TABLE automezzi ADD COLUMN posizione_parcheggio TEXT"))
+    except Exception:
+        pass
     
     conn.execute(text(f"""
         CREATE TABLE IF NOT EXISTS manutenzioni_automezzi (
@@ -219,6 +224,11 @@ def registra_storico_km(conn, automezzo_id: int, km: int, sorgente: str, data_re
         
     try:
         conn.execute(text("ALTER TABLE viaggi_automezzi ADD COLUMN inizio_pausa TEXT"))
+    except Exception:
+        pass
+
+    try:
+        conn.execute(text("ALTER TABLE viaggi_automezzi ADD COLUMN posizione_parcheggio TEXT"))
     except Exception:
         pass
         
@@ -3101,7 +3111,8 @@ def complete_viaggio(
     ora_arrivo: str = Form(...),
     km_finali: int = Form(...),
     sede_arrivo_id: int = Form(...),
-    note_finali: str = Form(None)
+    note_finali: str = Form(None),
+    posizione_parcheggio: str = Form(None)
 ):
     if "user" not in r.session: 
         return RedirectResponse(url="/login", status_code=303)
@@ -3122,29 +3133,35 @@ def complete_viaggio(
             import urllib.parse
             return RedirectResponse(url=f"/admin/automezzi/viaggi?error={urllib.parse.quote('Non sei autorizzato a completare viaggi per veicoli di altri reparti.')}", status_code=303)
         
+    pos_parch_clean = posizione_parcheggio.strip() if posizione_parcheggio and posizione_parcheggio.strip() else None
+
     with engine.begin() as conn:
         v = conn.execute(text("SELECT automezzo_id, note FROM viaggi_automezzi WHERE viaggio_id = :id"), {"id": id}).first()
         if v:
             note_complete = (v.note or "") + (f" | Arrivo: {note_finali}" if note_finali else "")
             conn.execute(text("""
                 UPDATE viaggi_automezzi
-                SET ora_arrivo = :ora_arrivo, km_finali = :km_finali, sede_arrivo_id = :sede_arrivo_id, note = :note
+                SET ora_arrivo = :ora_arrivo, km_finali = :km_finali, sede_arrivo_id = :sede_arrivo_id, note = :note,
+                    posizione_parcheggio = :pos_parch
                 WHERE viaggio_id = :id
             """), {
                 "id": id, "ora_arrivo": ora_arrivo.strip(), "km_finali": km_finali,
-                "sede_arrivo_id": sede_arrivo_id, "note": note_complete
+                "sede_arrivo_id": sede_arrivo_id, "note": note_complete,
+                "pos_parch": pos_parch_clean
             })
             
             conn.execute(text("""
                 UPDATE automezzi
                 SET stato = 'Disponibile', 
                     km_attuali = CASE WHEN :km_finali > km_attuali THEN :km_finali ELSE km_attuali END,
-                    sede_attuale_id = :sede_arrivo_id
+                    sede_attuale_id = :sede_arrivo_id,
+                    posizione_parcheggio = COALESCE(:pos_parch, posizione_parcheggio)
                 WHERE automezzo_id = :automezzo_id
             """), {
                 "automezzo_id": v.automezzo_id,
                 "km_finali": km_finali,
-                "sede_arrivo_id": sede_arrivo_id
+                "sede_arrivo_id": sede_arrivo_id,
+                "pos_parch": pos_parch_clean
             })
             
     return RedirectResponse(url="/admin/automezzi/viaggi", status_code=303)
@@ -3224,7 +3241,8 @@ def get_autopark(r: Request, msg: str = None, error: str = None):
                 "stato": v["stato"],
                 "escluso_prenotazione": v["escluso_prenotazione"],
                 "sede_attuale_id": v["sede_attuale_id_resolved"],
-                "sede_attuale_nome": v["sede_attuale_nome"] or "Tutte le Sedi"
+                "sede_attuale_nome": v["sede_attuale_nome"] or "Tutte le Sedi",
+                "posizione_parcheggio": v["posizione_parcheggio"] or ""
             })
         
         # Build query for bookings
@@ -3588,7 +3606,8 @@ def completa_prenotazione(
     km_finali: int = Form(...),
     sede_arrivo_id: int = Form(...),
     ora_arrivo: str = Form(...),
-    note_finali: str = Form(None)
+    note_finali: str = Form(None),
+    posizione_parcheggio: str = Form(None)
 ):
     if "user" not in r.session:
         return RedirectResponse(url="/login", status_code=303)
@@ -3641,11 +3660,13 @@ def completa_prenotazione(
             return RedirectResponse(url=f"/autopark?error={urllib.parse.quote(f'I km finali ({km_finali}) non possono essere inferiori a quelli iniziali ({v.km_iniziali}).')}", status_code=303)
             
         note_complete = (v.note or "") + (f" | Rientro: {note_finali}" if note_finali else "")
+        pos_parch_clean = posizione_parcheggio.strip() if posizione_parcheggio and posizione_parcheggio.strip() else None
         
         # Update voyage record
         conn.execute(text("""
             UPDATE viaggi_automezzi
             SET ora_arrivo = :ora_arrivo, km_finali = :km_finali, sede_arrivo_id = :sede_arrivo_id, note = :note,
+                posizione_parcheggio = :pos_parch,
                 in_pausa = 0, inizio_pausa = NULL, minuti_fermo = :minuti_fermo
             WHERE viaggio_id = :id
         """), {
@@ -3654,6 +3675,7 @@ def completa_prenotazione(
             "km_finali": km_finali,
             "sede_arrivo_id": sede_arrivo_id,
             "note": note_complete,
+            "pos_parch": pos_parch_clean,
             "minuti_fermo": minutes_fermo
         })
         
@@ -3661,12 +3683,14 @@ def completa_prenotazione(
         conn.execute(text("""
             UPDATE automezzi
             SET km_attuali = CASE WHEN :km_finali > km_attuali THEN :km_finali ELSE km_attuali END,
-                sede_attuale_id = :sede_arrivo_id
+                sede_attuale_id = :sede_arrivo_id,
+                posizione_parcheggio = COALESCE(:pos_parch, posizione_parcheggio)
             WHERE automezzo_id = :automezzo_id
         """), {
             "automezzo_id": v.automezzo_id,
             "km_finali": km_finali,
-            "sede_arrivo_id": sede_arrivo_id
+            "sede_arrivo_id": sede_arrivo_id,
+            "pos_parch": pos_parch_clean
         })
         
         registra_storico_km(conn, v.automezzo_id, km_finali, "Viaggio", data_reg=v.data_viaggio, user_id=uid, note=f"Chiusura Viaggio #{id}")
@@ -3764,6 +3788,7 @@ def modifica_viaggio(
     ora_arrivo: typing.Optional[str] = Form(None),
     km_finali: typing.Optional[int] = Form(None),
     note: typing.Optional[str] = Form(None),
+    posizione_parcheggio: typing.Optional[str] = Form(None),
     return_url: typing.Optional[str] = Form(None)
 ):
     if "user" not in r.session:
@@ -3804,6 +3829,7 @@ def modifica_viaggio(
         ora_arrivo_clean = ora_arrivo.strip() if ora_arrivo and ora_arrivo.strip() else None
         km_finali_val = km_finali if km_finali is not None else None
         km_iniziali_orig = v["km_iniziali"] or 0
+        pos_parch_clean = posizione_parcheggio.strip() if posizione_parcheggio and posizione_parcheggio.strip() else None
 
         if km_finali_val is not None and km_finali_val < km_iniziali_orig:
             err_msg = urllib.parse.quote(f"I km di arrivo ({km_finali_val}) non possono essere inferiori ai km di partenza ({km_iniziali_orig}).")
@@ -3817,7 +3843,7 @@ def modifica_viaggio(
 
         aid = v["automezzo_id"]
 
-        # Only update editable fields: ora_partenza, ora_arrivo, km_finali, note (preserving data_viaggio, km_iniziali, sedi)
+        # Update editable fields: ora_partenza, ora_arrivo, km_finali, note, posizione_parcheggio
         conn.execute(text("""
             UPDATE viaggi_automezzi
             SET ora_partenza = :ora_p,
@@ -3825,15 +3851,20 @@ def modifica_viaggio(
                 ora_arrivo = :ora_a,
                 ora_riconsegna_prevista = COALESCE(:ora_a, ora_riconsegna_prevista),
                 km_finali = :km_f,
-                note = :note
+                note = :note,
+                posizione_parcheggio = COALESCE(:pos_parch, posizione_parcheggio)
             WHERE viaggio_id = :id
         """), {
             "id": id,
             "ora_p": ora_partenza_clean,
             "ora_a": ora_arrivo_clean,
             "km_f": km_finali_val,
-            "note": note
+            "note": note,
+            "pos_parch": pos_parch_clean
         })
+
+        if pos_parch_clean:
+            conn.execute(text("UPDATE automezzi SET posizione_parcheggio = :pos_parch WHERE automezzo_id = :aid"), {"pos_parch": pos_parch_clean, "aid": aid})
 
         if km_finali_val is not None:
             max_km = conn.execute(text("SELECT MAX(COALESCE(km_finali, km_iniziali)) FROM viaggi_automezzi WHERE automezzo_id = :aid"), {"aid": aid}).scalar()
@@ -3910,7 +3941,8 @@ def registra_viaggio_posteriori_autopark(
     km_finali: int = Form(...),
     ora_arrivo: str = Form(...),
     note: str = Form(None),
-    sede_arrivo_id: int = Form(None)
+    sede_arrivo_id: int = Form(None),
+    posizione_parcheggio: str = Form(None)
 ):
     if "user" not in r.session:
         return RedirectResponse(url="/login", status_code=303)
@@ -3990,6 +4022,7 @@ def registra_viaggio_posteriori_autopark(
             return RedirectResponse(url=f"/autopark?error={urllib.parse.quote(err_msg)}", status_code=303)
 
         s_arr = sede_arrivo_id or v["sede_partenza_id"]
+        pos_parch_clean = posizione_parcheggio.strip() if posizione_parcheggio and posizione_parcheggio.strip() else None
 
         conn.execute(text("""
             UPDATE viaggi_automezzi
@@ -4000,7 +4033,8 @@ def registra_viaggio_posteriori_autopark(
                 ora_arrivo = :ora_a,
                 ora_riconsegna_prevista = :ora_a,
                 sede_arrivo_id = :s_arr,
-                note = COALESCE(:note, note)
+                note = COALESCE(:note, note),
+                posizione_parcheggio = :pos_parch
             WHERE viaggio_id = :id
         """), {
             "id": id,
@@ -4009,18 +4043,21 @@ def registra_viaggio_posteriori_autopark(
             "km_f": km_finali,
             "ora_a": ora_arrivo,
             "s_arr": s_arr,
-            "note": note
+            "note": note,
+            "pos_parch": pos_parch_clean
         })
 
         conn.execute(text("""
             UPDATE automezzi
             SET km_attuali = :km_f,
-                sede_attuale_id = :s_arr
+                sede_attuale_id = :s_arr,
+                posizione_parcheggio = COALESCE(:pos_parch, posizione_parcheggio)
             WHERE automezzo_id = :aid
         """), {
             "km_f": km_finali,
             "s_arr": s_arr,
-            "aid": v["automezzo_id"]
+            "aid": v["automezzo_id"],
+            "pos_parch": pos_parch_clean
         })
 
         registra_storico_km(conn, v["automezzo_id"], km_finali, "Viaggio", data_reg=v["data_viaggio"], user_id=uid, note=f"Registrazione Viaggio #{id}")

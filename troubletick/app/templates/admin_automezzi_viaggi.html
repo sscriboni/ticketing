@@ -212,7 +212,12 @@
                                         +{{ v.km_finali - v.km_iniziali }} km
                                     </span>
                                 </td>
-                                <td><span class="text-muted small">{{ v.note or '-' }}</span></td>
+                                <td>
+                                    <span class="text-muted small">{{ v.note or '-' }}</span>
+                                    {% if v.posizione_parcheggio %}
+                                        <br><span class="badge bg-light text-dark border small mt-1"><i class="bi bi-pin-map-fill text-danger me-1"></i>{{ v.posizione_parcheggio }}</span>
+                                    {% endif %}
+                                </td>
                                 <td class="text-end">
                                     <div class="d-inline-flex gap-2">
                                         <button class="btn btn-sm btn-outline-primary fw-bold"
@@ -228,6 +233,7 @@
                                                 data-sede-partenza-nome="{{ v.sede_partenza_nome or '-' }}"
                                                 data-sede-arrivo-nome="{{ v.sede_arrivo_nome or v.sede_partenza_nome or '-' }}"
                                                 data-note="{{ (v.note or '') | e }}"
+                                                data-posizione-parcheggio="{{ (v.posizione_parcheggio or '') | e }}"
                                                 onclick="openEditTripModal(this)"
                                                 title="Modifica dettagli del viaggio registrato">
                                             <i class="bi bi-pencil-square me-1"></i> Modifica
@@ -434,6 +440,12 @@
                             <div class="form-text small text-danger" id="compKmError" style="display: none;">
                                 <i class="bi bi-exclamation-triangle"></i> I chilometri finali devono essere uguali o maggiori dei chilometri iniziali (<span id="compMinKm">0</span> km).
                             </div>
+                        </div>
+
+                        <!-- Posizione parcheggio -->
+                        <div class="mb-3">
+                            <label class="form-label text-muted">Posizione / Stallo Parcheggio</label>
+                            <input type="text" class="form-control" name="posizione_parcheggio" placeholder="Es. Stallo 4 cortile interno">
                         </div>
 
                         <!-- Note finali -->
@@ -740,6 +752,7 @@
             const sedePartenzaNome = btn.dataset.sedePartenzaNome;
             const sedeArrivoNome = btn.dataset.sedeArrivoNome;
             const note = btn.dataset.note;
+            const posParch = btn.dataset.posizioneParcheggio;
 
             const form = document.getElementById('editTripForm');
             form.action = `../automezzi/viaggi/modifica/${tripId}`;
@@ -755,6 +768,8 @@
             document.getElementById('editTripSedePartenzaDisplay').value = sedePartenzaNome || '-';
             document.getElementById('editTripSedeArrivoDisplay').value = sedeArrivoNome || '-';
             document.getElementById('editTripNote').value = note || '';
+            const editPosEl = document.getElementById('editTripPosizioneParcheggio');
+            if (editPosEl) editPosEl.value = posParch || '';
 
             const modalEl = document.getElementById('editTripModal');
             const modal = bootstrap.Modal.getOrCreateInstance(modalEl);
@@ -841,6 +856,11 @@
                             <div class="col-md-4">
                                 <label class="form-label small fw-bold text-success mb-1"><i class="bi bi-speedometer2 me-1"></i>KM Arrivo / Rientro</label>
                                 <input type="number" name="km_finali" id="editTripKmFinali" class="form-control" min="0" placeholder="Es. 45200">
+                            </div>
+
+                            <div class="col-12">
+                                <label class="form-label small fw-bold text-primary mb-1"><i class="bi bi-pin-map-fill text-danger me-1"></i>Posizione / Stallo Parcheggio</label>
+                                <input type="text" name="posizione_parcheggio" id="editTripPosizioneParcheggio" class="form-control" placeholder="Es. Stallo 4 cortile interno">
                             </div>
 
                             <div class="col-12">

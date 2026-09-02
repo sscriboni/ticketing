@@ -179,12 +179,14 @@ class PrenotazioneCompletaRequest(BaseModel):
     km_finali: int
     sede_arrivo_id: Optional[int] = None
     note: Optional[str] = None
+    posizione_parcheggio: Optional[str] = None
 
 class PrenotazioneModificaRequest(BaseModel):
     ora_partenza: Optional[str] = None
     ora_arrivo: Optional[str] = None
     km_finali: Optional[int] = None
     note: Optional[str] = None
+    posizione_parcheggio: Optional[str] = None
 
 class PrenotazioneActionResponse(BaseModel):
     success: bool
@@ -1297,18 +1299,21 @@ def complete_prenotazione(viaggio_id: int, req: PrenotazioneCompletaRequest, use
                 raise HTTPException(status_code=400, detail=f"I km finali ({req.km_finali}) non possono essere inferiori a quelli iniziali ({v['km_iniziali']}).")
 
             sede_arrivo_id = req.sede_arrivo_id or v["sede_partenza_id"]
+            pos_parch_clean = req.posizione_parcheggio.strip() if req.posizione_parcheggio and req.posizione_parcheggio.strip() else None
 
             conn.execute(text("""
                 UPDATE viaggi_automezzi
                 SET ora_arrivo = :now,
                     km_finali = :km_finali,
                     sede_arrivo_id = :sede_arrivo_id,
+                    posizione_parcheggio = :pos_parch,
                     in_pausa = 0
                 WHERE viaggio_id = :id
             """), {
                 "now": now_str,
                 "km_finali": req.km_finali,
                 "sede_arrivo_id": sede_arrivo_id,
+                "pos_parch": pos_parch_clean,
                 "id": viaggio_id
             })
 
@@ -1317,11 +1322,13 @@ def complete_prenotazione(viaggio_id: int, req: PrenotazioneCompletaRequest, use
                     UPDATE automezzi
                     SET stato = 'Disponibile',
                         km_attuali = :km_finali,
-                        sede_attuale_id = :sede_arrivo_id
+                        sede_attuale_id = :sede_arrivo_id,
+                        posizione_parcheggio = COALESCE(:pos_parch, posizione_parcheggio)
                     WHERE automezzo_id = :aid
                 """), {
                     "km_finali": req.km_finali,
                     "sede_arrivo_id": sede_arrivo_id,
+                    "pos_parch": pos_parch_clean,
                     "aid": v["automezzo_id"]
                 })
 
@@ -1442,6 +1449,7 @@ def edit_prenotazione_api(viaggio_id: int, req: PrenotazioneModificaRequest, use
             new_ora_arrivo = req.ora_arrivo.strip() if req.ora_arrivo is not None and req.ora_arrivo.strip() else v["ora_arrivo"]
             new_km_finali = req.km_finali if req.km_finali is not None else v["km_finali"]
             new_note = req.note if req.note is not None else v["note"]
+            pos_parch_clean = req.posizione_parcheggio.strip() if req.posizione_parcheggio and req.posizione_parcheggio.strip() else None
 
             if new_km_finali is not None and new_km_finali < km_iniziali_orig:
                 raise HTTPException(status_code=400, detail=f"I km di arrivo ({new_km_finali}) non possono essere inferiori ai km di partenza ({km_iniziali_orig}).")
@@ -1456,15 +1464,20 @@ def edit_prenotazione_api(viaggio_id: int, req: PrenotazioneModificaRequest, use
                     ora_arrivo = :ora_a,
                     ora_riconsegna_prevista = COALESCE(:ora_a, ora_riconsegna_prevista),
                     km_finali = :km_f,
-                    note = :note
+                    note = :note,
+                    posizione_parcheggio = COALESCE(:pos_parch, posizione_parcheggio)
                 WHERE viaggio_id = :id
             """), {
                 "id": viaggio_id,
                 "ora_p": new_ora_partenza,
                 "ora_a": new_ora_arrivo,
                 "km_f": new_km_finali,
-                "note": new_note
+                "note": new_note,
+                "pos_parch": pos_parch_clean
             })
+
+            if pos_parch_clean:
+                conn.execute(text("UPDATE automezzi SET posizione_parcheggio = :pos_parch WHERE automezzo_id = :aid"), {"pos_parch": pos_parch_clean, "aid": aid})
 
             if new_km_finali is not None:
                 max_km = conn.execute(text("SELECT MAX(COALESCE(km_finali, km_iniziali)) FROM viaggi_automezzi WHERE automezzo_id = :aid"), {"aid": aid}).scalar()

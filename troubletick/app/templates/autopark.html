@@ -306,7 +306,8 @@
                             </div>
                             <div class="form-text mt-2 text-primary d-none" id="vehicleInfoBox">
                                 <i class="bi bi-speedometer2"></i> Odometro attuale: <strong id="vehicleKmText">--</strong> km<br>
-                                <i class="bi bi-geo-alt-fill"></i> Posizione attuale: <strong id="vehicleSedeText">--</strong>
+                                <i class="bi bi-geo-alt-fill"></i> Sede attuale: <strong id="vehicleSedeText">--</strong>
+                                <span id="vehiclePosizioneRow" class="d-none"><br><i class="bi bi-pin-map-fill text-danger"></i> Posizione / Stallo: <strong id="vehiclePosizioneText" class="text-dark">--</strong></span>
                             </div>
                             <div class="alert alert-danger border-danger border-2 rounded-3 mt-3 d-none" id="noVehicleAlertBox" role="alert">
                                 <div class="d-flex align-items-start">
@@ -501,6 +502,10 @@
                                                                 {% endfor %}
                                                             </select>
                                                         </div>
+                                                        <div class="col-md-6 mb-2">
+                                                            <label class="form-label small fw-bold mb-1">Posizione / Stallo Parcheggio</label>
+                                                            <input type="text" name="posizione_parcheggio" class="form-control form-control-sm" placeholder="Es. Stallo 4 cortile interno">
+                                                        </div>
                                                         <div class="col-12 mb-2">
                                                             <label class="form-label small fw-bold mb-1">Nota Viaggio</label>
                                                             <textarea name="note" class="form-control form-control-sm" rows="2" placeholder="Note facoltative">{{ p.note or '' }}</textarea>
@@ -577,6 +582,9 @@
                                         {% endif %}
                                         <td class="text-wrap small text-muted" style="max-width: 150px;">
                                             {{ p.note or '-' }}
+                                            {% if p.posizione_parcheggio %}
+                                                <br><span class="badge bg-light text-dark border small mt-1"><i class="bi bi-pin-map-fill text-danger me-1"></i>{{ p.posizione_parcheggio }}</span>
+                                            {% endif %}
                                         </td>
                                         <td class="text-end">
                                             <div class="d-inline-flex gap-2 align-items-center">
@@ -594,6 +602,7 @@
                                                         data-sede-partenza-nome="{{ p.sede_partenza_nome or '-' }}"
                                                         data-sede-arrivo-nome="{{ p.sede_arrivo_nome or p.sede_partenza_nome or '-' }}"
                                                         data-note="{{ (p.note or '') | e }}"
+                                                        data-posizione-parcheggio="{{ (p.posizione_parcheggio or '') | e }}"
                                                         onclick="openEditTripModal(this)"
                                                         title="Modifica dettagli del viaggio registrato">
                                                     <i class="bi bi-pencil-square"></i> Modifica
@@ -814,6 +823,7 @@
                 opt.setAttribute("data-km", v.km_attuali);
                 opt.setAttribute("data-sede", v.sede_attuale_nome || "Tutte le Sedi");
                 opt.setAttribute("data-sede-id", v.sede_attuale_id || 0);
+                opt.setAttribute("data-posizione", v.posizione_parcheggio || "");
                 
                 const is_available = (v.stato === 'Disponibile' && v.escluso_prenotazione === 0);
                 const overlap = hasBookingOverlap(v.automezzo_id, selectedDate, selectedOraP, selectedOraR);
@@ -857,6 +867,15 @@
             if (selectedOpt && selectedOpt.value) {
                 if (vehicleKmText) vehicleKmText.textContent = selectedOpt.getAttribute("data-km");
                 if (vehicleSedeText) vehicleSedeText.textContent = selectedOpt.getAttribute("data-sede") || "Non specificata";
+                const posParch = selectedOpt.getAttribute("data-posizione");
+                const posRow = document.getElementById("vehiclePosizioneRow");
+                const posText = document.getElementById("vehiclePosizioneText");
+                if (posParch && posParch.trim()) {
+                    if (posText) posText.textContent = posParch;
+                    if (posRow) posRow.classList.remove("d-none");
+                } else {
+                    if (posRow) posRow.classList.add("d-none");
+                }
                 if (vehicleInfoBox) vehicleInfoBox.classList.remove("d-none");
             } else {
                 if (vehicleInfoBox) vehicleInfoBox.classList.add("d-none");
@@ -900,9 +919,18 @@
                     const km = selectedOption.getAttribute("data-km");
                     const sedeNome = selectedOption.getAttribute("data-sede");
                     const vehicleSedeId = selectedOption.getAttribute("data-sede-id");
+                    const posParch = selectedOption.getAttribute("data-posizione");
                     
                     if (vehicleKmText) vehicleKmText.textContent = km;
                     if (vehicleSedeText) vehicleSedeText.textContent = sedeNome || "Non specificata";
+                    const posRow = document.getElementById("vehiclePosizioneRow");
+                    const posText = document.getElementById("vehiclePosizioneText");
+                    if (posParch && posParch.trim()) {
+                        if (posText) posText.textContent = posParch;
+                        if (posRow) posRow.classList.remove("d-none");
+                    } else {
+                        if (posRow) posRow.classList.add("d-none");
+                    }
                     if (vehicleInfoBox) vehicleInfoBox.classList.remove("d-none");
                     
                     if (sedeSelect && !sedeSelect.value && vehicleSedeId && parseInt(vehicleSedeId) > 0) {
@@ -1016,6 +1044,7 @@
         const sedePartenzaNome = btn.dataset.sedePartenzaNome;
         const sedeArrivoNome = btn.dataset.sedeArrivoNome;
         const note = btn.dataset.note;
+        const posParch = btn.dataset.posizioneParcheggio;
 
         const form = document.getElementById('editTripForm');
         form.action = `/autopark/modifica/${tripId}`;
@@ -1031,6 +1060,8 @@
         document.getElementById('editTripSedePartenzaDisplay').value = sedePartenzaNome || '-';
         document.getElementById('editTripSedeArrivoDisplay').value = sedeArrivoNome || '-';
         document.getElementById('editTripNote').value = note || '';
+        const editPosEl = document.getElementById('editTripPosizioneParcheggio');
+        if (editPosEl) editPosEl.value = posParch || '';
 
         const modalEl = document.getElementById('editTripModal');
         const modal = bootstrap.Modal.getOrCreateInstance(modalEl);
@@ -1117,6 +1148,11 @@
                         <div class="col-md-4">
                             <label class="form-label small fw-bold text-success mb-1"><i class="bi bi-speedometer2 me-1"></i>KM Arrivo / Rientro</label>
                             <input type="number" name="km_finali" id="editTripKmFinali" class="form-control" min="0" placeholder="Es. 45200">
+                        </div>
+
+                        <div class="col-12">
+                            <label class="form-label small fw-bold text-primary mb-1"><i class="bi bi-pin-map-fill text-danger me-1"></i>Posizione / Stallo Parcheggio</label>
+                            <input type="text" name="posizione_parcheggio" id="editTripPosizioneParcheggio" class="form-control" placeholder="Es. Stallo 4 cortile interno">
                         </div>
 
                         <div class="col-12">
