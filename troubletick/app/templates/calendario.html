@@ -114,12 +114,30 @@
                         <button type="submit" class="btn btn-primary w-100">Salva Assenza</button>
                     </form>
                 </div>
+
+                <!-- Box Informativo Report Copertura -->
+                {% if user.ruolo in ('assistenza', 'responsabile', 'admin') %}
+                <div class="card border-primary border-opacity-25 bg-primary bg-opacity-10 rounded-3 shadow-sm p-3 mb-4">
+                    <div class="d-flex align-items-start">
+                        <i class="bi bi-calendar-check-fill text-primary fs-5 me-2 mt-1"></i>
+                        <div>
+                            <h6 class="fw-bold text-primary mb-1">Verifica Copertura Servizi</h6>
+                            <p class="small text-dark mb-2">
+                                Consulta il <a href="/admin/report-copertura" class="fw-bold text-primary text-decoration-underline">Report Copertura Personale</a> per verificare i giorni in cui è possibile assentarsi senza rischiare di scoprire i servizi assegnati.
+                            </p>
+                            <a href="/admin/report-copertura" class="btn btn-sm btn-outline-primary fw-bold">
+                                <i class="bi bi-grid-3x3-gap me-1"></i> Apri Report Copertura
+                            </a>
+                        </div>
+                    </div>
+                </div>
+                {% endif %}
             </div>
         </div>
         <div class="alert alert-info mt-4 small shadow-sm">
             <i class="bi bi-info-circle-fill me-1"></i> <strong>Guida rapida:</strong> Utilizza questo calendario per
-            inserire esclusivamente i giorni di **assenza dal lavoro** . Per gestire lo smartworking, le presenze presso
-            altre sedi aziendali o la partecipazione a corsi di formazione, utilizza il <a href="/calendario-presenze"
+            inserire esclusivamente i giorni di <strong>assenza dal lavoro</strong>. Prima di pianificare un'assenza, consulta il <a href="/admin/report-copertura"
+                class="fw-bold text-decoration-underline">Report Copertura Personale</a> per verificare i giorni in cui è possibile assentarsi senza scoprire i servizi assegnati. Per gestire lo smartworking, le presenze presso altre sedi aziendali o la partecipazione a corsi di formazione, utilizza il <a href="/calendario-presenze"
                 class="fw-bold text-decoration-none">Calendario Presenze</a>.
         </div>
     </div>

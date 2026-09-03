@@ -85,27 +85,30 @@
     <table class="table table-report table-sm table-hover" style="width: max-content; min-width: 100%;">
         <thead class="table-light">
             <tr>
-                <th class="text-start" style="width: 200px; min-width: 200px; max-width: 200px;">Reparto / Servizio</th>
-                {% for d in days_range %}
-                <th style="width: 30px; min-width: 30px;">{{ d }}</th>
+                <th class="text-start" style="width: 220px; min-width: 220px; max-width: 220px;">Reparto / Servizio</th>
+                {% for d in giorni_lavorativi %}
+                <th style="width: 42px; min-width: 42px; text-align: center; padding: 4px 2px;">
+                    <span class="d-block text-muted text-uppercase fw-semibold" style="font-size: 0.68rem; line-height: 1.1;">{{ d.giorno_settimana }}</span>
+                    <span class="fw-bold text-dark" style="font-size: 0.85rem; line-height: 1.1;">{{ d.giorno }}</span>
+                </th>
                 {% endfor %}
             </tr>
         </thead>
         <tbody>
             {% if not report_data or report_data|length == 0 %}
             <tr>
-                <td colspan="{{ num_days + 1 }}" class="text-center py-4 text-muted">
+                <td colspan="{{ (giorni_lavorativi|length) + 1 }}" class="text-center py-4 text-muted">
                     <i class="bi bi-info-circle me-1"></i> Nessun servizio o reparto collegato trovato per il periodo selezionato.
                 </td>
             </tr>
             {% endif %}
             {% for rep in report_data %}
-            <tr class="table-secondary"><td colspan="{{ num_days + 1 }}" class="text-start fw-bold">{{ rep.reparto }}</td></tr>
+            <tr class="table-secondary"><td colspan="{{ (giorni_lavorativi|length) + 1 }}" class="text-start fw-bold">{{ rep.reparto }}</td></tr>
                 {% for serv in rep.servizi %}
                 <tr>
-                    <td class="text-start ps-4">{{ serv.descrizione }}</td>
+                    <td class="text-start ps-4 fw-medium">{{ serv.descrizione }}</td>
                     {% for c in serv.copertura %}
-                    <td class="{% if c.presenti == 0 %}cell-zero{% endif %}" title="{{ c.tooltip }} ({{ c.presenti }} su {{ c.totale }})">{{ c.presenti }}</td>
+                    <td class="{% if c.presenti == 0 %}cell-zero{% endif %}" title="{{ c.giorno_settimana }} {{ c.giorno }}: {{ c.tooltip }} ({{ c.presenti }} presenti su {{ c.totale }})">{{ c.presenti }}</td>
                     {% endfor %}
                 </tr>
                 {% endfor %}

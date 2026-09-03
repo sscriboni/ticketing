@@ -2216,27 +2216,54 @@ def report_copertura(r: Request, mese: int = None, anno: int = None, reparto_id:
                 
         start_date = f"{anno}-{mese:02d}-01"
         end_date = f"{anno}-{mese:02d}-{num_days:02d}"
+
+        fest_rows = c.execute(text("""
+            SELECT data FROM festivita 
+            WHERE data >= :start AND data <= :end
+        """), {"start": start_date, "end": end_date}).mappings().all()
+        festivita_dates = {r["data"] for r in fest_rows}
+
+        short_wd_names = ["Lun", "Mar", "Mer", "Gio", "Ven", "Sab", "Dom"]
+        giorni_lavorativi = []
+        for day_num in range(1, num_days + 1):
+            cur_dt = date(anno, mese, day_num)
+            cur_dt_str = cur_dt.isoformat()
+            if cur_dt.weekday() in (5, 6) or cur_dt_str in festivita_dates:
+                continue
+            giorni_lavorativi.append({
+                "giorno": day_num,
+                "data_str": cur_dt_str,
+                "giorno_settimana": short_wd_names[cur_dt.weekday()]
+            })
+
         assenze_rows = c.execute(text("""
             SELECT user_id, data_inizio, data_fine FROM assenze
             WHERE data_inizio <= :end AND data_fine >= :start
         """), {"start": start_date, "end": end_date}).mappings().all()
         
-        absent_on_day = {d: set() for d in range(1, num_days + 1)}
+        absent_on_day = {d["giorno"]: set() for d in giorni_lavorativi}
         for a in assenze_rows:
-            for d in range(1, num_days + 1):
-                if a["data_inizio"] <= f"{anno}-{mese:02d}-{d:02d}" <= a["data_fine"]:
-                    absent_on_day[d].add(a["user_id"])
+            for d in giorni_lavorativi:
+                if a["data_inizio"] <= d["data_str"] <= a["data_fine"]:
+                    absent_on_day[d["giorno"]].add(a["user_id"])
         
         report_data = []
         for r_nome, servizi in reparti_dict.items():
             rep_data = {"reparto": r_nome, "servizi": []}
             for s_desc, users in servizi.items():
                 copertura = []
-                for d in range(1, num_days + 1):
-                    present_users_ids = users - absent_on_day[d]
+                for d in giorni_lavorativi:
+                    day_num = d["giorno"]
+                    present_users_ids = users - absent_on_day[day_num]
                     present_names = sorted([user_names[uid] for uid in present_users_ids if uid in user_names])
                     tooltip = ", ".join(present_names) if present_names else "Nessuno"
-                    copertura.append({"giorno": d, "presenti": len(present_users_ids), "totale": len(users), "tooltip": tooltip})
+                    copertura.append({
+                        "giorno": day_num,
+                        "giorno_settimana": d["giorno_settimana"],
+                        "presenti": len(present_users_ids),
+                        "totale": len(users),
+                        "tooltip": tooltip
+                    })
                 rep_data["servizi"].append({"descrizione": s_desc, "copertura": copertura})
             report_data.append(rep_data)
             
@@ -2249,8 +2276,7 @@ def report_copertura(r: Request, mese: int = None, anno: int = None, reparto_id:
         "anno": anno, 
         "mese": mese, 
         "nome_mese": mesi_nomi[mese-1], 
-        "num_days": num_days, 
-        "days_range": list(range(1, num_days + 1)),
+        "giorni_lavorativi": giorni_lavorativi,
         "reparti_list": reparti_list,
         "selected_reparto_id": target_reparto_id,
         "operatori_list": operatori_list,
