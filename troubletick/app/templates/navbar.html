@@ -254,14 +254,13 @@
 
           {% if cfg.get('modulo_presenze', True) %}
           <li class="nav-item dropdown">
-            <a class="nav-link dropdown-toggle {% if request.url.path.startswith('/calendario') or request.url.path.startswith('/copertura-servizi') or request.url.path.startswith('/assenze-mese') or request.url.path == '/servizi-assegnati' or request.url.path == '/admin/report-copertura' %}active fw-bold{% endif %}" href="#" id="presenzeDropdown" role="button" data-bs-toggle="dropdown" aria-expanded="false">
+            <a class="nav-link dropdown-toggle {% if request.url.path.startswith('/calendario') or request.url.path.startswith('/copertura-servizi') or request.url.path.startswith('/assenze-mese') or request.url.path == '/servizi-assegnati' %}active fw-bold{% endif %}" href="#" id="presenzeDropdown" role="button" data-bs-toggle="dropdown" aria-expanded="false">
               <i class="bi bi-calendar-check"></i> Presenze
             </a>
             <ul class="dropdown-menu shadow" aria-labelledby="presenzeDropdown">
               <li><a class="dropdown-item" href="/calendario"><i class="bi bi-calendar3 me-2"></i>Calendario Assenze</a></li>
               <li><a class="dropdown-item" href="/calendario-presenze"><i class="bi bi-calendar-event me-2"></i>Calendario Presenze</a></li>
               <li><a class="dropdown-item" href="/copertura-servizi"><i class="bi bi-calendar-check me-2"></i>Verifica copertura Servizi</a></li>
-              <li><a class="dropdown-item" href="/admin/report-copertura"><i class="bi bi-grid-3x3-gap me-2"></i>Report Copertura Reparto</a></li>
               <li><a class="dropdown-item" href="/assenze-mese"><i class="bi bi-calendar-range me-2"></i>Calendario di Reparto</a></li>
               <li><hr class="dropdown-divider"></li>
               <li><a class="dropdown-item" href="/servizi-assegnati"><i class="bi bi-person-check me-2"></i>Servizi assegnati</a></li>
@@ -287,11 +286,10 @@
           </li>
 
           <li class="nav-item dropdown">
-            <a class="nav-link dropdown-toggle {% if request.url.path == '/admin/report-copertura' or request.url.path == '/magazzini/report' %}active fw-bold{% endif %}" href="#" id="reportDropdown" role="button" data-bs-toggle="dropdown" aria-expanded="false">
+            <a class="nav-link dropdown-toggle {% if request.url.path == '/magazzini/report' or request.url.path == '/magazzini/report-movimentazione' %}active fw-bold{% endif %}" href="#" id="reportDropdown" role="button" data-bs-toggle="dropdown" aria-expanded="false">
               <i class="bi bi-bar-chart"></i> Report
             </a>
             <ul class="dropdown-menu shadow" aria-labelledby="reportDropdown">
-              <li><a class="dropdown-item" href="/admin/report-copertura">Copertura Personale</a></li>
               <li><a class="dropdown-item" href="/magazzini/report">Stato Magazzini</a></li>
               <li><a class="dropdown-item" href="/magazzini/report-movimentazione">Report Movimentazione Scarichi</a></li>
             </ul>
@@ -343,13 +341,13 @@
 
           {% if cfg.get('modulo_presenze', True) %}
           <li class="nav-item dropdown">
-            <a class="nav-link dropdown-toggle {% if request.url.path.startswith('/calendario') or request.url.path.startswith('/copertura-servizi') or request.url.path.startswith('/assenze-mese') or request.url.path == '/servizi-assegnati' %}active fw-bold{% endif %}" href="#" id="presenzeDropdown" role="button" data-bs-toggle="dropdown" aria-expanded="false">
+            <a class="nav-link dropdown-toggle {% if request.url.path.startswith('/calendario') or request.url.path.startswith('/assenze-mese') or request.url.path == '/servizi-assegnati' or request.url.path == '/admin/report-copertura' or request.url.path == '/report-copertura' %}active fw-bold{% endif %}" href="#" id="presenzeDropdown" role="button" data-bs-toggle="dropdown" aria-expanded="false">
               <i class="bi bi-calendar-check"></i> Presenze
             </a>
             <ul class="dropdown-menu shadow" aria-labelledby="presenzeDropdown">
               <li><a class="dropdown-item" href="/calendario"><i class="bi bi-calendar3 me-2"></i>Calendario Assenze</a></li>
               <li><a class="dropdown-item" href="/calendario-presenze"><i class="bi bi-calendar-event me-2"></i>Calendario Presenze</a></li>
-              <li><a class="dropdown-item" href="/copertura-servizi"><i class="bi bi-calendar-check me-2"></i>Verifica copertura Servizi</a></li>
+              <li><a class="dropdown-item" href="/admin/report-copertura"><i class="bi bi-grid-3x3-gap me-2"></i>Report Copertura Personale</a></li>
               <li><a class="dropdown-item" href="/assenze-mese"><i class="bi bi-calendar-range me-2"></i>Calendario di Reparto</a></li>
               <li><hr class="dropdown-divider"></li>
               <li><a class="dropdown-item" href="/servizi-assegnati"><i class="bi bi-person-check me-2"></i>Servizi assegnati</a></li>

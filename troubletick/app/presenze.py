@@ -225,6 +225,8 @@ def copertura_servizi(r: Request, mese: int = None, anno: int = None, reparto_id
         return RedirectResponse(url="/")
     if "user" not in r.session: return RedirectResponse(url="/login")
     user = r.session.get("user")
+    if user.get("ruolo") not in ("admin", "responsabile"):
+        return RedirectResponse(url="/tickets")
     
     today = date.today()
     if mese is None:

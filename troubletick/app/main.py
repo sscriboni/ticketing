@@ -2104,13 +2104,14 @@ def test_email(r: Request,
         return {"status": "error", "message": str(e)}
 
 @app.get("/admin/report-copertura", response_class=HTMLResponse)
+@app.get("/report-copertura", response_class=HTMLResponse)
 def report_copertura(r: Request, mese: int = None, anno: int = None):
     if not CFG.get('modulo_presenze', True):
         return RedirectResponse(url="/")
     user = current_user(r)
     if not user:
         return RedirectResponse(url="/login")
-    if user.get("ruolo") not in ("admin", "responsabile"):
+    if user.get("ruolo") not in ("assistenza", "admin"):
         return RedirectResponse(url="/tickets")
         
     import calendar
@@ -2124,11 +2125,15 @@ def report_copertura(r: Request, mese: int = None, anno: int = None):
     with engine.connect() as c:
         where_rep = ""
         params = {}
-        if user.get("ruolo") == "responsabile":
-            rep_id = c.execute(text("SELECT reparto_id FROM users WHERE user_id = :uid"), {"uid": user.get("id")}).scalar()
+        if user.get("ruolo") == "assistenza":
+            rep_id = user.get("reparto_id") or c.execute(text("SELECT reparto_id FROM users WHERE user_id = :uid"), {"uid": user.get("id")}).scalar()
             if rep_id:
-                where_rep = "WHERE r.reparto_id = :rep_id"
+                where_rep = "WHERE r.reparto_id = :rep_id AND s.servizio_id IN (SELECT servizio_id FROM operatori_servizi WHERE user_id = :uid)"
                 params["rep_id"] = rep_id
+                params["uid"] = user.get("id")
+            else:
+                where_rep = "WHERE s.servizio_id IN (SELECT servizio_id FROM operatori_servizi WHERE user_id = :uid)"
+                params["uid"] = user.get("id")
                 
         rows = c.execute(text("""
             SELECT s.servizio_id, s.descrizione as servizio_desc, 

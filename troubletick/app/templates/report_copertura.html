@@ -14,6 +14,7 @@
     <h2>Report Copertura Personale</h2>
 </div>
 
+{% if user.ruolo == 'admin' %}
 <ul class="nav nav-pills mb-4">
   <li class="nav-item">
     <a class="nav-link text-primary" href="/copertura-servizi"><i class="bi bi-calendar3 me-2"></i>Vista Calendario</a>
@@ -22,6 +23,7 @@
     <a class="nav-link active" href="/admin/report-copertura"><i class="bi bi-grid-3x3-gap me-2"></i>Vista Tabellare (Report)</a>
   </li>
 </ul>
+{% endif %}
 
 <div class="bg-white p-4 rounded shadow-sm mb-4">
     <form method="get" action="/admin/report-copertura" class="row g-3 align-items-end">
@@ -55,6 +57,13 @@
             </tr>
         </thead>
         <tbody>
+            {% if not report_data or report_data|length == 0 %}
+            <tr>
+                <td colspan="{{ num_days + 1 }}" class="text-center py-4 text-muted">
+                    <i class="bi bi-info-circle me-1"></i> Nessun servizio o reparto collegato trovato per il periodo selezionato.
+                </td>
+            </tr>
+            {% endif %}
             {% for rep in report_data %}
             <tr class="table-secondary"><td colspan="{{ num_days + 1 }}" class="text-start fw-bold">{{ rep.reparto }}</td></tr>
                 {% for serv in rep.servizi %}
