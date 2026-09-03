@@ -2225,15 +2225,28 @@ def report_copertura(r: Request, mese: int = None, anno: int = None, reparto_id:
 
         short_wd_names = ["Lun", "Mar", "Mer", "Gio", "Ven", "Sab", "Dom"]
         giorni_lavorativi = []
+        is_current_month = (anno == oggi.year and mese == oggi.month)
+
+        last_week_num = None
         for day_num in range(1, num_days + 1):
             cur_dt = date(anno, mese, day_num)
             cur_dt_str = cur_dt.isoformat()
             if cur_dt.weekday() in (5, 6) or cur_dt_str in festivita_dates:
                 continue
+
+            week_num = cur_dt.isocalendar()[1]
+            is_first_day_of_week = (last_week_num is not None and week_num != last_week_num)
+            last_week_num = week_num
+            is_today = is_current_month and (day_num == oggi.day)
+
             giorni_lavorativi.append({
                 "giorno": day_num,
                 "data_str": cur_dt_str,
-                "giorno_settimana": short_wd_names[cur_dt.weekday()]
+                "giorno_settimana": short_wd_names[cur_dt.weekday()],
+                "week_num": week_num,
+                "is_even_week": (week_num % 2 == 0),
+                "is_first_day_of_week": is_first_day_of_week,
+                "is_today": is_today
             })
 
         assenze_rows = c.execute(text("""
@@ -2260,6 +2273,10 @@ def report_copertura(r: Request, mese: int = None, anno: int = None, reparto_id:
                     copertura.append({
                         "giorno": day_num,
                         "giorno_settimana": d["giorno_settimana"],
+                        "week_num": d["week_num"],
+                        "is_even_week": d["is_even_week"],
+                        "is_first_day_of_week": d["is_first_day_of_week"],
+                        "is_today": d["is_today"],
                         "presenti": len(present_users_ids),
                         "totale": len(users),
                         "tooltip": tooltip

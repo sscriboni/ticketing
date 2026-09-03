@@ -3,8 +3,48 @@
 <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css">
 <style>
     .cell-zero { background-color: #dc3545 !important; color: white !important; font-weight: bold; }
-    .table-report th, .table-report td { text-align: center; vertical-align: middle; border: 1px solid #dee2e6; padding: 0.3rem;}
+    .table-report th, .table-report td { text-align: center; vertical-align: middle; border: 1px solid #dee2e6; padding: 0.35rem 0.2rem;}
     .table-report .text-start { text-align: left; }
+    
+    /* Differenziazione settimane */
+    .th-week-odd { background-color: #f8fafc !important; }
+    .th-week-even { background-color: #e2e8f0 !important; }
+    .td-week-odd { background-color: #ffffff; }
+    .td-week-even { background-color: #f8fafc; }
+    
+    /* Bordo separatore inizio settimana */
+    .week-start-border { border-left: 2.5px solid #64748b !important; }
+    
+    /* Evidenziazione Giorno Attuale (Oggi) */
+    .th-today { 
+        background: linear-gradient(180deg, #1d4ed8 0%, #2563eb 100%) !important; 
+        color: #ffffff !important; 
+        border-left: 2.5px solid #1e40af !important; 
+        border-right: 2.5px solid #1e40af !important;
+        box-shadow: inset 0 0 0 1px #60a5fa;
+    }
+    .badge-today {
+        background-color: #facc15;
+        color: #78350f;
+        font-size: 0.6rem;
+        padding: 1px 4px;
+        border-radius: 4px;
+        font-weight: 800;
+        text-transform: uppercase;
+        display: inline-block;
+        margin-bottom: 2px;
+    }
+    .td-today { 
+        border-left: 2.5px solid #2563eb !important; 
+        border-right: 2.5px solid #2563eb !important;
+        background-color: #eff6ff !important;
+        font-weight: bold;
+        color: #1e40af;
+    }
+    .td-today.cell-zero {
+        background-color: #dc3545 !important;
+        color: #ffffff !important;
+    }
 </style>
 </head>
 <body class="bg-light">
@@ -87,9 +127,13 @@
             <tr>
                 <th class="text-start" style="width: 220px; min-width: 220px; max-width: 220px;">Reparto / Servizio</th>
                 {% for d in giorni_lavorativi %}
-                <th style="width: 42px; min-width: 42px; text-align: center; padding: 4px 2px;">
-                    <span class="d-block text-muted text-uppercase fw-semibold" style="font-size: 0.68rem; line-height: 1.1;">{{ d.giorno_settimana }}</span>
-                    <span class="fw-bold text-dark" style="font-size: 0.85rem; line-height: 1.1;">{{ d.giorno }}</span>
+                <th style="width: 44px; min-width: 44px; text-align: center; padding: 4px 2px;" 
+                    class="{% if d.is_today %}th-today{% elif d.is_even_week %}th-week-even{% else %}th-week-odd{% endif %} {% if d.is_first_day_of_week and not d.is_today %}week-start-border{% endif %}">
+                    {% if d.is_today %}
+                        <span class="badge-today">Oggi</span>
+                    {% endif %}
+                    <span class="d-block {% if d.is_today %}text-white-50{% else %}text-muted{% endif %} text-uppercase fw-semibold" style="font-size: 0.65rem; line-height: 1;">{{ d.giorno_settimana }}</span>
+                    <span class="fw-bold {% if d.is_today %}text-white{% else %}text-dark{% endif %}" style="font-size: 0.85rem; line-height: 1.1;">{{ d.giorno }}</span>
                 </th>
                 {% endfor %}
             </tr>
@@ -108,7 +152,10 @@
                 <tr>
                     <td class="text-start ps-4 fw-medium">{{ serv.descrizione }}</td>
                     {% for c in serv.copertura %}
-                    <td class="{% if c.presenti == 0 %}cell-zero{% endif %}" title="{{ c.giorno_settimana }} {{ c.giorno }}: {{ c.tooltip }} ({{ c.presenti }} presenti su {{ c.totale }})">{{ c.presenti }}</td>
+                    <td class="{% if c.presenti == 0 %}cell-zero{% endif %} {% if c.is_today %}td-today{% elif c.is_even_week %}td-week-even{% else %}td-week-odd{% endif %} {% if c.is_first_day_of_week and not c.is_today %}week-start-border{% endif %}" 
+                        title="{% if c.is_today %}[OGGI] {% endif %}{{ c.giorno_settimana }} {{ c.giorno }}: {{ c.tooltip }} ({{ c.presenti }} presenti su {{ c.totale }})">
+                        {{ c.presenti }}
+                    </td>
                     {% endfor %}
                 </tr>
                 {% endfor %}
@@ -117,6 +164,11 @@
     </table>
 </div>
 <div class="alert alert-info mt-4 small shadow-sm">
-    <i class="bi bi-info-circle-fill me-1"></i> <strong>Guida rapida:</strong> Il report incrocia gli operatori assegnati a ciascun servizio con il calendario delle assenze. In rosso sono evidenziati i giorni in cui un determinato servizio risulta "scoperto" (0 operatori disponibili). È uno strumento fondamentale per pianificare le ferie del team.
+    <i class="bi bi-info-circle-fill me-1"></i> <strong>Legenda e Guida rapida:</strong>
+    <ul class="mb-0 mt-1 ps-3">
+        <li><span class="badge bg-primary me-1">Oggi</span> La colonna evidenziata con stacco cromatico indica il <strong>giorno corrente</strong> del mese in corso.</li>
+        <li>Le diverse tonalità di sfondo e le linee separano chiaramente le <strong>settimane lavorative</strong>.</li>
+        <li>In <span class="badge bg-danger">Rosso</span> sono evidenziati i giorni in cui un determinato servizio risulta <strong>scoperto</strong> (0 operatori disponibili). Passa con il mouse su ciascuna cella per consultare i colleghi presenti.</li>
+    </ul>
 </div>
 </div></body></html>
