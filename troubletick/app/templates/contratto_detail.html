@@ -122,7 +122,7 @@
                             </div>
                         </div>
                         <div class="text-lg-end bg-light p-3 rounded border">
-                            <div class="info-label">Valore Economico Totale</div>
+                            <div class="info-label">Valore Economico Totale (IVA escl.)</div>
                             <div class="h3 fw-bold text-primary mb-0">€ {{ "%.2f"|format(totale_costo) }}</div>
                             {% if totale_giornate and totale_giornate > 0 %}
                             <div class="small text-muted fw-semibold mt-1">
@@ -207,8 +207,8 @@
                                     <th class="ps-3" style="width: {% if can_edit %}35%{% else %}40%{% endif %};">Descrizione Modulo / Servizio</th>
                                     <th style="width: {% if can_edit %}20%{% else %}24%{% endif %};">Servizio Collegato</th>
                                     <th style="width: 12%;" class="text-center">Giornate</th>
-                                    <th style="width: 13%;" class="text-end">Costo GG</th>
-                                    <th style="width: {% if can_edit %}12%{% else %}15%{% endif %};" class="text-end">Importo Totale</th>
+                                    <th style="width: 13%;" class="text-end">Costo GG (IVA escl.)</th>
+                                    <th style="width: {% if can_edit %}12%{% else %}15%{% endif %};" class="text-end">Importo (IVA escl.)</th>
                                     {% if can_edit %}
                                     <th style="width: 8%;" class="text-end pe-3">Azioni</th>
                                     {% endif %}
@@ -284,7 +284,7 @@
                             {% if moduli %}
                             <tfoot class="table-light fw-bold border-top">
                                 <tr>
-                                    <td class="ps-3" colspan="2">Totale Quadro Economico Fornitura</td>
+                                    <td class="ps-3" colspan="2">Totale Quadro Economico Fornitura (IVA esclusa)</td>
                                     <td class="text-center">
                                         {% if totale_giornate > 0 %}{{ "%.1f"|format(totale_giornate) }} gg{% endif %}
                                     </td>
@@ -407,7 +407,7 @@
                 <div class="modal-body p-4">
                     <div class="alert alert-light border small text-muted mb-3 py-2">
                         <i class="bi bi-info-circle text-primary me-1"></i>
-                        I moduli rappresentano i capitoli o servizi del capitolato che hanno un <strong>costo economico definito</strong> (a canone forfettario o a giornate/tariffa).
+                        I moduli rappresentano i capitoli o servizi del capitolato che hanno un <strong>costo economico definito</strong> (importi da intendersi <strong>IVA esclusa</strong>).
                     </div>
                     <div class="row g-3">
                         <div class="col-12 col-md-8">
@@ -430,12 +430,12 @@
                         </div>
 
                         <div class="col-6 col-md-4">
-                            <label class="form-label small fw-bold">Costo Giornaliero (€)</label>
+                            <label class="form-label small fw-bold">Costo Giornaliero (€ - IVA escl.)</label>
                             <input type="number" step="0.01" id="add_costo_gg" name="costo_giornaliero" class="form-control" placeholder="Es. 400.00" oninput="calcAddCosto()">
                         </div>
 
                         <div class="col-12 col-md-4">
-                            <label class="form-label small fw-bold">Costo Totale (€) <span class="text-danger">*</span></label>
+                            <label class="form-label small fw-bold">Costo Totale (€ - IVA escl.) <span class="text-danger">*</span></label>
                             <input type="number" step="0.01" id="add_costo_tot" name="costo" class="form-control" placeholder="Es. 6000.00" required>
                         </div>
 
@@ -486,12 +486,12 @@
                         </div>
 
                         <div class="col-6 col-md-4">
-                            <label class="form-label small fw-bold">Costo Giornaliero (€)</label>
+                            <label class="form-label small fw-bold">Costo Giornaliero (€ - IVA escl.)</label>
                             <input type="number" step="0.01" id="edit_costo_gg" name="costo_giornaliero" class="form-control" oninput="calcEditCosto()">
                         </div>
 
                         <div class="col-12 col-md-4">
-                            <label class="form-label small fw-bold">Costo Totale (€) <span class="text-danger">*</span></label>
+                            <label class="form-label small fw-bold">Costo Totale (€ - IVA escl.) <span class="text-danger">*</span></label>
                             <input type="number" step="0.01" id="edit_costo_tot" name="costo" class="form-control" required>
                         </div>
 

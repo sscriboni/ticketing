@@ -43,7 +43,7 @@
                 {% endif %}
             </div>
             <p class="text-muted small mb-0 mt-1">
-                Quadro economico complessivo e dettaglio modulare dei contratti di fornitura e manutenzione
+                Quadro economico complessivo e dettaglio modulare dei contratti di fornitura e manutenzione (importi <strong>IVA esclusa</strong>)
             </p>
         </div>
         <div class="d-flex gap-2 no-print flex-wrap">
@@ -142,9 +142,9 @@
             <div class="card border-0 shadow-sm kpi-card bg-white p-3 border-start border-4 border-success">
                 <div class="d-flex justify-content-between align-items-center">
                     <div>
-                        <div class="text-muted small text-uppercase fw-semibold">Totale Impegnato Sommato</div>
+                        <div class="text-muted small text-uppercase fw-semibold">Totale Impegnato Sommato <span class="fw-normal text-lowercase">(IVA escl.)</span></div>
                         <div class="h3 fw-bold mb-0 text-success">€ {{ "{:,.2f}".format(totale_costo_generale).replace(",", "X").replace(".", ",").replace("X", ".") }}</div>
-                        <div class="small text-muted mt-1">Valore economico totale moduli</div>
+                        <div class="small text-muted mt-1">Valore economico totale moduli (IVA escl.)</div>
                     </div>
                     <div class="p-3 bg-success bg-opacity-10 text-success rounded-circle">
                         <i class="bi bi-currency-euro fs-3"></i>
@@ -224,7 +224,7 @@
                             <tr>
                                 <th class="ps-3">Fornitore</th>
                                 <th class="text-center" style="width: 15%;">Contratti</th>
-                                <th class="text-end" style="width: 25%;">Totale Spesa</th>
+                                <th class="text-end" style="width: 25%;">Totale Spesa (IVA escl.)</th>
                                 <th style="width: 25%;" class="pe-3">% sul Totale</th>
                             </tr>
                         </thead>
@@ -277,7 +277,7 @@
                             <tr>
                                 <th class="ps-3">Reparto</th>
                                 <th class="text-center" style="width: 15%;">Contratti</th>
-                                <th class="text-end" style="width: 25%;">Totale Spesa</th>
+                                <th class="text-end" style="width: 25%;">Totale Spesa (IVA escl.)</th>
                                 <th style="width: 25%;" class="pe-3">% sul Totale</th>
                             </tr>
                         </thead>
@@ -330,7 +330,7 @@
                 <span class="text-muted small">Elenco analitico dei contratti con dettaglio di ciascun capitolo/modulo di costo</span>
             </div>
             <div class="badge bg-success bg-opacity-10 text-success fs-6 border border-success-subtle px-3 py-2">
-                Totale Complessivo: <strong>€ {{ "{:,.2f}".format(totale_costo_generale).replace(",", "X").replace(".", ",").replace("X", ".") }}</strong>
+                Totale Complessivo (IVA escl.): <strong>€ {{ "{:,.2f}".format(totale_costo_generale).replace(",", "X").replace(".", ",").replace("X", ".") }}</strong>
             </div>
         </div>
         <div class="card-body p-0 table-responsive">
@@ -341,8 +341,8 @@
                         <th style="width: 20%;">Fornitore / Servizio Collegato</th>
                         <th style="width: 15%;">Reparto & DEC</th>
                         <th class="text-center" style="width: 10%;">Giornate</th>
-                        <th class="text-end" style="width: 10%;">Tariffa / gg</th>
-                        <th class="text-end pe-3" style="width: 13%;">Importo Totale</th>
+                        <th class="text-end" style="width: 10%;">Tariffa / gg (IVA escl.)</th>
+                        <th class="text-end pe-3" style="width: 13%;">Importo (IVA escl.)</th>
                     </tr>
                 </thead>
                 <tbody>
@@ -385,7 +385,7 @@
                             </div>
                         </td>
                         <td class="text-end pe-3 py-2">
-                            <div class="small text-muted">Subtotale Contratto:</div>
+                            <div class="small text-muted">Subtotale Contratto (IVA escl.):</div>
                             <div class="fw-bold fs-6 text-success">
                                 € {{ "{:,.2f}".format(c.totale_costo).replace(",", "X").replace(".", ",").replace("X", ".") }}
                             </div>
@@ -458,7 +458,7 @@
                 <tfoot class="table-dark fw-bold border-top border-3">
                     <tr>
                         <td class="ps-3 py-3" colspan="3">
-                            <span class="fs-6 text-uppercase">Totale Generale Riepilogo Economico</span>
+                            <span class="fs-6 text-uppercase">Totale Generale Riepilogo Economico (IVA esclusa)</span>
                             <span class="small fw-normal text-secondary ms-2">({{ contratti|length }} contratti, {{ totale_moduli_generale }} moduli)</span>
                         </td>
                         <td class="text-center py-3">

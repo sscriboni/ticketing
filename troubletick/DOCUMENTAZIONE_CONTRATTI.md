@@ -31,11 +31,12 @@ Per garantire una gestione snella, ordinata ed efficace dei contratti, si raccom
 >
 > Compila **esclusivamente i campi noti** al momento dell'inserimento (ad esempio: *Titolo*, *Fornitore*, *Anno*). I codici formali come **CIG**, **CUP**, **Numero Contratto** o note integrative possono essere lasciati vuoti e compilati o aggiornati in qualsiasi momento successivo.
 
-### C. Cosa sono i Moduli: Capitoli del Capitolato con Costo Definito
+### C. Cosa sono i Moduli: Capitoli del Capitolato con Costo Definito (IVA Esclusa)
 > [!IMPORTANT]
 > I **Moduli di Fornitura** rappresentano i singoli **capitoli o servizi del capitolato di gara/fornitura che hanno un costo economico definito**.
->
-> * **Cosa inserire come modulo**: Servizi a canone fisso/forfettario (es. *"Canone manutenzione licenze software annuali - € 4.500,00"*) oppure prestazioni a consumo/giornate (es. *"Supporto specialistico sistemistico - 20 giornate a 350,00 €/giorno"*).
+> 
+> * **Importi IVA Esclusa**: Tutti gli importi economici registrati (costo totale della voce, costo giornaliero/orario e totale del contratto) si intendono **al netto di IVA (IVA esclusa)**.
+> * **Cosa inserire come modulo**: Servizi a canone fisso/forfettario (es. *"Canone manutenzione licenze software annuali - € 4.500,00 + IVA"*) oppure prestazioni a consumo/giornate (es. *"Supporto specialistico sistemistico - 20 giornate a 350,00 €/giorno + IVA"*).
 > * **Cosa evitare**: **Evitare di inserire moduli puramente descrittivi a costo zero (€ 0,00)**. Se un capitolo del capitolato contiene clausole di servizio o descrizioni tecniche senza un importo economico autonomo, inserisci tali note nel campo descrittivo generale del contratto anziché creare un modulo vuoto. I moduli servono a comporre e valorizzare il **quadro economico complessivo**.
 
 ### D. Anagrafica Fornitori: Inserimento Rapido con Ragione Sociale
@@ -77,13 +78,13 @@ Dalla scheda di dettaglio del contratto:
 1. Clicca su **"Aggiungi Modulo"**.
 2. Specifica la **Descrizione del capitolo di fornitura** (es. *"Assistenza On-Site su Chiamata"*).
 3. Opzionalmente collega una tipologia di servizio a catalogo.
-4. Definisci l'importo economico:
+4. Definisci l'importo economico (**IVA esclusa**):
    * **A tariffa oraria/giornaliera**: inserisci il numero di giornate stimate e il costo unitario giornaliero (il totale viene calcolato automaticamente).
    * **A canone fisso forfettario**: inserisci direttamente il costo totale della voce.
 
 ### Passo 4: Monitoraggio e Riepilogo Economico
 La scheda di dettaglio del contratto riepiloga automaticamente:
-* **Importo Totale Impegnato (€)** (somma dei moduli).
+* **Importo Totale Impegnato (€ - IVA esclusa)** (somma dei moduli).
 * **Totale Giornate Previste**.
 * **Scheda Fornitore** con contatti diretti di escalation e PEC.
 * **Badge di Stato** del contratto.
