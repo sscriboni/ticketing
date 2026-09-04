@@ -795,7 +795,27 @@ def get_pending_requests_count(user):
         pass
     return 0
 
+def get_incoming_transfers_count(user):
+    if not user or user.get("ruolo") == "normale":
+        return 0
+    try:
+        with engine.connect() as c:
+            uid = user.get("id")
+            if user.get("ruolo") == "admin":
+                return c.execute(text("SELECT COUNT(*) FROM trasferimenti WHERE stato = 'in_consegna'")).scalar() or 0
+            else:
+                user_mag_ids = c.execute(text("SELECT magazzino_id FROM operatori_magazzini WHERE user_id = :uid"), {"uid": uid}).scalars().all()
+                if not user_mag_ids:
+                    return 0
+                from sqlalchemy import bindparam
+                stmt = text("SELECT COUNT(*) FROM trasferimenti WHERE stato = 'in_consegna' AND magazzino_dest_id IN :mids").bindparams(bindparam("mids", expanding=True))
+                return c.execute(stmt, {"mids": list(user_mag_ids)}).scalar() or 0
+    except Exception:
+        pass
+    return 0
+
 templates.env.globals["get_pending_requests_count"] = get_pending_requests_count
+templates.env.globals["get_incoming_transfers_count"] = get_incoming_transfers_count
 templates.env.globals["user_has_tag_dec"] = contratti.user_has_tag_dec
 templates.env.globals["user_can_access_contratti"] = contratti.user_can_access_contratti
 

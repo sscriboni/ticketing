@@ -63,8 +63,10 @@
             <a class="nav-link dropdown-toggle {% if request.url.path.startswith('/magazzini') or request.url.path.startswith('/magazzino/') or request.url.path.startswith('/trasferimenti') or request.url.path.startswith('/richieste-materiale') or request.url.path.startswith('/log-magazzini') %}active fw-bold{% endif %}" href="#" id="magazzinoDropdown" role="button" data-bs-toggle="dropdown" aria-expanded="false">
               <i class="bi bi-boxes"></i> Magazzino
               {% set cnt_reqs = get_pending_requests_count(user) %}
-              {% if cnt_reqs > 0 %}
-              <span class="badge bg-danger rounded-pill ms-1">{{ cnt_reqs }}</span>
+              {% set cnt_trsf = get_incoming_transfers_count(user) %}
+              {% set total_mag_badge = cnt_reqs + cnt_trsf %}
+              {% if total_mag_badge > 0 %}
+              <span class="badge bg-danger rounded-pill ms-1">{{ total_mag_badge }}</span>
               {% endif %}
             </a>
             <ul class="dropdown-menu shadow" aria-labelledby="magazzinoDropdown">
@@ -77,7 +79,14 @@
                   {% endif %}
                 </a>
               </li>
-              <li><a class="dropdown-item" href="/trasferimenti">Trasferimenti tra Magazzini</a></li>
+              <li>
+                <a class="dropdown-item d-flex justify-content-between align-items-center" href="/trasferimenti">
+                  <span>Trasferimenti tra Magazzini</span>
+                  {% if cnt_trsf > 0 %}
+                  <span class="badge bg-warning text-dark rounded-pill ms-2">{{ cnt_trsf }}</span>
+                  {% endif %}
+                </a>
+              </li>
               <li><a class="dropdown-item" href="/log-magazzini">Log Magazzini</a></li>
               <li><a class="dropdown-item" href="/magazzini/report-movimentazione">Report Movimentazione Scarichi</a></li>
             </ul>
@@ -229,8 +238,10 @@
             <a class="nav-link dropdown-toggle {% if request.url.path.startswith('/magazzini') or request.url.path.startswith('/magazzino/') or request.url.path.startswith('/trasferimenti') or request.url.path.startswith('/richieste-materiale') or request.url.path.startswith('/log-magazzini') %}active fw-bold{% endif %}" href="#" id="magazzinoDropdown" role="button" data-bs-toggle="dropdown" aria-expanded="false">
               <i class="bi bi-boxes"></i> Magazzino
               {% set cnt_reqs = get_pending_requests_count(user) %}
-              {% if cnt_reqs > 0 %}
-              <span class="badge bg-danger rounded-pill ms-1">{{ cnt_reqs }}</span>
+              {% set cnt_trsf = get_incoming_transfers_count(user) %}
+              {% set total_mag_badge = cnt_reqs + cnt_trsf %}
+              {% if total_mag_badge > 0 %}
+              <span class="badge bg-danger rounded-pill ms-1">{{ total_mag_badge }}</span>
               {% endif %}
             </a>
             <ul class="dropdown-menu shadow" aria-labelledby="magazzinoDropdown">
@@ -243,7 +254,14 @@
                   {% endif %}
                 </a>
               </li>
-              <li><a class="dropdown-item" href="/trasferimenti">Trasferimenti tra Magazzini</a></li>
+              <li>
+                <a class="dropdown-item d-flex justify-content-between align-items-center" href="/trasferimenti">
+                  <span>Trasferimenti tra Magazzini</span>
+                  {% if cnt_trsf > 0 %}
+                  <span class="badge bg-warning text-dark rounded-pill ms-2">{{ cnt_trsf }}</span>
+                  {% endif %}
+                </a>
+              </li>
               <li><a class="dropdown-item" href="/log-magazzini">Log Magazzini</a></li>
               <li><a class="dropdown-item" href="/magazzini/report-movimentazione">Report Movimentazione Scarichi</a></li>
             </ul>
@@ -323,8 +341,10 @@
             <a class="nav-link dropdown-toggle {% if request.url.path.startswith('/magazzini') or request.url.path.startswith('/magazzino/') or request.url.path.startswith('/trasferimenti') or request.url.path.startswith('/richieste-materiale') or request.url.path.startswith('/log-magazzini') %}active fw-bold{% endif %}" href="#" id="magazzinoDropdown" role="button" data-bs-toggle="dropdown" aria-expanded="false">
               <i class="bi bi-boxes"></i> Magazzino
               {% set cnt_reqs = get_pending_requests_count(user) %}
-              {% if cnt_reqs > 0 %}
-              <span class="badge bg-danger rounded-pill ms-1">{{ cnt_reqs }}</span>
+              {% set cnt_trsf = get_incoming_transfers_count(user) %}
+              {% set total_mag_badge = cnt_reqs + cnt_trsf %}
+              {% if total_mag_badge > 0 %}
+              <span class="badge bg-danger rounded-pill ms-1">{{ total_mag_badge }}</span>
               {% endif %}
             </a>
             <ul class="dropdown-menu shadow" aria-labelledby="magazzinoDropdown">
@@ -337,7 +357,14 @@
                   {% endif %}
                 </a>
               </li>
-              <li><a class="dropdown-item" href="/trasferimenti">Trasferimenti tra Magazzini</a></li>
+              <li>
+                <a class="dropdown-item d-flex justify-content-between align-items-center" href="/trasferimenti">
+                  <span>Trasferimenti tra Magazzini</span>
+                  {% if cnt_trsf > 0 %}
+                  <span class="badge bg-warning text-dark rounded-pill ms-2">{{ cnt_trsf }}</span>
+                  {% endif %}
+                </a>
+              </li>
               <li><a class="dropdown-item" href="/log-magazzini">Log Magazzini</a></li>
               <li><a class="dropdown-item" href="/magazzini/report-movimentazione">Report Movimentazione Scarichi</a></li>
             </ul>
