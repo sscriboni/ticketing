@@ -486,8 +486,19 @@ def admin_disassocia_servizio_da_fornitore(r: Request, fornitore_id: int, serviz
 # RUBRICA FORNITORI (OPERATORI, ASSISTENZA, ADMIN)
 # ==========================================
 
+@router.get("/fornitori/contratti")
+def redirect_fornitori_contratti():
+    return RedirectResponse(url="/contratti", status_code=307)
+
+
 @router.get("/fornitori", response_class=HTMLResponse)
-def rubrica_fornitori(r: Request, q: Optional[str] = None, servizio_id: Optional[int] = None):
+def rubrica_fornitori(
+    r: Request,
+    q: Optional[str] = None,
+    servizio_id: Optional[int] = None,
+    error: Optional[str] = None,
+    success: Optional[str] = None
+):
     user = current_user(r)
     if not user:
         return RedirectResponse(url="/login")
@@ -546,5 +557,67 @@ def rubrica_fornitori(r: Request, q: Optional[str] = None, servizio_id: Optional
         "fornitori": fornitori_list,
         "servizi": tutti_servizi,
         "q": q or "",
-        "servizio_id": servizio_id
+        "servizio_id": servizio_id,
+        "error": error,
+        "success": success
     })
+
+
+@router.post("/fornitore/nuovo")
+@router.post("/fornitori/nuovo")
+@router.post("/contratti/fornitore/nuovo")
+@router.post("/contratto/fornitore/nuovo")
+@router.post("/contratti/fornitori/nuovo")
+def operatore_crea_fornitore(
+    r: Request,
+    ragione_sociale: str = Form(...),
+    partita_iva: str = Form(""),
+    codice_fiscale: str = Form(""),
+    descrizione: str = Form(""),
+    indirizzo: str = Form(""),
+    sito_web: str = Form(""),
+    email_generale: str = Form(""),
+    telefono_generale: str = Form(""),
+    pec: str = Form(""),
+    note: str = Form(""),
+    redirect_to: Optional[str] = Form(None)
+):
+    user = current_user(r)
+    if not user:
+        return RedirectResponse(url="/login", status_code=303)
+
+    ragione_sociale = ragione_sociale.strip()
+    if not ragione_sociale:
+        target = redirect_to or "/fornitori"
+        sep = "&" if "?" in target else "?"
+        return RedirectResponse(url=f"{target}{sep}error=nome_obbligatorio", status_code=303)
+
+    now = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+    with engine.begin() as c:
+        c.execute(text("""
+            INSERT INTO fornitori (
+                ragione_sociale, partita_iva, codice_fiscale, descrizione,
+                indirizzo, sito_web, email_generale, telefono_generale,
+                pec, note, attivo, creato_il
+            ) VALUES (
+                :rs, :piva, :cf, :desc,
+                :ind, :sito, :email, :tel,
+                :pec, :note, 1, :creato
+            )
+        """), {
+            "rs": ragione_sociale,
+            "piva": partita_iva.strip() or None,
+            "cf": codice_fiscale.strip() or None,
+            "desc": descrizione.strip() or None,
+            "ind": indirizzo.strip() or None,
+            "sito": sito_web.strip() or None,
+            "email": email_generale.strip() or None,
+            "tel": telefono_generale.strip() or None,
+            "pec": pec.strip() or None,
+            "note": note.strip() or None,
+            "creato": now
+        })
+
+    target = redirect_to or "/fornitori"
+    sep = "&" if "?" in target else "?"
+    return RedirectResponse(url=f"{target}{sep}success=fornitore_creato", status_code=303)

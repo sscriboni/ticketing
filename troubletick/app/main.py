@@ -18,6 +18,7 @@ import magazzini
 import automezzi
 import presenze
 import fornitori
+import contratti
 
 # Init schema + seed
 try:
@@ -795,6 +796,8 @@ def get_pending_requests_count(user):
     return 0
 
 templates.env.globals["get_pending_requests_count"] = get_pending_requests_count
+templates.env.globals["user_has_tag_dec"] = contratti.user_has_tag_dec
+templates.env.globals["user_can_access_contratti"] = contratti.user_can_access_contratti
 
 @app.exception_handler(Exception)
 async def global_exception_handler(request: Request, exc: Exception):
@@ -812,6 +815,7 @@ app.include_router(magazzini.router)
 app.include_router(automezzi.router)
 app.include_router(presenze.router)
 app.include_router(fornitori.router)
+app.include_router(contratti.router)
 
 @app.get("/", response_class=HTMLResponse)
 def home(r: Request):

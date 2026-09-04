@@ -1,0 +1,181 @@
+<!doctype html>
+<html lang="it">
+<head>
+    <meta charset="utf-8">
+    <title>Scheda Contratto Fornitura: {{ contratto.titolo }}</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css">
+    <style>
+        body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background-color: #fff; color: #212529; font-size: 13px; }
+        .print-header { border-bottom: 2px solid #0d6efd; padding-bottom: 12px; margin-bottom: 20px; }
+        .table-bordered th, .table-bordered td { border: 1px solid #dee2e6; }
+        .section-title { font-size: 14px; font-weight: bold; text-transform: uppercase; color: #0d6efd; border-bottom: 1px solid #dee2e6; padding-bottom: 4px; margin-top: 18px; margin-bottom: 10px; }
+        @media print {
+            .no-print { display: none !important; }
+            body { padding: 0; }
+            .container { max-width: 100% !important; width: 100% !important; }
+        }
+    </style>
+</head>
+<body class="p-4">
+    <div class="container" style="max-width: 960px;">
+        <!-- Top Action Bar (No Print) -->
+        <div class="no-print d-flex justify-content-between align-items-center mb-4 p-3 bg-light rounded border">
+            <div>
+                <strong>Scheda Contratto di Fornitura</strong> (Anteprima di Stampa / Documento Amministrativo)
+            </div>
+            <div class="d-flex gap-2">
+                <button type="button" class="btn btn-primary btn-sm" onclick="window.print();">
+                    <i class="bi bi-printer me-1"></i>Stampa / Salva PDF
+                </button>
+                <button type="button" class="btn btn-outline-secondary btn-sm" onclick="window.close();">
+                    Chiudi
+                </button>
+            </div>
+        </div>
+
+        <!-- Document Header -->
+        <div class="print-header d-flex justify-content-between align-items-center">
+            <div>
+                <h2 class="h5 fw-bold mb-0 text-primary">{{ cfg.app_title }}</h2>
+                <div class="small text-muted">Direzione Generale &bull; Gestione Contratti di Fornitura Servizi</div>
+            </div>
+            <div class="text-end small text-muted">
+                <div>Anno di Esercizio: <strong class="text-dark">{{ contratto.anno }}</strong></div>
+                <div>Data Stampa: {{ data_stampa }}</div>
+            </div>
+        </div>
+
+        <!-- Contract Title & State -->
+        <div class="mb-3">
+            <div class="d-flex justify-content-between align-items-baseline">
+                <h1 class="h4 fw-bold text-dark mb-1">{{ contratto.titolo }}</h1>
+                <span class="badge bg-secondary text-uppercase">{{ contratto.stato }}</span>
+            </div>
+            <div class="text-muted">
+                Fornitore Aggiudicatario: <strong class="text-dark">{{ contratto.fornitore_nome }}</strong>
+            </div>
+        </div>
+
+        <!-- Contract Details Grid -->
+        <div class="section-title">1. Riferimenti Amministrativi e Soggetti Incaricati</div>
+        <table class="table table-sm table-bordered align-middle">
+            <tbody>
+                <tr>
+                    <th style="width: 25%;" class="table-light">Codice / N. Contratto</th>
+                    <td style="width: 25%;">{{ contratto.codice_contratto or 'Non specificato' }}</td>
+                    <th style="width: 25%;" class="table-light">Anno Riferimento</th>
+                    <td style="width: 25%;">{{ contratto.anno }}</td>
+                </tr>
+                <tr>
+                    <th class="table-light">Codice CIG</th>
+                    <td>{{ contratto.cig or '—' }}</td>
+                    <th class="table-light">Codice CUP</th>
+                    <td>{{ contratto.cup or '—' }}</td>
+                </tr>
+                <tr>
+                    <th class="table-light">Direttore Esecuzione (DEC)</th>
+                    <td>
+                        {% if contratto.dec_nome %}
+                        <strong>{{ contratto.dec_nome }} {{ contratto.dec_cognome }}</strong>
+                        {% if contratto.dec_email %} ({{ contratto.dec_email }}){% endif %}
+                        {% else %}
+                        Non designato
+                        {% endif %}
+                    </td>
+                    <th class="table-light">Reparto di Competenza</th>
+                    <td>{{ contratto.reparto_nome or 'Tutti i reparti' }}</td>
+                </tr>
+            </tbody>
+        </table>
+
+        <!-- Fornitore Details -->
+        <div class="section-title">2. Dati Anagrafici Fornitore</div>
+        <table class="table table-sm table-bordered align-middle">
+            <tbody>
+                <tr>
+                    <th style="width: 25%;" class="table-light">Ragione Sociale</th>
+                    <td style="width: 75%;" colspan="3"><strong>{{ contratto.fornitore_nome }}</strong></td>
+                </tr>
+                <tr>
+                    <th style="width: 25%;" class="table-light">Partita IVA / C.F.</th>
+                    <td style="width: 25%;">{{ contratto.fornitore_piva or contratto.fornitore_cf or '—' }}</td>
+                    <th style="width: 25%;" class="table-light">PEC</th>
+                    <td style="width: 25%;">{{ contratto.fornitore_pec or '—' }}</td>
+                </tr>
+                <tr>
+                    <th class="table-light">Contatti Generali</th>
+                    <td colspan="3">
+                        {% if contratto.fornitore_telefono %}Tel: {{ contratto.fornitore_telefono }} &nbsp;&bull;&nbsp; {% endif %}
+                        {% if contratto.fornitore_email %}Email: {{ contratto.fornitore_email }} &nbsp;&bull;&nbsp; {% endif %}
+                        {% if contratto.fornitore_indirizzo %}Indirizzo: {{ contratto.fornitore_indirizzo }}{% endif %}
+                    </td>
+                </tr>
+            </tbody>
+        </table>
+
+        {% if contratto.descrizione %}
+        <div class="section-title">3. Descrizione e Oggetto della Fornitura</div>
+        <div class="p-3 bg-light border rounded small" style="white-space: pre-line;">{{ contratto.descrizione }}</div>
+        {% endif %}
+
+        <!-- Modules Breakdown -->
+        <div class="section-title">{% if contratto.descrizione %}4{% else %}3{% endif %}. Quadro Economico e Moduli di Servizio</div>
+        <table class="table table-sm table-bordered align-middle mb-4">
+            <thead class="table-light text-center">
+                <tr>
+                    <th style="width: 5%;">#</th>
+                    <th style="width: 45%;" class="text-start">Descrizione Modulo / Servizio</th>
+                    <th style="width: 20%;" class="text-start">Servizio Collegato</th>
+                    <th style="width: 10%;">Giornate</th>
+                    <th style="width: 10%;" class="text-end">Costo GG</th>
+                    <th style="width: 10%;" class="text-end">Totale Voce</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for m in moduli %}
+                <tr>
+                    <td class="text-center">{{ loop.index }}</td>
+                    <td>
+                        <strong>{{ m.descrizione }}</strong>
+                        {% if m.note %}
+                        <div class="text-muted small">{{ m.note }}</div>
+                        {% endif %}
+                    </td>
+                    <td>{{ m.servizio_nome or '—' }}</td>
+                    <td class="text-center">{% if m.giornate %}{{ "%.1f"|format(m.giornate) }} gg{% else %}—{% endif %}</td>
+                    <td class="text-end">{% if m.costo_giornaliero %}€ {{ "%.2f"|format(m.costo_giornaliero) }}{% else %}—{% endif %}</td>
+                    <td class="text-end fw-bold">€ {{ "%.2f"|format(m.costo) }}</td>
+                </tr>
+                {% else %}
+                <tr>
+                    <td colspan="6" class="text-center py-3 text-muted">Nessun modulo specificato.</td>
+                </tr>
+                {% endfor %}
+            </tbody>
+            <tfoot class="table-light fw-bold">
+                <tr>
+                    <td colspan="3" class="text-end">TOTALE COMPLESSIVO FORNITURA:</td>
+                    <td class="text-center">{% if totale_giornate > 0 %}{{ "%.1f"|format(totale_giornate) }} gg{% endif %}</td>
+                    <td></td>
+                    <td class="text-end text-primary fs-6">€ {{ "%.2f"|format(totale_costo) }}</td>
+                </tr>
+            </tfoot>
+        </table>
+
+        <!-- Signatures Area -->
+        <div class="row mt-5 pt-3">
+            <div class="col-6 text-center">
+                <div class="small text-muted mb-4">Il Direttore dell'Esecuzione del Contratto (DEC)</div>
+                <div style="border-bottom: 1px dashed #000; width: 70%; margin: 0 auto;"></div>
+                <div class="small mt-1">{{ contratto.dec_nome }} {{ contratto.dec_cognome }}</div>
+            </div>
+            <div class="col-6 text-center">
+                <div class="small text-muted mb-4">Per Accettazione il Fornitore</div>
+                <div style="border-bottom: 1px dashed #000; width: 70%; margin: 0 auto;"></div>
+                <div class="small mt-1">{{ contratto.fornitore_nome }}</div>
+            </div>
+        </div>
+    </div>
+</body>
+</html>

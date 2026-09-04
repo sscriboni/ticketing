@@ -190,6 +190,7 @@
               </li>
               <li><a class="dropdown-item" href="/admin/reparti">Gestione Reparti</a></li>
               <li><a class="dropdown-item" href="/admin/servizi">Gestione Servizi</a></li>
+              <li><a class="dropdown-item" href="/contratti"><i class="bi bi-file-earmark-text me-2"></i>Contratti di Fornitura</a></li>
               <li><a class="dropdown-item" href="/admin/fornitori"><i class="bi bi-building-gear me-2"></i>Gestione Fornitori</a></li>
               <li><a class="dropdown-item" href="/fornitori"><i class="bi bi-journal-bookmark me-2"></i>Rubrica Fornitori</a></li>
               <li><a class="dropdown-item" href="/admin/sedi">Gestione Sedi</a></li>
@@ -286,6 +287,12 @@
             </a>
           </li>
 
+          <li class="nav-item">
+            <a class="nav-link {% if request.url.path.startswith('/contratt') %}active fw-bold{% endif %}" href="/contratti">
+              <i class="bi bi-file-earmark-text"></i> Contratti
+            </a>
+          </li>
+
           <li class="nav-item dropdown">
             <a class="nav-link dropdown-toggle {% if request.url.path == '/magazzini/report' or request.url.path == '/magazzini/report-movimentazione' %}active fw-bold{% endif %}" href="#" id="reportDropdown" role="button" data-bs-toggle="dropdown" aria-expanded="false">
               <i class="bi bi-bar-chart"></i> Report
@@ -373,6 +380,14 @@
             </a>
           </li>
 
+          {% if user_can_access_contratti(user) %}
+          <li class="nav-item">
+            <a class="nav-link {% if request.url.path.startswith('/contratt') %}active fw-bold{% endif %}" href="/contratti">
+              <i class="bi bi-file-earmark-text"></i> Contratti
+            </a>
+          </li>
+          {% endif %}
+
         <!-- NAVBAR FLEET MANAGER -->
         {% elif user.ruolo in ('fleet_manager', 'global_fleet_manager') %}
           <li class="nav-item dropdown">
@@ -446,6 +461,14 @@
             </ul>
           </li>
           {% endif %} #}
+
+          {% if user_can_access_contratti(user) %}
+          <li class="nav-item">
+            <a class="nav-link {% if request.url.path.startswith('/contratt') %}active fw-bold{% endif %}" href="/contratti">
+              <i class="bi bi-file-earmark-text"></i> Contratti
+            </a>
+          </li>
+          {% endif %}
         {% endif %}
 
         <!-- Documentazione Dropdown (Common to all roles) -->

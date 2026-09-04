@@ -36,12 +36,31 @@
             <h2 class="h3 mb-0 fw-bold text-dark"><i class="bi bi-journal-bookmark-fill text-primary me-2"></i>Rubrica Fornitori & Assistenza Servizi</h2>
             <p class="text-muted small mb-0">Riferimenti telefonici, email, portali ticket e procedure di ingaggio per l'assistenza esterna</p>
         </div>
-        {% if user.ruolo == 'admin' %}
-        <div>
-            <a href="/admin/fornitori" class="btn btn-primary btn-sm"><i class="bi bi-gear-fill me-1"></i>Pannello Gestione Fornitori</a>
+        <div class="d-flex gap-2">
+            {% if user_can_access_contratti(user) %}
+            <a href="/contratti" class="btn btn-outline-primary btn-sm"><i class="bi bi-file-earmark-text me-1"></i>Contratti Forniture</a>
+            {% endif %}
+            <button type="button" class="btn btn-primary btn-sm shadow-sm" data-bs-toggle="modal" data-bs-target="#modalNuovoFornitoreAnagrafica">
+                <i class="bi bi-plus-circle me-1"></i>Nuovo Fornitore
+            </button>
+            {% if user.ruolo == 'admin' %}
+            <a href="/admin/fornitori" class="btn btn-outline-secondary btn-sm"><i class="bi bi-gear-fill me-1"></i>Pannello Gestione Fornitori</a>
+            {% endif %}
         </div>
-        {% endif %}
     </div>
+
+    <!-- Alert Messages -->
+    {% if success == 'fornitore_creato' or success == 'creato' %}
+    <div class="alert alert-success alert-dismissible fade show" role="alert">
+        <i class="bi bi-check-circle-fill me-2"></i>Nuovo fornitore registrato con successo nell'anagrafica.
+        <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+    </div>
+    {% elif error == 'nome_obbligatorio' %}
+    <div class="alert alert-danger alert-dismissible fade show" role="alert">
+        <i class="bi bi-exclamation-triangle-fill me-2"></i>La ragione sociale del fornitore è obbligatoria.
+        <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+    </div>
+    {% endif %}
 
     <!-- Filtri di Ricerca -->
     <div class="card border-0 shadow-sm mb-4">
@@ -206,6 +225,69 @@
             </div>
         </div>
         {% endif %}
+    </div>
+</div>
+
+<!-- Modal Nuovo Fornitore (Solo Anagrafica - per Operatori e Admin) -->
+<div class="modal fade" id="modalNuovoFornitoreAnagrafica" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content border-0 shadow">
+            <form method="post" action="/fornitore/nuovo">
+                <div class="modal-header bg-primary text-white">
+                    <h5 class="modal-title h6 fw-bold"><i class="bi bi-building-add me-2"></i>Nuovo Fornitore (Anagrafica)</h5>
+                    <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body p-4">
+                    <div class="row g-3">
+                        <div class="col-12">
+                            <label class="form-label small fw-bold">Ragione Sociale / Denominazione Azienda <span class="text-danger">*</span></label>
+                            <input type="text" name="ragione_sociale" class="form-control" placeholder="Es. Acme Servizi Tecnologici S.r.l." required>
+                        </div>
+                        
+                        <div class="col-12 col-md-6">
+                            <label class="form-label small fw-bold">Partita IVA</label>
+                            <input type="text" name="partita_iva" class="form-control" placeholder="11 cifre">
+                        </div>
+                        <div class="col-12 col-md-6">
+                            <label class="form-label small fw-bold">Codice Fiscale</label>
+                            <input type="text" name="codice_fiscale" class="form-control" placeholder="16 o 11 caratteri">
+                        </div>
+
+                        <div class="col-12 col-md-6">
+                            <label class="form-label small fw-bold">Email Generale / Supporto</label>
+                            <input type="email" name="email_generale" class="form-control" placeholder="supporto@azienda.it">
+                        </div>
+                        <div class="col-12 col-md-6">
+                            <label class="form-label small fw-bold">Telefono Generale / Help Desk</label>
+                            <input type="text" name="telefono_generale" class="form-control" placeholder="Es. 02 12345678">
+                        </div>
+
+                        <div class="col-12 col-md-6">
+                            <label class="form-label small fw-bold">PEC (Posta Elettronica Certificata)</label>
+                            <input type="email" name="pec" class="form-control" placeholder="azienda@pec.it">
+                        </div>
+                        <div class="col-12 col-md-6">
+                            <label class="form-label small fw-bold">Sito Web / Portale Assistenza</label>
+                            <input type="text" name="sito_web" class="form-control" placeholder="https://www.azienda.it">
+                        </div>
+
+                        <div class="col-12">
+                            <label class="form-label small fw-bold">Indirizzo Sede Operativa / Legale</label>
+                            <input type="text" name="indirizzo" class="form-control" placeholder="Via, Civico, CAP, Città, Provincia">
+                        </div>
+
+                        <div class="col-12">
+                            <label class="form-label small fw-bold">Descrizione Servizi / Note</label>
+                            <textarea name="descrizione" class="form-control" rows="2" placeholder="Breve descrizione dell'attività dell'azienda e dei servizi forniti..."></textarea>
+                        </div>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Annulla</button>
+                    <button type="submit" class="btn btn-primary"><i class="bi bi-check2 me-1"></i>Salva Fornitore</button>
+                </div>
+            </form>
+        </div>
     </div>
 </div>
 
