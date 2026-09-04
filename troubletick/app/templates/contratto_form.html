@@ -25,9 +25,14 @@
                 <i class="bi {% if contratto %}bi-pencil-square text-warning{% else %}bi-file-earmark-plus text-primary{% endif %} me-2"></i>
                 {% if contratto %}Modifica Contratto #{{ contratto.contratto_id }}{% else %}Nuovo Contratto di Fornitura Annuale{% endif %}
             </h4>
-            <a href="{% if contratto %}/contratto/{{ contratto.contratto_id }}{% else %}/contratti{% endif %}" class="btn btn-outline-secondary btn-sm">
-                <i class="bi bi-x-lg me-1"></i>Annulla
-            </a>
+            <div>
+                <a href="/documentazione/contratti" target="_blank" class="btn btn-outline-info btn-sm me-1" title="Guida all'uso dei Contratti">
+                    <i class="bi bi-book me-1"></i>Guida Contratti
+                </a>
+                <a href="{% if contratto %}/contratto/{{ contratto.contratto_id }}{% else %}/contratti{% endif %}" class="btn btn-outline-secondary btn-sm">
+                    <i class="bi bi-x-lg me-1"></i>Annulla
+                </a>
+            </div>
         </div>
         <div class="card-body p-4">
             {% if error == 'titolo_obbligatorio' %}
