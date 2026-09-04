@@ -342,7 +342,7 @@ def contratti_riepilogo_economico(
         contratti_raw = conn.execute(text(f"""
             SELECT c.*,
                    f.ragione_sociale AS fornitore_nome,
-                   f.piva AS fornitore_piva,
+                   f.partita_iva AS fornitore_piva,
                    rep.nome AS reparto_nome,
                    u_dec.nome AS dec_nome,
                    u_dec.cognome AS dec_cognome
