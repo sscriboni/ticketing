@@ -1,0 +1,481 @@
+<!doctype html>
+<html lang="it">
+<head>
+    <meta charset="utf-8">
+    <title>Riepilogo Economico Contratti di Manutenzione — {{ cfg.app_title }}</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css">
+    <style>
+        .kpi-card { border-radius: 12px; transition: transform 0.15s ease-in-out; }
+        .kpi-card:hover { transform: translateY(-2px); }
+        .badge-stato-attivo { background-color: #198754; color: white; }
+        .badge-stato-in_definizione { background-color: #ffc107; color: #212529; }
+        .badge-stato-scaduto { background-color: #dc3545; color: white; }
+        .badge-stato-concluso { background-color: #6c757d; color: white; }
+        .table-module-sub { background-color: #fafbfc; }
+        .contract-header-row { background-color: #f1f4f9; border-top: 2px solid #cbd5e1; }
+        .progress-slim { height: 6px; }
+        @media print {
+            .no-print { display: none !important; }
+            .card { border: 1px solid #dee2e6 !important; box-shadow: none !important; }
+            body { background-color: white !important; font-size: 0.85rem; }
+            .container-fluid { padding: 0 !important; }
+        }
+    </style>
+</head>
+<body class="bg-light">
+<div class="no-print">
+    {% include 'navbar.html' %}
+</div>
+
+<div class="container-fluid px-4 py-3">
+    <!-- Header -->
+    <div class="d-flex justify-content-between align-items-center mb-3 flex-wrap gap-2">
+        <div>
+            <div class="d-flex align-items-center gap-2">
+                <h2 class="h3 mb-0 fw-bold text-dark">
+                    <i class="bi bi-cash-stack text-success me-2"></i>Riepilogo Economico Contratti di Manutenzione
+                </h2>
+                {% if anno_selezionato and anno_selezionato > 0 %}
+                <span class="badge bg-primary fs-6 px-3 py-1 rounded-pill">Anno {{ anno_selezionato }}</span>
+                {% else %}
+                <span class="badge bg-secondary fs-6 px-3 py-1 rounded-pill">Tutti gli Anni</span>
+                {% endif %}
+            </div>
+            <p class="text-muted small mb-0 mt-1">
+                Quadro economico complessivo e dettaglio modulare dei contratti di fornitura e manutenzione
+            </p>
+        </div>
+        <div class="d-flex gap-2 no-print flex-wrap">
+            <a href="/contratti" class="btn btn-outline-secondary btn-sm">
+                <i class="bi bi-list-ul me-1"></i>Elenco Contratti
+            </a>
+            <a href="/documentazione/contratti" target="_blank" class="btn btn-outline-info btn-sm">
+                <i class="bi bi-book me-1"></i>Guida Contratti
+            </a>
+            <button onclick="window.print()" class="btn btn-outline-dark btn-sm shadow-sm">
+                <i class="bi bi-printer me-1"></i>Stampa Report
+            </button>
+            <a href="/contratto/nuovo" class="btn btn-primary btn-sm shadow-sm">
+                <i class="bi bi-plus-circle me-1"></i>Nuovo Contratto
+            </a>
+        </div>
+    </div>
+
+    <!-- Barra Filtri e Selezione Anno -->
+    <div class="card border-0 shadow-sm mb-4 no-print">
+        <div class="card-body p-3">
+            <form method="get" action="/contratti/riepilogo-economico" class="row g-2 align-items-center">
+                <!-- Selezione Rapida Anno (Pillole) -->
+                <div class="col-12 mb-2">
+                    <div class="d-flex align-items-center gap-1 flex-wrap">
+                        <span class="small fw-bold text-secondary me-2"><i class="bi bi-calendar-event me-1"></i>Anno:</span>
+                        <a href="/contratti/riepilogo-economico?anno=0{% if fornitore_selezionato %}&fornitore_id={{ fornitore_selezionato }}{% endif %}{% if reparto_selezionato %}&reparto_id={{ reparto_selezionato }}{% endif %}{% if stato_selezionato %}&stato={{ stato_selezionato }}{% endif %}" 
+                           class="btn btn-sm {% if not anno_selezionato or anno_selezionato == 0 %}btn-primary fw-bold shadow-sm{% else %}btn-outline-secondary{% endif %} py-1 px-3 rounded-pill">
+                            Tutti gli anni
+                        </a>
+                        {% for a in anni_disponibili %}
+                        <a href="/contratti/riepilogo-economico?anno={{ a }}{% if fornitore_selezionato %}&fornitore_id={{ fornitore_selezionato }}{% endif %}{% if reparto_selezionato %}&reparto_id={{ reparto_selezionato }}{% endif %}{% if stato_selezionato %}&stato={{ stato_selezionato }}{% endif %}" 
+                           class="btn btn-sm {% if anno_selezionato == a %}btn-primary fw-bold shadow-sm{% else %}btn-outline-secondary{% endif %} py-1 px-3 rounded-pill">
+                            {{ a }}
+                        </a>
+                        {% endfor %}
+                    </div>
+                </div>
+
+                <!-- Filtri di dettaglio -->
+                <input type="hidden" name="anno" value="{{ anno_selezionato if anno_selezionato is not none else '' }}">
+                
+                <div class="col-12 col-md-4">
+                    <label class="form-label small fw-bold text-muted mb-1">Fornitore</label>
+                    <select name="fornitore_id" class="form-select form-select-sm" onchange="this.form.submit()">
+                        <option value="">-- Tutti i Fornitori --</option>
+                        {% for f in fornitori %}
+                        <option value="{{ f.fornitore_id }}" {% if fornitore_selezionato == f.fornitore_id %}selected{% endif %}>
+                            {{ f.ragione_sociale }}
+                        </option>
+                        {% endfor %}
+                    </select>
+                </div>
+
+                {% if user.ruolo == 'admin' %}
+                <div class="col-12 col-md-3">
+                    <label class="form-label small fw-bold text-muted mb-1">Reparto</label>
+                    <select name="reparto_id" class="form-select form-select-sm" onchange="this.form.submit()">
+                        <option value="">-- Tutti i Reparti --</option>
+                        {% for rep in reparti %}
+                        <option value="{{ rep.reparto_id }}" {% if reparto_selezionato == rep.reparto_id %}selected{% endif %}>
+                            {{ rep.nome }}
+                        </option>
+                        {% endfor %}
+                    </select>
+                </div>
+                {% endif %}
+
+                <div class="col-12 col-md-3">
+                    <label class="form-label small fw-bold text-muted mb-1">Stato</label>
+                    <select name="stato" class="form-select form-select-sm" onchange="this.form.submit()">
+                        <option value="">-- Tutti gli Stati --</option>
+                        <option value="attivo" {% if stato_selezionato == 'attivo' %}selected{% endif %}>Attivo</option>
+                        <option value="in_definizione" {% if stato_selezionato == 'in_definizione' %}selected{% endif %}>In Definizione</option>
+                        <option value="scaduto" {% if stato_selezionato == 'scaduto' %}selected{% endif %}>Scaduto</option>
+                        <option value="concluso" {% if stato_selezionato == 'concluso' %}selected{% endif %}>Concluso</option>
+                    </select>
+                </div>
+
+                <div class="col-12 col-md-2 d-flex align-items-end gap-1">
+                    <button type="submit" class="btn btn-primary btn-sm w-100">
+                        <i class="bi bi-filter me-1"></i>Filtra
+                    </button>
+                    <a href="/contratti/riepilogo-economico" class="btn btn-outline-secondary btn-sm" title="Reimposta filtri">
+                        <i class="bi bi-arrow-clockwise"></i>
+                    </a>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- KPI Totali Generali Sommati -->
+    <div class="row g-3 mb-4">
+        <!-- Totale Spesa Impegnata -->
+        <div class="col-12 col-sm-6 col-xl-3">
+            <div class="card border-0 shadow-sm kpi-card bg-white p-3 border-start border-4 border-success">
+                <div class="d-flex justify-content-between align-items-center">
+                    <div>
+                        <div class="text-muted small text-uppercase fw-semibold">Totale Impegnato Sommato</div>
+                        <div class="h3 fw-bold mb-0 text-success">€ {{ "{:,.2f}".format(totale_costo_generale).replace(",", "X").replace(".", ",").replace("X", ".") }}</div>
+                        <div class="small text-muted mt-1">Valore economico totale moduli</div>
+                    </div>
+                    <div class="p-3 bg-success bg-opacity-10 text-success rounded-circle">
+                        <i class="bi bi-currency-euro fs-3"></i>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Totale Giornate Previste -->
+        <div class="col-12 col-sm-6 col-xl-3">
+            <div class="card border-0 shadow-sm kpi-card bg-white p-3 border-start border-4 border-info">
+                <div class="d-flex justify-content-between align-items-center">
+                    <div>
+                        <div class="text-muted small text-uppercase fw-semibold">Totale Giornate / Uomo</div>
+                        <div class="h3 fw-bold mb-0 text-info">{{ "{:,.1f}".format(totale_giornate_generale).replace(",", "X").replace(".", ",").replace("X", ".") }} <span class="fs-6 text-muted">gg</span></div>
+                        <div class="small text-muted mt-1">Giornate stimate a consumo</div>
+                    </div>
+                    <div class="p-3 bg-info bg-opacity-10 text-info rounded-circle">
+                        <i class="bi bi-clock-history fs-3"></i>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Contratti Censiti -->
+        <div class="col-12 col-sm-6 col-xl-3">
+            <div class="card border-0 shadow-sm kpi-card bg-white p-3 border-start border-4 border-primary">
+                <div class="d-flex justify-content-between align-items-center">
+                    <div>
+                        <div class="text-muted small text-uppercase fw-semibold">Contratti di Manutenzione</div>
+                        <div class="h3 fw-bold mb-0 text-primary">{{ totale_contratti }}</div>
+                        <div class="small text-muted mt-1">
+                            <span class="badge bg-success bg-opacity-10 text-success">{{ stati_agg.attivo.count }} attivi</span>
+                            {% if stati_agg.in_definizione.count > 0 %}
+                            <span class="badge bg-warning bg-opacity-10 text-dark">{{ stati_agg.in_definizione.count }} in def.</span>
+                            {% endif %}
+                        </div>
+                    </div>
+                    <div class="p-3 bg-primary bg-opacity-10 text-primary rounded-circle">
+                        <i class="bi bi-file-earmark-ruled fs-3"></i>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Moduli / Voci di Fornitura -->
+        <div class="col-12 col-sm-6 col-xl-3">
+            <div class="card border-0 shadow-sm kpi-card bg-white p-3 border-start border-4 border-warning">
+                <div class="d-flex justify-content-between align-items-center">
+                    <div>
+                        <div class="text-muted small text-uppercase fw-semibold">Moduli di Fornitura Totali</div>
+                        <div class="h3 fw-bold mb-0 text-warning-emphasis">{{ totale_moduli_generale }}</div>
+                        <div class="small text-muted mt-1">Capitoli di capitolato valorizzati</div>
+                    </div>
+                    <div class="p-3 bg-warning bg-opacity-10 text-warning-emphasis rounded-circle">
+                        <i class="bi bi-boxes fs-3"></i>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Sezioni di Aggregazione Economica: Fornitori & Reparti -->
+    <div class="row g-3 mb-4">
+        <!-- Ripartizione Spesa per Fornitore -->
+        <div class="col-12 col-lg-6">
+            <div class="card border-0 shadow-sm h-100">
+                <div class="card-header bg-white py-3 border-bottom d-flex justify-content-between align-items-center">
+                    <h5 class="h6 mb-0 fw-bold text-dark">
+                        <i class="bi bi-building-gear text-primary me-2"></i>Riepilogo Spesa per Fornitore
+                    </h5>
+                    <span class="badge bg-light text-dark border">{{ fornitori_agg|length }} Fornitori</span>
+                </div>
+                <div class="card-body p-0 table-responsive">
+                    <table class="table table-hover align-middle mb-0 small">
+                        <thead class="table-light">
+                            <tr>
+                                <th class="ps-3">Fornitore</th>
+                                <th class="text-center" style="width: 15%;">Contratti</th>
+                                <th class="text-end" style="width: 25%;">Totale Spesa</th>
+                                <th style="width: 25%;" class="pe-3">% sul Totale</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for f in fornitori_agg %}
+                            <tr>
+                                <td class="ps-3 fw-semibold text-dark">
+                                    <a href="/contratti/riepilogo-economico?fornitore_id={{ f.fornitore_id }}{% if anno_selezionato %}&anno={{ anno_selezionato }}{% endif %}" class="text-decoration-none text-dark">
+                                        {{ f.fornitore_nome }}
+                                    </a>
+                                </td>
+                                <td class="text-center">
+                                    <span class="badge bg-light text-secondary border">{{ f.cnt_contratti }}</span>
+                                </td>
+                                <td class="text-end fw-bold text-success">
+                                    € {{ "{:,.2f}".format(f.totale_costo).replace(",", "X").replace(".", ",").replace("X", ".") }}
+                                </td>
+                                <td class="pe-3">
+                                    <div class="d-flex align-items-center gap-2">
+                                        <div class="progress progress-slim flex-grow-1">
+                                            <div class="progress-bar bg-success" role="progressbar" style="width: {{ f.percentuale }}%"></div>
+                                        </div>
+                                        <span class="text-muted small text-nowrap" style="font-size: 0.75rem;">{{ "%.1f"|format(f.percentuale) }}%</span>
+                                    </div>
+                                </td>
+                            </tr>
+                            {% else %}
+                            <tr>
+                                <td colspan="4" class="text-center text-muted py-3">Nessun fornitore registrato per i filtri selezionati.</td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+
+        <!-- Ripartizione Spesa per Reparto -->
+        <div class="col-12 col-lg-6">
+            <div class="card border-0 shadow-sm h-100">
+                <div class="card-header bg-white py-3 border-bottom d-flex justify-content-between align-items-center">
+                    <h5 class="h6 mb-0 fw-bold text-dark">
+                        <i class="bi bi-diagram-3 text-info me-2"></i>Riepilogo Spesa per Reparto
+                    </h5>
+                    <span class="badge bg-light text-dark border">{{ reparti_agg|length }} Reparti</span>
+                </div>
+                <div class="card-body p-0 table-responsive">
+                    <table class="table table-hover align-middle mb-0 small">
+                        <thead class="table-light">
+                            <tr>
+                                <th class="ps-3">Reparto</th>
+                                <th class="text-center" style="width: 15%;">Contratti</th>
+                                <th class="text-end" style="width: 25%;">Totale Spesa</th>
+                                <th style="width: 25%;" class="pe-3">% sul Totale</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for rep in reparti_agg %}
+                            <tr>
+                                <td class="ps-3 fw-semibold text-dark">
+                                    {% if rep.reparto_id > 0 %}
+                                    <a href="/contratti/riepilogo-economico?reparto_id={{ rep.reparto_id }}{% if anno_selezionato %}&anno={{ anno_selezionato }}{% endif %}" class="text-decoration-none text-dark">
+                                        {{ rep.reparto_nome }}
+                                    </a>
+                                    {% else %}
+                                    <span class="text-muted">{{ rep.reparto_nome }}</span>
+                                    {% endif %}
+                                </td>
+                                <td class="text-center">
+                                    <span class="badge bg-light text-secondary border">{{ rep.cnt_contratti }}</span>
+                                </td>
+                                <td class="text-end fw-bold text-primary">
+                                    € {{ "{:,.2f}".format(rep.totale_costo).replace(",", "X").replace(".", ",").replace("X", ".") }}
+                                </td>
+                                <td class="pe-3">
+                                    <div class="d-flex align-items-center gap-2">
+                                        <div class="progress progress-slim flex-grow-1">
+                                            <div class="progress-bar bg-primary" role="progressbar" style="width: {{ rep.percentuale }}%"></div>
+                                        </div>
+                                        <span class="text-muted small text-nowrap" style="font-size: 0.75rem;">{{ "%.1f"|format(rep.percentuale) }}%</span>
+                                    </div>
+                                </td>
+                            </tr>
+                            {% else %}
+                            <tr>
+                                <td colspan="4" class="text-center text-muted py-3">Nessun reparto registrato per i filtri selezionati.</td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Tabella Dettagliata per Contratto e Moduli Economici -->
+    <div class="card border-0 shadow-sm mb-4">
+        <div class="card-header bg-white py-3 border-bottom d-flex justify-content-between align-items-center flex-wrap gap-2">
+            <div>
+                <h5 class="h6 mb-0 fw-bold text-dark">
+                    <i class="bi bi-table text-primary me-2"></i>Dettaglio Economico Contratti e Moduli di Fornitura
+                </h5>
+                <span class="text-muted small">Elenco analitico dei contratti con dettaglio di ciascun capitolo/modulo di costo</span>
+            </div>
+            <div class="badge bg-success bg-opacity-10 text-success fs-6 border border-success-subtle px-3 py-2">
+                Totale Complessivo: <strong>€ {{ "{:,.2f}".format(totale_costo_generale).replace(",", "X").replace(".", ",").replace("X", ".") }}</strong>
+            </div>
+        </div>
+        <div class="card-body p-0 table-responsive">
+            <table class="table align-middle mb-0" style="font-size: 0.88rem;">
+                <thead class="table-dark">
+                    <tr>
+                        <th class="ps-3" style="width: 32%;">Contratto / Modulo di Fornitura</th>
+                        <th style="width: 20%;">Fornitore / Servizio Collegato</th>
+                        <th style="width: 15%;">Reparto & DEC</th>
+                        <th class="text-center" style="width: 10%;">Giornate</th>
+                        <th class="text-end" style="width: 10%;">Tariffa / gg</th>
+                        <th class="text-end pe-3" style="width: 13%;">Importo Totale</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for c in contratti %}
+                    <!-- Intestazione Singolo Contratto -->
+                    <tr class="contract-header-row">
+                        <td class="ps-3 py-2" colspan="2">
+                            <div class="d-flex align-items-center gap-2 flex-wrap">
+                                <span class="badge bg-dark">{{ c.anno }}</span>
+                                <a href="/contratto/{{ c.contratto_id }}" class="fw-bold text-decoration-none text-dark fs-6" title="Visualizza scheda contratto">
+                                    {{ c.titolo }}
+                                </a>
+                                {% if c.stato == 'attivo' %}
+                                <span class="badge badge-stato-attivo">Attivo</span>
+                                {% elif c.stato == 'in_definizione' %}
+                                <span class="badge badge-stato-in_definizione">In Definizione</span>
+                                {% elif c.stato == 'scaduto' %}
+                                <span class="badge badge-stato-scaduto">Scaduto</span>
+                                {% elif c.stato == 'concluso' %}
+                                <span class="badge badge-stato-concluso">Concluso</span>
+                                {% endif %}
+                            </div>
+                            <div class="small text-muted mt-1">
+                                {% if c.codice_contratto %}<span class="me-2"><strong>Doc:</strong> {{ c.codice_contratto }}</span>{% endif %}
+                                {% if c.cig %}<span class="me-2"><strong>CIG:</strong> <code>{{ c.cig }}</code></span>{% endif %}
+                                {% if c.cup %}<span><strong>CUP:</strong> <code>{{ c.cup }}</code></span>{% endif %}
+                            </div>
+                        </td>
+                        <td class="py-2">
+                            <div class="small fw-semibold text-dark">{{ c.fornitore_nome }}</div>
+                            <div class="small text-muted">
+                                {% if c.reparto_nome %}<i class="bi bi-diagram-3 me-1"></i>{{ c.reparto_nome }}{% else %}—{% endif %}
+                            </div>
+                        </td>
+                        <td class="py-2" colspan="2">
+                            <div class="small text-muted">
+                                {% if c.dec_nome %}
+                                <i class="bi bi-person-badge text-primary me-1"></i>DEC: <strong>{{ c.dec_nome }} {{ c.dec_cognome }}</strong>
+                                {% endif %}
+                            </div>
+                        </td>
+                        <td class="text-end pe-3 py-2">
+                            <div class="small text-muted">Subtotale Contratto:</div>
+                            <div class="fw-bold fs-6 text-success">
+                                € {{ "{:,.2f}".format(c.totale_costo).replace(",", "X").replace(".", ",").replace("X", ".") }}
+                            </div>
+                        </td>
+                    </tr>
+
+                    <!-- Righe Moduli del Contratto -->
+                    {% for m in c.moduli %}
+                    <tr class="table-module-sub">
+                        <td class="ps-4">
+                            <div class="d-flex align-items-center gap-2">
+                                <i class="bi bi-arrow-return-right text-muted"></i>
+                                <span class="fw-semibold text-secondary">{{ m.descrizione }}</span>
+                            </div>
+                            {% if m.note %}
+                            <div class="ps-4 small text-muted fst-italic">{{ m.note }}</div>
+                            {% endif %}
+                        </td>
+                        <td>
+                            {% if m.servizio_nome %}
+                            <span class="badge bg-info bg-opacity-10 text-info-emphasis border border-info-subtle">
+                                <i class="bi bi-link-45deg me-1"></i>{{ m.servizio_nome }}
+                            </span>
+                            {% else %}
+                            <span class="text-muted small">—</span>
+                            {% endif %}
+                        </td>
+                        <td class="text-muted small">
+                            <span class="badge bg-light text-secondary border">Modulo #{{ loop.index }}</span>
+                        </td>
+                        <td class="text-center">
+                            {% if m.giornate and m.giornate > 0 %}
+                            <span class="fw-semibold">{{ "{:,.1f}".format(m.giornate).replace(",", "X").replace(".", ",").replace("X", ".") }}</span> <span class="text-muted small">gg</span>
+                            {% else %}
+                            <span class="text-muted small">—</span>
+                            {% endif %}
+                        </td>
+                        <td class="text-end text-muted small">
+                            {% if m.costo_giornaliero and m.costo_giornaliero > 0 %}
+                            € {{ "{:,.2f}".format(m.costo_giornaliero).replace(",", "X").replace(".", ",").replace("X", ".") }}
+                            {% else %}
+                            —
+                            {% endif %}
+                        </td>
+                        <td class="text-end pe-3 fw-bold text-dark">
+                            € {{ "{:,.2f}".format(m.costo).replace(",", "X").replace(".", ",").replace("X", ".") }}
+                        </td>
+                    </tr>
+                    {% else %}
+                    <tr class="table-module-sub">
+                        <td colspan="6" class="ps-4 py-2 text-muted small fst-italic">
+                            <i class="bi bi-info-circle me-1"></i>Nessun modulo economico inserito per questo contratto.
+                        </td>
+                    </tr>
+                    {% endfor %}
+
+                    {% else %}
+                    <tr>
+                        <td colspan="6" class="text-center py-5 text-muted">
+                            <i class="bi bi-file-earmark-x fs-1 d-block mb-2 text-secondary opacity-50"></i>
+                            <div class="h6">Nessun contratto di manutenzione trovato con i filtri selezionati.</div>
+                            <p class="small text-muted mb-0">Prova a cambiare l'anno o reimposta i parametri di ricerca.</p>
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+
+                <!-- Totale Generale in Calce -->
+                {% if contratti %}
+                <tfoot class="table-dark fw-bold border-top border-3">
+                    <tr>
+                        <td class="ps-3 py-3" colspan="3">
+                            <span class="fs-6 text-uppercase">Totale Generale Riepilogo Economico</span>
+                            <span class="small fw-normal text-secondary ms-2">({{ contratti|length }} contratti, {{ totale_moduli_generale }} moduli)</span>
+                        </td>
+                        <td class="text-center py-3">
+                            {% if totale_giornate_generale > 0 %}
+                            <span class="fs-6 text-info">{{ "{:,.1f}".format(totale_giornate_generale).replace(",", "X").replace(".", ",").replace("X", ".") }} gg</span>
+                            {% endif %}
+                        </td>
+                        <td class="py-3"></td>
+                        <td class="text-end pe-3 py-3">
+                            <span class="fs-5 text-success">€ {{ "{:,.2f}".format(totale_costo_generale).replace(",", "X").replace(".", ",").replace("X", ".") }}</span>
+                        </td>
+                    </tr>
+                </tfoot>
+                {% endif %}
+            </table>
+        </div>
+    </div>
+</div>
+</body>
+</html>

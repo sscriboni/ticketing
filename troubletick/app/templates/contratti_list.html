@@ -29,7 +29,10 @@
                 Gestione dei contratti di manutenzione annuali, moduli di fornitura, costi e Direzione Esecuzione Contratto (DEC)
             </p>
         </div>
-        <div class="d-flex gap-2">
+        <div class="d-flex gap-2 flex-wrap">
+            <a href="/contratti/riepilogo-economico{% if anno_selezionato %}?anno={{ anno_selezionato }}{% endif %}" class="btn btn-outline-success btn-sm" title="Quadro economico e totale spesa contratti">
+                <i class="bi bi-cash-stack me-1"></i>Riepilogo Economico
+            </a>
             <a href="/documentazione/contratti" class="btn btn-outline-info btn-sm" title="Guida all'uso dei Contratti">
                 <i class="bi bi-book me-1"></i>Guida Contratti
             </a>

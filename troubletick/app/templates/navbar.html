@@ -155,6 +155,20 @@
           </li>
           {% endif %}
 
+          <!-- Contratti Dropdown (Admin) -->
+          <li class="nav-item dropdown">
+            <a class="nav-link dropdown-toggle {% if request.url.path.startswith('/contratt') %}active fw-bold{% endif %}" href="#" id="contrattiDropdownAdmin" role="button" data-bs-toggle="dropdown" aria-expanded="false">
+              <i class="bi bi-file-earmark-text"></i> Contratti
+            </a>
+            <ul class="dropdown-menu shadow" aria-labelledby="contrattiDropdownAdmin">
+              <li><a class="dropdown-item" href="/contratti"><i class="bi bi-list-ul me-2"></i>Elenco Contratti</a></li>
+              <li><a class="dropdown-item" href="/contratti/riepilogo-economico"><i class="bi bi-cash-stack me-2 text-success"></i>Riepilogo Economico</a></li>
+              <li><hr class="dropdown-divider"></li>
+              <li><a class="dropdown-item" href="/contratto/nuovo"><i class="bi bi-plus-circle me-2 text-primary"></i>Nuovo Contratto</a></li>
+              <li><a class="dropdown-item" href="/fornitori"><i class="bi bi-journal-bookmark me-2"></i>Rubrica Fornitori</a></li>
+            </ul>
+          </li>
+
           <!-- Operatori Link -->
           <li class="nav-item">
             <a class="nav-link {% if request.url.path == '/operatori' or request.url.path.startswith('/admin/operatori') %}active fw-bold{% endif %}" href="/operatori">
@@ -200,6 +214,7 @@
               <li><a class="dropdown-item" href="/admin/reparti">Gestione Reparti</a></li>
               <li><a class="dropdown-item" href="/admin/servizi">Gestione Servizi</a></li>
               <li><a class="dropdown-item" href="/contratti"><i class="bi bi-file-earmark-text me-2"></i>Contratti di Fornitura</a></li>
+              <li><a class="dropdown-item" href="/contratti/riepilogo-economico"><i class="bi bi-cash-stack me-2 text-success"></i>Riepilogo Economico Contratti</a></li>
               <li><a class="dropdown-item" href="/admin/fornitori"><i class="bi bi-building-gear me-2"></i>Gestione Fornitori</a></li>
               <li><a class="dropdown-item" href="/fornitori"><i class="bi bi-journal-bookmark me-2"></i>Rubrica Fornitori</a></li>
               <li><a class="dropdown-item" href="/admin/sedi">Gestione Sedi</a></li>
@@ -305,10 +320,16 @@
             </a>
           </li>
 
-          <li class="nav-item">
-            <a class="nav-link {% if request.url.path.startswith('/contratt') %}active fw-bold{% endif %}" href="/contratti">
+          <li class="nav-item dropdown">
+            <a class="nav-link dropdown-toggle {% if request.url.path.startswith('/contratt') %}active fw-bold{% endif %}" href="#" id="contrattiDropdownResp" role="button" data-bs-toggle="dropdown" aria-expanded="false">
               <i class="bi bi-file-earmark-text"></i> Contratti
             </a>
+            <ul class="dropdown-menu shadow" aria-labelledby="contrattiDropdownResp">
+              <li><a class="dropdown-item" href="/contratti"><i class="bi bi-list-ul me-2"></i>Elenco Contratti Reparto</a></li>
+              <li><a class="dropdown-item" href="/contratti/riepilogo-economico"><i class="bi bi-cash-stack me-2 text-success"></i>Riepilogo Economico</a></li>
+              <li><hr class="dropdown-divider"></li>
+              <li><a class="dropdown-item" href="/contratto/nuovo"><i class="bi bi-plus-circle me-2 text-primary"></i>Nuovo Contratto</a></li>
+            </ul>
           </li>
 
           <li class="nav-item dropdown">

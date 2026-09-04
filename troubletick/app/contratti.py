@@ -286,6 +286,198 @@ def contratti_list(
     })
 
 
+@router.get("/contratti/riepilogo-economico", response_class=HTMLResponse)
+@router.get("/contratti/report-economico", response_class=HTMLResponse)
+def contratti_riepilogo_economico(
+    r: Request,
+    anno: Optional[int] = None,
+    fornitore_id: Optional[int] = None,
+    reparto_id: Optional[int] = None,
+    stato: Optional[str] = None
+):
+    user = check_contratti_access(r)
+    if isinstance(user, RedirectResponse):
+        return user
+
+    current_year = datetime.now().year
+    
+    # Se l'anno non è specificato nei parametri (primo accesso), impostiamo l'anno corrente di default.
+    # Se il parametro anno è 0, significa visualizzare "Tutti gli anni".
+    anno_filtro = anno
+    if anno is None:
+        anno_filtro = current_year
+
+    scope_sql, scope_params = get_contratto_scope_filter(user)
+    where_clauses = [scope_sql]
+    params = dict(scope_params)
+
+    if anno_filtro and anno_filtro > 0:
+        where_clauses.append("c.anno = :anno")
+        params["anno"] = anno_filtro
+
+    if fornitore_id:
+        where_clauses.append("c.fornitore_id = :fornitore_id")
+        params["fornitore_id"] = fornitore_id
+
+    if stato and stato.strip():
+        where_clauses.append("c.stato = :stato")
+        params["stato"] = stato.strip()
+
+    if reparto_id:
+        where_clauses.append("c.reparto_id = :reparto_id")
+        params["reparto_id"] = reparto_id
+
+    where_sql = " AND ".join(where_clauses)
+
+    with engine.connect() as conn:
+        # Contratti filtrati
+        contratti_raw = conn.execute(text(f"""
+            SELECT c.*,
+                   f.ragione_sociale AS fornitore_nome,
+                   f.piva AS fornitore_piva,
+                   rep.nome AS reparto_nome,
+                   u_dec.nome AS dec_nome,
+                   u_dec.cognome AS dec_cognome
+            FROM contratti c
+            JOIN fornitori f ON c.fornitore_id = f.fornitore_id
+            LEFT JOIN reparti rep ON c.reparto_id = rep.reparto_id
+            LEFT JOIN users u_dec ON c.dec_user_id = u_dec.user_id
+            WHERE {where_sql}
+            ORDER BY c.anno DESC, rep.nome ASC, f.ragione_sociale ASC, c.contratto_id DESC
+        """), params).mappings().all()
+
+        contratti_ids = [c["contratto_id"] for c in contratti_raw]
+
+        # Moduli dettagliati
+        moduli_per_contratto = {}
+        if contratti_ids:
+            from sqlalchemy import bindparam
+            stmt_moduli = text("""
+                SELECT cm.*, s.descrizione AS servizio_nome
+                FROM contratti_moduli cm
+                LEFT JOIN servizi s ON cm.servizio_id = s.servizio_id
+                WHERE cm.contratto_id IN :cids
+                ORDER BY cm.ordine ASC, cm.modulo_id ASC
+            """).bindparams(bindparam("cids", expanding=True))
+            moduli_rows = conn.execute(stmt_moduli, {"cids": contratti_ids}).mappings().all()
+            for m in moduli_rows:
+                cid = m["contratto_id"]
+                if cid not in moduli_per_contratto:
+                    moduli_per_contratto[cid] = []
+                moduli_per_contratto[cid].append(dict(m))
+
+        # Assembliamo la lista contratti con i moduli e calcoli subtotali
+        contratti_list = []
+        totale_costo_generale = 0.0
+        totale_giornate_generale = 0.0
+        totale_moduli_generale = 0
+
+        # Mappe di raggruppamento per fornitori e reparti
+        agg_fornitori = {}
+        agg_reparti = {}
+        agg_stati = {
+            "attivo": {"count": 0, "totale": 0.0},
+            "in_definizione": {"count": 0, "totale": 0.0},
+            "scaduto": {"count": 0, "totale": 0.0},
+            "concluso": {"count": 0, "totale": 0.0}
+        }
+
+        for c_row in contratti_raw:
+            cid = c_row["contratto_id"]
+            c_dict = dict(c_row)
+            mods = moduli_per_contratto.get(cid, [])
+            c_costo = sum(float(m.get("costo") or 0.0) for m in mods)
+            c_giornate = sum(float(m.get("giornate") or 0.0) for m in mods)
+            
+            c_dict["moduli"] = mods
+            c_dict["totale_costo"] = c_costo
+            c_dict["totale_giornate"] = c_giornate
+            c_dict["cnt_moduli"] = len(mods)
+            contratti_list.append(c_dict)
+
+            totale_costo_generale += c_costo
+            totale_giornate_generale += c_giornate
+            totale_moduli_generale += len(mods)
+
+            # Raggruppamento fornitore
+            fid = c_dict["fornitore_id"]
+            fnome = c_dict["fornitore_nome"]
+            if fid not in agg_fornitori:
+                agg_fornitori[fid] = {
+                    "fornitore_id": fid,
+                    "fornitore_nome": fnome,
+                    "totale_costo": 0.0,
+                    "totale_giornate": 0.0,
+                    "cnt_contratti": 0
+                }
+            agg_fornitori[fid]["totale_costo"] += c_costo
+            agg_fornitori[fid]["totale_giornate"] += c_giornate
+            agg_fornitori[fid]["cnt_contratti"] += 1
+
+            # Raggruppamento reparto
+            rid = c_dict.get("reparto_id") or 0
+            rnome = c_dict.get("reparto_nome") or "Generale / Nessun Reparto"
+            if rid not in agg_reparti:
+                agg_reparti[rid] = {
+                    "reparto_id": rid,
+                    "reparto_nome": rnome,
+                    "totale_costo": 0.0,
+                    "totale_giornate": 0.0,
+                    "cnt_contratti": 0
+                }
+            agg_reparti[rid]["totale_costo"] += c_costo
+            agg_reparti[rid]["totale_giornate"] += c_giornate
+            agg_reparti[rid]["cnt_contratti"] += 1
+
+            # Raggruppamento stato
+            st = c_dict.get("stato", "attivo")
+            if st in agg_stati:
+                agg_stati[st]["count"] += 1
+                agg_stati[st]["totale"] += c_costo
+
+        # Calcolo percentuali per fornitori e reparti
+        fornitori_agg_list = list(agg_fornitori.values())
+        for f in fornitori_agg_list:
+            f["percentuale"] = (f["totale_costo"] / totale_costo_generale * 100) if totale_costo_generale > 0 else 0.0
+        fornitori_agg_list.sort(key=lambda x: x["totale_costo"], reverse=True)
+
+        reparti_agg_list = list(agg_reparti.values())
+        for rep in reparti_agg_list:
+            rep["percentuale"] = (rep["totale_costo"] / totale_costo_generale * 100) if totale_costo_generale > 0 else 0.0
+        reparti_agg_list.sort(key=lambda x: x["totale_costo"], reverse=True)
+
+        # Liste per i filtri
+        fornitori = conn.execute(text("SELECT fornitore_id, ragione_sociale FROM fornitori WHERE attivo = 1 ORDER BY ragione_sociale")).mappings().all()
+        reparti = conn.execute(text("SELECT reparto_id, nome FROM reparti ORDER BY nome")).mappings().all()
+        anni_disponibili = conn.execute(text("SELECT DISTINCT anno FROM contratti ORDER BY anno DESC")).scalars().all()
+        if not anni_disponibili:
+            anni_disponibili = [current_year]
+        elif current_year not in anni_disponibili:
+            anni_disponibili = sorted(list(set(list(anni_disponibili) + [current_year])), reverse=True)
+
+    return templates.TemplateResponse(r, "contratti_riepilogo_economico.html", {
+        "request": r,
+        "cfg": CFG,
+        "user": user,
+        "contratti": contratti_list,
+        "totale_costo_generale": totale_costo_generale,
+        "totale_giornate_generale": totale_giornate_generale,
+        "totale_contratti": len(contratti_list),
+        "totale_moduli_generale": totale_moduli_generale,
+        "fornitori_agg": fornitori_agg_list,
+        "reparti_agg": reparti_agg_list,
+        "stati_agg": agg_stati,
+        "fornitori": fornitori,
+        "reparti": reparti,
+        "anni_disponibili": anni_disponibili,
+        "anno_selezionato": anno_filtro,
+        "fornitore_selezionato": fornitore_id,
+        "reparto_selezionato": reparto_id,
+        "stato_selezionato": stato or "",
+        "current_year": current_year
+    })
+
+
 @router.get("/contratti/fornitori")
 def redirect_contratti_fornitori():
     return RedirectResponse(url="/fornitori", status_code=307)
