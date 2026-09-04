@@ -208,9 +208,9 @@
                                 {% for m in moduli %}
                                 <tr>
                                     <td class="ps-3">
-                                        <div class="fw-bold text-dark">{{ m.descrizione }}</div>
+                                        <div class="fw-bold text-dark" style="white-space: pre-wrap;">{{ m.descrizione }}</div>
                                         {% if m.note %}
-                                        <div class="small text-muted">{{ m.note }}</div>
+                                        <div class="small text-muted" style="white-space: pre-wrap;">{{ m.note }}</div>
                                         {% endif %}
                                     </td>
                                     <td>
@@ -398,7 +398,7 @@
                     <div class="row g-3">
                         <div class="col-12 col-md-8">
                             <label class="form-label small fw-bold">Descrizione Voce / Modulo <span class="text-danger">*</span></label>
-                            <input type="text" name="descrizione" class="form-control" placeholder="Es. Assistenza Specialistica DBA Oracle" required>
+                            <textarea name="descrizione" class="form-control" rows="3" style="resize: vertical;" placeholder="Es. Assistenza Specialistica DBA Oracle, supporto manutentivo..." required></textarea>
                         </div>
                         <div class="col-12 col-md-4">
                             <label class="form-label small fw-bold">Servizio a Catalogo Collegato</label>
@@ -454,7 +454,7 @@
                     <div class="row g-3">
                         <div class="col-12 col-md-8">
                             <label class="form-label small fw-bold">Descrizione Voce / Modulo <span class="text-danger">*</span></label>
-                            <input type="text" name="descrizione" id="edit_modulo_desc" class="form-control" required>
+                            <textarea name="descrizione" id="edit_modulo_desc" class="form-control" rows="3" style="resize: vertical;" required></textarea>
                         </div>
                         <div class="col-12 col-md-4">
                             <label class="form-label small fw-bold">Servizio a Catalogo Collegato</label>

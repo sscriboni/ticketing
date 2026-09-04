@@ -177,6 +177,10 @@ def can_manage_single_contratto(user: dict, contratto_row: dict) -> bool:
 @router.get("/contratti", response_class=HTMLResponse)
 @router.get("/contratto", response_class=HTMLResponse)
 @router.get("/contratti/contratti", response_class=HTMLResponse)
+@router.get("/contratto/contratti", response_class=HTMLResponse)
+@router.get("/contratti/contratto", response_class=HTMLResponse)
+@router.get("/contratti/elenco", response_class=HTMLResponse)
+@router.get("/contratto/elenco", response_class=HTMLResponse)
 def contratti_list(
     r: Request,
     anno: Optional[int] = None,
@@ -287,7 +291,11 @@ def contratti_list(
 
 
 @router.get("/contratti/riepilogo-economico", response_class=HTMLResponse)
+@router.get("/contratto/riepilogo-economico", response_class=HTMLResponse)
+@router.get("/contratto/contratti/riepilogo-economico", response_class=HTMLResponse)
+@router.get("/contratti/contratti/riepilogo-economico", response_class=HTMLResponse)
 @router.get("/contratti/report-economico", response_class=HTMLResponse)
+@router.get("/contratto/report-economico", response_class=HTMLResponse)
 def contratti_riepilogo_economico(
     r: Request,
     anno: Optional[int] = None,

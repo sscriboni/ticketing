@@ -137,9 +137,9 @@
                 <tr>
                     <td class="text-center">{{ loop.index }}</td>
                     <td>
-                        <strong>{{ m.descrizione }}</strong>
+                        <strong style="white-space: pre-wrap;">{{ m.descrizione }}</strong>
                         {% if m.note %}
-                        <div class="text-muted small">{{ m.note }}</div>
+                        <div class="text-muted small" style="white-space: pre-wrap;">{{ m.note }}</div>
                         {% endif %}
                     </td>
                     <td>{{ m.servizio_nome or '—' }}</td>
