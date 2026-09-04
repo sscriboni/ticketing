@@ -123,51 +123,82 @@ def check_contratti_access(r: Request):
 
 def get_contratto_scope_filter(user: dict):
     """
-    Ritorna la clausola WHERE SQL e i parametri per filtrare i contratti:
-    - Admin: vede tutti
-    - Responsabile: vede solo quelli del suo reparto (contratti con reparto_id del responsabile, o con DEC appartenente al reparto)
-    - Operatore DEC: vede solo i contratti in cui è DEC o che ha creato
+    Tutti gli utenti abilitati al modulo contratti possono visualizzare tutti i contratti censiti.
     """
+    return "1=1", {}
+
+
+def can_manage_single_contratto(user: dict, contratto_row: dict, conn=None) -> bool:
+    """
+    Verifica se l'utente può modificare o eliminare un determinato contratto:
+    - Admin: sempre True
+    - Inserito dall'operatore collegato (creato_da_id): True
+    - Operatore è il DEC designato (dec_user_id): True
+    - Legato ai propri servizi:
+      * Responsabile: se il contratto appartiene al proprio reparto, è stato creato da un membro del proprio reparto,
+        o ha moduli associati a servizi del proprio reparto
+      * Operatore: se uno dei moduli del contratto è associato a un servizio assegnato all'operatore (operatori_servizi)
+    """
+    if not user or not user.get("id"):
+        return False
+    
+    uid = user["id"]
     ruolo = user.get("ruolo", "normale")
+
     if ruolo == "admin":
-        return "1=1", {}
-    
-    if ruolo == "responsabile":
-        rep_id = user.get("reparto_id")
-        if not rep_id:
-            # Se non ha reparto associato, vede quelli creati da lui o dove è DEC
-            return "(c.creato_da_id = :uid OR c.dec_user_id = :uid)", {"uid": user["id"]}
-        
-        return """(
-            c.reparto_id = :rep_id 
-            OR c.dec_user_id IN (SELECT user_id FROM users WHERE reparto_id = :rep_id)
-            OR c.creato_da_id IN (SELECT user_id FROM users WHERE reparto_id = :rep_id)
-        )""", {"rep_id": rep_id}
-
-    # Operatore con tag DEC
-    return "(c.dec_user_id = :uid OR c.creato_da_id = :uid)", {"uid": user["id"]}
-
-
-def can_manage_single_contratto(user: dict, contratto_row: dict) -> bool:
-    """Verifica se l'utente può modificare o eliminare un determinato contratto"""
-    if not user:
-        return False
-    if user.get("ruolo") == "admin":
-        return True
-    
-    if user.get("ruolo") == "responsabile":
-        rep_id = user.get("reparto_id")
-        if rep_id and contratto_row.get("reparto_id") == rep_id:
-            return True
-        if contratto_row.get("dec_user_id") == user.get("id") or contratto_row.get("creato_da_id") == user.get("id"):
-            return True
-        return False
-
-    # Operatore DEC
-    if contratto_row.get("dec_user_id") == user.get("id") or contratto_row.get("creato_da_id") == user.get("id"):
         return True
 
-    return False
+    # Inserito dall'operatore collegato
+    if contratto_row.get("creato_da_id") == uid:
+        return True
+
+    # DEC del contratto
+    if contratto_row.get("dec_user_id") == uid:
+        return True
+
+    cid = contratto_row.get("contratto_id")
+    if not cid:
+        return False
+
+    def _check_in_db(c):
+        # Se responsabile di reparto
+        if ruolo == "responsabile":
+            rep_id = user.get("reparto_id")
+            if rep_id:
+                if contratto_row.get("reparto_id") == rep_id:
+                    return True
+                # Creatore appartiene al reparto del responsabile
+                if contratto_row.get("creato_da_id"):
+                    creator_rep = c.execute(text("SELECT reparto_id FROM users WHERE user_id = :uid"), {"uid": contratto_row["creato_da_id"]}).scalar()
+                    if creator_rep and creator_rep == rep_id:
+                        return True
+                # Moduli associati a servizi del reparto
+                has_rep_services = c.execute(text("""
+                    SELECT COUNT(*) 
+                    FROM contratti_moduli cm 
+                    JOIN servizi s ON cm.servizio_id = s.servizio_id 
+                    WHERE cm.contratto_id = :cid AND s.reparto_id = :rep_id
+                """), {"cid": cid, "rep_id": rep_id}).scalar() or 0
+                if has_rep_services > 0:
+                    return True
+
+        # Per qualunque operatore: legato ai propri servizi assegnati (operatori_servizi)
+        has_my_services = c.execute(text("""
+            SELECT COUNT(*) 
+            FROM contratti_moduli cm 
+            WHERE cm.contratto_id = :cid 
+              AND cm.servizio_id IN (SELECT servizio_id FROM operatori_servizi WHERE user_id = :uid)
+        """), {"cid": cid, "uid": uid}).scalar() or 0
+        if has_my_services > 0:
+            return True
+
+        return False
+
+    if conn is not None:
+        return _check_in_db(conn)
+    else:
+        with engine.connect() as c:
+            return _check_in_db(c)
 
 
 # ==========================================
@@ -261,6 +292,38 @@ def contratti_list(
         elif current_year not in anni_disponibili:
             anni_disponibili = sorted(list(set(list(anni_disponibili) + [current_year])), reverse=True)
 
+        # Calcolo permessi di modifica per ciascun contratto in lista
+        if user.get("ruolo") == "admin":
+            editable_ids_set = None
+        else:
+            uid = user["id"]
+            rep_id = user.get("reparto_id")
+            query_editable = """
+                SELECT DISTINCT c.contratto_id
+                FROM contratti c
+                LEFT JOIN contratti_moduli cm ON c.contratto_id = cm.contratto_id
+                LEFT JOIN servizi s ON cm.servizio_id = s.servizio_id
+                WHERE c.creato_da_id = :uid
+                   OR c.dec_user_id = :uid
+                   OR cm.servizio_id IN (SELECT servizio_id FROM operatori_servizi WHERE user_id = :uid)
+            """
+            params_editable = {"uid": uid}
+            if user.get("ruolo") == "responsabile" and rep_id:
+                query_editable += """
+                   OR c.reparto_id = :rep_id
+                   OR c.creato_da_id IN (SELECT user_id FROM users WHERE reparto_id = :rep_id)
+                   OR s.reparto_id = :rep_id
+                """
+                params_editable["rep_id"] = rep_id
+
+            editable_ids_set = set(conn.execute(text(query_editable), params_editable).scalars().all())
+
+        contratti_augmented = []
+        for c_item in contratti:
+            c_dict = dict(c_item)
+            c_dict["can_edit"] = True if (user.get("ruolo") == "admin" or c_dict["contratto_id"] in editable_ids_set) else False
+            contratti_augmented.append(c_dict)
+
         # Calcolo KPI per la selezione
         totale_spesa = sum(c["totale_costo"] for c in contratti)
         totale_attivi = sum(1 for c in contratti if c["stato"] == "attivo")
@@ -273,7 +336,7 @@ def contratti_list(
         "cfg": CFG,
         "user": user,
         "is_dec": is_dec,
-        "contratti": contratti,
+        "contratti": contratti_augmented,
         "fornitori": fornitori,
         "reparti": reparti,
         "anni_disponibili": anni_disponibili,
@@ -720,8 +783,7 @@ def contratto_detail(
         if not contratto:
             return RedirectResponse(url="/contratti?error=non_trovato", status_code=303)
 
-        if not can_manage_single_contratto(user, dict(contratto)):
-            return RedirectResponse(url="/contratti?error=accesso_negato", status_code=303)
+        can_edit = can_manage_single_contratto(user, dict(contratto), conn=conn)
 
         moduli = conn.execute(text("""
             SELECT cm.*, s.descrizione AS servizio_nome, s.reparto_id AS servizio_reparto_id
@@ -747,6 +809,7 @@ def contratto_detail(
         "cfg": CFG,
         "user": user,
         "is_dec": is_dec,
+        "can_edit": can_edit,
         "contratto": contratto,
         "moduli": moduli,
         "servizi": servizi,

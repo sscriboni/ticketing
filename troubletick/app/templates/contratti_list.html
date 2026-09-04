@@ -294,6 +294,7 @@
                                     <a href="/contratto/{{ c.contratto_id }}" class="btn btn-outline-primary" title="Visualizza dettaglio e moduli">
                                         <i class="bi bi-eye"></i>
                                     </a>
+                                    {% if c.can_edit %}
                                     <button type="button" class="btn btn-outline-success" title="Duplica per anno successivo"
                                         onclick="openDuplicaListModal('{{ c.contratto_id }}', '{{ c.titolo|escape }}', {{ c.anno }}, {{ c.cnt_moduli }})">
                                         <i class="bi bi-copy"></i>
@@ -301,6 +302,7 @@
                                     <a href="/contratto/{{ c.contratto_id }}/modifica" class="btn btn-outline-secondary" title="Modifica">
                                         <i class="bi bi-pencil"></i>
                                     </a>
+                                    {% endif %}
                                 </div>
                             </td>
                         </tr>
