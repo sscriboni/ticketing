@@ -522,6 +522,91 @@ try:
             """))
         except Exception:
             pass
+
+        # Inizializzazione automatica degli Indici per prestazioni elevate
+        indexes_to_create = [
+            # Tickets & Note
+            ("idx_tickets_stato_creato", "tickets", "(stato, creato_il)"),
+            ("idx_tickets_servizio_id", "tickets", "(servizio_id)"),
+            ("idx_tickets_reparto_id", "tickets", "(reparto_id)"),
+            ("idx_tickets_reparto_app", "tickets", "(reparto_appartenenza_id)"),
+            ("idx_tickets_email", "tickets", "(email)"),
+            ("idx_tickets_codice", "tickets", "(codice_ticket)"),
+            ("idx_tickets_creato_il", "tickets", "(creato_il)"),
+            ("idx_tickets_argomento_id", "tickets", "(argomento_id)"),
+            ("idx_ticket_notes_ticket_creato", "ticket_notes", "(ticket_id, creato_il)"),
+            ("idx_ticket_notes_autore", "ticket_notes", "(autore)"),
+            ("idx_ticket_mat_ticket_id", "ticket_materiali", "(ticket_id)"),
+            ("idx_ticket_mat_materiale_id", "ticket_materiali", "(materiale_id)"),
+            
+            # Presenze & Assenze
+            ("idx_presenze_user_data", "presenze", "(user_id, data)"),
+            ("idx_presenze_data", "presenze", "(data)"),
+            ("idx_assenze_user_date", "assenze", "(user_id, data_inizio, data_fine)"),
+            ("idx_assenze_date_range", "assenze", "(data_inizio, data_fine)"),
+            ("idx_assenze_approvato", "assenze", "(approvato)"),
+            
+            # Magazzino & Logistica
+            ("idx_movimenti_mat_mag", "movimenti_magazzino", "(materiale_id, magazzino_id)"),
+            ("idx_movimenti_ticket_id", "movimenti_magazzino", "(ticket_id)"),
+            ("idx_movimenti_data", "movimenti_magazzino", "(data_movimento)"),
+            ("idx_movimenti_user_id", "movimenti_magazzino", "(user_id)"),
+            ("idx_richieste_stato_mag", "richieste_materiale", "(stato, magazzino_id)"),
+            ("idx_richieste_ticket_id", "richieste_materiale", "(ticket_id)"),
+            ("idx_richieste_user_id", "richieste_materiale", "(user_id)"),
+            ("idx_richieste_data", "richieste_materiale", "(data_richiesta)"),
+            ("idx_trasf_stato_dest", "trasferimenti", "(stato, magazzino_destinazione_id)"),
+            ("idx_trasf_orig_dest", "trasferimenti", "(magazzino_origine_id, magazzino_destinazione_id)"),
+            ("idx_trasf_materiale_id", "trasferimenti", "(materiale_id)"),
+            ("idx_trasf_creato_il", "trasferimenti", "(creato_il)"),
+            ("idx_consegne_data_stato", "consegne_programmate", "(data_prevista, stato)"),
+            ("idx_consegne_fornitore_id", "consegne_programmate", "(fornitore_id)"),
+            ("idx_consegne_magazzino_id", "consegne_programmate", "(magazzino_id)"),
+            ("idx_giacenze_mat_mag", "giacenze", "(materiale_id, magazzino_id)"),
+            ("idx_giacenze_magazzino", "giacenze", "(magazzino_id)"),
+            
+            # Automezzi
+            ("idx_automezzi_stato", "automezzi", "(stato)"),
+            ("idx_automezzi_sede", "automezzi", "(sede_attuale_id)"),
+            ("idx_automezzi_reparto", "automezzi", "(reparto_assegnato_id)"),
+            ("idx_viaggi_mezzo_data", "viaggi_automezzi", "(automezzo_id, data_viaggio)"),
+            ("idx_viaggi_user_data", "viaggi_automezzi", "(user_id, data_viaggio)"),
+            ("idx_viaggi_arrivo", "viaggi_automezzi", "(ora_arrivo)"),
+            ("idx_manut_mezzo_data", "manutenzioni_automezzi", "(automezzo_id, data_inizio)"),
+            ("idx_manut_bloccante", "manutenzioni_automezzi", "(bloccante, data_fine)"),
+            ("idx_rifornimenti_targa_data", "rifornimenti", "(targa, data)"),
+            ("idx_reg_km_mezzo_data", "registro_km_automezzi", "(automezzo_id, data_registrazione)"),
+            
+            # Contratti
+            ("idx_contratti_anno_stato", "contratti", "(anno, stato)"),
+            ("idx_contratti_fornitore_id", "contratti", "(fornitore_id)"),
+            ("idx_contratti_dec_user", "contratti", "(dec_user_id)"),
+            ("idx_contratti_creato_da", "contratti", "(creato_da_id)"),
+            ("idx_contratti_reparto_id", "contratti", "(reparto_id)"),
+            ("idx_contratti_moduli_cid_ord", "contratti_moduli", "(contratto_id, ordine)"),
+            ("idx_contratti_moduli_servizio", "contratti_moduli", "(servizio_id)"),
+            ("idx_fornitori_contatti_fid", "fornitori_contatti", "(fornitore_id, ordine)"),
+            
+            # Utenze, Permessi & Sistema
+            ("idx_users_reparto_id", "users", "(reparto_id)"),
+            ("idx_users_sede_id", "users", "(sede_id)"),
+            ("idx_users_attivo", "users", "(attivo)"),
+            ("idx_op_serv_user_serv", "operatori_servizi", "(user_id, servizio_id)"),
+            ("idx_op_serv_servizio", "operatori_servizi", "(servizio_id)"),
+            ("idx_op_mag_user_mag", "operatori_magazzini", "(user_id, magazzino_id)"),
+            ("idx_op_tag_user_tag", "operatori_tag", "(user_id, tag_id)"),
+            ("idx_avvisi_attivo_date", "avvisi", "(attivo, data_inizio, data_fine)")
+        ]
+
+        for idx_name, table_name, cols in indexes_to_create:
+            try:
+                if DB_DRIVER.startswith("sqlite") or "sqlite" in DB_DRIVER:
+                    c.execute(text(f"CREATE INDEX IF NOT EXISTS {idx_name} ON {table_name} {cols}"))
+                else:
+                    # Per MySQL / MariaDB / PostgreSQL
+                    c.execute(text(f"CREATE INDEX {idx_name} ON {table_name} {cols}"))
+            except Exception:
+                pass
 except Exception as e:
     print(f"Skipping DB init on this worker (possible concurrency lock): {e}")
 
