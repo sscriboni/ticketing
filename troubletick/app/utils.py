@@ -26,6 +26,67 @@ def require_superuser(r: Request):
         return RedirectResponse(url="/tickets")
     return user
 
+def user_has_tag_dec(user: dict) -> bool:
+    """Verifica se l'utente possiede il tag DEC assegnato"""
+    if not user or not user.get("id"):
+        return False
+    try:
+        from core import engine
+        from sqlalchemy import text
+        with engine.connect() as c:
+            count = c.execute(text("""
+                SELECT COUNT(*) 
+                FROM operatori_tag ot
+                JOIN tag_operatori t ON ot.tag_id = t.tag_id
+                WHERE ot.user_id = :uid AND UPPER(t.nome) = 'DEC'
+            """), {"uid": user["id"]}).scalar() or 0
+            return count > 0
+    except Exception:
+        return False
+
+def user_can_manage_fornitori(user: dict) -> bool:
+    """Verifica se l'utente ha diritto alla gestione completa dei fornitori (admin o operatore con tag DEC)"""
+    if not user or not user.get("id"):
+        return False
+    if user.get("ruolo") == "admin":
+        return True
+    return user_has_tag_dec(user)
+
+def require_fornitori_manager(r: Request):
+    """Richiede permessi di gestione fornitori: admin o operatore con tag DEC"""
+    user = current_user(r)
+    if not user:
+        return RedirectResponse(url="/login", status_code=303)
+    if not user_can_manage_fornitori(user):
+        return RedirectResponse(url="/fornitori?error=accesso_non_autorizzato", status_code=303)
+    return user
+
+def safe_int(val, default=None):
+    """Converte in modo sicuro una stringa o valore in int, restituendo default se vuoto o non valido"""
+    if val is None:
+        return default
+    s = str(val).strip()
+    if not s:
+        return default
+    try:
+        return int(s)
+    except (ValueError, TypeError):
+        return default
+
+def safe_float(val, default=None):
+    """Converte in modo sicuro una stringa o valore in float, restituendo default se vuoto o non valido"""
+    if val is None:
+        return default
+    s = str(val).strip()
+    if not s:
+        return default
+    try:
+        return float(s)
+    except (ValueError, TypeError):
+        return default
+
+
+
 def save_upload(upload_file: UploadFile):
     if upload_file and upload_file.filename:
         ext = os.path.splitext(upload_file.filename)[1].lower()

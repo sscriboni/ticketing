@@ -30,7 +30,10 @@
             </p>
         </div>
         <div class="d-flex gap-2 flex-wrap">
-            <a href="/contratti/riepilogo-economico{% if anno_selezionato %}?anno={{ anno_selezionato }}{% endif %}" class="btn btn-outline-success btn-sm" title="Quadro economico e totale spesa contratti">
+            <a href="/contratti/export/csv{% if request.query_params %}?{{ request.query_params }}{% endif %}" class="btn btn-outline-success btn-sm" title="Esporta in CSV l'elenco visibile con i filtri attuali">
+                <i class="bi bi-file-earmark-spreadsheet me-1"></i>Esporta CSV
+            </a>
+            <a href="/contratti/riepilogo-economico{% if anno_selezionato %}?anno={{ anno_selezionato }}{% endif %}" class="btn btn-outline-secondary btn-sm" title="Quadro economico e totale spesa contratti">
                 <i class="bi bi-cash-stack me-1"></i>Riepilogo Economico
             </a>
             <a href="/documentazione/contratti" class="btn btn-outline-info btn-sm" title="Guida all'uso dei Contratti">
@@ -112,7 +115,7 @@
                 <div class="d-flex justify-content-between align-items-center">
                     <div>
                         <div class="text-muted small text-uppercase fw-semibold">Totale Budget Annuale <span class="fw-normal text-lowercase">(IVA escl.)</span></div>
-                        <div class="h3 fw-bold mb-0 text-primary">€ {{ "%.2f"|format(totale_spesa) }}</div>
+                        <div class="h3 fw-bold mb-0 text-primary">€ {{ "{:,.2f}".format(totale_spesa or 0).replace(",", "X").replace(".", ",").replace("X", ".") }}</div>
                     </div>
                     <div class="p-3 bg-info bg-opacity-10 text-info rounded-circle">
                         <i class="bi bi-cash-stack fs-4"></i>
@@ -125,7 +128,7 @@
                 <div class="d-flex justify-content-between align-items-center">
                     <div>
                         <div class="text-muted small text-uppercase fw-semibold">Totale Giornate Previste</div>
-                        <div class="h3 fw-bold mb-0 text-warning">{{ "%.1f"|format(totale_giornate) if totale_giornate else '0' }} <span class="fs-6 text-muted fw-normal">gg</span></div>
+                        <div class="h3 fw-bold mb-0 text-warning">{{ "{:,.1f}".format(totale_giornate).replace(",", "X").replace(".", ",").replace("X", ".") if totale_giornate else '0' }} <span class="fs-6 text-muted fw-normal">gg</span></div>
                     </div>
                     <div class="p-3 bg-warning bg-opacity-10 text-warning rounded-circle">
                         <i class="bi bi-calendar2-week fs-4"></i>
@@ -139,33 +142,33 @@
     <div class="card border-0 shadow-sm mb-4">
         <div class="card-body p-3">
             <form method="get" action="/contratti" class="row g-2 align-items-end">
-                <div class="col-12 col-md-3">
+                <div class="col-12 col-lg-3 col-md-4">
                     <label class="form-label small fw-bold text-muted mb-1">Cerca (Titolo, CIG, Fornitore, DEC...)</label>
                     <div class="input-group input-group-sm">
                         <span class="input-group-text bg-light"><i class="bi bi-search"></i></span>
                         <input type="text" name="q" class="form-control" placeholder="Cerca..." value="{{ q }}">
                     </div>
                 </div>
-                <div class="col-6 col-md-2">
+                <div class="col-6 col-lg-1 col-md-2">
                     <label class="form-label small fw-bold text-muted mb-1">Anno</label>
                     <select name="anno" class="form-select form-select-sm">
-                        <option value="">Tutti gli anni</option>
+                        <option value="">Tutti</option>
                         {% for a in anni_disponibili %}
                         <option value="{{ a }}" {% if anno_selezionato == a %}selected{% endif %}>{{ a }}</option>
                         {% endfor %}
                     </select>
                 </div>
-                <div class="col-6 col-md-2">
+                <div class="col-6 col-lg-1 col-md-2">
                     <label class="form-label small fw-bold text-muted mb-1">Stato</label>
                     <select name="stato" class="form-select form-select-sm">
-                        <option value="">Tutti gli stati</option>
+                        <option value="">Tutti</option>
                         <option value="attivo" {% if stato_selezionato == 'attivo' %}selected{% endif %}>Attivo</option>
                         <option value="in_definizione" {% if stato_selezionato == 'in_definizione' %}selected{% endif %}>In Definizione</option>
                         <option value="scaduto" {% if stato_selezionato == 'scaduto' %}selected{% endif %}>Scaduto</option>
                         <option value="concluso" {% if stato_selezionato == 'concluso' %}selected{% endif %}>Concluso</option>
                     </select>
                 </div>
-                <div class="col-6 col-md-2">
+                <div class="col-6 col-lg-2 col-md-4">
                     <label class="form-label small fw-bold text-muted mb-1">Fornitore</label>
                     <select name="fornitore_id" class="form-select form-select-sm">
                         <option value="">Tutti i fornitori</option>
@@ -174,8 +177,19 @@
                         {% endfor %}
                     </select>
                 </div>
+                <div class="col-6 col-lg-2 col-md-4">
+                    <label class="form-label small fw-bold text-muted mb-1">Operatore / DEC</label>
+                    <select name="operatore_id" class="form-select form-select-sm">
+                        <option value="">Tutti gli operatori</option>
+                        {% for op in operatori %}
+                        <option value="{{ op.user_id }}" {% if operatore_selezionato == op.user_id %}selected{% endif %}>
+                            {{ op.cognome }} {{ op.nome }}{% if op.reparto_nome %} ({{ op.reparto_nome }}){% endif %}
+                        </option>
+                        {% endfor %}
+                    </select>
+                </div>
                 {% if user.ruolo == 'admin' %}
-                <div class="col-6 col-md-2">
+                <div class="col-6 col-lg-2 col-md-4">
                     <label class="form-label small fw-bold text-muted mb-1">Reparto</label>
                     <select name="reparto_id" class="form-select form-select-sm">
                         <option value="">Tutti i reparti</option>
@@ -185,8 +199,9 @@
                     </select>
                 </div>
                 {% endif %}
-                <div class="col-12 col-md-1 d-flex gap-1">
-                    <button type="submit" class="btn btn-sm btn-primary w-100" title="Applica filtri"><i class="bi bi-funnel"></i></button>
+                <div class="col-12 col-lg-1 col-md-2 d-flex gap-1">
+                    <button type="submit" class="btn btn-sm btn-primary flex-grow-1" title="Applica filtri"><i class="bi bi-funnel"></i></button>
+                    <button type="submit" formaction="/contratti/export/csv" class="btn btn-sm btn-outline-success" title="Esporta elenco visibile in CSV"><i class="bi bi-file-earmark-spreadsheet"></i></button>
                     <a href="/contratti" class="btn btn-sm btn-outline-secondary" title="Reimposta filtri"><i class="bi bi-arrow-counterclockwise"></i></a>
                 </div>
             </form>
@@ -266,15 +281,20 @@
                                     <i class="bi bi-diagram-3 me-1"></i>{{ c.reparto_nome }}
                                 </div>
                                 {% endif %}
+                                {% if c.creatore_cognome and (not c.dec_nome or c.creatore_nome != c.dec_nome or c.creatore_cognome != c.dec_cognome) %}
+                                <div class="small text-muted mt-1" style="font-size:0.75rem;" title="Inserito da">
+                                    <i class="bi bi-pencil-square me-1"></i>Ins: {{ c.creatore_nome }} {{ c.creatore_cognome }}
+                                </div>
+                                {% endif %}
                             </td>
                             <td class="text-center">
                                 <span class="badge bg-secondary rounded-pill">{{ c.cnt_moduli }} voci</span>
                                 {% if c.totale_giornate and c.totale_giornate > 0 %}
-                                <div class="small text-muted mt-1">{{ "%.1f"|format(c.totale_giornate) }} gg</div>
+                                <div class="small text-muted mt-1">{{ "{:,.1f}".format(c.totale_giornate).replace(",", "X").replace(".", ",").replace("X", ".") }} gg</div>
                                 {% endif %}
                             </td>
                             <td class="text-end fw-bold text-dark">
-                                € {{ "%.2f"|format(c.totale_costo) }}
+                                € {{ "{:,.2f}".format(c.totale_costo or 0).replace(",", "X").replace(".", ",").replace("X", ".") }}
                             </td>
                             <td class="text-center">
                                 {% if c.stato == 'attivo' %}

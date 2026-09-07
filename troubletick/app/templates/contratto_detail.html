@@ -123,10 +123,10 @@
                         </div>
                         <div class="text-lg-end bg-light p-3 rounded border">
                             <div class="info-label">Valore Economico Totale (IVA escl.)</div>
-                            <div class="h3 fw-bold text-primary mb-0">€ {{ "%.2f"|format(totale_costo) }}</div>
+                            <div class="h3 fw-bold text-primary mb-0">€ {{ "{:,.2f}".format(totale_costo or 0).replace(",", "X").replace(".", ",").replace("X", ".") }}</div>
                             {% if totale_giornate and totale_giornate > 0 %}
                             <div class="small text-muted fw-semibold mt-1">
-                                <i class="bi bi-calendar-event me-1"></i>{{ "%.1f"|format(totale_giornate) }} giornate
+                                <i class="bi bi-calendar-event me-1"></i>{{ "{:,.1f}".format(totale_giornate).replace(",", "X").replace(".", ",").replace("X", ".") }} giornate
                             </div>
                             {% endif %}
                         </div>
@@ -241,13 +241,13 @@
                                     </td>
                                     <td class="text-end text-muted small">
                                         {% if m.costo_giornaliero and m.costo_giornaliero > 0 %}
-                                        € {{ "%.2f"|format(m.costo_giornaliero) }}
+                                        € {{ "{:,.2f}".format(m.costo_giornaliero).replace(",", "X").replace(".", ",").replace("X", ".") }}
                                         {% else %}
                                         —
                                         {% endif %}
                                     </td>
                                     <td class="text-end fw-bold text-dark">
-                                        € {{ "%.2f"|format(m.costo) }}
+                                        € {{ "{:,.2f}".format(m.costo or 0).replace(",", "X").replace(".", ",").replace("X", ".") }}
                                     </td>
                                     {% if can_edit %}
                                     <td class="text-end pe-3">
@@ -298,10 +298,10 @@
                                 <tr>
                                     <td class="ps-3" colspan="2">Totale Quadro Economico Fornitura (IVA esclusa)</td>
                                     <td class="text-center">
-                                        {% if totale_giornate > 0 %}{{ "%.1f"|format(totale_giornate) }} gg{% endif %}
+                                        {% if totale_giornate > 0 %}{{ "{:,.1f}".format(totale_giornate).replace(",", "X").replace(".", ",").replace("X", ".") }} gg{% endif %}
                                     </td>
                                     <td></td>
-                                    <td class="text-end text-primary fs-6">€ {{ "%.2f"|format(totale_costo) }}</td>
+                                    <td class="text-end text-primary fs-6">€ {{ "{:,.2f}".format(totale_costo or 0).replace(",", "X").replace(".", ",").replace("X", ".") }}</td>
                                     {% if can_edit %}<td></td>{% endif %}
                                 </tr>
                             </tfoot>

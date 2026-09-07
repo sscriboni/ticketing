@@ -11,7 +11,7 @@ Il modulo **Contratti** permette di censire e monitorare i contratti di manutenz
 ### Chi ha accesso al modulo:
 * **Amministratori**: visualizzano e gestiscono tutti i contratti e le anagrafiche dei fornitori.
 * **Responsabili di Reparto**: visualizzano e gestiscono i contratti associati al proprio reparto o gestiti da operatori appartenenti al reparto stesso.
-* **Operatori con tag DEC**: gli operatori che hanno il tag `DEC` nel proprio profilo possono visualizzare e gestire i contratti di cui sono referenti o creatori.
+* **Operatori con tag DEC**: gli operatori che hanno il tag `DEC` nel proprio profilo possono visualizzare e gestire i contratti di cui sono referenti o creatori, e dispongono della **gestione completa dei fornitori** (creazione, modifica, schede di contatto escalation e associazione ai servizi).
 
 ---
 
@@ -82,12 +82,12 @@ Dalla scheda di dettaglio del contratto:
    * **A tariffa oraria/giornaliera**: inserisci il numero di giornate stimate e il costo unitario giornaliero (il totale viene calcolato automaticamente).
    * **A canone fisso forfettario**: inserisci direttamente il costo totale della voce.
 
-### Passo 4: Monitoraggio e Riepilogo Economico
-La scheda di dettaglio del contratto riepiloga automaticamente:
-* **Importo Totale Impegnato (€ - IVA esclusa)** (somma dei moduli).
-* **Totale Giornate Previste**.
-* **Scheda Fornitore** con contatti diretti di escalation e PEC.
-* **Badge di Stato** del contratto.
+### Passo 4: Monitoraggio, Filtri ed Esportazione CSV
+Dall'elenco contratti e dal riepilogo economico è possibile:
+* Filtrare i contratti per **Anno**, **Stato**, **Fornitore**, **Operatore / DEC** e **Reparto**.
+* Effettuare ricerche testuali rapide per titolo, codice contratto, CIG, CUP, fornitore e operatore DEC.
+* **Esportare in CSV** (`.csv`) l'elenco visibile filtrato per elaborazioni in Microsoft Excel, con encoding UTF-8 compatibile, separatore punto e virgola (`;`), importi economici e dettagli completi (fornitore, DEC, date, totali moduli e giornate).
+* Visualizzare il **Riepilogo Economico** con totali spesa, percentuali per fornitore e reparto.
 
 ### Passo 5: Stampa del Contratto
 Cliccando su **"Stampa Scheda"** si ottiene una versione pulita, priva di elementi di navigazione, ideale per:

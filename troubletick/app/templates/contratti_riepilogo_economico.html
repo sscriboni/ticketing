@@ -47,6 +47,9 @@
             </p>
         </div>
         <div class="d-flex gap-2 no-print flex-wrap">
+            <a href="/contratti/export/csv{% if request.query_params %}?{{ request.query_params }}{% endif %}" class="btn btn-outline-success btn-sm" title="Esporta in CSV i contratti con i filtri attuali">
+                <i class="bi bi-file-earmark-spreadsheet me-1"></i>Esporta CSV
+            </a>
             <a href="/contratti" class="btn btn-outline-secondary btn-sm">
                 <i class="bi bi-list-ul me-1"></i>Elenco Contratti
             </a>
@@ -70,12 +73,12 @@
                 <div class="col-12 mb-2">
                     <div class="d-flex align-items-center gap-1 flex-wrap">
                         <span class="small fw-bold text-secondary me-2"><i class="bi bi-calendar-event me-1"></i>Anno:</span>
-                        <a href="/contratti/riepilogo-economico?anno=0{% if fornitore_selezionato %}&fornitore_id={{ fornitore_selezionato }}{% endif %}{% if reparto_selezionato %}&reparto_id={{ reparto_selezionato }}{% endif %}{% if stato_selezionato %}&stato={{ stato_selezionato }}{% endif %}" 
+                        <a href="/contratti/riepilogo-economico?anno=0{% if fornitore_selezionato %}&fornitore_id={{ fornitore_selezionato }}{% endif %}{% if operatore_selezionato %}&operatore_id={{ operatore_selezionato }}{% endif %}{% if reparto_selezionato %}&reparto_id={{ reparto_selezionato }}{% endif %}{% if stato_selezionato %}&stato={{ stato_selezionato }}{% endif %}" 
                            class="btn btn-sm {% if not anno_selezionato or anno_selezionato == 0 %}btn-primary fw-bold shadow-sm{% else %}btn-outline-secondary{% endif %} py-1 px-3 rounded-pill">
                             Tutti gli anni
                         </a>
                         {% for a in anni_disponibili %}
-                        <a href="/contratti/riepilogo-economico?anno={{ a }}{% if fornitore_selezionato %}&fornitore_id={{ fornitore_selezionato }}{% endif %}{% if reparto_selezionato %}&reparto_id={{ reparto_selezionato }}{% endif %}{% if stato_selezionato %}&stato={{ stato_selezionato }}{% endif %}" 
+                        <a href="/contratti/riepilogo-economico?anno={{ a }}{% if fornitore_selezionato %}&fornitore_id={{ fornitore_selezionato }}{% endif %}{% if operatore_selezionato %}&operatore_id={{ operatore_selezionato }}{% endif %}{% if reparto_selezionato %}&reparto_id={{ reparto_selezionato }}{% endif %}{% if stato_selezionato %}&stato={{ stato_selezionato }}{% endif %}" 
                            class="btn btn-sm {% if anno_selezionato == a %}btn-primary fw-bold shadow-sm{% else %}btn-outline-secondary{% endif %} py-1 px-3 rounded-pill">
                             {{ a }}
                         </a>
@@ -86,7 +89,7 @@
                 <!-- Filtri di dettaglio -->
                 <input type="hidden" name="anno" value="{{ anno_selezionato if anno_selezionato is not none else '' }}">
                 
-                <div class="col-12 col-md-4">
+                <div class="col-12 col-lg-3 col-md-4">
                     <label class="form-label small fw-bold text-muted mb-1">Fornitore</label>
                     <select name="fornitore_id" class="form-select form-select-sm" onchange="this.form.submit()">
                         <option value="">-- Tutti i Fornitori --</option>
@@ -98,8 +101,20 @@
                     </select>
                 </div>
 
+                <div class="col-12 col-lg-3 col-md-4">
+                    <label class="form-label small fw-bold text-muted mb-1">Operatore / DEC</label>
+                    <select name="operatore_id" class="form-select form-select-sm" onchange="this.form.submit()">
+                        <option value="">-- Tutti gli Operatori --</option>
+                        {% for op in operatori %}
+                        <option value="{{ op.user_id }}" {% if operatore_selezionato == op.user_id %}selected{% endif %}>
+                            {{ op.cognome }} {{ op.nome }}{% if op.reparto_nome %} ({{ op.reparto_nome }}){% endif %}
+                        </option>
+                        {% endfor %}
+                    </select>
+                </div>
+
                 {% if user.ruolo == 'admin' %}
-                <div class="col-12 col-md-3">
+                <div class="col-12 col-lg-2 col-md-4">
                     <label class="form-label small fw-bold text-muted mb-1">Reparto</label>
                     <select name="reparto_id" class="form-select form-select-sm" onchange="this.form.submit()">
                         <option value="">-- Tutti i Reparti --</option>
@@ -112,7 +127,7 @@
                 </div>
                 {% endif %}
 
-                <div class="col-12 col-md-3">
+                <div class="col-12 col-lg-2 col-md-4">
                     <label class="form-label small fw-bold text-muted mb-1">Stato</label>
                     <select name="stato" class="form-select form-select-sm" onchange="this.form.submit()">
                         <option value="">-- Tutti gli Stati --</option>
@@ -123,9 +138,12 @@
                     </select>
                 </div>
 
-                <div class="col-12 col-md-2 d-flex align-items-end gap-1">
-                    <button type="submit" class="btn btn-primary btn-sm w-100">
+                <div class="col-12 col-lg-2 col-md-4 d-flex align-items-end gap-1">
+                    <button type="submit" class="btn btn-primary btn-sm flex-grow-1">
                         <i class="bi bi-filter me-1"></i>Filtra
+                    </button>
+                    <button type="submit" formaction="/contratti/export/csv" class="btn btn-sm btn-success" title="Esporta in CSV i contratti con i filtri attuali">
+                        <i class="bi bi-file-earmark-spreadsheet"></i>
                     </button>
                     <a href="/contratti/riepilogo-economico" class="btn btn-outline-secondary btn-sm" title="Reimposta filtri">
                         <i class="bi bi-arrow-clockwise"></i>

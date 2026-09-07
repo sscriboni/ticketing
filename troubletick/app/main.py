@@ -11,8 +11,9 @@ from sqlalchemy import create_engine, text
 import bcrypt
 
 from core import CFG, BASE_DIR, UPLOAD_DIR, LOG_DIR, engine, DB_TYPE, DB_PK, DB_DRIVER, templates
-from utils import current_user, require_superuser, save_upload, save_user_roles
+from utils import current_user, require_superuser, save_upload, save_user_roles, user_can_manage_fornitori, user_has_tag_dec
 from email_utils import send_email_async
+
 import auth
 import magazzini
 import automezzi
@@ -901,8 +902,10 @@ def get_incoming_transfers_count(user):
 
 templates.env.globals["get_pending_requests_count"] = get_pending_requests_count
 templates.env.globals["get_incoming_transfers_count"] = get_incoming_transfers_count
-templates.env.globals["user_has_tag_dec"] = contratti.user_has_tag_dec
+templates.env.globals["user_has_tag_dec"] = user_has_tag_dec
 templates.env.globals["user_can_access_contratti"] = contratti.user_can_access_contratti
+templates.env.globals["user_can_manage_fornitori"] = user_can_manage_fornitori
+
 
 @app.exception_handler(Exception)
 async def global_exception_handler(request: Request, exc: Exception):

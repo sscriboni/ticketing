@@ -22,8 +22,10 @@
         <div>
             <nav aria-label="breadcrumb">
                 <ol class="breadcrumb mb-1 small">
+                    {% if user.ruolo == 'admin' %}
                     <li class="breadcrumb-item"><a href="/admin" class="text-decoration-none">Amministrazione</a></li>
-                    <li class="breadcrumb-item"><a href="/admin/fornitori" class="text-decoration-none">Fornitori</a></li>
+                    {% endif %}
+                    <li class="breadcrumb-item"><a href="/admin/fornitori" class="text-decoration-none">Gestione Fornitori</a></li>
                     <li class="breadcrumb-item active" aria-current="page">{{ fornitore.ragione_sociale }}</li>
                 </ol>
             </nav>

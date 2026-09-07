@@ -165,6 +165,7 @@
               <li><a class="dropdown-item" href="/contratti/riepilogo-economico"><i class="bi bi-cash-stack me-2 text-success"></i>Riepilogo Economico</a></li>
               <li><hr class="dropdown-divider"></li>
               <li><a class="dropdown-item" href="/contratto/nuovo"><i class="bi bi-plus-circle me-2 text-primary"></i>Nuovo Contratto</a></li>
+              <li><a class="dropdown-item" href="/admin/fornitori"><i class="bi bi-building-gear me-2"></i>Gestione Fornitori</a></li>
               <li><a class="dropdown-item" href="/fornitori"><i class="bi bi-journal-bookmark me-2"></i>Rubrica Fornitori</a></li>
             </ul>
           </li>
@@ -314,11 +315,23 @@
           </li>
           {% endif %}
 
+          {% if user_can_manage_fornitori(user) %}
+          <li class="nav-item dropdown">
+            <a class="nav-link dropdown-toggle {% if request.url.path == '/fornitori' or request.url.path.startswith('/admin/fornitor') %}active fw-bold{% endif %}" href="#" id="fornitoriDropdownResp" role="button" data-bs-toggle="dropdown" aria-expanded="false">
+              <i class="bi bi-journal-bookmark"></i> Fornitori
+            </a>
+            <ul class="dropdown-menu shadow" aria-labelledby="fornitoriDropdownResp">
+              <li><a class="dropdown-item" href="/fornitori"><i class="bi bi-journal-bookmark me-2"></i>Rubrica Fornitori</a></li>
+              <li><a class="dropdown-item" href="/admin/fornitori"><i class="bi bi-building-gear me-2"></i>Gestione Fornitori</a></li>
+            </ul>
+          </li>
+          {% else %}
           <li class="nav-item">
             <a class="nav-link {% if request.url.path == '/fornitori' %}active fw-bold{% endif %}" href="/fornitori">
               <i class="bi bi-journal-bookmark"></i> Fornitori
             </a>
           </li>
+          {% endif %}
 
           <li class="nav-item dropdown">
             <a class="nav-link dropdown-toggle {% if request.url.path.startswith('/contratt') %}active fw-bold{% endif %}" href="#" id="contrattiDropdownResp" role="button" data-bs-toggle="dropdown" aria-expanded="false">
@@ -329,6 +342,10 @@
               <li><a class="dropdown-item" href="/contratti/riepilogo-economico"><i class="bi bi-cash-stack me-2 text-success"></i>Riepilogo Economico</a></li>
               <li><hr class="dropdown-divider"></li>
               <li><a class="dropdown-item" href="/contratto/nuovo"><i class="bi bi-plus-circle me-2 text-primary"></i>Nuovo Contratto</a></li>
+              {% if user_can_manage_fornitori(user) %}
+              <li><a class="dropdown-item" href="/admin/fornitori"><i class="bi bi-building-gear me-2"></i>Gestione Fornitori</a></li>
+              {% endif %}
+              <li><a class="dropdown-item" href="/fornitori"><i class="bi bi-journal-bookmark me-2"></i>Rubrica Fornitori</a></li>
             </ul>
           </li>
 
@@ -422,17 +439,39 @@
           </li>
           {% endif %}
 
+          {% if user_can_manage_fornitori(user) %}
+          <li class="nav-item dropdown">
+            <a class="nav-link dropdown-toggle {% if request.url.path == '/fornitori' or request.url.path.startswith('/admin/fornitor') %}active fw-bold{% endif %}" href="#" id="fornitoriDropdownOp" role="button" data-bs-toggle="dropdown" aria-expanded="false">
+              <i class="bi bi-journal-bookmark"></i> Fornitori
+            </a>
+            <ul class="dropdown-menu shadow" aria-labelledby="fornitoriDropdownOp">
+              <li><a class="dropdown-item" href="/fornitori"><i class="bi bi-journal-bookmark me-2"></i>Rubrica Fornitori</a></li>
+              <li><a class="dropdown-item" href="/admin/fornitori"><i class="bi bi-building-gear me-2"></i>Gestione Fornitori</a></li>
+            </ul>
+          </li>
+          {% else %}
           <li class="nav-item">
             <a class="nav-link {% if request.url.path == '/fornitori' %}active fw-bold{% endif %}" href="/fornitori">
               <i class="bi bi-journal-bookmark"></i> Fornitori
             </a>
           </li>
+          {% endif %}
 
           {% if user_can_access_contratti(user) %}
-          <li class="nav-item">
-            <a class="nav-link {% if request.url.path.startswith('/contratt') %}active fw-bold{% endif %}" href="/contratti">
+          <li class="nav-item dropdown">
+            <a class="nav-link dropdown-toggle {% if request.url.path.startswith('/contratt') %}active fw-bold{% endif %}" href="#" id="contrattiDropdownOp" role="button" data-bs-toggle="dropdown" aria-expanded="false">
               <i class="bi bi-file-earmark-text"></i> Contratti
             </a>
+            <ul class="dropdown-menu shadow" aria-labelledby="contrattiDropdownOp">
+              <li><a class="dropdown-item" href="/contratti"><i class="bi bi-list-ul me-2"></i>Elenco Contratti</a></li>
+              <li><a class="dropdown-item" href="/contratti/riepilogo-economico"><i class="bi bi-cash-stack me-2 text-success"></i>Riepilogo Economico</a></li>
+              <li><hr class="dropdown-divider"></li>
+              <li><a class="dropdown-item" href="/contratto/nuovo"><i class="bi bi-plus-circle me-2 text-primary"></i>Nuovo Contratto</a></li>
+              {% if user_can_manage_fornitori(user) %}
+              <li><a class="dropdown-item" href="/admin/fornitori"><i class="bi bi-building-gear me-2"></i>Gestione Fornitori</a></li>
+              {% endif %}
+              <li><a class="dropdown-item" href="/fornitori"><i class="bi bi-journal-bookmark me-2"></i>Rubrica Fornitori</a></li>
+            </ul>
           </li>
           {% endif %}
 
@@ -509,6 +548,18 @@
             </ul>
           </li>
           {% endif %} #}
+
+          {% if user_can_manage_fornitori(user) %}
+          <li class="nav-item dropdown">
+            <a class="nav-link dropdown-toggle {% if request.url.path == '/fornitori' or request.url.path.startswith('/admin/fornitor') %}active fw-bold{% endif %}" href="#" id="fornitoriDropdownNorm" role="button" data-bs-toggle="dropdown" aria-expanded="false">
+              <i class="bi bi-journal-bookmark"></i> Fornitori
+            </a>
+            <ul class="dropdown-menu shadow" aria-labelledby="fornitoriDropdownNorm">
+              <li><a class="dropdown-item" href="/fornitori"><i class="bi bi-journal-bookmark me-2"></i>Rubrica Fornitori</a></li>
+              <li><a class="dropdown-item" href="/admin/fornitori"><i class="bi bi-building-gear me-2"></i>Gestione Fornitori</a></li>
+            </ul>
+          </li>
+          {% endif %}
 
           {% if user_can_access_contratti(user) %}
           <li class="nav-item">

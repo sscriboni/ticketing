@@ -1,12 +1,16 @@
 import os
+import io
+import csv
 from datetime import datetime
 from typing import Optional, List
 from fastapi import APIRouter, Request, Form, Query
-from fastapi.responses import HTMLResponse, RedirectResponse
+from fastapi.responses import HTMLResponse, RedirectResponse, Response
 from sqlalchemy import text
 
 from core import engine, CFG, templates, DB_PK, DB_DRIVER
-from utils import current_user
+from utils import current_user, user_has_tag_dec, user_can_manage_fornitori, safe_int, safe_float
+
+
 
 router = APIRouter()
 
@@ -74,21 +78,6 @@ except Exception as e:
 # HELPER PERMESSI E VISIBILITA'
 # ==========================================
 
-def user_has_tag_dec(user: dict) -> bool:
-    """Verifica se l'utente possiede il tag DEC assegnato"""
-    if not user or not user.get("id"):
-        return False
-    try:
-        with engine.connect() as c:
-            count = c.execute(text("""
-                SELECT COUNT(*) 
-                FROM operatori_tag ot
-                JOIN tag_operatori t ON ot.tag_id = t.tag_id
-                WHERE ot.user_id = :uid AND UPPER(t.nome) = 'DEC'
-            """), {"uid": user["id"]}).scalar() or 0
-            return count > 0
-    except Exception:
-        return False
 
 def user_can_access_contratti(user: dict) -> bool:
     """Verifica booleana se l'utente ha diritto ad accedere al modulo contratti"""
@@ -214,10 +203,11 @@ def can_manage_single_contratto(user: dict, contratto_row: dict, conn=None) -> b
 @router.get("/contratto/elenco", response_class=HTMLResponse)
 def contratti_list(
     r: Request,
-    anno: Optional[int] = None,
-    fornitore_id: Optional[int] = None,
+    anno: Optional[str] = None,
+    fornitore_id: Optional[str] = None,
     stato: Optional[str] = None,
-    reparto_id: Optional[int] = None,
+    reparto_id: Optional[str] = None,
+    operatore_id: Optional[str] = None,
     q: Optional[str] = None,
     error: Optional[str] = None,
     success: Optional[str] = None
@@ -226,26 +216,35 @@ def contratti_list(
     if isinstance(user, RedirectResponse):
         return user
 
+    anno_val = safe_int(anno)
+    fornitore_id_val = safe_int(fornitore_id)
+    reparto_id_val = safe_int(reparto_id)
+    operatore_id_val = safe_int(operatore_id)
+
     scope_sql, scope_params = get_contratto_scope_filter(user)
     where_clauses = [scope_sql]
     params = dict(scope_params)
 
     current_year = datetime.now().year
-    if anno:
+    if anno_val:
         where_clauses.append("c.anno = :anno")
-        params["anno"] = anno
+        params["anno"] = anno_val
 
-    if fornitore_id:
+    if fornitore_id_val:
         where_clauses.append("c.fornitore_id = :fornitore_id")
-        params["fornitore_id"] = fornitore_id
+        params["fornitore_id"] = fornitore_id_val
 
     if stato and stato.strip():
         where_clauses.append("c.stato = :stato")
         params["stato"] = stato.strip()
 
-    if reparto_id:
+    if reparto_id_val:
         where_clauses.append("c.reparto_id = :reparto_id")
-        params["reparto_id"] = reparto_id
+        params["reparto_id"] = reparto_id_val
+
+    if operatore_id_val:
+        where_clauses.append("(c.dec_user_id = :operatore_id OR c.creato_da_id = :operatore_id)")
+        params["operatore_id"] = operatore_id_val
 
     if q and q.strip():
         where_clauses.append("""(
@@ -256,6 +255,8 @@ def contratti_list(
             OR f.ragione_sociale LIKE :q
             OR u_dec.nome LIKE :q
             OR u_dec.cognome LIKE :q
+            OR u_creatore.nome LIKE :q
+            OR u_creatore.cognome LIKE :q
         )""")
         params["q"] = f"%{q.strip()}%"
 
@@ -272,6 +273,8 @@ def contratti_list(
                    u_dec.nome AS dec_nome,
                    u_dec.cognome AS dec_cognome,
                    u_dec.email AS dec_email,
+                   u_creatore.nome AS creatore_nome,
+                   u_creatore.cognome AS creatore_cognome,
                    (SELECT COUNT(*) FROM contratti_moduli cm WHERE cm.contratto_id = c.contratto_id) AS cnt_moduli,
                    COALESCE((SELECT SUM(cm.costo) FROM contratti_moduli cm WHERE cm.contratto_id = c.contratto_id), 0.0) AS totale_costo,
                    COALESCE((SELECT SUM(cm.giornate) FROM contratti_moduli cm WHERE cm.contratto_id = c.contratto_id), 0.0) AS totale_giornate
@@ -279,6 +282,7 @@ def contratti_list(
             JOIN fornitori f ON c.fornitore_id = f.fornitore_id
             LEFT JOIN reparti rep ON c.reparto_id = rep.reparto_id
             LEFT JOIN users u_dec ON c.dec_user_id = u_dec.user_id
+            LEFT JOIN users u_creatore ON c.creato_da_id = u_creatore.user_id
             WHERE {where_sql}
             ORDER BY c.anno DESC, c.contratto_id DESC
         """), params).mappings().all()
@@ -286,6 +290,18 @@ def contratti_list(
         # Liste di supporto per i filtri
         fornitori = conn.execute(text("SELECT fornitore_id, ragione_sociale FROM fornitori WHERE attivo = 1 ORDER BY ragione_sociale")).mappings().all()
         reparti = conn.execute(text("SELECT reparto_id, nome FROM reparti ORDER BY nome")).mappings().all()
+        operatori = conn.execute(text("""
+            SELECT DISTINCT u.user_id, u.nome, u.cognome, u.reparto_id, r.nome AS reparto_nome
+            FROM users u
+            LEFT JOIN reparti r ON u.reparto_id = r.reparto_id
+            WHERE (u.ruolo != 'normale' AND u.attivo = 1)
+               OR u.user_id IN (
+                   SELECT DISTINCT dec_user_id FROM contratti WHERE dec_user_id IS NOT NULL
+                   UNION
+                   SELECT DISTINCT creato_da_id FROM contratti WHERE creato_da_id IS NOT NULL
+               )
+            ORDER BY u.cognome, u.nome
+        """)).mappings().all()
         anni_disponibili = conn.execute(text("SELECT DISTINCT anno FROM contratti ORDER BY anno DESC")).scalars().all()
         if not anni_disponibili:
             anni_disponibili = [current_year]
@@ -339,11 +355,13 @@ def contratti_list(
         "contratti": contratti_augmented,
         "fornitori": fornitori,
         "reparti": reparti,
+        "operatori": operatori,
         "anni_disponibili": anni_disponibili,
-        "anno_selezionato": anno,
-        "fornitore_selezionato": fornitore_id,
+        "anno_selezionato": anno_val,
+        "fornitore_selezionato": fornitore_id_val,
         "stato_selezionato": stato or "",
-        "reparto_selezionato": reparto_id,
+        "reparto_selezionato": reparto_id_val,
+        "operatore_selezionato": operatore_id_val,
         "q": q or "",
         "totale_spesa": totale_spesa,
         "totale_attivi": totale_attivi,
@@ -351,6 +369,161 @@ def contratti_list(
         "error": error,
         "success": success
     })
+
+
+@router.get("/contratti/export/csv")
+@router.get("/contratto/export/csv")
+@router.get("/contratti/csv")
+def contratti_export_csv(
+    r: Request,
+    anno: Optional[str] = None,
+    fornitore_id: Optional[str] = None,
+    stato: Optional[str] = None,
+    reparto_id: Optional[str] = None,
+    operatore_id: Optional[str] = None,
+    q: Optional[str] = None
+):
+    user = check_contratti_access(r)
+    if isinstance(user, RedirectResponse):
+        return user
+
+    anno_val = safe_int(anno)
+    fornitore_id_val = safe_int(fornitore_id)
+    reparto_id_val = safe_int(reparto_id)
+    operatore_id_val = safe_int(operatore_id)
+
+    scope_sql, scope_params = get_contratto_scope_filter(user)
+    where_clauses = [scope_sql]
+    params = dict(scope_params)
+
+    if anno_val:
+        where_clauses.append("c.anno = :anno")
+        params["anno"] = anno_val
+
+    if fornitore_id_val:
+        where_clauses.append("c.fornitore_id = :fornitore_id")
+        params["fornitore_id"] = fornitore_id_val
+
+    if stato and stato.strip():
+        where_clauses.append("c.stato = :stato")
+        params["stato"] = stato.strip()
+
+    if reparto_id_val:
+        where_clauses.append("c.reparto_id = :reparto_id")
+        params["reparto_id"] = reparto_id_val
+
+    if operatore_id_val:
+        where_clauses.append("(c.dec_user_id = :operatore_id OR c.creato_da_id = :operatore_id)")
+        params["operatore_id"] = operatore_id_val
+
+    if q and q.strip():
+        where_clauses.append("""(
+            c.titolo LIKE :q 
+            OR c.codice_contratto LIKE :q 
+            OR c.cig LIKE :q 
+            OR c.cup LIKE :q 
+            OR f.ragione_sociale LIKE :q
+            OR u_dec.nome LIKE :q
+            OR u_dec.cognome LIKE :q
+            OR u_creatore.nome LIKE :q
+            OR u_creatore.cognome LIKE :q
+        )""")
+        params["q"] = f"%{q.strip()}%"
+
+    where_sql = " AND ".join(where_clauses)
+
+    with engine.connect() as conn:
+        contratti = conn.execute(text(f"""
+            SELECT c.*,
+                   f.ragione_sociale AS fornitore_nome,
+                   f.partita_iva AS fornitore_piva,
+                   f.email_generale AS fornitore_email,
+                   f.telefono_generale AS fornitore_telefono,
+                   rep.nome AS reparto_nome,
+                   u_dec.nome AS dec_nome,
+                   u_dec.cognome AS dec_cognome,
+                   u_dec.email AS dec_email,
+                   u_creatore.nome AS creatore_nome,
+                   u_creatore.cognome AS creatore_cognome,
+                   (SELECT COUNT(*) FROM contratti_moduli cm WHERE cm.contratto_id = c.contratto_id) AS cnt_moduli,
+                   COALESCE((SELECT SUM(cm.costo) FROM contratti_moduli cm WHERE cm.contratto_id = c.contratto_id), 0.0) AS totale_costo,
+                   COALESCE((SELECT SUM(cm.giornate) FROM contratti_moduli cm WHERE cm.contratto_id = c.contratto_id), 0.0) AS totale_giornate
+            FROM contratti c
+            JOIN fornitori f ON c.fornitore_id = f.fornitore_id
+            LEFT JOIN reparti rep ON c.reparto_id = rep.reparto_id
+            LEFT JOIN users u_dec ON c.dec_user_id = u_dec.user_id
+            LEFT JOIN users u_creatore ON c.creato_da_id = u_creatore.user_id
+            WHERE {where_sql}
+            ORDER BY c.anno DESC, c.contratto_id DESC
+        """), params).mappings().all()
+
+    output = io.StringIO()
+    output.write('\ufeff')
+    writer = csv.writer(output, delimiter=';')
+
+    writer.writerow([
+        "ID",
+        "Anno",
+        "Titolo Contratto",
+        "Codice Contratto",
+        "CIG",
+        "CUP",
+        "Fornitore",
+        "P.IVA Fornitore",
+        "Email Fornitore",
+        "Telefono Fornitore",
+        "Reparto",
+        "DEC (Direttore Esecuzione)",
+        "Email DEC",
+        "Inserito Da",
+        "Data Inizio",
+        "Data Fine",
+        "Stato",
+        "N. Moduli / Voci",
+        "Totale Giornate",
+        "Totale Importo [IVA escl.] (€)",
+        "Descrizione",
+        "Data Creazione"
+    ])
+
+    for c in contratti:
+        dec_full = f"{c['dec_cognome'] or ''} {c['dec_nome'] or ''}".strip()
+        creatore_full = f"{c['creatore_cognome'] or ''} {c['creatore_nome'] or ''}".strip()
+        costo_val = f"{c['totale_costo']:.2f}".replace('.', ',')
+        giornate_val = f"{c['totale_giornate']:.1f}".replace('.', ',') if c['totale_giornate'] else "0"
+
+        writer.writerow([
+            c["contratto_id"],
+            c["anno"],
+            c["titolo"] or "",
+            c["codice_contratto"] or "",
+            c["cig"] or "",
+            c["cup"] or "",
+            c["fornitore_nome"] or "",
+            c["fornitore_piva"] or "",
+            c["fornitore_email"] or "",
+            c["fornitore_telefono"] or "",
+            c["reparto_nome"] or "",
+            dec_full,
+            c["dec_email"] or "",
+            creatore_full,
+            c["data_inizio"] or "",
+            c["data_fine"] or "",
+            c["stato"] or "",
+            c["cnt_moduli"] or 0,
+            giornate_val,
+            costo_val,
+            (c["descrizione"] or "").replace("\r\n", " ").replace("\n", " "),
+            c["creato_il"] or ""
+        ])
+
+    today_str = datetime.now().strftime("%Y%m%d_%H%M")
+    filename = f"contratti_fornitura_{today_str}.csv"
+    return Response(
+        content=output.getvalue(),
+        media_type="text/csv; charset=utf-8",
+        headers={"Content-Disposition": f'attachment; filename="{filename}"'}
+    )
 
 
 @router.get("/contratti/riepilogo-economico", response_class=HTMLResponse)
@@ -361,10 +534,11 @@ def contratti_list(
 @router.get("/contratto/report-economico", response_class=HTMLResponse)
 def contratti_riepilogo_economico(
     r: Request,
-    anno: Optional[int] = None,
-    fornitore_id: Optional[int] = None,
-    reparto_id: Optional[int] = None,
-    stato: Optional[str] = None
+    anno: Optional[str] = None,
+    fornitore_id: Optional[str] = None,
+    reparto_id: Optional[str] = None,
+    stato: Optional[str] = None,
+    operatore_id: Optional[str] = None
 ):
     user = check_contratti_access(r)
     if isinstance(user, RedirectResponse):
@@ -372,11 +546,17 @@ def contratti_riepilogo_economico(
 
     current_year = datetime.now().year
     
-    # Se l'anno non è specificato nei parametri (primo accesso), impostiamo l'anno corrente di default.
-    # Se il parametro anno è 0, significa visualizzare "Tutti gli anni".
-    anno_filtro = anno
+    anno_val = safe_int(anno)
+    fornitore_id_val = safe_int(fornitore_id)
+    reparto_id_val = safe_int(reparto_id)
+    operatore_id_val = safe_int(operatore_id)
+
+    # Se l'anno non è specificato nei parametri (primo accesso, anno is None), impostiamo l'anno corrente di default.
+    # Se il parametro anno è 0 o stringa vuota, significa visualizzare "Tutti gli anni".
     if anno is None:
         anno_filtro = current_year
+    else:
+        anno_filtro = anno_val
 
     scope_sql, scope_params = get_contratto_scope_filter(user)
     where_clauses = [scope_sql]
@@ -386,19 +566,24 @@ def contratti_riepilogo_economico(
         where_clauses.append("c.anno = :anno")
         params["anno"] = anno_filtro
 
-    if fornitore_id:
+    if fornitore_id_val:
         where_clauses.append("c.fornitore_id = :fornitore_id")
-        params["fornitore_id"] = fornitore_id
+        params["fornitore_id"] = fornitore_id_val
 
     if stato and stato.strip():
         where_clauses.append("c.stato = :stato")
         params["stato"] = stato.strip()
 
-    if reparto_id:
+    if reparto_id_val:
         where_clauses.append("c.reparto_id = :reparto_id")
-        params["reparto_id"] = reparto_id
+        params["reparto_id"] = reparto_id_val
+
+    if operatore_id_val:
+        where_clauses.append("(c.dec_user_id = :operatore_id OR c.creato_da_id = :operatore_id)")
+        params["operatore_id"] = operatore_id_val
 
     where_sql = " AND ".join(where_clauses)
+
 
     with engine.connect() as conn:
         # Contratti filtrati
@@ -520,6 +705,18 @@ def contratti_riepilogo_economico(
         # Liste per i filtri
         fornitori = conn.execute(text("SELECT fornitore_id, ragione_sociale FROM fornitori WHERE attivo = 1 ORDER BY ragione_sociale")).mappings().all()
         reparti = conn.execute(text("SELECT reparto_id, nome FROM reparti ORDER BY nome")).mappings().all()
+        operatori = conn.execute(text("""
+            SELECT DISTINCT u.user_id, u.nome, u.cognome, u.reparto_id, r.nome AS reparto_nome
+            FROM users u
+            LEFT JOIN reparti r ON u.reparto_id = r.reparto_id
+            WHERE (u.ruolo != 'normale' AND u.attivo = 1)
+               OR u.user_id IN (
+                   SELECT DISTINCT dec_user_id FROM contratti WHERE dec_user_id IS NOT NULL
+                   UNION
+                   SELECT DISTINCT creato_da_id FROM contratti WHERE creato_da_id IS NOT NULL
+               )
+            ORDER BY u.cognome, u.nome
+        """)).mappings().all()
         anni_disponibili = conn.execute(text("SELECT DISTINCT anno FROM contratti ORDER BY anno DESC")).scalars().all()
         if not anni_disponibili:
             anni_disponibili = [current_year]
@@ -540,10 +737,12 @@ def contratti_riepilogo_economico(
         "stati_agg": agg_stati,
         "fornitori": fornitori,
         "reparti": reparti,
+        "operatori": operatori,
         "anni_disponibili": anni_disponibili,
         "anno_selezionato": anno_filtro,
-        "fornitore_selezionato": fornitore_id,
-        "reparto_selezionato": reparto_id,
+        "fornitore_selezionato": fornitore_id_val,
+        "reparto_selezionato": reparto_id_val,
+        "operatore_selezionato": operatore_id_val,
         "stato_selezionato": stato or "",
         "current_year": current_year
     })
@@ -655,15 +854,15 @@ def contratto_nuovo_save(
     data_inizio: Optional[str] = Form(None),
     data_fine: Optional[str] = Form(None),
     stato: str = Form("attivo"),
-    dec_user_id: Optional[int] = Form(None),
-    reparto_id: Optional[int] = Form(None),
+    dec_user_id: Optional[str] = Form(None),
+    reparto_id: Optional[str] = Form(None),
     descrizione: Optional[str] = Form(None),
     # Modulo iniziale opzionale
     modulo_descrizione: Optional[str] = Form(None),
-    modulo_servizio_id: Optional[int] = Form(None),
-    modulo_costo: Optional[float] = Form(None),
-    modulo_giornate: Optional[float] = Form(None),
-    modulo_costo_giornaliero: Optional[float] = Form(None)
+    modulo_servizio_id: Optional[str] = Form(None),
+    modulo_costo: Optional[str] = Form(None),
+    modulo_giornate: Optional[str] = Form(None),
+    modulo_costo_giornaliero: Optional[str] = Form(None)
 ):
     user = check_contratti_access(r)
     if isinstance(user, RedirectResponse):
@@ -673,13 +872,20 @@ def contratto_nuovo_save(
     if not titolo:
         return RedirectResponse(url="/contratto/nuovo?error=titolo_obbligatorio", status_code=303)
 
+    dec_user_id_val = safe_int(dec_user_id)
+    reparto_id_val = safe_int(reparto_id)
+    modulo_servizio_id_val = safe_int(modulo_servizio_id)
+    modulo_costo_val = safe_float(modulo_costo)
+    modulo_giornate_val = safe_float(modulo_giornate)
+    modulo_costo_giornaliero_val = safe_float(modulo_costo_giornaliero)
+
     # Se l'utente è operatore DEC e non ha specificato il DEC, assegniamo lui stesso
-    if not dec_user_id and user_has_tag_dec(user):
-        dec_user_id = user["id"]
+    if not dec_user_id_val and user_has_tag_dec(user):
+        dec_user_id_val = user["id"]
 
     # Se non è specificato il reparto, usiamo quello dell'utente o del DEC
-    if not reparto_id and user.get("reparto_id"):
-        reparto_id = user.get("reparto_id")
+    if not reparto_id_val and user.get("reparto_id"):
+        reparto_id_val = user.get("reparto_id")
 
     with engine.begin() as conn:
         result = conn.execute(text("""
@@ -702,8 +908,8 @@ def contratto_nuovo_save(
             "data_inizio": data_inizio.strip() if data_inizio else None,
             "data_fine": data_fine.strip() if data_fine else None,
             "stato": stato,
-            "dec_user_id": dec_user_id,
-            "reparto_id": reparto_id,
+            "dec_user_id": dec_user_id_val,
+            "reparto_id": reparto_id_val,
             "descrizione": descrizione.strip() if descrizione else None,
             "creato_da_id": user["id"],
             "creato_il": datetime.now().strftime("%Y-%m-%d %H:%M:%S")
@@ -718,9 +924,9 @@ def contratto_nuovo_save(
 
         # Inserimento modulo iniziale se specificato
         if modulo_descrizione and modulo_descrizione.strip():
-            calcolato_costo = modulo_costo or 0.0
-            if (not modulo_costo or modulo_costo == 0) and modulo_giornate and modulo_costo_giornaliero:
-                calcolato_costo = float(modulo_giornate) * float(modulo_costo_giornaliero)
+            calcolato_costo = modulo_costo_val or 0.0
+            if (not modulo_costo_val or modulo_costo_val == 0) and modulo_giornate_val and modulo_costo_giornaliero_val:
+                calcolato_costo = float(modulo_giornate_val) * float(modulo_costo_giornaliero_val)
 
             conn.execute(text("""
                 INSERT INTO contratti_moduli (
@@ -731,11 +937,11 @@ def contratto_nuovo_save(
                 )
             """), {
                 "cid": contratto_id,
-                "sid": modulo_servizio_id if modulo_servizio_id else None,
+                "sid": modulo_servizio_id_val if modulo_servizio_id_val else None,
                 "desc": modulo_descrizione.strip(),
                 "costo": calcolato_costo,
-                "giornate": modulo_giornate if modulo_giornate else None,
-                "costo_gg": modulo_costo_giornaliero if modulo_costo_giornaliero else None,
+                "giornate": modulo_giornate_val if modulo_giornate_val else None,
+                "costo_gg": modulo_costo_giornaliero_val if modulo_costo_giornaliero_val else None,
                 "creato_il": datetime.now().strftime("%Y-%m-%d %H:%M:%S")
             })
 
@@ -891,8 +1097,8 @@ def contratto_edit_save(
     data_inizio: Optional[str] = Form(None),
     data_fine: Optional[str] = Form(None),
     stato: str = Form("attivo"),
-    dec_user_id: Optional[int] = Form(None),
-    reparto_id: Optional[int] = Form(None),
+    dec_user_id: Optional[str] = Form(None),
+    reparto_id: Optional[str] = Form(None),
     descrizione: Optional[str] = Form(None)
 ):
     user = check_contratti_access(r)
@@ -902,6 +1108,9 @@ def contratto_edit_save(
     titolo = titolo.strip()
     if not titolo:
         return RedirectResponse(url=f"/contratto/{contratto_id}/modifica?error=titolo_obbligatorio", status_code=303)
+
+    dec_user_id_val = safe_int(dec_user_id)
+    reparto_id_val = safe_int(reparto_id)
 
     with engine.begin() as conn:
         contratto = conn.execute(text("SELECT * FROM contratti WHERE contratto_id = :cid"), {"cid": contratto_id}).mappings().first()
@@ -937,8 +1146,8 @@ def contratto_edit_save(
             "data_inizio": data_inizio.strip() if data_inizio else None,
             "data_fine": data_fine.strip() if data_fine else None,
             "stato": stato,
-            "dec_user_id": dec_user_id,
-            "reparto_id": reparto_id,
+            "dec_user_id": dec_user_id_val,
+            "reparto_id": reparto_id_val,
             "descrizione": descrizione.strip() if descrizione else None,
             "aggiornato_il": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
             "cid": contratto_id
@@ -975,7 +1184,7 @@ def contratto_delete(r: Request, contratto_id: int):
 def contratto_duplica(
     r: Request,
     contratto_id: int,
-    nuovo_anno: Optional[int] = Form(None),
+    nuovo_anno: Optional[str] = Form(None),
     nuovo_titolo: Optional[str] = Form(None),
     stato: str = Form("in_definizione")
 ):
@@ -991,7 +1200,8 @@ def contratto_duplica(
         if not can_manage_single_contratto(user, dict(contratto)):
             return RedirectResponse(url=f"/contratto/{contratto_id}?error=permesso_negato", status_code=303)
 
-        target_anno = nuovo_anno if nuovo_anno else (contratto["anno"] + 1)
+        nuovo_anno_val = safe_int(nuovo_anno)
+        target_anno = nuovo_anno_val if nuovo_anno_val else (contratto["anno"] + 1)
         
         if nuovo_titolo and nuovo_titolo.strip():
             target_titolo = nuovo_titolo.strip()
@@ -1076,10 +1286,10 @@ def modulo_nuovo_save(
     r: Request,
     contratto_id: int,
     descrizione: str = Form(...),
-    servizio_id: Optional[int] = Form(None),
-    costo: Optional[float] = Form(None),
-    giornate: Optional[float] = Form(None),
-    costo_giornaliero: Optional[float] = Form(None),
+    servizio_id: Optional[str] = Form(None),
+    costo: Optional[str] = Form(None),
+    giornate: Optional[str] = Form(None),
+    costo_giornaliero: Optional[str] = Form(None),
     note: Optional[str] = Form(None),
     ordine: int = Form(0)
 ):
@@ -1091,9 +1301,14 @@ def modulo_nuovo_save(
     if not descrizione:
         return RedirectResponse(url=f"/contratto/{contratto_id}?error=descrizione_modulo_obbligatoria", status_code=303)
 
-    calcolato_costo = costo or 0.0
-    if (not costo or costo == 0) and giornate and costo_giornaliero:
-        calcolato_costo = float(giornate) * float(costo_giornaliero)
+    servizio_id_val = safe_int(servizio_id)
+    costo_val = safe_float(costo)
+    giornate_val = safe_float(giornate)
+    costo_giornaliero_val = safe_float(costo_giornaliero)
+
+    calcolato_costo = costo_val or 0.0
+    if (not costo_val or costo_val == 0) and giornate_val and costo_giornaliero_val:
+        calcolato_costo = float(giornate_val) * float(costo_giornaliero_val)
 
     with engine.begin() as conn:
         contratto = conn.execute(text("SELECT * FROM contratti WHERE contratto_id = :cid"), {"cid": contratto_id}).mappings().first()
@@ -1112,11 +1327,11 @@ def modulo_nuovo_save(
             )
         """), {
             "cid": contratto_id,
-            "sid": servizio_id if servizio_id else None,
+            "sid": servizio_id_val if servizio_id_val else None,
             "desc": descrizione,
             "costo": calcolato_costo,
-            "giornate": giornate if giornate else None,
-            "costo_gg": costo_giornaliero if costo_giornaliero else None,
+            "giornate": giornate_val if giornate_val else None,
+            "costo_gg": costo_giornaliero_val if costo_giornaliero_val else None,
             "note": note.strip() if note else None,
             "ordine": ordine,
             "creato_il": datetime.now().strftime("%Y-%m-%d %H:%M:%S")
@@ -1133,10 +1348,10 @@ def modulo_edit_save(
     contratto_id: int,
     modulo_id: int,
     descrizione: str = Form(...),
-    servizio_id: Optional[int] = Form(None),
-    costo: Optional[float] = Form(None),
-    giornate: Optional[float] = Form(None),
-    costo_giornaliero: Optional[float] = Form(None),
+    servizio_id: Optional[str] = Form(None),
+    costo: Optional[str] = Form(None),
+    giornate: Optional[str] = Form(None),
+    costo_giornaliero: Optional[str] = Form(None),
     note: Optional[str] = Form(None),
     ordine: int = Form(0)
 ):
@@ -1148,9 +1363,14 @@ def modulo_edit_save(
     if not descrizione:
         return RedirectResponse(url=f"/contratto/{contratto_id}?error=descrizione_modulo_obbligatoria", status_code=303)
 
-    calcolato_costo = costo or 0.0
-    if (not costo or costo == 0) and giornate and costo_giornaliero:
-        calcolato_costo = float(giornate) * float(costo_giornaliero)
+    servizio_id_val = safe_int(servizio_id)
+    costo_val = safe_float(costo)
+    giornate_val = safe_float(giornate)
+    costo_giornaliero_val = safe_float(costo_giornaliero)
+
+    calcolato_costo = costo_val or 0.0
+    if (not costo_val or costo_val == 0) and giornate_val and costo_giornaliero_val:
+        calcolato_costo = float(giornate_val) * float(costo_giornaliero_val)
 
     with engine.begin() as conn:
         contratto = conn.execute(text("SELECT * FROM contratti WHERE contratto_id = :cid"), {"cid": contratto_id}).mappings().first()
@@ -1171,11 +1391,11 @@ def modulo_edit_save(
                 ordine = :ordine
             WHERE modulo_id = :mid AND contratto_id = :cid
         """), {
-            "sid": servizio_id if servizio_id else None,
+            "sid": servizio_id_val if servizio_id_val else None,
             "desc": descrizione,
             "costo": calcolato_costo,
-            "giornate": giornate if giornate else None,
-            "costo_gg": costo_giornaliero if costo_giornaliero else None,
+            "giornate": giornate_val if giornate_val else None,
+            "costo_gg": costo_giornaliero_val if costo_giornaliero_val else None,
             "note": note.strip() if note else None,
             "ordine": ordine,
             "mid": modulo_id,

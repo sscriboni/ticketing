@@ -43,7 +43,7 @@
             <button type="button" class="btn btn-primary btn-sm shadow-sm" data-bs-toggle="modal" data-bs-target="#modalNuovoFornitoreAnagrafica">
                 <i class="bi bi-plus-circle me-1"></i>Nuovo Fornitore
             </button>
-            {% if user.ruolo == 'admin' %}
+            {% if user_can_manage_fornitori(user) %}
             <a href="/admin/fornitori" class="btn btn-outline-secondary btn-sm"><i class="bi bi-gear-fill me-1"></i>Pannello Gestione Fornitori</a>
             {% endif %}
         </div>
@@ -58,6 +58,11 @@
     {% elif error == 'nome_obbligatorio' %}
     <div class="alert alert-danger alert-dismissible fade show" role="alert">
         <i class="bi bi-exclamation-triangle-fill me-2"></i>La ragione sociale del fornitore è obbligatoria.
+        <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+    </div>
+    {% elif error == 'accesso_non_autorizzato' %}
+    <div class="alert alert-danger alert-dismissible fade show" role="alert">
+        <i class="bi bi-exclamation-triangle-fill me-2"></i>Accesso non autorizzato. La gestione completa dei fornitori è riservata agli amministratori e agli operatori con tag DEC.
         <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
     </div>
     {% endif %}
@@ -107,7 +112,7 @@
                         <span class="badge bg-light text-dark border small">CF: {{ f.codice_fiscale }}</span>
                         {% endif %}
                     </div>
-                    {% if user.ruolo == 'admin' %}
+                    {% if user_can_manage_fornitori(user) %}
                     <a href="/admin/fornitore/{{ f.fornitore_id }}" class="btn btn-sm btn-outline-secondary" title="Modifica Fornitore">
                         <i class="bi bi-pencil"></i>
                     </a>

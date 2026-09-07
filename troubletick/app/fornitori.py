@@ -6,7 +6,9 @@ from fastapi.responses import HTMLResponse, RedirectResponse
 from sqlalchemy import text
 
 from core import engine, CFG, templates, DB_PK, DB_DRIVER
-from utils import require_superuser, current_user
+from utils import require_superuser, current_user, require_fornitori_manager, user_can_manage_fornitori, user_has_tag_dec, safe_int
+
+
 
 router = APIRouter()
 
@@ -68,10 +70,12 @@ except Exception as e:
 # ==========================================
 
 @router.get("/admin/fornitori", response_class=HTMLResponse)
-def admin_fornitori_list(r: Request, q: Optional[str] = None, stato: Optional[str] = None, servizio_id: Optional[int] = None, error: Optional[str] = None, success: Optional[str] = None):
-    user = require_superuser(r)
+def admin_fornitori_list(r: Request, q: Optional[str] = None, stato: Optional[str] = None, servizio_id: Optional[str] = None, error: Optional[str] = None, success: Optional[str] = None):
+    user = require_fornitori_manager(r)
     if isinstance(user, RedirectResponse):
         return user
+
+    servizio_id_val = safe_int(servizio_id)
 
     where_clauses = ["1=1"]
     params = {}
@@ -85,9 +89,10 @@ def admin_fornitori_list(r: Request, q: Optional[str] = None, stato: Optional[st
     elif stato == "inattivi":
         where_clauses.append("f.attivo = 0")
 
-    if servizio_id:
+    if servizio_id_val:
         where_clauses.append("f.fornitore_id IN (SELECT fornitore_id FROM servizi_fornitori WHERE servizio_id = :sid)")
-        params["sid"] = servizio_id
+        params["sid"] = servizio_id_val
+
 
     where_sql = " AND ".join(where_clauses)
 
@@ -111,7 +116,7 @@ def admin_fornitori_list(r: Request, q: Optional[str] = None, stato: Optional[st
         "servizi": servizi,
         "q": q or "",
         "stato": stato or "",
-        "servizio_id": servizio_id,
+        "servizio_id": servizio_id_val,
         "error": error,
         "success": success
     })
@@ -132,7 +137,7 @@ def admin_crea_fornitore(
     note: str = Form(""),
     attivo: int = Form(1)
 ):
-    user = require_superuser(r)
+    user = require_fornitori_manager(r)
     if isinstance(user, RedirectResponse):
         return user
 
@@ -171,7 +176,7 @@ def admin_crea_fornitore(
 
 @router.get("/admin/fornitore/{fornitore_id}", response_class=HTMLResponse)
 def admin_dettaglio_fornitore(r: Request, fornitore_id: int, error: Optional[str] = None, success: Optional[str] = None):
-    user = require_superuser(r)
+    user = require_fornitori_manager(r)
     if isinstance(user, RedirectResponse):
         return user
 
@@ -231,7 +236,7 @@ def admin_modifica_fornitore(
     note: str = Form(""),
     attivo: int = Form(0)
 ):
-    user = require_superuser(r)
+    user = require_fornitori_manager(r)
     if isinstance(user, RedirectResponse):
         return user
 
@@ -274,7 +279,7 @@ def admin_modifica_fornitore(
 
 @router.post("/admin/fornitore/{fornitore_id}/toggle-attivo")
 def admin_toggle_attivo_fornitore(r: Request, fornitore_id: int):
-    user = require_superuser(r)
+    user = require_fornitori_manager(r)
     if isinstance(user, RedirectResponse):
         return user
 
@@ -288,7 +293,7 @@ def admin_toggle_attivo_fornitore(r: Request, fornitore_id: int):
 
 @router.post("/admin/fornitore/{fornitore_id}/elimina")
 def admin_elimina_fornitore(r: Request, fornitore_id: int):
-    user = require_superuser(r)
+    user = require_fornitori_manager(r)
     if isinstance(user, RedirectResponse):
         return user
 
@@ -320,7 +325,7 @@ def admin_aggiungi_contatto(
     note: str = Form(""),
     ordine: int = Form(0)
 ):
-    user = require_superuser(r)
+    user = require_fornitori_manager(r)
     if isinstance(user, RedirectResponse):
         return user
 
@@ -375,7 +380,7 @@ def admin_modifica_contatto(
     note: str = Form(""),
     ordine: int = Form(0)
 ):
-    user = require_superuser(r)
+    user = require_fornitori_manager(r)
     if isinstance(user, RedirectResponse):
         return user
 
@@ -419,7 +424,7 @@ def admin_modifica_contatto(
 
 @router.post("/admin/fornitore/{fornitore_id}/contatto/{contatto_id}/elimina")
 def admin_elimina_contatto(r: Request, fornitore_id: int, contatto_id: int):
-    user = require_superuser(r)
+    user = require_fornitori_manager(r)
     if isinstance(user, RedirectResponse):
         return user
 
@@ -444,7 +449,7 @@ def admin_associa_servizio_a_fornitore(
     note: str = Form(""),
     principale: int = Form(0)
 ):
-    user = require_superuser(r)
+    user = require_fornitori_manager(r)
     if isinstance(user, RedirectResponse):
         return user
 
@@ -469,7 +474,7 @@ def admin_associa_servizio_a_fornitore(
 
 @router.post("/admin/fornitore/{fornitore_id}/disassocia-servizio")
 def admin_disassocia_servizio_da_fornitore(r: Request, fornitore_id: int, servizio_id: int = Form(...)):
-    user = require_superuser(r)
+    user = require_fornitori_manager(r)
     if isinstance(user, RedirectResponse):
         return user
 
@@ -495,13 +500,15 @@ def redirect_fornitori_contratti():
 def rubrica_fornitori(
     r: Request,
     q: Optional[str] = None,
-    servizio_id: Optional[int] = None,
+    servizio_id: Optional[str] = None,
     error: Optional[str] = None,
     success: Optional[str] = None
 ):
     user = current_user(r)
     if not user:
         return RedirectResponse(url="/login")
+
+    servizio_id_val = safe_int(servizio_id)
 
     where_clauses = ["f.attivo = 1"]
     params = {}
@@ -510,11 +517,12 @@ def rubrica_fornitori(
         where_clauses.append("(f.ragione_sociale LIKE :q OR f.partita_iva LIKE :q OR f.descrizione LIKE :q OR f.indirizzo LIKE :q)")
         params["q"] = f"%{q.strip()}%"
 
-    if servizio_id:
+    if servizio_id_val:
         where_clauses.append("f.fornitore_id IN (SELECT fornitore_id FROM servizi_fornitori WHERE servizio_id = :sid)")
-        params["sid"] = servizio_id
+        params["sid"] = servizio_id_val
 
     where_sql = " AND ".join(where_clauses)
+
 
     with engine.connect() as c:
         fornitori_raw = c.execute(text(f"""
@@ -557,7 +565,7 @@ def rubrica_fornitori(
         "fornitori": fornitori_list,
         "servizi": tutti_servizi,
         "q": q or "",
-        "servizio_id": servizio_id,
+        "servizio_id": servizio_id_val,
         "error": error,
         "success": success
     })
