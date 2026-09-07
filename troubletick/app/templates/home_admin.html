@@ -217,6 +217,83 @@
       </div>
       
     </div>
+
+    <!-- Database Tables Occupancy & Stats -->
+    {% if db_occupancy %}
+    <div class="row g-4 mt-1">
+      <div class="col-12">
+        <div class="card shadow-sm border-0 rounded-3 p-4">
+          <div class="d-flex flex-column flex-md-row justify-content-between align-items-md-center gap-3 mb-3">
+            <div>
+              <h3 class="h5 fw-bold mb-1 d-flex align-items-center">
+                <i class="bi bi-pie-chart-fill text-primary me-2"></i> Occupazione Database & Statistiche Tabelle
+              </h3>
+              <p class="text-muted small mb-0">
+                Riepilogo del numero di record censiti e stima dello spazio occupato sul database (motore attivo: <strong class="text-dark">{{ db_occupancy.db_type }}</strong>).
+              </p>
+            </div>
+            <div class="d-flex align-items-center gap-2 flex-wrap">
+              <span class="badge bg-primary bg-opacity-10 text-primary border border-primary-subtle px-3 py-2">
+                <i class="bi bi-hdd-stack me-1"></i>Spazio Stimato: <strong>{{ db_occupancy.totale_size_formatted }}</strong>
+              </span>
+              <span class="badge bg-success bg-opacity-10 text-success border border-success-subtle px-3 py-2">
+                <i class="bi bi-table me-1"></i>Tabelle: <strong>{{ db_occupancy.totale_tabelle }}</strong>
+              </span>
+              <span class="badge bg-info bg-opacity-10 text-info border border-info-subtle px-3 py-2">
+                <i class="bi bi-database-check me-1"></i>Record Totali: <strong>{{ "{:,}".format(db_occupancy.totale_record).replace(',', '.') }}</strong>
+              </span>
+            </div>
+          </div>
+
+          <div class="table-responsive" style="max-height: 440px; overflow-y: auto;">
+            <table class="table table-hover table-sm align-middle mb-0 small">
+              <thead class="table-light sticky-top">
+                <tr>
+                  <th class="ps-3" style="width: 28%;">Nome Tabella</th>
+                  <th style="width: 22%;">Modulo / Ambito</th>
+                  <th class="text-end" style="width: 15%;">N. Record</th>
+                  <th class="text-end" style="width: 15%;">Dimensione Stimata</th>
+                  <th class="pe-3" style="width: 20%;">% su Totale</th>
+                </tr>
+              </thead>
+              <tbody>
+                {% for t in db_occupancy.tables %}
+                <tr>
+                  <td class="ps-3 font-monospace fw-semibold text-dark">
+                    <i class="bi bi-table text-secondary me-1"></i>{{ t.name }}
+                  </td>
+                  <td>
+                    <span class="badge bg-{{ t.cat_color }} bg-opacity-10 text-{{ t.cat_color }} border border-{{ t.cat_color }}-subtle">
+                      {{ t.category }}
+                    </span>
+                  </td>
+                  <td class="text-end fw-bold text-dark">
+                    {{ "{:,}".format(t.rows).replace(',', '.') }}
+                  </td>
+                  <td class="text-end text-secondary fw-semibold">
+                    {{ t.size_formatted }}
+                  </td>
+                  <td class="pe-3">
+                    <div class="d-flex align-items-center gap-2">
+                      <div class="progress progress-slim flex-grow-1" style="height: 6px;">
+                        <div class="progress-bar bg-primary" role="progressbar" style="width: {{ t.percentuale }}%"></div>
+                      </div>
+                      <span class="text-muted small text-nowrap" style="font-size: 0.75rem;">{{ "%.1f"|format(t.percentuale) }}%</span>
+                    </div>
+                  </td>
+                </tr>
+                {% else %}
+                <tr>
+                  <td colspan="5" class="text-center py-4 text-muted">Nessuna informazione disponibile sulle tabelle del database.</td>
+                </tr>
+                {% endfor %}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+    </div>
+    {% endif %}
   </div>
 
   <footer class="bg-dark text-white text-center py-3 mt-auto">

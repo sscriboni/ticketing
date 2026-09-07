@@ -922,6 +922,233 @@ app.include_router(presenze.router)
 app.include_router(fornitori.router)
 app.include_router(contratti.router)
 
+TABLE_CATEGORIES = {
+    # Ticketing
+    "tickets": ("Ticketing", "primary"),
+    "ticket_notes": ("Ticketing", "primary"),
+    "ticket_materiali": ("Ticketing", "primary"),
+    "argomenti": ("Ticketing", "primary"),
+    
+    # Magazzino & Logistica
+    "magazzini": ("Magazzino", "warning"),
+    "materiali": ("Magazzino", "warning"),
+    "giacenze": ("Magazzino", "warning"),
+    "movimenti_magazzino": ("Magazzino", "warning"),
+    "richieste_materiale": ("Magazzino", "warning"),
+    "trasferimenti": ("Magazzino", "warning"),
+    "consegne_programmate": ("Magazzino", "warning"),
+    "categorie": ("Magazzino", "warning"),
+    "operatori_magazzini": ("Magazzino", "warning"),
+    
+    # Presenze & Assenze
+    "presenze": ("HR & Presenze", "info"),
+    "assenze": ("HR & Presenze", "info"),
+    "festivita": ("HR & Presenze", "info"),
+    
+    # Automezzi
+    "automezzi": ("Automezzi", "success"),
+    "marche_automezzi": ("Automezzi", "success"),
+    "viaggi_automezzi": ("Automezzi", "success"),
+    "manutenzioni_automezzi": ("Automezzi", "success"),
+    "rifornimenti": ("Automezzi", "success"),
+    "registro_km_automezzi": ("Automezzi", "success"),
+    "tipi_manutenzione": ("Automezzi", "success"),
+    "automezzi_tipi_manutenzione": ("Automezzi", "success"),
+    "tag_automezzi": ("Automezzi", "success"),
+    "automezzi_tag": ("Automezzi", "success"),
+    
+    # Contratti & Fornitori
+    "contratti": ("Contratti", "danger"),
+    "contratti_moduli": ("Contratti", "danger"),
+    "fornitori": ("Fornitori", "danger"),
+    "fornitori_contatti": ("Fornitori", "danger"),
+    "servizi_fornitori": ("Fornitori", "danger"),
+    
+    # Struttura, Utenze & Sistema
+    "users": ("Utenze & Accessi", "secondary"),
+    "user_roles": ("Utenze & Accessi", "secondary"),
+    "ruoli": ("Utenze & Accessi", "secondary"),
+    "reparti": ("Organizzazione", "secondary"),
+    "servizi": ("Organizzazione", "secondary"),
+    "sedi": ("Organizzazione", "secondary"),
+    "comuni": ("Organizzazione", "secondary"),
+    "tag_operatori": ("Utenze & Accessi", "secondary"),
+    "operatori_tag": ("Utenze & Accessi", "secondary"),
+    "operatori_servizi": ("Utenze & Accessi", "secondary"),
+    "avvisi": ("Sistema", "dark"),
+    "cron_history": ("Sistema", "dark")
+}
+
+def format_bytes_metric(size_bytes: float) -> str:
+    if size_bytes < 1024:
+        return f"{size_bytes:.0f} B"
+    elif size_bytes < 1024 * 1024:
+        return f"{size_bytes / 1024:.1f} KB"
+    elif size_bytes < 1024 * 1024 * 1024:
+        return f"{size_bytes / (1024 * 1024):.2f} MB"
+    else:
+        return f"{size_bytes / (1024 * 1024 * 1024):.2f} GB"
+
+def get_db_tables_occupancy(conn) -> dict:
+    tables = []
+    totale_record = 0
+    totale_bytes = 0
+    
+    # 1. Caso MySQL / MariaDB
+    if DB_DRIVER.startswith("mysql"):
+        try:
+            db_name_q = conn.execute(text("SELECT DATABASE()")).scalar() or ""
+            rows = conn.execute(text("""
+                SELECT 
+                    table_name AS name,
+                    COALESCE(table_rows, 0) AS rows_approx,
+                    COALESCE(data_length, 0) AS data_bytes,
+                    COALESCE(index_length, 0) AS index_bytes,
+                    (COALESCE(data_length, 0) + COALESCE(index_length, 0)) AS total_bytes
+                FROM information_schema.TABLES
+                WHERE table_schema = :dbname AND table_type = 'BASE TABLE'
+                ORDER BY (COALESCE(data_length, 0) + COALESCE(index_length, 0)) DESC, table_name ASC
+            """), {"dbname": db_name_q}).mappings().all()
+
+            for r in rows:
+                t_name = r["name"]
+                try:
+                    t_rows = conn.execute(text(f"SELECT COUNT(*) FROM `{t_name}`")).scalar() or 0
+                except Exception:
+                    t_rows = int(r["rows_approx"] or 0)
+                
+                t_bytes = int(r["total_bytes"] or 0)
+                totale_record += t_rows
+                totale_bytes += t_bytes
+
+                cat_info = TABLE_CATEGORIES.get(t_name, ("Database", "secondary"))
+                tables.append({
+                    "name": t_name,
+                    "rows": t_rows,
+                    "bytes": t_bytes,
+                    "size_formatted": format_bytes_metric(t_bytes),
+                    "category": cat_info[0],
+                    "cat_color": cat_info[1],
+                    "percentuale": 0.0
+                })
+        except Exception as e:
+            print("[DB STATS MYSQL ERROR]", e)
+
+    # 2. Caso PostgreSQL
+    elif DB_DRIVER.startswith("postgres"):
+        try:
+            rows = conn.execute(text("""
+                SELECT 
+                    relname AS name,
+                    n_live_tup AS rows_approx,
+                    pg_total_relation_size(relid) AS total_bytes
+                FROM pg_stat_user_tables
+                ORDER BY pg_total_relation_size(relid) DESC
+            """)).mappings().all()
+
+            for r in rows:
+                t_name = r["name"]
+                try:
+                    t_rows = conn.execute(text(f'SELECT COUNT(*) FROM "{t_name}"')).scalar() or 0
+                except Exception:
+                    t_rows = int(r["rows_approx"] or 0)
+                t_bytes = int(r["total_bytes"] or 0)
+                totale_record += t_rows
+                totale_bytes += t_bytes
+                cat_info = TABLE_CATEGORIES.get(t_name, ("Database", "secondary"))
+                tables.append({
+                    "name": t_name,
+                    "rows": t_rows,
+                    "bytes": t_bytes,
+                    "size_formatted": format_bytes_metric(t_bytes),
+                    "category": cat_info[0],
+                    "cat_color": cat_info[1],
+                    "percentuale": 0.0
+                })
+        except Exception as e:
+            print("[DB STATS PG ERROR]", e)
+
+    # 3. Caso SQLite (Predefinito)
+    else:
+        try:
+            db_path = os.path.join(BASE_DIR, "troubletick.db")
+            file_size = os.path.getsize(db_path) if os.path.exists(db_path) else 0
+            
+            tbl_rows = conn.execute(text("SELECT name FROM sqlite_master WHERE type='table' AND name NOT LIKE 'sqlite_%' ORDER BY name")).scalars().all()
+            
+            has_dbstat = False
+            dbstat_map = {}
+            try:
+                dbstat_rows = conn.execute(text("SELECT name, sum(pgsize) as total_size FROM dbstat GROUP BY name")).mappings().all()
+                for d in dbstat_rows:
+                    dbstat_map[d["name"]] = int(d["total_size"] or 0)
+                has_dbstat = len(dbstat_map) > 0
+            except Exception:
+                has_dbstat = False
+
+            raw_tables = []
+            for t_name in tbl_rows:
+                try:
+                    t_rows = conn.execute(text(f"SELECT COUNT(*) FROM [{t_name}]")).scalar() or 0
+                except Exception:
+                    t_rows = 0
+                
+                if has_dbstat and t_name in dbstat_map:
+                    t_bytes = dbstat_map[t_name]
+                else:
+                    try:
+                        col_count = len(conn.execute(text(f"PRAGMA table_info([{t_name}])")).all())
+                    except Exception:
+                        col_count = 6
+                    t_bytes = (t_rows * col_count * 64)
+                    if t_rows > 0:
+                        t_bytes = max(t_bytes, 4096)
+                    else:
+                        t_bytes = 1024
+
+                totale_record += t_rows
+                raw_tables.append({
+                    "name": t_name,
+                    "rows": t_rows,
+                    "bytes": t_bytes
+                })
+            
+            if file_size > 0 and not has_dbstat:
+                calc_sum = sum(t["bytes"] for t in raw_tables) or 1
+                for t in raw_tables:
+                    proportioned_bytes = int((t["bytes"] / calc_sum) * file_size)
+                    t["bytes"] = max(proportioned_bytes, 512 if t["rows"] == 0 else 4096)
+                totale_bytes = file_size
+            else:
+                totale_bytes = sum(t["bytes"] for t in raw_tables)
+
+            for t in raw_tables:
+                cat_info = TABLE_CATEGORIES.get(t["name"], ("Database", "secondary"))
+                tables.append({
+                    "name": t["name"],
+                    "rows": t["rows"],
+                    "bytes": t["bytes"],
+                    "size_formatted": format_bytes_metric(t["bytes"]),
+                    "category": cat_info[0],
+                    "cat_color": cat_info[1],
+                    "percentuale": 0.0
+                })
+        except Exception as e:
+            print("[DB STATS SQLITE ERROR]", e)
+
+    tables.sort(key=lambda x: (x["bytes"], x["rows"]), reverse=True)
+    for t in tables:
+        t["percentuale"] = (t["bytes"] / totale_bytes * 100) if totale_bytes > 0 else 0.0
+
+    return {
+        "tables": tables,
+        "totale_tabelle": len(tables),
+        "totale_record": totale_record,
+        "totale_bytes": totale_bytes,
+        "totale_size_formatted": format_bytes_metric(totale_bytes),
+        "db_type": DB_TYPE
+    }
+
 @app.get("/", response_class=HTMLResponse)
 def home(r: Request):
     user = r.session.get("user")
@@ -963,7 +1190,15 @@ def home(r: Request):
                 "total_vehicles": total_vehicles,
                 "low_stock_materials": low_stock_materials
             }
-            return templates.TemplateResponse(r, "home_admin.html", {"request": r, "cfg": CFG, "avvisi": avvisi, "user": user, "stats": stats})
+            db_occupancy = get_db_tables_occupancy(c)
+            return templates.TemplateResponse(r, "home_admin.html", {
+                "request": r, 
+                "cfg": CFG, 
+                "avvisi": avvisi, 
+                "user": user, 
+                "stats": stats,
+                "db_occupancy": db_occupancy
+            })
             
         elif ruolo == "magazziniere":
             return RedirectResponse(url="/magazzini", status_code=303)

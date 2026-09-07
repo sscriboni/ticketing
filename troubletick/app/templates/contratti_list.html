@@ -296,7 +296,11 @@
                                     </a>
                                     {% if c.can_edit %}
                                     <button type="button" class="btn btn-outline-success" title="Duplica per anno successivo"
-                                        onclick="openDuplicaListModal('{{ c.contratto_id }}', '{{ c.titolo|escape }}', {{ c.anno }}, {{ c.cnt_moduli }})">
+                                        data-cid="{{ c.contratto_id }}"
+                                        data-titolo="{{ c.titolo|e }}"
+                                        data-anno="{{ c.anno }}"
+                                        data-cnt="{{ c.cnt_moduli }}"
+                                        onclick="openDuplicaListModal(this)">
                                         <i class="bi bi-copy"></i>
                                     </button>
                                     <a href="/contratto/{{ c.contratto_id }}/modifica" class="btn btn-outline-secondary" title="Modifica">
@@ -366,7 +370,12 @@
 </div>
 
 <script>
-function openDuplicaListModal(cid, titolo, anno, cntModuli) {
+function openDuplicaListModal(btn) {
+    const cid = btn.getAttribute('data-cid');
+    const titolo = btn.getAttribute('data-titolo') || '';
+    const anno = parseInt(btn.getAttribute('data-anno'), 10) || (new Date().getFullYear());
+    const cntModuli = btn.getAttribute('data-cnt') || 0;
+
     document.getElementById('formDuplicaList').action = '/contratto/' + cid + '/duplica';
     const nextAnno = anno + 1;
     document.getElementById('duplicaAnno').value = nextAnno;

@@ -251,9 +251,21 @@
                                     </td>
                                     {% if can_edit %}
                                     <td class="text-end pe-3">
+                                        <script type="application/json" id="modulo-data-{{ m.modulo_id }}">
+                                        {
+                                            "modulo_id": {{ m.modulo_id }},
+                                            "descrizione": {{ m.descrizione|tojson }},
+                                            "servizio_id": {{ (m.servizio_id or '')|tojson }},
+                                            "costo": {{ m.costo|tojson }},
+                                            "giornate": {{ (m.giornate or '')|tojson }},
+                                            "costo_giornaliero": {{ (m.costo_giornaliero or '')|tojson }},
+                                            "note": {{ (m.note or '')|tojson }},
+                                            "ordine": {{ (m.ordine or 0)|tojson }}
+                                        }
+                                        </script>
                                         <div class="btn-group btn-group-sm">
                                             <button type="button" class="btn btn-outline-secondary" title="Modifica modulo"
-                                                onclick="openEditModuloModal('{{ m.modulo_id }}', '{{ m.descrizione|escape }}', '{{ m.servizio_id or '' }}', '{{ m.costo }}', '{{ m.giornate or '' }}', '{{ m.costo_giornaliero or '' }}', '{{ (m.note or '')|escape }}', '{{ m.ordine }}')">
+                                                onclick="openEditModuloModal({{ m.modulo_id }})">
                                                 <i class="bi bi-pencil"></i>
                                             </button>
                                             <form method="post" action="/contratto/{{ contratto.contratto_id }}/modulo/{{ m.modulo_id }}/elimina" class="d-inline" onsubmit="return confirm('Sei sicuro di voler eliminare questo modulo dal contratto?');">
@@ -589,18 +601,25 @@ function calcEditCosto() {
     }
 }
 
-function openEditModuloModal(moduloId, desc, sid, costo, giornate, costoGg, note, ordine) {
-    document.getElementById('formModificaModulo').action = '/contratto/{{ contratto.contratto_id }}/modulo/' + moduloId + '/modifica';
-    document.getElementById('edit_modulo_desc').value = desc;
-    document.getElementById('edit_modulo_sid').value = sid;
-    document.getElementById('edit_costo_tot').value = costo;
-    document.getElementById('edit_giornate').value = giornate;
-    document.getElementById('edit_costo_gg').value = costoGg;
-    document.getElementById('edit_modulo_note').value = note;
-    document.getElementById('edit_modulo_ordine').value = ordine;
-    
-    const modal = new bootstrap.Modal(document.getElementById('modalModificaModulo'));
-    modal.show();
+function openEditModuloModal(moduloId) {
+    const rawEl = document.getElementById('modulo-data-' + moduloId);
+    if (!rawEl) return;
+    try {
+        const data = JSON.parse(rawEl.textContent);
+        document.getElementById('formModificaModulo').action = '/contratto/{{ contratto.contratto_id }}/modulo/' + moduloId + '/modifica';
+        document.getElementById('edit_modulo_desc').value = data.descrizione || '';
+        document.getElementById('edit_modulo_sid').value = data.servizio_id || '';
+        document.getElementById('edit_costo_tot').value = (data.costo !== null && data.costo !== undefined) ? data.costo : '';
+        document.getElementById('edit_giornate').value = (data.giornate !== null && data.giornate !== undefined) ? data.giornate : '';
+        document.getElementById('edit_costo_gg').value = (data.costo_giornaliero !== null && data.costo_giornaliero !== undefined) ? data.costo_giornaliero : '';
+        document.getElementById('edit_modulo_note').value = data.note || '';
+        document.getElementById('edit_modulo_ordine').value = (data.ordine !== null && data.ordine !== undefined) ? data.ordine : 0;
+        
+        const modal = new bootstrap.Modal(document.getElementById('modalModificaModulo'));
+        modal.show();
+    } catch (err) {
+        console.error("Errore durante l'apertura della modifica del modulo:", err);
+    }
 }
 </script>
 <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
