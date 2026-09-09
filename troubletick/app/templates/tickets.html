@@ -12,6 +12,13 @@
   </div>
 </div>
 
+{% if request.query_params.get('msg') == 'ticket_deleted' %}
+<div class="alert alert-success alert-dismissible fade show shadow-sm mb-4" role="alert">
+  <i class="bi bi-check-circle-fill me-2"></i> Ticket eliminato definitivamente con successo.
+  <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+</div>
+{% endif %}
+
 {% if has_overdue_alert and user.ruolo != 'normale' %}
 <div class="alert alert-danger d-flex align-items-center shadow-sm mb-4" role="alert">
   <i class="bi bi-exclamation-triangle-fill fs-4 me-3 text-danger"></i>
@@ -191,8 +198,8 @@
           </button>
       </form>
       {% endif %}
-      {% if user and user.ruolo == 'admin' and t.stato == 'chiusa' %}
-      <form method="post" action="/ticket/{{ t.ticket_id }}/delete" class="d-inline" onsubmit="return confirm('Eliminare definitivamente questo ticket e le sue note?')">
+      {% if user and user.ruolo == 'admin' and (t.stato == 'chiusa' or t.stato == 'nuova') %}
+      <form method="post" action="/ticket/{{ t.ticket_id }}/delete" class="d-inline" onsubmit="return confirm('Eliminare definitivamente questo ticket?')">
           <button type="submit" class="btn btn-sm btn-danger" title="Elimina Ticket">
               <i class="bi bi-trash"></i>
           </button>

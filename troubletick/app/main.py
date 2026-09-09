@@ -2232,7 +2232,7 @@ def delete_ticket(r: Request, ticket_id: int):
         ticket = c.execute(text("SELECT stato, allegato FROM tickets WHERE ticket_id = :id"), {"id": ticket_id}).mappings().first()
         if not ticket:
             return RedirectResponse(url="/tickets", status_code=303)
-        if ticket["stato"] != "chiusa":
+        if ticket["stato"] not in ("chiusa", "nuova"):
             return RedirectResponse(url=f"/ticket/{ticket_id}?error=cannot_delete_open_ticket", status_code=303)
             
         notes = c.execute(text("SELECT allegato FROM ticket_notes WHERE ticket_id = :id"), {"id": ticket_id}).mappings().all()
@@ -2249,7 +2249,7 @@ def delete_ticket(r: Request, ticket_id: int):
         c.execute(text("DELETE FROM ticket_materiali WHERE ticket_id = :id"), {"id": ticket_id})
         c.execute(text("DELETE FROM ticket_notes WHERE ticket_id = :id"), {"id": ticket_id})
         c.execute(text("DELETE FROM tickets WHERE ticket_id = :id"), {"id": ticket_id})
-    return RedirectResponse(url="/tickets", status_code=303)
+    return RedirectResponse(url="/tickets?msg=ticket_deleted", status_code=303)
 
 @app.post("/admin/tickets/delete_massivo")
 def delete_tickets_massivo(r: Request, data_inizio: str = Form(...), data_fine: str = Form(...)):

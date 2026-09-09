@@ -18,7 +18,7 @@
 {% if request.query_params.get('error') == 'cannot_delete_open_ticket' %}
 <div class="alert alert-danger border-danger shadow-sm mb-3 alert-dismissible fade show" role="alert">
   <i class="bi bi-exclamation-triangle-fill me-1"></i> 
-  <strong>Errore:</strong> Impossibile eliminare un ticket non ancora chiuso.
+  <strong>Errore:</strong> Impossibile eliminare un ticket in lavorazione. È possibile eliminare solo ticket nuovi (non ancora aperti) o già chiusi.
   <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
 </div>
 {% endif %}
@@ -198,9 +198,9 @@
         </button>
     </form>
     {% endif %}
-    {% if user and user.ruolo == 'admin' and ticket.stato == 'chiusa' %}
+    {% if user and user.ruolo == 'admin' and (ticket.stato == 'chiusa' or ticket.stato == 'nuova') %}
     <form action="/ticket/{{ ticket.ticket_id }}/delete" method="POST" class="d-inline" onsubmit="return confirm('⚠️ Sei sicuro di voler eliminare definitivamente questo ticket? L\'azione è irreversibile e cancellerà anche tutte le note e gli allegati.');">
-        <button type="submit" class="btn btn-danger btn-sm">Elimina Ticket</button>
+        <button type="submit" class="btn btn-danger btn-sm"><i class="bi bi-trash"></i> Elimina Ticket</button>
     </form>
     {% endif %}
   </div>
