@@ -12,6 +12,7 @@ Il modulo **Contratti** permette di censire e monitorare i contratti di manutenz
 * **Amministratori**: visualizzano e gestiscono tutti i contratti e le anagrafiche dei fornitori.
 * **Responsabili di Reparto**: visualizzano e gestiscono i contratti associati al proprio reparto o gestiti da operatori appartenenti al reparto stesso.
 * **Operatori con tag DEC**: gli operatori che hanno il tag `DEC` nel proprio profilo possono visualizzare e gestire i contratti di cui sono referenti o creatori, e dispongono della **gestione completa dei fornitori** (creazione, modifica, schede di contatto escalation e associazione ai servizi).
+* **Utenti con tag Amministrazione**: dispongono della **gestione completa dei fornitori** (creazione, modifica anagrafica, schede di contatto escalation e associazione ai servizi).
 
 ---
 

@@ -6,7 +6,7 @@ from fastapi.responses import HTMLResponse, RedirectResponse
 from sqlalchemy import text
 
 from core import engine, CFG, templates, DB_PK, DB_DRIVER
-from utils import require_superuser, current_user, require_fornitori_manager, user_can_manage_fornitori, user_has_tag_dec, safe_int
+from utils import require_superuser, current_user, require_fornitori_manager, user_can_manage_fornitori, user_has_tag_dec, user_has_tag_amministrazione, safe_int
 
 
 
@@ -57,6 +57,17 @@ def init_fornitori_db():
             FOREIGN KEY(servizio_id) REFERENCES servizi(servizio_id) ON DELETE CASCADE,
             FOREIGN KEY(fornitore_id) REFERENCES fornitori(fornitore_id) ON DELETE CASCADE
         )"""))
+
+        # Assicuriamo la presenza del Tag Amministrazione in tag_operatori
+        try:
+            amm_exists = c.execute(text("SELECT COUNT(*) FROM tag_operatori WHERE UPPER(nome) = 'AMMINISTRAZIONE'")).scalar() or 0
+            if amm_exists == 0:
+                c.execute(text("""
+                    INSERT INTO tag_operatori (nome, colore, descrizione)
+                    VALUES ('Amministrazione', '#0d6efd', 'Personale Amministrazione abilitato alla gestione schede fornitori')
+                """))
+        except Exception as ex_tag:
+            print(f"[FORNITORI TAG INIT NOTE] {ex_tag}")
 
 # Inizializzazione automatica delle tabelle al caricamento
 try:

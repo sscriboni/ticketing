@@ -26,9 +26,12 @@ def require_superuser(r: Request):
         return RedirectResponse(url="/tickets")
     return user
 
-def user_has_tag_dec(user: dict) -> bool:
-    """Verifica se l'utente possiede il tag DEC assegnato"""
-    if not user or not user.get("id"):
+def user_has_tag(user: dict, tag_name: str) -> bool:
+    """Verifica se l'utente possiede uno specifico tag assegnato (case-insensitive)"""
+    if not user:
+        return False
+    uid = user.get("id") or user.get("user_id")
+    if not uid:
         return False
     try:
         from core import engine
@@ -38,22 +41,30 @@ def user_has_tag_dec(user: dict) -> bool:
                 SELECT COUNT(*) 
                 FROM operatori_tag ot
                 JOIN tag_operatori t ON ot.tag_id = t.tag_id
-                WHERE ot.user_id = :uid AND UPPER(t.nome) = 'DEC'
-            """), {"uid": user["id"]}).scalar() or 0
+                WHERE ot.user_id = :uid AND UPPER(t.nome) = :tag_name
+            """), {"uid": uid, "tag_name": tag_name.strip().upper()}).scalar() or 0
             return count > 0
     except Exception:
         return False
 
+def user_has_tag_dec(user: dict) -> bool:
+    """Verifica se l'utente possiede il tag DEC assegnato"""
+    return user_has_tag(user, "DEC")
+
+def user_has_tag_amministrazione(user: dict) -> bool:
+    """Verifica se l'utente possiede il tag Amministrazione assegnato"""
+    return user_has_tag(user, "AMMINISTRAZIONE")
+
 def user_can_manage_fornitori(user: dict) -> bool:
-    """Verifica se l'utente ha diritto alla gestione completa dei fornitori (admin o operatore con tag DEC)"""
-    if not user or not user.get("id"):
+    """Verifica se l'utente ha diritto alla gestione completa dei fornitori (admin, o utente con tag DEC o Amministrazione)"""
+    if not user:
         return False
     if user.get("ruolo") == "admin":
         return True
-    return user_has_tag_dec(user)
+    return user_has_tag_dec(user) or user_has_tag_amministrazione(user)
 
 def require_fornitori_manager(r: Request):
-    """Richiede permessi di gestione fornitori: admin o operatore con tag DEC"""
+    """Richiede permessi di gestione fornitori: admin o utente con tag DEC o Amministrazione"""
     user = current_user(r)
     if not user:
         return RedirectResponse(url="/login", status_code=303)

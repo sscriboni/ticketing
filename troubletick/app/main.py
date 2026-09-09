@@ -11,7 +11,7 @@ from sqlalchemy import create_engine, text
 import bcrypt
 
 from core import CFG, BASE_DIR, UPLOAD_DIR, LOG_DIR, engine, DB_TYPE, DB_PK, DB_DRIVER, templates
-from utils import current_user, require_superuser, save_upload, save_user_roles, user_can_manage_fornitori, user_has_tag_dec
+from utils import current_user, require_superuser, save_upload, save_user_roles, user_can_manage_fornitori, user_has_tag_dec, user_has_tag_amministrazione
 from email_utils import send_email_async
 
 import auth
@@ -385,7 +385,8 @@ try:
                 ("Part-Time", "#ffc107", "Operatore con contratto a tempo parziale"),
                 ("Full-Time", "#0dcaf0", "Operatore con contratto a tempo pieno"),
                 ("Coordinatore", "#6f42c1", "Coordinatore o referente di servizio"),
-                ("Tecnico Hardware", "#fd7e14", "Specializzato in supporto e manutenzione hardware")
+                ("Tecnico Hardware", "#fd7e14", "Specializzato in supporto e manutenzione hardware"),
+                ("Amministrazione", "#0d6efd", "Personale Amministrazione abilitato alla gestione schede fornitori")
             ]
             for t_nome, t_col, t_desc in default_op_tags:
                 try:
@@ -903,6 +904,7 @@ def get_incoming_transfers_count(user):
 templates.env.globals["get_pending_requests_count"] = get_pending_requests_count
 templates.env.globals["get_incoming_transfers_count"] = get_incoming_transfers_count
 templates.env.globals["user_has_tag_dec"] = user_has_tag_dec
+templates.env.globals["user_has_tag_amministrazione"] = user_has_tag_amministrazione
 templates.env.globals["user_can_access_contratti"] = contratti.user_can_access_contratti
 templates.env.globals["user_can_manage_fornitori"] = user_can_manage_fornitori
 
