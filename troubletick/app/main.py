@@ -2048,6 +2048,59 @@ def ticket_detail(r: Request, ticket_id: int):
                 """), {"fid": f["fornitore_id"]}).mappings().all()
                 f_dict["contatti"] = [dict(cnt) for cnt in contatti]
                 fornitori_servizio.append(f_dict)
+
+        fornitori_contratto = []
+        if ticket.get("servizio_id"):
+            contratti_rows = c.execute(text("""
+                SELECT DISTINCT 
+                    f.fornitore_id, f.ragione_sociale, f.partita_iva, f.codice_fiscale,
+                    f.telefono_generale, f.email_generale, f.pec, f.sito_web, f.indirizzo, f.descrizione,
+                    c.contratto_id, c.titolo as contratto_titolo, c.codice_contratto, c.cig, c.cup, c.stato as contratto_stato, c.anno as contratto_anno
+                FROM contratti_moduli cm
+                JOIN contratti c ON cm.contratto_id = c.contratto_id
+                JOIN fornitori f ON c.fornitore_id = f.fornitore_id
+                WHERE cm.servizio_id = :sid AND f.attivo = 1 AND (c.stato IS NULL OR c.stato NOT IN ('annullato'))
+                ORDER BY (CASE WHEN c.stato = 'attivo' THEN 0 ELSE 1 END), c.anno DESC, c.contratto_id DESC
+            """), {"sid": ticket["servizio_id"]}).mappings().all()
+
+            fornitori_map = {}
+            for row in contratti_rows:
+                fid = row["fornitore_id"]
+                if fid not in fornitori_map:
+                    fornitori_map[fid] = {
+                        "fornitore_id": fid,
+                        "ragione_sociale": row["ragione_sociale"],
+                        "partita_iva": row["partita_iva"],
+                        "codice_fiscale": row["codice_fiscale"],
+                        "telefono_generale": row["telefono_generale"],
+                        "email_generale": row["email_generale"],
+                        "pec": row["pec"],
+                        "sito_web": row["sito_web"],
+                        "indirizzo": row["indirizzo"],
+                        "descrizione": row["descrizione"],
+                        "contratti": [],
+                        "contatti": []
+                    }
+                    contatti = c.execute(text("""
+                        SELECT * FROM fornitori_contatti
+                        WHERE fornitore_id = :fid
+                        ORDER BY ordine ASC, contatto_id ASC
+                    """), {"fid": fid}).mappings().all()
+                    fornitori_map[fid]["contatti"] = [dict(cnt) for cnt in contatti]
+
+                contratto_info = {
+                    "contratto_id": row["contratto_id"],
+                    "titolo": row["contratto_titolo"],
+                    "codice_contratto": row["codice_contratto"],
+                    "cig": row["cig"],
+                    "cup": row["cup"],
+                    "stato": row["contratto_stato"],
+                    "anno": row["contratto_anno"]
+                }
+                if not any(ci["contratto_id"] == row["contratto_id"] for ci in fornitori_map[fid]["contratti"]):
+                    fornitori_map[fid]["contratti"].append(contratto_info)
+
+            fornitori_contratto = list(fornitori_map.values())
         
     return templates.TemplateResponse(r, "ticket_detail.html", {
         "request": r, 
@@ -2062,7 +2115,8 @@ def ticket_detail(r: Request, ticket_id: int):
         "materiali": materiali,
         "magazzini": magazzini,
         "giacenze_json": giacenze_json_str,
-        "fornitori_servizio": fornitori_servizio
+        "fornitori_servizio": fornitori_servizio,
+        "fornitori_contratto": fornitori_contratto
     })
 
 @app.post("/ticket/{ticket_id}/note")
