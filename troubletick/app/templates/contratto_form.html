@@ -82,6 +82,7 @@
                         <label class="form-label small fw-bold">Stato Contratto</label>
                         <select name="stato" class="form-select">
                             <option value="attivo" {% if not contratto or contratto.stato == 'attivo' %}selected{% endif %}>Attivo</option>
+                            <option value="in_trattativa" {% if contratto and contratto.stato == 'in_trattativa' %}selected{% endif %}>In Trattativa</option>
                             <option value="in_definizione" {% if contratto and contratto.stato == 'in_definizione' %}selected{% endif %}>In Definizione</option>
                             <option value="scaduto" {% if contratto and contratto.stato == 'scaduto' %}selected{% endif %}>Scaduto</option>
                             <option value="concluso" {% if contratto and contratto.stato == 'concluso' %}selected{% endif %}>Concluso</option>

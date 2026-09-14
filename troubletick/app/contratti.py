@@ -194,6 +194,33 @@ def can_manage_single_contratto(user: dict, contratto_row: dict, conn=None) -> b
 # ROTTE GESTIONE CONTRATTI
 # ==========================================
 
+def get_contratti_order_by(sort_by: Optional[str], sort_dir: Optional[str]) -> tuple[str, str, str]:
+    """Risolve la clausola ORDER BY e direzione per la lista e l'export dei contratti."""
+    sort_by_clean = (sort_by or "").strip().lower()
+    sort_dir_clean = (sort_dir or "").strip().lower()
+
+    sort_map = {
+        "anno": "c.anno",
+        "titolo": "c.titolo",
+        "fornitore": "f.ragione_sociale",
+        "dec": "u_dec.cognome, u_dec.nome",
+        "reparto": "rep.nome",
+        "moduli": "cnt_moduli",
+        "importo": "totale_costo",
+        "stato": "c.stato",
+    }
+
+    if sort_by_clean in sort_map:
+        direction = "desc" if sort_dir_clean == "desc" else ("asc" if sort_dir_clean == "asc" else ("desc" if sort_by_clean in ("anno", "importo", "moduli") else "asc"))
+        dir_sql = direction.upper()
+        if sort_by_clean == "dec":
+            order_clause = f"u_dec.cognome {dir_sql}, u_dec.nome {dir_sql}"
+        else:
+            order_clause = f"{sort_map[sort_by_clean]} {dir_sql}"
+        return f"{order_clause}, c.contratto_id DESC", sort_by_clean, direction
+    else:
+        return "c.anno DESC, c.contratto_id DESC", "anno", "desc"
+
 @router.get("/contratti", response_class=HTMLResponse)
 @router.get("/contratto", response_class=HTMLResponse)
 @router.get("/contratti/contratti", response_class=HTMLResponse)
@@ -209,6 +236,8 @@ def contratti_list(
     reparto_id: Optional[str] = None,
     operatore_id: Optional[str] = None,
     q: Optional[str] = None,
+    sort_by: Optional[str] = None,
+    sort_dir: Optional[str] = None,
     error: Optional[str] = None,
     success: Optional[str] = None
 ):
@@ -262,6 +291,8 @@ def contratti_list(
 
     where_sql = " AND ".join(where_clauses)
 
+    order_by_sql, effective_sort_by, effective_sort_dir = get_contratti_order_by(sort_by, sort_dir)
+
     with engine.connect() as conn:
         # Elenco contratti con totali moduli calcolati
         contratti = conn.execute(text(f"""
@@ -284,7 +315,7 @@ def contratti_list(
             LEFT JOIN users u_dec ON c.dec_user_id = u_dec.user_id
             LEFT JOIN users u_creatore ON c.creato_da_id = u_creatore.user_id
             WHERE {where_sql}
-            ORDER BY c.anno DESC, c.contratto_id DESC
+            ORDER BY {order_by_sql}
         """), params).mappings().all()
 
         # Liste di supporto per i filtri
@@ -293,13 +324,10 @@ def contratti_list(
         operatori = conn.execute(text("""
             SELECT DISTINCT u.user_id, u.nome, u.cognome, u.reparto_id, r.nome AS reparto_nome
             FROM users u
+            JOIN operatori_tag ot ON u.user_id = ot.user_id
+            JOIN tag_operatori t ON ot.tag_id = t.tag_id
             LEFT JOIN reparti r ON u.reparto_id = r.reparto_id
-            WHERE (u.ruolo != 'normale' AND u.attivo = 1)
-               OR u.user_id IN (
-                   SELECT DISTINCT dec_user_id FROM contratti WHERE dec_user_id IS NOT NULL
-                   UNION
-                   SELECT DISTINCT creato_da_id FROM contratti WHERE creato_da_id IS NOT NULL
-               )
+            WHERE UPPER(t.nome) = 'DEC' AND u.attivo = 1
             ORDER BY u.cognome, u.nome
         """)).mappings().all()
         anni_disponibili = conn.execute(text("SELECT DISTINCT anno FROM contratti ORDER BY anno DESC")).scalars().all()
@@ -366,6 +394,8 @@ def contratti_list(
         "totale_spesa": totale_spesa,
         "totale_attivi": totale_attivi,
         "totale_giornate": totale_giornate,
+        "sort_by": effective_sort_by,
+        "sort_dir": effective_sort_dir,
         "error": error,
         "success": success
     })
@@ -381,7 +411,9 @@ def contratti_export_csv(
     stato: Optional[str] = None,
     reparto_id: Optional[str] = None,
     operatore_id: Optional[str] = None,
-    q: Optional[str] = None
+    q: Optional[str] = None,
+    sort_by: Optional[str] = None,
+    sort_dir: Optional[str] = None
 ):
     user = check_contratti_access(r)
     if isinstance(user, RedirectResponse):
@@ -432,6 +464,8 @@ def contratti_export_csv(
 
     where_sql = " AND ".join(where_clauses)
 
+    order_by_sql, _, _ = get_contratti_order_by(sort_by, sort_dir)
+
     with engine.connect() as conn:
         contratti = conn.execute(text(f"""
             SELECT c.*,
@@ -454,7 +488,7 @@ def contratti_export_csv(
             LEFT JOIN users u_dec ON c.dec_user_id = u_dec.user_id
             LEFT JOIN users u_creatore ON c.creato_da_id = u_creatore.user_id
             WHERE {where_sql}
-            ORDER BY c.anno DESC, c.contratto_id DESC
+            ORDER BY {order_by_sql}
         """), params).mappings().all()
 
     output = io.StringIO()
@@ -633,6 +667,7 @@ def contratti_riepilogo_economico(
         agg_reparti = {}
         agg_stati = {
             "attivo": {"count": 0, "totale": 0.0},
+            "in_trattativa": {"count": 0, "totale": 0.0},
             "in_definizione": {"count": 0, "totale": 0.0},
             "scaduto": {"count": 0, "totale": 0.0},
             "concluso": {"count": 0, "totale": 0.0}
@@ -708,13 +743,10 @@ def contratti_riepilogo_economico(
         operatori = conn.execute(text("""
             SELECT DISTINCT u.user_id, u.nome, u.cognome, u.reparto_id, r.nome AS reparto_nome
             FROM users u
+            JOIN operatori_tag ot ON u.user_id = ot.user_id
+            JOIN tag_operatori t ON ot.tag_id = t.tag_id
             LEFT JOIN reparti r ON u.reparto_id = r.reparto_id
-            WHERE (u.ruolo != 'normale' AND u.attivo = 1)
-               OR u.user_id IN (
-                   SELECT DISTINCT dec_user_id FROM contratti WHERE dec_user_id IS NOT NULL
-                   UNION
-                   SELECT DISTINCT creato_da_id FROM contratti WHERE creato_da_id IS NOT NULL
-               )
+            WHERE UPPER(t.nome) = 'DEC' AND u.attivo = 1
             ORDER BY u.cognome, u.nome
         """)).mappings().all()
         anni_disponibili = conn.execute(text("SELECT DISTINCT anno FROM contratti ORDER BY anno DESC")).scalars().all()

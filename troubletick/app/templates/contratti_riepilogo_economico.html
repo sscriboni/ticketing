@@ -9,6 +9,7 @@
         .kpi-card { border-radius: 12px; transition: transform 0.15s ease-in-out; }
         .kpi-card:hover { transform: translateY(-2px); }
         .badge-stato-attivo { background-color: #198754; color: white; }
+        .badge-stato-in_trattativa { background-color: #fd7e14; color: white; }
         .badge-stato-in_definizione { background-color: #ffc107; color: #212529; }
         .badge-stato-scaduto { background-color: #dc3545; color: white; }
         .badge-stato-concluso { background-color: #6c757d; color: white; }
@@ -102,9 +103,9 @@
                 </div>
 
                 <div class="col-12 col-lg-3 col-md-4">
-                    <label class="form-label small fw-bold text-muted mb-1">Operatore / DEC</label>
+                    <label class="form-label small fw-bold text-muted mb-1">Operatore DEC</label>
                     <select name="operatore_id" class="form-select form-select-sm" onchange="this.form.submit()">
-                        <option value="">-- Tutti gli Operatori --</option>
+                        <option value="">-- Tutti i DEC --</option>
                         {% for op in operatori %}
                         <option value="{{ op.user_id }}" {% if operatore_selezionato == op.user_id %}selected{% endif %}>
                             {{ op.cognome }} {{ op.nome }}{% if op.reparto_nome %} ({{ op.reparto_nome }}){% endif %}
@@ -132,6 +133,7 @@
                     <select name="stato" class="form-select form-select-sm" onchange="this.form.submit()">
                         <option value="">-- Tutti gli Stati --</option>
                         <option value="attivo" {% if stato_selezionato == 'attivo' %}selected{% endif %}>Attivo</option>
+                        <option value="in_trattativa" {% if stato_selezionato == 'in_trattativa' %}selected{% endif %}>In Trattativa</option>
                         <option value="in_definizione" {% if stato_selezionato == 'in_definizione' %}selected{% endif %}>In Definizione</option>
                         <option value="scaduto" {% if stato_selezionato == 'scaduto' %}selected{% endif %}>Scaduto</option>
                         <option value="concluso" {% if stato_selezionato == 'concluso' %}selected{% endif %}>Concluso</option>
@@ -196,6 +198,9 @@
                         <div class="h3 fw-bold mb-0 text-primary">{{ totale_contratti }}</div>
                         <div class="small text-muted mt-1">
                             <span class="badge bg-success bg-opacity-10 text-success">{{ stati_agg.attivo.count }} attivi</span>
+                            {% if stati_agg.in_trattativa and stati_agg.in_trattativa.count > 0 %}
+                            <span class="badge bg-warning bg-opacity-25 text-dark">{{ stati_agg.in_trattativa.count }} in tratt.</span>
+                            {% endif %}
                             {% if stati_agg.in_definizione.count > 0 %}
                             <span class="badge bg-warning bg-opacity-10 text-dark">{{ stati_agg.in_definizione.count }} in def.</span>
                             {% endif %}
@@ -375,6 +380,8 @@
                                 </a>
                                 {% if c.stato == 'attivo' %}
                                 <span class="badge badge-stato-attivo">Attivo</span>
+                                {% elif c.stato == 'in_trattativa' %}
+                                <span class="badge badge-stato-in_trattativa">In Trattativa</span>
                                 {% elif c.stato == 'in_definizione' %}
                                 <span class="badge badge-stato-in_definizione">In Definizione</span>
                                 {% elif c.stato == 'scaduto' %}

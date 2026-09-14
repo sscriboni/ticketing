@@ -50,7 +50,7 @@
         <div class="mb-3">
             <div class="d-flex justify-content-between align-items-baseline">
                 <h1 class="h4 fw-bold text-dark mb-1">{{ contratto.titolo }}</h1>
-                <span class="badge bg-secondary text-uppercase">{{ contratto.stato }}</span>
+                <span class="badge bg-secondary text-uppercase">{{ (contratto.stato or '').replace('_', ' ') }}</span>
             </div>
             <div class="text-muted">
                 Fornitore Aggiudicatario: <strong class="text-dark">{{ contratto.fornitore_nome }}</strong>

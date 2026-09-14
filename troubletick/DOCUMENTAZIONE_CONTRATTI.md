@@ -70,7 +70,7 @@ graph TD
 ### Passo 2: Dati Generali del Contratto
 * Inserisci il **Titolo del contratto** (es. *"Manutenzione Sistemi e Infrastruttura di Rete 2026"*).
 * Seleziona l'**Anno di competenza** (es. *2026*).
-* Indica lo **Stato iniziale** (*Attivo*, *In definizione*, *Scaduto*, *Concluso*).
+* Indica lo **Stato iniziale** (*Attivo*, *In trattativa*, *In definizione*, *Scaduto*, *Concluso*).
 * Seleziona il **DEC** incaricato della supervisione e il **Reparto** di appartenenza.
 * Inserisci eventuali codici noti (**CIG**, **CUP**, **Numero Documento**).
 
@@ -85,7 +85,8 @@ Dalla scheda di dettaglio del contratto:
 
 ### Passo 4: Monitoraggio, Filtri ed Esportazione CSV
 Dall'elenco contratti e dal riepilogo economico è possibile:
-* Filtrare i contratti per **Anno**, **Stato**, **Fornitore**, **Operatore / DEC** e **Reparto**.
+* Filtrare i contratti per **Anno**, **Stato**, **Fornitore**, **Operatore DEC** e **Reparto**.
+* **Ordinare la tabella** cliccando sull'intestazione di qualsiasi colonna (*Anno*, *Titolo*, *Fornitore*, *DEC / Reparto*, *Moduli*, *Importo*, *Stato*) in ordine crescente o decrescente con anteprima immediata.
 * Effettuare ricerche testuali rapide per titolo, codice contratto, CIG, CUP, fornitore e operatore DEC.
 * **Esportare in CSV** (`.csv`) l'elenco visibile filtrato per elaborazioni in Microsoft Excel, con encoding UTF-8 compatibile, separatore punto e virgola (`;`), importi economici e dettagli completi (fornitore, DEC, date, totali moduli e giornate).
 * Visualizzare il **Riepilogo Economico** con totali spesa, percentuali per fornitore e reparto.
@@ -109,7 +110,8 @@ Quando si apre la nuova annualità:
 
 | Stato | Badge | Significato |
 |---|:---:|---|
-| **In Definizione** | Giallo | Contratto in fase di predisposizione o di negoziazione, non ancora esecutivo. |
+| **In Trattativa** | Arancione | Contratto in fase di negoziazione preliminare o commerciale con il fornitore. |
+| **In Definizione** | Giallo | Contratto in fase di predisposizione o redazione formale, non ancora esecutivo. |
 | **Attivo** | Verde | Contratto in corso di validità ed esecuzione per l'annualità di riferimento. |
 | **Scaduto** | Rosso | Annualità contrattuale terminata; è possibile rinnovare o archiviare. |
 | **Concluso** | Grigio | Fornitura completata e chiusa regolarmente. |
