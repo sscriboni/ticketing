@@ -286,7 +286,7 @@
                                 </div>
                                 {% endif %}
                             </td>
-                            <td data-sort="{{ ((c.dec_cognome or '') ~ ' ' ~ (c.dec_nome or ''))|strip|lower or ((c.reparto_nome or ''))|strip|lower }}">
+                            <td data-sort="{% if c.dec_nome %}{{ c.dec_cognome|lower }} {{ c.dec_nome|lower }}{% elif c.reparto_nome %}{{ c.reparto_nome|lower }}{% endif %}">
                                 <div>
                                     {% if c.dec_nome %}
                                     <span class="badge bg-danger bg-opacity-10 text-danger border border-danger-subtle me-1" title="Direttore Esecuzione Contratto">
