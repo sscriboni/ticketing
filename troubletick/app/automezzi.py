@@ -3219,7 +3219,8 @@ def delete_viaggio(id: int, r: Request, background_tasks: BackgroundTasks, nuovi
                     conducente_id=v.get("user_id"),
                     conducente_email=v.get("email_conducente"),
                     note=v.get("note"),
-                    autore_nome=autore_display
+                    autore_nome=autore_display,
+                    autore_email=user.get("email")
                 )
             
     return RedirectResponse(url="/admin/automezzi/viaggi", status_code=303)
@@ -3605,7 +3606,8 @@ def prenota_automezzo(
             conducente_email=driver.email,
             conducente_nome=driver_nome,
             note=note,
-            autore_nome=autore_display
+            autore_nome=autore_display,
+            autore_email=current_email
         )
         
     return RedirectResponse(url="/autopark?msg=booked", status_code=303)
@@ -3834,7 +3836,8 @@ def elimina_prenotazione(id: int, r: Request, background_tasks: BackgroundTasks,
                     conducente_id=v.get("user_id"),
                     conducente_email=v.get("email_conducente"),
                     note=v.get("note"),
-                    autore_nome=autore_display
+                    autore_nome=autore_display,
+                    autore_email=user.get("email")
                 )
 
             return RedirectResponse(url=f"/autopark?msg={urllib.parse.quote(msg_text)}", status_code=303)

@@ -5,10 +5,11 @@ import logging
 from logging.handlers import RotatingFileHandler
 from typing import Optional, Dict, Any, List
 from datetime import datetime
-from fastapi import FastAPI, HTTPException, Header, Depends, status, Request, Query
+from fastapi import FastAPI, HTTPException, Header, Depends, status, Request, Query, BackgroundTasks
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 from sqlalchemy import text
+from fleet_notifications import notifica_fleet_managers_prenotazione
 
 # Importazione del modulo di autenticazione centralizzato auth.py e engine da core.py
 CURRENT_DIR = os.path.dirname(os.path.abspath(__file__))
@@ -1027,7 +1028,7 @@ def get_user_prenotazioni(
 @app.post("/api/prenotazioni", response_model=PrenotazioneActionResponse, status_code=status.HTTP_201_CREATED)
 @app.post("/prenotazioni", response_model=PrenotazioneActionResponse, status_code=status.HTTP_201_CREATED)
 @app.post("/api/autopark/prenota", response_model=PrenotazioneActionResponse, status_code=status.HTTP_201_CREATED)
-def create_prenotazione(req: PrenotazioneCreateRequest, user: dict = Depends(get_current_user)):
+def create_prenotazione(req: PrenotazioneCreateRequest, background_tasks: BackgroundTasks, user: dict = Depends(get_current_user)):
     uid = user.get("user_id", 0)
     role = user.get("ruolo", "normale")
     user_roles = user.get("roles") or [role]
@@ -1184,6 +1185,25 @@ def create_prenotazione(req: PrenotazioneCreateRequest, user: dict = Depends(get
         raise HTTPException(status_code=500, detail=f"Errore interno registrazione prenotazione: {str(e)}")
 
     api_logger.info("[BOOKING CREATED] Prenotazione ID %s creata da '%s' (ID: %s) -> Veicolo ID %s, Conducente '%s', Data %s (%s-%s, Sede: %s)", new_id, user.get("username"), uid, automezzo_id, driver["email"], data_viaggio, ora_partenza, ora_riconsegna, sede_partenza_id)
+
+    # Notifica ai Fleet Manager del reparto assegnato all'automezzo
+    autore_display = f"{user.get('nome', '')} {user.get('cognome', '')}".strip() or user.get("username", "Utente PWA/API")
+    driver_nome = f"{driver.get('nome', '')} {driver.get('cognome', '')}".strip()
+    background_tasks.add_task(
+        notifica_fleet_managers_prenotazione,
+        azione="nuova",
+        automezzo_id=automezzo_id,
+        data_viaggio=data_viaggio,
+        ora_partenza=ora_partenza,
+        ora_riconsegna_prevista=ora_riconsegna,
+        sede_partenza_id=sede_partenza_id,
+        conducente_id=driver.get("user_id"),
+        conducente_email=driver.get("email"),
+        conducente_nome=driver_nome,
+        note=note,
+        autore_nome=autore_display,
+        autore_email=current_email
+    )
 
     return PrenotazioneActionResponse(
         success=True,
@@ -1353,7 +1373,7 @@ def complete_prenotazione(viaggio_id: int, req: PrenotazioneCompletaRequest, use
 @app.post("/autopark/elimina/{viaggio_id}", response_model=PrenotazioneActionResponse)
 @app.delete("/api/prenotazioni/{viaggio_id}", response_model=PrenotazioneActionResponse)
 @app.delete("/prenotazioni/{viaggio_id}", response_model=PrenotazioneActionResponse)
-def cancel_prenotazione(viaggio_id: int, user: dict = Depends(get_current_user)):
+def cancel_prenotazione(viaggio_id: int, background_tasks: BackgroundTasks, user: dict = Depends(get_current_user)):
     uid = user.get("user_id", 0)
     role = user.get("ruolo", "normale")
     user_roles = user.get("roles") or [role]
@@ -1362,23 +1382,27 @@ def cancel_prenotazione(viaggio_id: int, user: dict = Depends(get_current_user))
     is_global = any(r in ("admin", "global_fleet_manager") for r in user_roles) or role in ("admin", "global_fleet_manager")
     is_fleet_mgr = "fleet_manager" in user_roles or role == "fleet_manager"
 
+    fields = "viaggio_id, user_id, email_conducente, automezzo_id, data_viaggio, ora_partenza, ora_riconsegna_prevista, sede_partenza_id, note, ora_partenza_effettiva, ora_arrivo"
+
     try:
         with engine.begin() as conn:
             if is_global:
-                v = conn.execute(text("""
-                    SELECT viaggio_id, user_id, email_conducente, automezzo_id, data_viaggio, ora_partenza_effettiva, ora_arrivo
+                v = conn.execute(text(f"""
+                    SELECT {fields}
                     FROM viaggi_automezzi WHERE viaggio_id = :id
                 """), {"id": viaggio_id}).mappings().first()
             elif is_fleet_mgr and reparto_id:
-                v = conn.execute(text("""
-                    SELECT v.viaggio_id, v.user_id, v.email_conducente, v.automezzo_id, v.data_viaggio, v.ora_partenza_effettiva, v.ora_arrivo
+                v = conn.execute(text(f"""
+                    SELECT v.viaggio_id, v.user_id, v.email_conducente, v.automezzo_id, v.data_viaggio,
+                           v.ora_partenza, v.ora_riconsegna_prevista, v.sede_partenza_id, v.note,
+                           v.ora_partenza_effettiva, v.ora_arrivo
                     FROM viaggi_automezzi v
                     JOIN users u ON v.user_id = u.user_id
                     WHERE v.viaggio_id = :id AND (u.reparto_id = :repid OR v.user_id = :uid OR LOWER(v.email_conducente) = :email)
                 """), {"id": viaggio_id, "repid": reparto_id, "uid": uid, "email": email}).mappings().first()
             else:
-                v = conn.execute(text("""
-                    SELECT viaggio_id, user_id, email_conducente, automezzo_id, data_viaggio, ora_partenza_effettiva, ora_arrivo
+                v = conn.execute(text(f"""
+                    SELECT {fields}
                     FROM viaggi_automezzi
                     WHERE viaggio_id = :id AND (user_id = :uid OR (LOWER(email_conducente) = :email AND :email != ''))
                 """), {"id": viaggio_id, "uid": uid, "email": email}).mappings().first()
@@ -1400,6 +1424,24 @@ def cancel_prenotazione(viaggio_id: int, user: dict = Depends(get_current_user))
         raise HTTPException(status_code=500, detail=f"Errore interno annullamento prenotazione: {str(e)}")
 
     api_logger.info("[BOOKING CANCELLED] Prenotazione ID %s annullata da '%s' (ID: %s) - Veicolo ID %s liberato", viaggio_id, user.get("username"), uid, v["automezzo_id"])
+
+    # Se era una prenotazione (non ancora avviata e non completata), invia notifica ai Fleet Manager del reparto
+    if not v.get("ora_partenza_effettiva") and not v.get("ora_arrivo"):
+        autore_display = f"{user.get('nome', '')} {user.get('cognome', '')}".strip() or user.get("username", "Utente PWA/API")
+        background_tasks.add_task(
+            notifica_fleet_managers_prenotazione,
+            azione="cancellata",
+            automezzo_id=v["automezzo_id"],
+            data_viaggio=v["data_viaggio"],
+            ora_partenza=v.get("ora_partenza") or "",
+            ora_riconsegna_prevista=v.get("ora_riconsegna_prevista") or "",
+            sede_partenza_id=v.get("sede_partenza_id"),
+            conducente_id=v.get("user_id"),
+            conducente_email=v.get("email_conducente"),
+            note=v.get("note"),
+            autore_nome=autore_display,
+            autore_email=email
+        )
 
     return PrenotazioneActionResponse(
         success=True,

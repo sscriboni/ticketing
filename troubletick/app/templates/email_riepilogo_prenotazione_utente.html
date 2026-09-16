@@ -1,0 +1,161 @@
+<!doctype html>
+<html lang="it">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{{ "Conferma Prenotazione Autoveicolo" if azione == "nuova" else "Cancellazione Prenotazione Autoveicolo" }} — {{ cfg.company_name }}</title>
+</head>
+<body style="margin: 0; padding: 0; background-color: #f1f5f9; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; -webkit-font-smoothing: antialiased;">
+    <table border="0" cellpadding="0" cellspacing="0" width="100%" style="background-color: #f1f5f9; padding: 25px 0;">
+        <tr>
+            <td align="center">
+                <!-- Main Container -->
+                <table border="0" cellpadding="0" cellspacing="0" width="100%" style="max-width: 600px; background-color: #ffffff; border-radius: 14px; box-shadow: 0 4px 14px rgba(0,0,0,0.06); overflow: hidden;">
+                    
+                    <!-- Header Banner -->
+                    <tr>
+                        <td align="center" style="background: {{ 'linear-gradient(135deg, #2563eb, #1d4ed8)' if azione == 'nuova' else 'linear-gradient(135deg, #475569, #334155)' }}; padding: 32px 20px; text-align: center;">
+                            <span style="font-size: 38px; margin-bottom: 8px; display: block;">{{ "🚗" if azione == "nuova" else "🚫" }}</span>
+                            <h1 style="color: #ffffff; margin: 0; font-size: 22px; font-weight: 800; letter-spacing: -0.3px;">
+                                {{ "Conferma Prenotazione Automezzo" if azione == "nuova" else "Prenotazione Automezzo Cancellata" }}
+                            </h1>
+                            <p style="color: {{ '#dbeafe' if azione == 'nuova' else '#cbd5e1' }}; margin: 6px 0 0 0; font-size: 13px; text-transform: uppercase; font-weight: 600; letter-spacing: 0.8px;">
+                                {{ "Riepilogo per il Conducente" if azione == "nuova" else "Notifica di Annullamento Prenotazione" }}
+                            </p>
+                        </td>
+                    </tr>
+                    
+                    <!-- Content -->
+                    <tr>
+                        <td style="padding: 35px 30px 25px 30px;">
+                            <p style="color: #334155; font-size: 15px; line-height: 1.6; margin-top: 0;">
+                                Gentile <strong>{{ destinatario_nome }}</strong>,
+                            </p>
+                            <p style="color: #475569; font-size: 14px; line-height: 1.6; margin-bottom: 22px;">
+                                {% if azione == "nuova" %}
+                                ti confermiamo che la tua prenotazione per il veicolo <strong>{{ veicolo.marca_nome }} {{ veicolo.modello }}</strong> è stata registrata con successo a sistema. Di seguito trovi il riepilogo con tutti i dettagli:
+                                {% else %}
+                                ti confermiamo che la prenotazione per il veicolo <strong>{{ veicolo.marca_nome }} {{ veicolo.modello }}</strong> (targa: <strong>{{ veicolo.targa }}</strong>) prevista per la data <strong>{{ prenotazione.data_viaggio }}</strong> è stata <strong>cancellata / annullata</strong>. Il veicolo è stato liberato ed è nuovamente disponibile.
+                                {% endif %}
+                            </p>
+                            
+                            <!-- Vehicle & Booking Details Table -->
+                            <table border="0" cellpadding="0" cellspacing="0" width="100%" style="background-color: #f8fafc; border: 1px solid #e2e8f0; border-radius: 10px; margin-bottom: 22px; overflow: hidden;">
+                                <tr>
+                                    <td colspan="2" style="background-color: {{ '#eff6ff' if azione == 'nuova' else '#f1f5f9' }}; padding: 12px 18px; border-bottom: 1px solid #e2e8f0;">
+                                        <span style="font-size: 13px; font-weight: 700; color: {{ '#1d4ed8' if azione == 'nuova' else '#334155' }}; text-transform: uppercase; letter-spacing: 0.5px;">
+                                            Riepilogo Prenotazione
+                                        </span>
+                                    </td>
+                                </tr>
+                                
+                                <tr>
+                                    <td style="padding: 12px 18px 8px 18px; font-size: 13px; color: #64748b; font-weight: 600; width: 38%;">Targa Veicolo:</td>
+                                    <td style="padding: 12px 18px 8px 18px; font-size: 14px; font-weight: 700;">
+                                        <span style="background-color: #0f172a; color: #f8fafc; padding: 4px 10px; border-radius: 6px; font-family: monospace; letter-spacing: 1.2px; font-size: 14px;">{{ veicolo.targa }}</span>
+                                    </td>
+                                </tr>
+                                <tr>
+                                    <td style="padding: 8px 18px; font-size: 13px; color: #64748b; font-weight: 600;">Marca &amp; Modello:</td>
+                                    <td style="padding: 8px 18px; font-size: 14px; color: #1e293b; font-weight: 700;">
+                                        {{ veicolo.marca_nome }} {{ veicolo.modello }}
+                                    </td>
+                                </tr>
+                                <tr>
+                                    <td style="padding: 8px 18px; font-size: 13px; color: #64748b; font-weight: 600;">Data Viaggio:</td>
+                                    <td style="padding: 8px 18px; font-size: 14px; color: #0f172a; font-weight: 700;">
+                                        📅 {{ prenotazione.data_viaggio }}
+                                    </td>
+                                </tr>
+                                <tr>
+                                    <td style="padding: 8px 18px; font-size: 13px; color: #64748b; font-weight: 600;">Fascia Oraria:</td>
+                                    <td style="padding: 8px 18px; font-size: 14px; color: #1e293b; font-weight: 600;">
+                                        ⏰ {{ prenotazione.ora_partenza }} &rarr; {{ prenotazione.ora_riconsegna_prevista }}
+                                    </td>
+                                </tr>
+                                <tr>
+                                    <td style="padding: 8px 18px; font-size: 13px; color: #64748b; font-weight: 600;">Sede di Partenza:</td>
+                                    <td style="padding: 8px 18px; font-size: 14px; color: #1e293b; font-weight: 600;">
+                                        📍 {{ prenotazione.sede_partenza_nome }}
+                                    </td>
+                                </tr>
+                                {% if veicolo.posizione_parcheggio %}
+                                <tr>
+                                    <td style="padding: 8px 18px; font-size: 13px; color: #64748b; font-weight: 600;">Stallo / Posizione:</td>
+                                    <td style="padding: 8px 18px; font-size: 14px; color: #1e293b; font-weight: 600;">
+                                        🅿️ {{ veicolo.posizione_parcheggio }}
+                                    </td>
+                                </tr>
+                                {% endif %}
+                                <tr>
+                                    <td style="padding: 8px 18px; font-size: 13px; color: #64748b; font-weight: 600;">Conducente:</td>
+                                    <td style="padding: 8px 18px; font-size: 14px; color: #1e293b; font-weight: 600;">
+                                        👤 {{ prenotazione.conducente_nome }}
+                                    </td>
+                                </tr>
+                                {% if autore_nome and autore_nome != prenotazione.conducente_nome %}
+                                <tr>
+                                    <td style="padding: 8px 18px 12px 18px; font-size: 13px; color: #64748b; font-weight: 600;">Registrata da:</td>
+                                    <td style="padding: 8px 18px 12px 18px; font-size: 13px; color: #475569; font-weight: 600;">
+                                        {{ autore_nome }}
+                                    </td>
+                                </tr>
+                                {% endif %}
+                                
+                                {% if prenotazione.note %}
+                                <tr>
+                                    <td colspan="2" style="padding: 12px 18px; border-top: 1px dashed #cbd5e1; background-color: #f1f5f9;">
+                                        <div style="font-size: 12px; color: #64748b; font-weight: 700; text-transform: uppercase; margin-bottom: 5px;">Note:</div>
+                                        <div style="font-size: 13px; color: #334155; line-height: 1.5; font-style: italic;">
+                                            &ldquo;{{ prenotazione.note }}&rdquo;
+                                        </div>
+                                    </td>
+                                </tr>
+                                {% endif %}
+                            </table>
+                            
+                            <!-- Information Alert Box -->
+                            {% if azione == "nuova" %}
+                            <div style="background-color: #eff6ff; border-left: 4px solid #3b82f6; border-radius: 6px; padding: 14px 16px; margin-bottom: 22px;">
+                                <p style="margin: 0; font-size: 13px; color: #1e40af; line-height: 1.5;">
+                                    💡 <strong>Promemoria:</strong> All'inizio del viaggio accedi al tabellone Autopark per registrare la partenza e ritirare le chiavi. Al termine ricordati di indicare i km finali e riporre le chiavi.
+                                </p>
+                            </div>
+                            {% else %}
+                            <div style="background-color: #f8fafc; border-left: 4px solid #64748b; border-radius: 6px; padding: 14px 16px; margin-bottom: 22px;">
+                                <p style="margin: 0; font-size: 13px; color: #475569; line-height: 1.5;">
+                                    ℹ️ Se hai bisogno di un veicolo per un'altra data o fascia oraria, puoi effettuare una nuova prenotazione in qualsiasi momento dal portale Autopark.
+                                </p>
+                            </div>
+                            {% endif %}
+
+                            <!-- Action Button -->
+                            {% if app_url %}
+                            <table border="0" cellpadding="0" cellspacing="0" width="100%" style="margin-top: 15px; margin-bottom: 10px;">
+                                <tr>
+                                    <td align="center">
+                                        <a href="{{ app_url }}autopark" target="_blank" style="display: inline-block; background-color: {{ '#2563eb' if azione == 'nuova' else '#475569' }}; color: #ffffff; text-decoration: none; padding: 12px 24px; border-radius: 8px; font-weight: 700; font-size: 14px; letter-spacing: 0.3px;">
+                                            Apri Tabellone Autopark &rarr;
+                                        </a>
+                                    </td>
+                                </tr>
+                            </table>
+                            {% endif %}
+                        </td>
+                    </tr>
+                    
+                    <!-- Footer -->
+                    <tr>
+                        <td align="center" style="background-color: #f8fafc; padding: 22px 20px; border-top: 1px solid #e2e8f0; border-bottom-left-radius: 14px; border-bottom-right-radius: 14px;">
+                            <p style="margin: 0; font-size: 12px; color: #94a3b8; font-weight: 600;">{{ cfg.company_name }} &bull; Gestione Automezzi & Autopark</p>
+                            <p style="margin: 6px 0 0 0; font-size: 11px; color: #94a3b8;">
+                                Questa è un'email automatica di riepilogo generata da {{ cfg.app_title }}. Non rispondere direttamente a questo messaggio.
+                            </p>
+                        </td>
+                    </tr>
+                </table>
+            </td>
+        </tr>
+    </table>
+</body>
+</html>
