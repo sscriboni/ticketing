@@ -1,0 +1,145 @@
+<!doctype html>
+<html lang="it">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{{ "Nuova Prenotazione Autoveicolo" if azione == "nuova" else "Prenotazione Autoveicolo Cancellata" }} — {{ cfg.company_name }}</title>
+</head>
+<body style="margin: 0; padding: 0; background-color: #f1f5f9; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; -webkit-font-smoothing: antialiased;">
+    <table border="0" cellpadding="0" cellspacing="0" width="100%" style="background-color: #f1f5f9; padding: 25px 0;">
+        <tr>
+            <td align="center">
+                <!-- Main Container -->
+                <table border="0" cellpadding="0" cellspacing="0" width="100%" style="max-width: 600px; background-color: #ffffff; border-radius: 14px; box-shadow: 0 4px 14px rgba(0,0,0,0.06); overflow: hidden;">
+                    
+                    <!-- Header Banner -->
+                    <tr>
+                        <td align="center" style="background: {{ 'linear-gradient(135deg, #0d9488, #0f766e)' if azione == 'nuova' else 'linear-gradient(135deg, #e11d48, #be123c)' }}; padding: 32px 20px; text-align: center;">
+                            <span style="font-size: 38px; margin-bottom: 8px; display: block;">{{ "🚗" if azione == "nuova" else "🚫" }}</span>
+                            <h1 style="color: #ffffff; margin: 0; font-size: 22px; font-weight: 800; letter-spacing: -0.3px;">
+                                {{ "Nuova Prenotazione Automezzo" if azione == "nuova" else "Prenotazione Automezzo Cancellata" }}
+                            </h1>
+                            <p style="color: {{ '#ccfbf1' if azione == 'nuova' else '#ffe4e6' }}; margin: 6px 0 0 0; font-size: 13px; text-transform: uppercase; font-weight: 600; letter-spacing: 0.8px;">
+                                Notifica Fleet Manager &bull; Reparto {{ veicolo.reparto_nome or 'Aziendale' }}
+                            </p>
+                        </td>
+                    </tr>
+                    
+                    <!-- Content -->
+                    <tr>
+                        <td style="padding: 35px 30px 25px 30px;">
+                            <p style="color: #334155; font-size: 15px; line-height: 1.6; margin-top: 0;">
+                                Gentile <strong>{{ destinatario_nome }}</strong>,
+                            </p>
+                            <p style="color: #475569; font-size: 14px; line-height: 1.6; margin-bottom: 22px;">
+                                {% if azione == "nuova" %}
+                                ti informiamo che è stata registrata a sistema una <strong>nuova prenotazione</strong> per un veicolo appartenente al tuo reparto.
+                                {% else %}
+                                ti informiamo che una prenotazione precedentemente registrata per un veicolo appartenente al tuo reparto è stata <strong>cancellata / annullata</strong>.
+                                {% endif %}
+                            </p>
+                            
+                            <!-- Vehicle & Booking Details Table -->
+                            <table border="0" cellpadding="0" cellspacing="0" width="100%" style="background-color: #f8fafc; border: 1px solid #e2e8f0; border-radius: 10px; margin-bottom: 22px; overflow: hidden;">
+                                <tr>
+                                    <td colspan="2" style="background-color: {{ '#f0fdfa' if azione == 'nuova' else '#fff1f2' }}; padding: 12px 18px; border-bottom: 1px solid #e2e8f0;">
+                                        <span style="font-size: 13px; font-weight: 700; color: {{ '#0f766e' if azione == 'nuova' else '#be123c' }}; text-transform: uppercase; letter-spacing: 0.5px;">
+                                            Dettagli Veicolo & Tragitto
+                                        </span>
+                                    </td>
+                                </tr>
+                                
+                                <tr>
+                                    <td style="padding: 12px 18px 8px 18px; font-size: 13px; color: #64748b; font-weight: 600; width: 38%;">Targa Veicolo:</td>
+                                    <td style="padding: 12px 18px 8px 18px; font-size: 14px; font-weight: 700;">
+                                        <span style="background-color: #0f172a; color: #f8fafc; padding: 4px 10px; border-radius: 6px; font-family: monospace; letter-spacing: 1.2px; font-size: 14px;">{{ veicolo.targa }}</span>
+                                    </td>
+                                </tr>
+                                <tr>
+                                    <td style="padding: 8px 18px; font-size: 13px; color: #64748b; font-weight: 600;">Marca &amp; Modello:</td>
+                                    <td style="padding: 8px 18px; font-size: 14px; color: #1e293b; font-weight: 700;">
+                                        {{ veicolo.marca_nome }} {{ veicolo.modello }}
+                                    </td>
+                                </tr>
+                                <tr>
+                                    <td style="padding: 8px 18px; font-size: 13px; color: #64748b; font-weight: 600;">Reparto Veicolo:</td>
+                                    <td style="padding: 8px 18px; font-size: 14px; color: #1e293b; font-weight: 600;">
+                                        {{ veicolo.reparto_nome or 'Non specificato' }}
+                                    </td>
+                                </tr>
+                                <tr>
+                                    <td style="padding: 8px 18px; font-size: 13px; color: #64748b; font-weight: 600;">Data Viaggio:</td>
+                                    <td style="padding: 8px 18px; font-size: 14px; color: #0f172a; font-weight: 700;">
+                                        📅 {{ prenotazione.data_viaggio }}
+                                    </td>
+                                </tr>
+                                <tr>
+                                    <td style="padding: 8px 18px; font-size: 13px; color: #64748b; font-weight: 600;">Fascia Oraria:</td>
+                                    <td style="padding: 8px 18px; font-size: 14px; color: #1e293b; font-weight: 600;">
+                                        ⏰ {{ prenotazione.ora_partenza }} &rarr; {{ prenotazione.ora_riconsegna_prevista }}
+                                    </td>
+                                </tr>
+                                <tr>
+                                    <td style="padding: 8px 18px; font-size: 13px; color: #64748b; font-weight: 600;">Sede di Partenza:</td>
+                                    <td style="padding: 8px 18px; font-size: 14px; color: #1e293b; font-weight: 600;">
+                                        📍 {{ prenotazione.sede_partenza_nome }}
+                                    </td>
+                                </tr>
+                                <tr>
+                                    <td style="padding: 8px 18px; font-size: 13px; color: #64748b; font-weight: 600;">Conducente:</td>
+                                    <td style="padding: 8px 18px; font-size: 14px; color: #1e293b; font-weight: 600;">
+                                        👤 {{ prenotazione.conducente_nome }}
+                                        {% if prenotazione.conducente_email and prenotazione.conducente_email != prenotazione.conducente_nome %}
+                                            <br><span style="font-size: 12px; color: #64748b; font-weight: normal;">({{ prenotazione.conducente_email }})</span>
+                                        {% endif %}
+                                    </td>
+                                </tr>
+                                <tr>
+                                    <td style="padding: 8px 18px 12px 18px; font-size: 13px; color: #64748b; font-weight: 600;">Operazione effettuata da:</td>
+                                    <td style="padding: 8px 18px 12px 18px; font-size: 13px; color: #475569; font-weight: 600;">
+                                        {{ autore_nome }}
+                                    </td>
+                                </tr>
+                                
+                                {% if prenotazione.note %}
+                                <tr>
+                                    <td colspan="2" style="padding: 12px 18px; border-top: 1px dashed #cbd5e1; background-color: #f1f5f9;">
+                                        <div style="font-size: 12px; color: #64748b; font-weight: 700; text-transform: uppercase; margin-bottom: 5px;">Note Prenotazione:</div>
+                                        <div style="font-size: 13px; color: #334155; line-height: 1.5; font-style: italic;">
+                                            &ldquo;{{ prenotazione.note }}&rdquo;
+                                        </div>
+                                    </td>
+                                </tr>
+                                {% endif %}
+                            </table>
+                            
+                            <!-- Action Button -->
+                            {% if app_url %}
+                            <table border="0" cellpadding="0" cellspacing="0" width="100%" style="margin-top: 15px; margin-bottom: 10px;">
+                                <tr>
+                                    <td align="center">
+                                        <a href="{{ app_url }}autopark" target="_blank" style="display: inline-block; background-color: {{ '#0d9488' if azione == 'nuova' else '#475569' }}; color: #ffffff; text-decoration: none; padding: 12px 24px; border-radius: 8px; font-weight: 700; font-size: 14px; letter-spacing: 0.3px;">
+                                            Visualizza Tabellone Autopark &rarr;
+                                        </a>
+                                    </td>
+                                </tr>
+                            </table>
+                            {% endif %}
+                        </td>
+                    </tr>
+                    
+                    <!-- Footer -->
+                    <tr>
+                        <td align="center" style="background-color: #f8fafc; padding: 22px 20px; border-top: 1px solid #e2e8f0; border-bottom-left-radius: 14px; border-bottom-right-radius: 14px;">
+                            <p style="margin: 0; font-size: 12px; color: #94a3b8; font-weight: 600;">{{ cfg.company_name }} &bull; Modulo Gestione Flotta & Autopark</p>
+                            <p style="margin: 6px 0 0 0; font-size: 11px; color: #94a3b8;">
+                                Questa è un'email automatica di sistema generata da {{ cfg.app_title }}. Non rispondere direttamente a questo indirizzo.
+                            </p>
+                        </td>
+                    </tr>
+                </table>
+            </td>
+        </tr>
+    </table>
+</body>
+</html>

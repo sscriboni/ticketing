@@ -5,11 +5,12 @@ import math
 import typing
 import urllib.parse
 from typing import Optional
-from fastapi import APIRouter, Request, Form, UploadFile, File, Query
+from fastapi import APIRouter, Request, Form, UploadFile, File, Query, BackgroundTasks
 from fastapi.responses import HTMLResponse, RedirectResponse, Response, JSONResponse
 from sqlalchemy import text
 from sqlalchemy.exc import IntegrityError
 from core import CFG, templates, engine, DB_PK, DB_DRIVER, get_last_inserted_id
+from fleet_notifications import notifica_fleet_managers_prenotazione
 
 router = APIRouter()
 
@@ -3167,7 +3168,7 @@ def complete_viaggio(
     return RedirectResponse(url="/admin/automezzi/viaggi", status_code=303)
 
 @router.post("/admin/automezzi/viaggi/elimina/{id}")
-def delete_viaggio(id: int, r: Request, nuovi_km: int = Form(None)):
+def delete_viaggio(id: int, r: Request, background_tasks: BackgroundTasks, nuovi_km: int = Form(None)):
     if "user" not in r.session: 
         return RedirectResponse(url="/login", status_code=303)
     user = r.session.get("user")
@@ -3188,7 +3189,12 @@ def delete_viaggio(id: int, r: Request, nuovi_km: int = Form(None)):
             return RedirectResponse(url=f"/admin/automezzi/viaggi?error={urllib.parse.quote('Non sei autorizzato a eliminare viaggi per veicoli di altri reparti.')}", status_code=303)
         
     with engine.begin() as conn:
-        v = conn.execute(text("SELECT automezzo_id, ora_arrivo FROM viaggi_automezzi WHERE viaggio_id = :id"), {"id": id}).mappings().first()
+        v = conn.execute(text("""
+            SELECT automezzo_id, ora_arrivo, ora_partenza_effettiva, data_viaggio, ora_partenza,
+                   ora_riconsegna_prevista, sede_partenza_id, user_id, email_conducente, note
+            FROM viaggi_automezzi
+            WHERE viaggio_id = :id
+        """), {"id": id}).mappings().first()
         if v:
             aid = v["automezzo_id"]
             if not v["ora_arrivo"]:
@@ -3198,6 +3204,23 @@ def delete_viaggio(id: int, r: Request, nuovi_km: int = Form(None)):
                 conn.execute(text("UPDATE automezzi SET km_attuali = :km WHERE automezzo_id = :aid"), {"km": nuovi_km, "aid": aid})
                 
             conn.execute(text("DELETE FROM viaggi_automezzi WHERE viaggio_id = :id"), {"id": id})
+
+            # Se era una prenotazione (non ancora avviata e non conclusa), notifica i Fleet Manager del reparto
+            if not v.get("ora_partenza_effettiva") and not v.get("ora_arrivo"):
+                autore_display = f"{user.get('nome', '')} {user.get('cognome', '')}".strip() or user.get("username", "Utente")
+                background_tasks.add_task(
+                    notifica_fleet_managers_prenotazione,
+                    azione="cancellata",
+                    automezzo_id=v["automezzo_id"],
+                    data_viaggio=v["data_viaggio"],
+                    ora_partenza=v.get("ora_partenza") or "",
+                    ora_riconsegna_prevista=v.get("ora_riconsegna_prevista") or "",
+                    sede_partenza_id=v.get("sede_partenza_id"),
+                    conducente_id=v.get("user_id"),
+                    conducente_email=v.get("email_conducente"),
+                    note=v.get("note"),
+                    autore_nome=autore_display
+                )
             
     return RedirectResponse(url="/admin/automezzi/viaggi", status_code=303)
 
@@ -3426,6 +3449,7 @@ def stampa_indisponibilita_autopark(
 @router.post("/autopark/prenota")
 def prenota_automezzo(
     r: Request,
+    background_tasks: BackgroundTasks,
     automezzo_id: int = Form(...),
     data_viaggio: str = Form(...),
     ora_partenza: str = Form(...),
@@ -3565,6 +3589,24 @@ def prenota_automezzo(
             "email_conducente": driver.email,
             "note": note
         })
+        
+        # Notifica email ai Fleet Manager del reparto di appartenenza del veicolo
+        autore_display = f"{user.get('nome', '')} {user.get('cognome', '')}".strip() or user.get("username", "Utente")
+        driver_nome = f"{driver.nome} {driver.cognome}".strip() if hasattr(driver, "nome") else ""
+        background_tasks.add_task(
+            notifica_fleet_managers_prenotazione,
+            azione="nuova",
+            automezzo_id=automezzo_id,
+            data_viaggio=data_viaggio,
+            ora_partenza=ora_partenza,
+            ora_riconsegna_prevista=ora_riconsegna_prevista,
+            sede_partenza_id=sede_partenza_id,
+            conducente_id=driver.user_id,
+            conducente_email=driver.email,
+            conducente_nome=driver_nome,
+            note=note,
+            autore_nome=autore_display
+        )
         
     return RedirectResponse(url="/autopark?msg=booked", status_code=303)
 
@@ -3724,7 +3766,7 @@ def annulla_viaggio_fleet(id: int, r: Request):
 
 
 @router.post("/autopark/elimina/{id}")
-def elimina_prenotazione(id: int, r: Request, nuovi_km: int = Form(None)):
+def elimina_prenotazione(id: int, r: Request, background_tasks: BackgroundTasks, nuovi_km: int = Form(None)):
     if "user" not in r.session:
         return RedirectResponse(url="/login", status_code=303)
     user = r.session.get("user")
@@ -3733,12 +3775,14 @@ def elimina_prenotazione(id: int, r: Request, nuovi_km: int = Form(None)):
     
     import urllib.parse
     with engine.begin() as conn:
+        fields = "automezzo_id, km_iniziali, km_finali, user_id, ora_partenza_effettiva, data_viaggio, ora_partenza, ora_riconsegna_prevista, sede_partenza_id, email_conducente, note"
         if role in ("admin", "global_fleet_manager"):
-            v = conn.execute(text("SELECT automezzo_id, km_iniziali, km_finali, user_id, ora_partenza_effettiva, data_viaggio FROM viaggi_automezzi WHERE viaggio_id = :id"), {"id": id}).mappings().first()
+            v = conn.execute(text(f"SELECT {fields} FROM viaggi_automezzi WHERE viaggio_id = :id"), {"id": id}).mappings().first()
         elif role == "fleet_manager":
             user_reparto_id = conn.execute(text("SELECT reparto_id FROM users WHERE user_id = :uid"), {"uid": uid}).scalar() or 0
-            v = conn.execute(text("""
-                SELECT v.automezzo_id, v.km_iniziali, v.km_finali, v.user_id, v.ora_partenza_effettiva, v.data_viaggio
+            v = conn.execute(text(f"""
+                SELECT v.automezzo_id, v.km_iniziali, v.km_finali, v.user_id, v.ora_partenza_effettiva, v.data_viaggio,
+                       v.ora_partenza, v.ora_riconsegna_prevista, v.sede_partenza_id, v.email_conducente, v.note
                 FROM viaggi_automezzi v
                 JOIN users u ON v.user_id = u.user_id
                 WHERE v.viaggio_id = :id AND u.reparto_id = :rep
@@ -3746,7 +3790,7 @@ def elimina_prenotazione(id: int, r: Request, nuovi_km: int = Form(None)):
         else:
             # Normal user / operator: can only delete their own booking if not started yet
             v = conn.execute(
-                text("SELECT automezzo_id, km_iniziali, km_finali, user_id, ora_partenza_effettiva, data_viaggio FROM viaggi_automezzi WHERE viaggio_id = :id AND user_id = :uid"),
+                text(f"SELECT {fields} FROM viaggi_automezzi WHERE viaggio_id = :id AND user_id = :uid"),
                 {"id": id, "uid": uid},
             ).mappings().first()
             
@@ -3775,6 +3819,24 @@ def elimina_prenotazione(id: int, r: Request, nuovi_km: int = Form(None)):
                 msg_text += f" I chilometri dell'auto sono stati impostati a {nuovi_km} km."
                 
             conn.execute(text("DELETE FROM viaggi_automezzi WHERE viaggio_id = :id"), {"id": id})
+
+            # Se era una prenotazione (non ancora avviata), notifica i Fleet Manager del reparto
+            if not v.get("ora_partenza_effettiva"):
+                autore_display = f"{user.get('nome', '')} {user.get('cognome', '')}".strip() or user.get("username", "Utente")
+                background_tasks.add_task(
+                    notifica_fleet_managers_prenotazione,
+                    azione="cancellata",
+                    automezzo_id=v["automezzo_id"],
+                    data_viaggio=v["data_viaggio"],
+                    ora_partenza=v.get("ora_partenza") or "",
+                    ora_riconsegna_prevista=v.get("ora_riconsegna_prevista") or "",
+                    sede_partenza_id=v.get("sede_partenza_id"),
+                    conducente_id=v.get("user_id"),
+                    conducente_email=v.get("email_conducente"),
+                    note=v.get("note"),
+                    autore_nome=autore_display
+                )
+
             return RedirectResponse(url=f"/autopark?msg={urllib.parse.quote(msg_text)}", status_code=303)
             
     return RedirectResponse(url="/autopark?msg=deleted", status_code=303)
