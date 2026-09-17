@@ -134,3 +134,66 @@ def save_user_roles(conn, user_id, roles):
             conn.execute(text("INSERT INTO user_roles (user_id, ruolo) VALUES (:uid, :ruolo)"), {"uid": user_id, "ruolo": r})
         except Exception:
             pass
+
+def resolve_sede_id(conn, sede_text):
+    """
+    Risolve in modo robusto una stringa di sede (proveniente da ticket o input utente)
+    nell'ID corrispondente in `sedi`.
+    Gestisce:
+    - Match esatto case-insensitive su s.nome o c.nome || ' - ' || s.nome
+    - Match su parte successiva a ' - '
+    - Match per contenimento / sottostringa
+    - Alias storici consolidati (es. 'Ale CED', 'Sede Centrale Alessandria' -> Alessandria Direzione via Venezia)
+    """
+    if not sede_text or not str(sede_text).strip():
+        return None
+    st = str(sede_text).strip()
+    
+    from sqlalchemy import text
+    try:
+        # 1. Exact match on nome or comune - nome (case-insensitive)
+        res = conn.execute(text("""
+            SELECT s.sede_id 
+            FROM sedi s
+            LEFT JOIN comuni c ON s.comune_id = c.comune_id
+            WHERE LOWER(s.nome) = LOWER(:st) 
+               OR LOWER(COALESCE(c.nome, '') || ' - ' || s.nome) = LOWER(:st)
+            LIMIT 1
+        """), {"st": st}).scalar()
+        if res:
+            return res
+            
+        # 2. Match after splitting ' - ' if present
+        if " - " in st:
+            part_after = st.split(" - ", 1)[1].strip()
+            res = conn.execute(text("SELECT sede_id FROM sedi WHERE LOWER(nome) = LOWER(:part) LIMIT 1"), {"part": part_after}).scalar()
+            if res:
+                return res
+                
+        # 3. Substring / contains match
+        res = conn.execute(text("""
+            SELECT s.sede_id 
+            FROM sedi s
+            LEFT JOIN comuni c ON s.comune_id = c.comune_id
+            WHERE LOWER(:st) LIKE ('%' || LOWER(s.nome) || '%')
+               OR LOWER(s.nome) LIKE ('%' || LOWER(:st) || '%')
+            ORDER BY LENGTH(s.nome) DESC
+            LIMIT 1
+        """), {"st": st}).scalar()
+        if res:
+            return res
+            
+        # 4. Fallbacks for legacy/common shorthands
+        st_lower = st.lower()
+        if "alessandria" in st_lower or st_lower.startswith("ale "):
+            res = conn.execute(text("SELECT sede_id FROM sedi WHERE LOWER(nome) LIKE '%alessandria direzione%' LIMIT 1")).scalar()
+            if res:
+                return res
+        if "acqui" in st_lower:
+            res = conn.execute(text("SELECT sede_id FROM sedi WHERE LOWER(nome) LIKE '%acqui%' LIMIT 1")).scalar()
+            if res:
+                return res
+    except Exception:
+        pass
+        
+    return None

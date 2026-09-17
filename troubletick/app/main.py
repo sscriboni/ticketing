@@ -11,7 +11,7 @@ from sqlalchemy import create_engine, text
 import bcrypt
 
 from core import CFG, BASE_DIR, UPLOAD_DIR, LOG_DIR, engine, DB_TYPE, DB_PK, DB_DRIVER, templates
-from utils import current_user, require_superuser, save_upload, save_user_roles, user_can_manage_fornitori, user_has_tag_dec, user_has_tag_amministrazione
+from utils import current_user, require_superuser, save_upload, save_user_roles, user_can_manage_fornitori, user_has_tag_dec, user_has_tag_amministrazione, resolve_sede_id
 from email_utils import send_email_async
 
 import auth
@@ -609,6 +609,22 @@ try:
                     c.execute(text(f"CREATE INDEX {idx_name} ON {table_name} {cols}"))
             except Exception:
                 pass
+
+        # Riconciliazione automatica sede_dest_id per richieste_materiale collegate a tickets
+        try:
+            reconcile_rows = c.execute(text("""
+                SELECT rm.richiesta_id, t.sede as ticket_sede, rm.sede_dest_id
+                FROM richieste_materiale rm
+                JOIN tickets t ON rm.ticket_id = t.ticket_id
+                WHERE t.sede IS NOT NULL AND TRIM(t.sede) != ''
+            """)).mappings().all()
+            for rrow in reconcile_rows:
+                resolved = resolve_sede_id(c, rrow["ticket_sede"])
+                if resolved and resolved != rrow["sede_dest_id"]:
+                    c.execute(text("UPDATE richieste_materiale SET sede_dest_id = :sid WHERE richiesta_id = :rid"),
+                              {"sid": resolved, "rid": rrow["richiesta_id"]})
+        except Exception as e:
+            print("Error reconciling richieste_materiale sede_dest_id:", e)
 except Exception as e:
     print(f"Skipping DB init on this worker (possible concurrency lock): {e}")
 
@@ -1967,6 +1983,8 @@ def ticket_detail(r: Request, ticket_id: int):
         reparti = c.execute(text("SELECT reparto_id, nome FROM reparti WHERE accetta_ticket = 1 ORDER BY nome")).mappings().all()
         servizi = c.execute(text("SELECT servizio_id, descrizione, reparto_id FROM servizi WHERE accetta_ticket = 1 ORDER BY descrizione")).mappings().all()
         
+        ticket_sede_id = resolve_sede_id(c, ticket.get("sede"))
+
         richieste_mat = c.execute(text("""
             SELECT rm.*, m.nome as materiale_nome, c.nome as categoria_nome, s.nome as sede_nome, mag.nome as magazzino_nome
             FROM richieste_materiale rm
@@ -2108,6 +2126,7 @@ def ticket_detail(r: Request, ticket_id: int):
         "request": r, 
         "cfg": CFG, 
         "ticket": ticket, 
+        "ticket_sede_id": ticket_sede_id,
         "notes": notes, 
         "user": user, 
         "reparti": reparti, 

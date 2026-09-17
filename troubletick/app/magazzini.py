@@ -6,7 +6,7 @@ from fastapi.responses import HTMLResponse, RedirectResponse
 from sqlalchemy import text
 
 from core import engine, CFG, templates, BASE_DIR, DB_DRIVER, get_last_inserted_id
-from utils import require_superuser, save_upload
+from utils import require_superuser, save_upload, resolve_sede_id
 from email_utils import send_email_async
 
 router = APIRouter()
@@ -1303,8 +1303,16 @@ def richieste_materiale_list(
             params["stato"] = stato
             
         if sede_dest_id:
-            clauses.append("rm.sede_dest_id = :sede_dest_id")
-            params["sede_dest_id"] = int(sede_dest_id)
+            s_id_int = int(sede_dest_id)
+            clauses.append("""
+                (rm.sede_dest_id = :sede_dest_id 
+                 OR (rm.ticket_id IS NOT NULL AND (
+                     t.sede = (SELECT nome FROM sedi WHERE sede_id = :sede_dest_id)
+                     OR t.sede = (SELECT (COALESCE(c.nome, '') || ' - ' || s2.nome) FROM sedi s2 LEFT JOIN comuni c ON s2.comune_id = c.comune_id WHERE s2.sede_id = :sede_dest_id)
+                     OR (LOWER(t.sede) LIKE '%alessandria%' AND :sede_dest_id = 14)
+                 )))
+            """)
+            params["sede_dest_id"] = s_id_int
             
         if categoria_id:
             clauses.append("rm.categoria_id = :categoria_id")
@@ -1334,7 +1342,7 @@ def richieste_materiale_list(
             "materiale_nome_asc": "m.nome ASC",
             "materiale_nome_desc": "m.nome DESC",
             "stato_asc": "rm.stato ASC",
-            "sede_nome_asc": "COALESCE(s.nome, t.sede) ASC"
+            "sede_nome_asc": "COALESCE(NULLIF(TRIM(t.sede), ''), s.nome) ASC"
         }
         order_sql = order_mapping.get(order_by, "rm.creato_il DESC")
         
@@ -1359,19 +1367,20 @@ def richieste_materiale_list(
             
         richieste = c.execute(stmt, params).mappings().all()
 
-        # Fabbisogno materiale mancante per sede
+        # Fabbisogno materiale mancante per sede (raggruppa usando la sede effettiva del ticket ove presente)
         fabbisogno_where = f"rm.stato = 'nuova' AND {where_clause}"
         fabbisogno_stmt = text(f"""
-            SELECT COALESCE(s.nome, 'Sede non specificata') AS sede_nome,
+            SELECT COALESCE(NULLIF(TRIM(t.sede), ''), s.nome, 'Sede non specificata') AS sede_nome,
                    m.nome AS materiale_nome,
                    SUM(rm.quantita) AS totale_quantita
             FROM richieste_materiale rm
             JOIN materiali m ON rm.materiale_id = m.materiale_id
             JOIN users u ON rm.user_id = u.user_id
             LEFT JOIN sedi s ON rm.sede_dest_id = s.sede_id
+            LEFT JOIN tickets t ON rm.ticket_id = t.ticket_id
             WHERE {fabbisogno_where}
-            GROUP BY rm.sede_dest_id, rm.materiale_id, s.nome
-            ORDER BY s.nome, m.nome
+            GROUP BY COALESCE(NULLIF(TRIM(t.sede), ''), s.nome, 'Sede non specificata'), m.nome
+            ORDER BY sede_nome, m.nome
         """)
         if use_expanding:
             from sqlalchemy import bindparam
@@ -1482,18 +1491,11 @@ def nuova_richiesta_materiale_action(r: Request, categoria_id: int = Form(...), 
     sede_dest_id_val = int(sede_dest_id) if (sede_dest_id and str(sede_dest_id).isdigit()) else 0
     ticket_id_val = int(ticket_id) if ticket_id and str(ticket_id).isdigit() else None
     
-    if ticket_id_val and not sede_dest_id_val:
+    if ticket_id_val:
         with engine.connect() as conn:
             t_sede_text = conn.execute(text("SELECT sede FROM tickets WHERE ticket_id = :tid"), {"tid": ticket_id_val}).scalar()
             if t_sede_text:
-                resolved_id = conn.execute(text("""
-                    SELECT s.sede_id 
-                    FROM sedi s
-                    LEFT JOIN comuni c ON s.comune_id = c.comune_id
-                    WHERE s.nome = :s_text 
-                       OR (c.nome || ' - ' || s.nome) = :s_text
-                    LIMIT 1
-                """), {"s_text": t_sede_text.strip()}).scalar()
+                resolved_id = resolve_sede_id(conn, t_sede_text)
                 if resolved_id:
                     sede_dest_id_val = resolved_id
                     
