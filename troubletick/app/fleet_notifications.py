@@ -46,6 +46,7 @@ def notifica_utente_prenotazione(
                 SELECT a.automezzo_id, a.targa, a.modello, a.reparto_assegnato_id,
                        COALESCE(m.nome, 'Altro') as marca_nome,
                        r.nome as reparto_nome,
+                       r.messaggio_carpooling as istruzioni_carpooling,
                        s_ass.nome as sede_assegnata_nome,
                        s_att.nome as sede_attuale_nome,
                        a.posizione_parcheggio
@@ -61,6 +62,21 @@ def notifica_utente_prenotazione(
                 msg = f"[{now_str}] SKIPPED - User Booking Notify: Automezzo ID {automezzo_id} non trovato nel database."
                 _log_email_event(msg)
                 return False
+
+            # 1b. Fleet Manager del reparto
+            fleet_managers_list = []
+            rep_id = car.get("reparto_assegnato_id")
+            if rep_id:
+                fm_rows = conn.execute(text("""
+                    SELECT DISTINCT u.nome, u.cognome, u.email, u.telefono
+                    FROM users u
+                    LEFT JOIN user_roles ur ON u.user_id = ur.user_id
+                    WHERE u.attivo = 1
+                      AND u.reparto_id = :rep_id
+                      AND (u.ruolo = 'fleet_manager' OR ur.ruolo = 'fleet_manager')
+                    ORDER BY u.cognome, u.nome
+                """), {"rep_id": rep_id}).mappings().all()
+                fleet_managers_list = [dict(fm) for fm in fm_rows]
 
             # 2. Risoluzione sede di partenza
             resolved_sede_nome = (sede_partenza_nome or "").strip()
@@ -144,7 +160,9 @@ def notifica_utente_prenotazione(
                 "prenotazione": prenotazione_dict,
                 "autore_nome": autore_display,
                 "destinatario_nome": resolved_conducente_nome,
-                "app_url": CFG.get("app_url", "")
+                "app_url": CFG.get("app_url", ""),
+                "istruzioni": (car.get("istruzioni_carpooling") or "").strip(),
+                "fleet_managers": fleet_managers_list
             })
 
             return send_email_async(

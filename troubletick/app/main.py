@@ -437,6 +437,7 @@ try:
             "ALTER TABLE trasferimenti ADD COLUMN posizione_partenza TEXT",
             "ALTER TABLE consegne_programmate ADD COLUMN quando_disponibile INTEGER DEFAULT 0",
             "ALTER TABLE materiali ADD COLUMN soglia_attenzione INTEGER DEFAULT 0",
+            "ALTER TABLE reparti ADD COLUMN messaggio_carpooling TEXT",
             "INSERT OR IGNORE INTO operatori_magazzini (user_id, magazzino_id) SELECT user_id, magazzino_id FROM users WHERE magazzino_id IS NOT NULL"
         ]:
             try:

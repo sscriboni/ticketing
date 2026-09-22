@@ -73,6 +73,11 @@ with engine.begin() as conn:
     except Exception:
         pass
     
+    try:
+        conn.execute(text("ALTER TABLE reparti ADD COLUMN messaggio_carpooling TEXT"))
+    except Exception:
+        pass
+    
     conn.execute(text(f"""
         CREATE TABLE IF NOT EXISTS manutenzioni_automezzi (
             manutenzione_id {DB_PK},
@@ -1236,6 +1241,109 @@ def admin_automezzi_gestione_page(r: Request):
     if user.get("ruolo") != "admin":
         return RedirectResponse(url="/")
     return templates.TemplateResponse(r, "admin_autopark_gestione.html", {"request": r, "cfg": CFG, "user": user})
+
+@router.get("/admin/automezzi/impostazioni", response_class=HTMLResponse)
+def admin_automezzi_impostazioni_page(r: Request, reparto_id: Optional[int] = Query(None), msg: str = None, error: str = None):
+    if "user" not in r.session: 
+        return RedirectResponse(url="/login")
+    user = r.session.get("user")
+    role = user.get("ruolo")
+    if role not in ("admin", "fleet_manager", "global_fleet_manager"):
+        return RedirectResponse(url="/")
+        
+    with engine.connect() as conn:
+        user_row = conn.execute(text("SELECT reparto_id, nome, cognome, email, telefono FROM users WHERE user_id = :uid"), {"uid": user.get("id")}).mappings().first()
+        user_rep_id = user_row["reparto_id"] if user_row else None
+        
+        all_reparti = []
+        if role in ("admin", "global_fleet_manager"):
+            all_reparti = conn.execute(text("SELECT reparto_id, nome FROM reparti ORDER BY nome ASC")).mappings().all()
+            if reparto_id:
+                target_reparto_id = reparto_id
+            elif user_rep_id:
+                target_reparto_id = user_rep_id
+            elif all_reparti:
+                target_reparto_id = all_reparti[0]["reparto_id"]
+            else:
+                target_reparto_id = None
+        else:
+            target_reparto_id = user_rep_id
+
+        target_reparto = None
+        veicoli_reparto = []
+        fleet_managers = []
+        
+        if target_reparto_id:
+            target_reparto = conn.execute(text("""
+                SELECT reparto_id, nome, descrizione, messaggio_carpooling 
+                FROM reparti 
+                WHERE reparto_id = :rid
+            """), {"rid": target_reparto_id}).mappings().first()
+            
+            veicoli_reparto = conn.execute(text("""
+                SELECT a.automezzo_id, a.targa, a.modello, a.stato,
+                       m.nome as marca_nome, s.nome as sede_nome
+                FROM automezzi a
+                JOIN marche_automezzi m ON a.marca_id = m.marca_id
+                LEFT JOIN sedi s ON COALESCE(NULLIF(a.sede_attuale_id, 0), NULLIF(a.sede_assegnata_id, 0)) = s.sede_id
+                WHERE a.reparto_assegnato_id = :rid
+                ORDER BY a.targa ASC
+            """), {"rid": target_reparto_id}).mappings().all()
+            
+            fleet_managers = conn.execute(text("""
+                SELECT DISTINCT u.user_id, u.nome, u.cognome, u.email, u.telefono
+                FROM users u
+                LEFT JOIN user_roles ur ON u.user_id = ur.user_id
+                WHERE u.attivo = 1
+                  AND u.reparto_id = :rep_id
+                  AND (u.ruolo = 'fleet_manager' OR ur.ruolo = 'fleet_manager')
+                ORDER BY u.cognome, u.nome
+            """), {"rep_id": target_reparto_id}).mappings().all()
+            
+    return templates.TemplateResponse(r, "admin_automezzi_impostazioni.html", {
+        "request": r,
+        "cfg": CFG,
+        "user": user,
+        "role": role,
+        "target_reparto": target_reparto,
+        "all_reparti": all_reparti,
+        "veicoli_reparto": veicoli_reparto,
+        "fleet_managers": fleet_managers,
+        "msg": msg,
+        "error": error
+    })
+
+
+@router.post("/admin/automezzi/impostazioni")
+def save_automezzi_impostazioni(
+    r: Request,
+    reparto_id: int = Form(...),
+    messaggio_carpooling: str = Form(None)
+):
+    if "user" not in r.session: 
+        return RedirectResponse(url="/login")
+    user = r.session.get("user")
+    role = user.get("ruolo")
+    if role not in ("admin", "fleet_manager", "global_fleet_manager"):
+        return RedirectResponse(url="/")
+        
+    with engine.begin() as conn:
+        if role == "fleet_manager":
+            user_rep_id = conn.execute(text("SELECT reparto_id FROM users WHERE user_id = :uid"), {"uid": user.get("id")}).scalar()
+            if int(reparto_id) != int(user_rep_id or -1):
+                err_msg = urllib.parse.quote("Non hai i permessi per modificare le impostazioni di questo reparto.")
+                return RedirectResponse(url=f"/admin/automezzi/impostazioni?error={err_msg}", status_code=303)
+                
+        cleaned_msg = (messaggio_carpooling or "").strip()
+        conn.execute(text("""
+            UPDATE reparti
+            SET messaggio_carpooling = :msg
+            WHERE reparto_id = :rid
+        """), {"msg": cleaned_msg, "rid": reparto_id})
+        
+    ok_msg = urllib.parse.quote("Istruzioni carpooling salvate con successo.")
+    return RedirectResponse(url=f"/admin/automezzi/impostazioni?reparto_id={reparto_id}&msg={ok_msg}", status_code=303)
+
 
 @router.get("/admin/automezzi/esporta")
 def export_automezzi_csv(r: Request):
@@ -3247,10 +3355,12 @@ def get_autopark(r: Request, msg: str = None, error: str = None):
         veicoli_all = conn.execute(text("""
             SELECT a.*,
                    COALESCE(NULLIF(a.sede_attuale_id, 0), NULLIF(a.sede_assegnata_id, 0), 0) AS sede_attuale_id_resolved,
-                   m.nome AS marca_nome, s.nome AS sede_attuale_nome
+                   m.nome AS marca_nome, s.nome AS sede_attuale_nome,
+                   r.messaggio_carpooling AS messaggio_carpooling
             FROM automezzi a
             JOIN marche_automezzi m ON a.marca_id = m.marca_id
             LEFT JOIN sedi s ON COALESCE(NULLIF(a.sede_attuale_id, 0), NULLIF(a.sede_assegnata_id, 0)) = s.sede_id
+            LEFT JOIN reparti r ON a.reparto_assegnato_id = r.reparto_id
             ORDER BY m.nome, a.modello
         """)).mappings().all()
         
@@ -3266,7 +3376,8 @@ def get_autopark(r: Request, msg: str = None, error: str = None):
                 "escluso_prenotazione": v["escluso_prenotazione"],
                 "sede_attuale_id": v["sede_attuale_id_resolved"],
                 "sede_attuale_nome": v["sede_attuale_nome"] or "Tutte le Sedi",
-                "posizione_parcheggio": v["posizione_parcheggio"] or ""
+                "posizione_parcheggio": v["posizione_parcheggio"] or "",
+                "messaggio_carpooling": v.get("messaggio_carpooling") or ""
             })
         
         # Build query for bookings
@@ -3360,6 +3471,57 @@ def get_autopark(r: Request, msg: str = None, error: str = None):
     except Exception:
         pass
         
+    # Check for booked vehicle information to display instructions and fleet manager contacts
+    booked_info = None
+    booked_vid = r.query_params.get("vid")
+    if msg == "booked" and booked_vid:
+        try:
+            b_vid = int(booked_vid)
+            with engine.connect() as conn:
+                car_info = conn.execute(text("""
+                    SELECT a.automezzo_id, a.targa, a.modello, a.reparto_assegnato_id,
+                           m.nome AS marca_nome, r.nome AS reparto_nome, r.messaggio_carpooling
+                    FROM automezzi a
+                    JOIN marche_automezzi m ON a.marca_id = m.marca_id
+                    LEFT JOIN reparti r ON a.reparto_assegnato_id = r.reparto_id
+                    WHERE a.automezzo_id = :aid
+                """), {"aid": b_vid}).mappings().first()
+
+                if car_info:
+                    rep_id = car_info.get("reparto_assegnato_id")
+                    fms = []
+                    if rep_id:
+                        fms = conn.execute(text("""
+                            SELECT DISTINCT u.user_id, u.nome, u.cognome, u.email, u.telefono
+                            FROM users u
+                            LEFT JOIN user_roles ur ON u.user_id = ur.user_id
+                            WHERE u.attivo = 1
+                              AND u.reparto_id = :rep_id
+                              AND (u.ruolo = 'fleet_manager' OR ur.ruolo = 'fleet_manager')
+                            ORDER BY u.cognome, u.nome
+                        """), {"rep_id": rep_id}).mappings().all()
+                    if not fms:
+                        fms = conn.execute(text("""
+                            SELECT DISTINCT u.user_id, u.nome, u.cognome, u.email, u.telefono
+                            FROM users u
+                            LEFT JOIN user_roles ur ON u.user_id = ur.user_id
+                            WHERE u.attivo = 1
+                              AND (u.ruolo IN ('global_fleet_manager', 'fleet_manager') OR ur.ruolo IN ('global_fleet_manager', 'fleet_manager'))
+                            ORDER BY u.cognome, u.nome
+                        """)).mappings().all()
+
+                    booked_info = {
+                        "automezzo_id": car_info["automezzo_id"],
+                        "targa": car_info["targa"],
+                        "marca_nome": car_info["marca_nome"],
+                        "modello": car_info["modello"],
+                        "reparto_nome": car_info["reparto_nome"] or "Aziendale",
+                        "istruzioni": (car_info.get("messaggio_carpooling") or "").strip(),
+                        "fleet_managers": [dict(fm) for fm in fms]
+                    }
+        except Exception as e_bi:
+            print("Error loading booked_info:", e_bi)
+
     return templates.TemplateResponse(r, "autopark.html", {
         "request": r, 
         "cfg": CFG, 
@@ -3378,7 +3540,8 @@ def get_autopark(r: Request, msg: str = None, error: str = None):
         "today_str": now.strftime("%Y-%m-%d"),
         "webapp_url": pwa_url,
         "pwa_url": pwa_url,
-        "qr_code_b64": qr_code_b64
+        "qr_code_b64": qr_code_b64,
+        "booked_info": booked_info
     })
 
 
@@ -3610,7 +3773,7 @@ def prenota_automezzo(
             autore_email=current_email
         )
         
-    return RedirectResponse(url="/autopark?msg=booked", status_code=303)
+    return RedirectResponse(url=f"/autopark?msg=booked&vid={automezzo_id}", status_code=303)
 
 @router.post("/autopark/parti/{id}")
 def parti_viaggio(id: int, r: Request):

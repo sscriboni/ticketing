@@ -1,0 +1,424 @@
+<!doctype html>
+<html lang="it">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Impostazioni Carpooling — {{ cfg.app_title }}</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <style>
+        body {
+            font-family: 'Inter', system-ui, -apple-system, sans-serif;
+            background-color: #f8fafc;
+            color: #1e293b;
+        }
+        .settings-card {
+            background: #ffffff;
+            border-radius: 14px;
+            border: 1px solid rgba(226, 232, 240, 0.8);
+            box-shadow: 0 4px 16px rgba(15, 23, 42, 0.04);
+            transition: transform 0.15s ease, box-shadow 0.15s ease;
+        }
+        .settings-card:hover {
+            box-shadow: 0 6px 20px rgba(15, 23, 42, 0.07);
+        }
+        .preview-box {
+            background-color: #f0fdf4;
+            border: 1.5px dashed #22c55e;
+            border-radius: 12px;
+            padding: 1.25rem;
+        }
+        .preview-selection-box {
+            background-color: #eff6ff;
+            border: 1.5px dashed #3b82f6;
+            border-radius: 12px;
+            padding: 1.25rem;
+        }
+        .fm-contact-badge {
+            background: #f1f5f9;
+            border: 1px solid #cbd5e1;
+            border-radius: 10px;
+            padding: 10px 14px;
+            transition: all 0.2s ease;
+        }
+        .fm-contact-badge:hover {
+            background: #e2e8f0;
+            border-color: #94a3b8;
+        }
+        .plate-badge {
+            font-family: monospace;
+            font-weight: 700;
+            letter-spacing: 0.8px;
+            padding: 4px 8px;
+            border-radius: 6px;
+            background-color: #0f172a;
+            color: #f8fafc;
+        }
+    </style>
+</head>
+<body>
+{% include 'navbar.html' %}
+
+<div class="container py-4 mb-5" style="max-width: 1100px;">
+    <!-- Breadcrumb & Navigation Header -->
+    <div class="d-flex flex-wrap justify-content-between align-items-center mb-4 gap-2">
+        <div>
+            <nav aria-label="breadcrumb">
+                <ol class="breadcrumb mb-1 small text-muted">
+                    <li class="breadcrumb-item"><a href="/" class="text-decoration-none">Dashboard</a></li>
+                    <li class="breadcrumb-item"><a href="/autopark" class="text-decoration-none">Carpooling</a></li>
+                    <li class="breadcrumb-item active" aria-current="page">Impostazioni</li>
+                </ol>
+            </nav>
+            <h2 class="fw-bold mb-0 text-dark d-flex align-items-center">
+                <i class="bi bi-sliders text-primary me-2"></i> Impostazioni Carpooling
+            </h2>
+            <p class="text-muted small mb-0 mt-1">
+                Gestisci le istruzioni e le informazioni da visualizzare in fase di prenotazione e conferma per gli automezzi.
+            </p>
+        </div>
+        <div class="d-flex gap-2">
+            <a href="/autopark" class="btn btn-outline-secondary btn-sm rounded-3 shadow-sm">
+                <i class="bi bi-car-front me-1"></i> Tabellone Autopark
+            </a>
+            <a href="/admin/automezzi/viaggi" class="btn btn-outline-primary btn-sm rounded-3 shadow-sm">
+                <i class="bi bi-journal-text me-1"></i> Registro Viaggi
+            </a>
+        </div>
+    </div>
+
+    <!-- Alert Messages -->
+    {% if msg %}
+    <div class="alert alert-success alert-dismissible fade show border-0 shadow-sm rounded-4 mb-4" role="alert">
+        <div class="d-flex align-items-center">
+            <i class="bi bi-check-circle-fill fs-4 me-3 text-success"></i>
+            <div>
+                <strong>Operazione completata!</strong> {{ msg }}
+            </div>
+        </div>
+        <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+    </div>
+    {% endif %}
+
+    {% if error %}
+    <div class="alert alert-danger alert-dismissible fade show border-0 shadow-sm rounded-4 mb-4" role="alert">
+        <div class="d-flex align-items-center">
+            <i class="bi bi-exclamation-triangle-fill fs-4 me-3 text-danger"></i>
+            <div>
+                <strong>Attenzione:</strong> {{ error }}
+            </div>
+        </div>
+        <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+    </div>
+    {% endif %}
+
+    <!-- Department Selector (for Admin & Global Fleet Manager) -->
+    {% if all_reparti and all_reparti|length > 0 %}
+    <div class="settings-card p-3 mb-4">
+        <div class="row align-items-center g-3">
+            <div class="col-md-4">
+                <label for="reparto_select" class="form-label fw-bold mb-0 text-secondary">
+                    <i class="bi bi-building me-1"></i> Seleziona Reparto da configurare:
+                </label>
+            </div>
+            <div class="col-md-8">
+                <select id="reparto_select" class="form-select rounded-3 shadow-sm" onchange="window.location.href='/admin/automezzi/impostazioni?reparto_id=' + this.value">
+                    {% for rep in all_reparti %}
+                    <option value="{{ rep.reparto_id }}" {% if target_reparto and target_reparto.reparto_id == rep.reparto_id %}selected{% endif %}>
+                        {{ rep.nome }}
+                    </option>
+                    {% endfor %}
+                </select>
+            </div>
+        </div>
+    </div>
+    {% endif %}
+
+    {% if not target_reparto %}
+    <div class="alert alert-warning border-0 rounded-4 shadow-sm p-4">
+        <div class="d-flex align-items-center">
+            <i class="bi bi-info-circle-fill fs-3 me-3 text-warning"></i>
+            <div>
+                <h5 class="fw-bold mb-1">Nessun reparto associato</h5>
+                <p class="mb-0">Non risulti assegnato ad alcun reparto specifico come Fleet Manager, oppure non sono presenti reparti attivi nel sistema.</p>
+            </div>
+        </div>
+    </div>
+    {% else %}
+
+    <div class="row g-4">
+        <!-- LEFT COLUMN: Settings Form & Fleet Managers Info -->
+        <div class="col-lg-7">
+            <!-- Form Card -->
+            <div class="settings-card p-4 mb-4">
+                <div class="d-flex justify-content-between align-items-center mb-3">
+                    <h5 class="fw-bold text-dark mb-0">
+                        <i class="bi bi-chat-square-quote-fill text-primary me-2"></i>Istruzioni di Prenotazione
+                    </h5>
+                    <span class="badge bg-primary-subtle text-primary border border-primary-subtle px-3 py-2 rounded-pill fw-semibold">
+                        <i class="bi bi-diagram-3 me-1"></i> Reparto: {{ target_reparto.nome }}
+                    </span>
+                </div>
+                <p class="text-muted small mb-3">
+                    Il messaggio configurato di seguito verrà mostrato agli utenti:
+                    <br>&bull; <strong>In fase di prenotazione</strong>: quando selezionano uno dei veicoli del reparto;
+                    <br>&bull; <strong>Dopo la conferma</strong>: a conclusione della prenotazione, assieme ai contatti dei Fleet Manager.
+                </p>
+
+                <form action="/admin/automezzi/impostazioni" method="POST" id="formImpostazioni">
+                    <input type="hidden" name="reparto_id" value="{{ target_reparto.reparto_id }}">
+
+                    <div class="mb-3">
+                        <label for="messaggio_carpooling" class="form-label fw-semibold text-secondary">
+                            Messaggio Istruzioni per gli Autoveicoli del Reparto:
+                        </label>
+                        <textarea class="form-control rounded-3" id="messaggio_carpooling" name="messaggio_carpooling" rows="6" placeholder="Es: Le chiavi del veicolo devono essere ritirate in portineria centrale. Ricordarsi di compilare il registro chilometrico di bordo e di riconsegnare il mezzo pulito e con almeno 1/4 di serbatoio.">{{ target_reparto.messaggio_carpooling or '' }}</textarea>
+                        <div class="form-text mt-1 text-muted d-flex justify-content-between">
+                            <span>Puoi andare a capo per formattare elenchi di istruzioni puntate.</span>
+                            <span id="charCountText" class="fw-medium"></span>
+                        </div>
+                    </div>
+
+                    <div class="d-flex justify-content-between align-items-center pt-2">
+                        <button type="button" class="btn btn-outline-secondary btn-sm rounded-3" onclick="document.getElementById('messaggio_carpooling').value=''; updateLivePreview();">
+                            <i class="bi bi-eraser me-1"></i> Cancella Testo
+                        </button>
+                        <button type="submit" class="btn btn-primary px-4 py-2 rounded-3 shadow-sm fw-bold">
+                            <i class="bi bi-floppy-fill me-1"></i> Salva Istruzioni
+                        </button>
+                    </div>
+                </form>
+            </div>
+
+            <!-- Fleet Managers References Card -->
+            <div class="settings-card p-4 mb-4">
+                <div class="d-flex justify-content-between align-items-center mb-3">
+                    <h5 class="fw-bold text-dark mb-0">
+                        <i class="bi bi-person-badge-fill text-success me-2"></i>Riferimenti Fleet Manager
+                    </h5>
+                    <a href="/profilo" class="btn btn-sm btn-outline-secondary rounded-3" title="Modifica il tuo recapito telefonico nel profilo">
+                        <i class="bi bi-pencil-square me-1"></i> Mio Profilo
+                    </a>
+                </div>
+                <p class="text-muted small mb-3">
+                    Questi sono i riferimenti che gli utenti visualizzeranno al termine della prenotazione per contattare i responsabili della flotta di questo reparto:
+                </p>
+
+                {% if fleet_managers and fleet_managers|length > 0 %}
+                <div class="row g-2" id="fmContactsList">
+                    {% for fm in fleet_managers %}
+                    <div class="col-12">
+                        <div class="fm-contact-badge d-flex justify-content-between align-items-center flex-wrap gap-2">
+                            <div>
+                                <div class="fw-bold text-dark">
+                                    <i class="bi bi-person-circle text-primary me-1"></i> {{ fm.nome }} {{ fm.cognome }}
+                                </div>
+                                <div class="small text-muted mt-1">
+                                    <span class="me-3"><i class="bi bi-envelope-at text-secondary me-1"></i> <a href="mailto:{{ fm.email }}" class="text-decoration-none text-secondary">{{ fm.email }}</a></span>
+                                    {% if fm.telefono %}
+                                    <span><i class="bi bi-telephone-fill text-success me-1"></i> <a href="tel:{{ fm.telefono }}" class="text-decoration-none text-success fw-semibold">{{ fm.telefono }}</a></span>
+                                    {% else %}
+                                    <span class="text-muted fst-italic"><i class="bi bi-telephone text-muted me-1"></i> Telefono non specificato</span>
+                                    {% endif %}
+                                </div>
+                            </div>
+                            <span class="badge bg-secondary-subtle text-secondary rounded-pill border">Fleet Manager</span>
+                        </div>
+                    </div>
+                    {% endfor %}
+                </div>
+                {% else %}
+                <div class="alert alert-light border text-muted small mb-0 rounded-3">
+                    <i class="bi bi-info-circle me-1 text-info"></i> Nessun utente con ruolo <code>fleet_manager</code> attivo attualmente associato al reparto <strong>{{ target_reparto.nome }}</strong>. Agli utenti verranno mostrati i contatti generali aziendali o dei Global Fleet Manager.
+                </div>
+                {% endif %}
+            </div>
+
+            <!-- Vehicles in Department Card -->
+            <div class="settings-card p-4">
+                <div class="d-flex justify-content-between align-items-center mb-3">
+                    <h5 class="fw-bold text-dark mb-0">
+                        <i class="bi bi-car-front-fill text-info me-2"></i>Autoveicoli del Reparto
+                    </h5>
+                    <span class="badge bg-info-subtle text-info border border-info-subtle px-3 py-1 rounded-pill fw-semibold">
+                        {{ veicoli_reparto|length }} veicoli
+                    </span>
+                </div>
+                <p class="text-muted small mb-3">
+                    Il messaggio di istruzioni configurato si applicherà a tutte le prenotazioni relative a questi automezzi:
+                </p>
+
+                {% if veicoli_reparto and veicoli_reparto|length > 0 %}
+                <div class="table-responsive">
+                    <table class="table table-hover align-middle mb-0 small">
+                        <thead class="table-light">
+                            <tr>
+                                <th>Targa</th>
+                                <th>Marca e Modello</th>
+                                <th>Sede Attuale / Assegnata</th>
+                                <th>Stato</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for v in veicoli_reparto %}
+                            <tr>
+                                <td>
+                                    <span class="plate-badge">{{ v.targa }}</span>
+                                </td>
+                                <td class="fw-semibold text-dark">{{ v.marca_nome }} {{ v.modello }}</td>
+                                <td class="text-muted">
+                                    <i class="bi bi-geo-alt-fill text-danger me-1"></i>{{ v.sede_nome or 'Tutte le Sedi' }}
+                                </td>
+                                <td>
+                                    {% if v.stato == 'Disponibile' %}
+                                    <span class="badge bg-success-subtle text-success border border-success-subtle">Disponibile</span>
+                                    {% elif v.stato == 'In Uso' %}
+                                    <span class="badge bg-warning-subtle text-warning border border-warning-subtle">In Uso</span>
+                                    {% else %}
+                                    <span class="badge bg-secondary-subtle text-secondary border border-secondary-subtle">{{ v.stato }}</span>
+                                    {% endif %}
+                                </td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+                {% else %}
+                <div class="alert alert-light border text-muted small mb-0 rounded-3">
+                    <i class="bi bi-info-circle me-1"></i> Nessun autoveicolo risulta attualmente assegnato a questo reparto.
+                </div>
+                {% endif %}
+            </div>
+        </div>
+
+        <!-- RIGHT COLUMN: Real-Time User Previews -->
+        <div class="col-lg-5">
+            <div class="sticky-top" style="top: 20px; z-index: 10;">
+                <!-- Live Preview: During Booking Selection -->
+                <div class="settings-card p-4 mb-4">
+                    <div class="d-flex align-items-center mb-3">
+                        <i class="bi bi-eye-fill text-primary fs-5 me-2"></i>
+                        <h6 class="fw-bold text-dark mb-0">Anteprima 1: In Fase di Selezione</h6>
+                    </div>
+                    <p class="text-muted small mb-2" style="font-size: 0.8rem;">
+                        Come appare il messaggio quando l'utente seleziona uno dei tuoi autoveicoli nella schermata di prenotazione:
+                    </p>
+
+                    <div class="preview-selection-box">
+                        <div class="d-flex align-items-start">
+                            <i class="bi bi-info-circle-fill fs-5 me-2 flex-shrink-0 text-primary"></i>
+                            <div>
+                                <strong class="d-block mb-1 text-primary" style="font-size: 0.9rem;">Istruzioni per questo autoveicolo:</strong>
+                                <div id="previewSelectionContent" style="white-space: pre-line; font-size: 0.85rem; color: #1e3a8a;">
+                                    {{ target_reparto.messaggio_carpooling or 'Nessuna istruzione impostata.' }}
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Live Preview: Post-Booking Confirmation Screen -->
+                <div class="settings-card p-4">
+                    <div class="d-flex align-items-center mb-3">
+                        <i class="bi bi-check-circle-fill text-success fs-5 me-2"></i>
+                        <h6 class="fw-bold text-dark mb-0">Anteprima 2: Dopo la Prenotazione</h6>
+                    </div>
+                    <p class="text-muted small mb-2" style="font-size: 0.8rem;">
+                        Come appare il riquadro di conferma all'utente subito dopo aver confermato la prenotazione:
+                    </p>
+
+                    <div class="preview-box">
+                        <div class="d-flex align-items-center mb-3">
+                            <i class="bi bi-check-circle-fill fs-3 text-success me-2"></i>
+                            <div>
+                                <div class="fw-bold text-success" style="font-size: 0.95rem;">Prenotazione completata con successo!</div>
+                                <div class="text-muted small">Il veicolo è stato riservato. Buon viaggio!</div>
+                            </div>
+                        </div>
+
+                        <!-- Instructions Preview inside Post-Booking -->
+                        <div id="previewPostBookingSection" class="p-3 bg-white rounded-3 border mb-3 {% if not target_reparto.messaggio_carpooling %}d-none{% endif %}">
+                            <div class="fw-bold text-primary small mb-1">
+                                <i class="bi bi-info-circle-fill me-1"></i> Istruzioni per l'utilizzo dell'autoveicolo:
+                            </div>
+                            <div id="previewPostBookingContent" class="small text-dark" style="white-space: pre-line;">
+                                {{ target_reparto.messaggio_carpooling or '' }}
+                            </div>
+                        </div>
+
+                        <!-- Fleet Manager Contacts inside Post-Booking -->
+                        <div class="p-3 bg-white rounded-3 border">
+                            <div class="fw-bold text-secondary small mb-2">
+                                <i class="bi bi-person-lines-fill me-1"></i> Riferimenti Fleet Manager:
+                            </div>
+                            {% if fleet_managers and fleet_managers|length > 0 %}
+                                {% for fm in fleet_managers %}
+                                <div class="small mb-1 d-flex justify-content-between align-items-center flex-wrap">
+                                    <span class="fw-semibold text-dark">👤 {{ fm.nome }} {{ fm.cognome }}</span>
+                                    <span>
+                                        <a href="mailto:{{ fm.email }}" class="text-decoration-none text-primary me-2"><i class="bi bi-envelope-at me-1"></i>{{ fm.email }}</a>
+                                        {% if fm.telefono %}
+                                        <a href="tel:{{ fm.telefono }}" class="text-decoration-none text-success fw-semibold"><i class="bi bi-telephone-fill me-1"></i>{{ fm.telefono }}</a>
+                                        {% endif %}
+                                    </span>
+                                </div>
+                                {% endfor %}
+                            {% else %}
+                                <div class="small text-muted fst-italic">
+                                    Riferimenti di contatto del supporto flotta aziendale.
+                                </div>
+                            {% endif %}
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    {% endif %}
+</div>
+
+<script>
+    function updateLivePreview() {
+        const textarea = document.getElementById("messaggio_carpooling");
+        if (!textarea) return;
+        const textVal = textarea.value.trim();
+        const charCountText = document.getElementById("charCountText");
+        if (charCountText) {
+            charCountText.textContent = textVal.length > 0 ? textVal.length + " caratteri" : "";
+        }
+
+        const previewSelectionContent = document.getElementById("previewSelectionContent");
+        if (previewSelectionContent) {
+            if (textVal.length > 0) {
+                previewSelectionContent.textContent = textVal;
+                previewSelectionContent.className = "small text-dark";
+            } else {
+                previewSelectionContent.textContent = "Nessuna istruzione impostata (il box non verrà mostrato all'utente).";
+                previewSelectionContent.className = "small text-muted fst-italic";
+            }
+        }
+
+        const previewPostBookingSection = document.getElementById("previewPostBookingSection");
+        const previewPostBookingContent = document.getElementById("previewPostBookingContent");
+        if (previewPostBookingSection && previewPostBookingContent) {
+            if (textVal.length > 0) {
+                previewPostBookingContent.textContent = textVal;
+                previewPostBookingSection.classList.remove("d-none");
+            } else {
+                previewPostBookingSection.classList.add("d-none");
+            }
+        }
+    }
+
+    document.addEventListener("DOMContentLoaded", function() {
+        const textarea = document.getElementById("messaggio_carpooling");
+        if (textarea) {
+            textarea.addEventListener("input", updateLivePreview);
+            updateLivePreview();
+        }
+    });
+</script>
+
+</body>
+</html>
