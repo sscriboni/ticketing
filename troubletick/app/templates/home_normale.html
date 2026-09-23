@@ -129,6 +129,12 @@
                 <strong class="font-monospace text-dark fs-5 text-uppercase"
                   style="letter-spacing: 1.5px; font-weight: 800;">{{ p.targa }}</strong>
                 <small class="d-block text-muted">{{ p.marca_nome }} {{ p.modello }}</small>
+                {% if p.auto_sede_attuale_nome or p.auto_posizione_parcheggio or p.posizione_parcheggio %}
+                  <span class="badge bg-light text-dark border small mt-1 d-inline-flex align-items-center gap-1" title="Ultima posizione conosciuta del veicolo">
+                    <i class="bi bi-pin-map-fill text-danger"></i>
+                    <span>{{ p.auto_sede_attuale_nome or '-' }}{% if p.auto_posizione_parcheggio or p.posizione_parcheggio %} &bull; {{ p.auto_posizione_parcheggio or p.posizione_parcheggio }}{% endif %}</span>
+                  </span>
+                {% endif %}
               </td>
               <td>
                 <span class="fw-bold text-dark">{{ p.data_viaggio }}</span>

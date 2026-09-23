@@ -3063,11 +3063,14 @@ def list_viaggi(r: Request):
 
             prenotazioni_raw = conn.execute(text("""
                 SELECT v.*, a.targa, b.nome as marca, a.modello,
+                       a.posizione_parcheggio as auto_posizione_parcheggio,
+                       s_att.nome as auto_sede_attuale_nome,
                        s_part.nome as sede_partenza_nome,
                        u.nome as user_nome, u.cognome as user_cognome
                 FROM viaggi_automezzi v
                 JOIN automezzi a ON v.automezzo_id = a.automezzo_id
                 JOIN marche_automezzi b ON a.marca_id = b.marca_id
+                LEFT JOIN sedi s_att ON COALESCE(NULLIF(a.sede_attuale_id, 0), NULLIF(a.sede_assegnata_id, 0)) = s_att.sede_id
                 JOIN sedi s_part ON v.sede_partenza_id = s_part.sede_id
                 LEFT JOIN users u ON v.user_id = u.user_id
                 WHERE v.ora_partenza_effettiva IS NULL 
@@ -3384,12 +3387,15 @@ def get_autopark(r: Request, msg: str = None, error: str = None):
         base_query = """
             SELECT v.*, a.modello, a.targa, m.nome AS marca_nome, s.nome AS sede_partenza_nome,
                    s_arr.nome AS sede_arrivo_nome,
+                   a.posizione_parcheggio AS auto_posizione_parcheggio,
+                   s_att.nome AS auto_sede_attuale_nome,
                    u.nome AS driver_nome, u.cognome AS driver_cognome, u.email AS driver_email
             FROM viaggi_automezzi v
             JOIN automezzi a ON v.automezzo_id = a.automezzo_id
             JOIN marche_automezzi m ON a.marca_id = m.marca_id
             LEFT JOIN sedi s ON v.sede_partenza_id = s.sede_id
             LEFT JOIN sedi s_arr ON v.sede_arrivo_id = s_arr.sede_id
+            LEFT JOIN sedi s_att ON COALESCE(NULLIF(a.sede_attuale_id, 0), NULLIF(a.sede_assegnata_id, 0)) = s_att.sede_id
             JOIN users u ON v.user_id = u.user_id
         """
         
@@ -3480,9 +3486,12 @@ def get_autopark(r: Request, msg: str = None, error: str = None):
             with engine.connect() as conn:
                 car_info = conn.execute(text("""
                     SELECT a.automezzo_id, a.targa, a.modello, a.reparto_assegnato_id,
+                           a.posizione_parcheggio,
+                           s_att.nome AS sede_attuale_nome,
                            m.nome AS marca_nome, r.nome AS reparto_nome, r.messaggio_carpooling
                     FROM automezzi a
                     JOIN marche_automezzi m ON a.marca_id = m.marca_id
+                    LEFT JOIN sedi s_att ON COALESCE(NULLIF(a.sede_attuale_id, 0), NULLIF(a.sede_assegnata_id, 0)) = s_att.sede_id
                     LEFT JOIN reparti r ON a.reparto_assegnato_id = r.reparto_id
                     WHERE a.automezzo_id = :aid
                 """), {"aid": b_vid}).mappings().first()
@@ -3516,6 +3525,8 @@ def get_autopark(r: Request, msg: str = None, error: str = None):
                         "marca_nome": car_info["marca_nome"],
                         "modello": car_info["modello"],
                         "reparto_nome": car_info["reparto_nome"] or "Aziendale",
+                        "sede_attuale_nome": car_info.get("sede_attuale_nome") or "",
+                        "posizione_parcheggio": (car_info.get("posizione_parcheggio") or "").strip(),
                         "istruzioni": (car_info.get("messaggio_carpooling") or "").strip(),
                         "fleet_managers": [dict(fm) for fm in fms]
                     }

@@ -1291,10 +1291,13 @@ def home(r: Request):
             operator_prenotazioni = c.execute(text("""
                 SELECT v.*, v.ora_riconsegna_prevista as ora_arrivo_presunta,
                        a.targa, m.nome as marca_nome, a.modello, a.km_attuali as auto_km_attuali,
+                       a.posizione_parcheggio as auto_posizione_parcheggio,
+                       s_att.nome as auto_sede_attuale_nome,
                        sp.nome as sede_partenza_nome, sa.nome as sede_arrivo_nome
                 FROM viaggi_automezzi v 
                 JOIN automezzi a ON v.automezzo_id = a.automezzo_id 
                 JOIN marche_automezzi m ON a.marca_id = m.marca_id
+                LEFT JOIN sedi s_att ON COALESCE(NULLIF(a.sede_attuale_id, 0), NULLIF(a.sede_assegnata_id, 0)) = s_att.sede_id
                 LEFT JOIN sedi sp ON v.sede_partenza_id = sp.sede_id
                 LEFT JOIN sedi sa ON v.sede_arrivo_id = sa.sede_id
                 WHERE v.user_id = :uid AND v.ora_arrivo IS NULL
@@ -1432,11 +1435,14 @@ def home(r: Request):
                 fleet_prenotazioni_list = c.execute(text("""
                     SELECT v.*, v.ora_riconsegna_prevista as ora_arrivo_presunta,
                            a.targa, m.nome as marca_nome, a.modello,
+                           a.posizione_parcheggio as auto_posizione_parcheggio,
+                           s_att.nome as auto_sede_attuale_nome,
                            u.nome as user_nome, u.cognome as user_cognome,
                            sp.nome as sede_partenza_nome, sa.nome as sede_arrivo_nome
                     FROM viaggi_automezzi v 
                     JOIN automezzi a ON v.automezzo_id = a.automezzo_id 
                     JOIN marche_automezzi m ON a.marca_id = m.marca_id
+                    LEFT JOIN sedi s_att ON COALESCE(NULLIF(a.sede_attuale_id, 0), NULLIF(a.sede_assegnata_id, 0)) = s_att.sede_id
                     JOIN users u ON v.user_id = u.user_id
                     LEFT JOIN sedi sp ON v.sede_partenza_id = sp.sede_id
                     LEFT JOIN sedi sa ON v.sede_arrivo_id = sa.sede_id
@@ -1508,11 +1514,14 @@ def home(r: Request):
                 fleet_prenotazioni_list = c.execute(text("""
                     SELECT v.*, v.ora_riconsegna_prevista as ora_arrivo_presunta,
                            a.targa, m.nome as marca_nome, a.modello,
+                           a.posizione_parcheggio as auto_posizione_parcheggio,
+                           s_att.nome as auto_sede_attuale_nome,
                            u.nome as user_nome, u.cognome as user_cognome,
                            sp.nome as sede_partenza_nome, sa.nome as sede_arrivo_nome
                     FROM viaggi_automezzi v 
                     JOIN automezzi a ON v.automezzo_id = a.automezzo_id 
                     JOIN marche_automezzi m ON a.marca_id = m.marca_id
+                    LEFT JOIN sedi s_att ON COALESCE(NULLIF(a.sede_attuale_id, 0), NULLIF(a.sede_assegnata_id, 0)) = s_att.sede_id
                     JOIN users u ON v.user_id = u.user_id
                     LEFT JOIN sedi sp ON v.sede_partenza_id = sp.sede_id
                     LEFT JOIN sedi sa ON v.sede_arrivo_id = sa.sede_id
@@ -1536,6 +1545,65 @@ def home(r: Request):
                         p_dict[k] = str(val)
                 fleet_prenotazioni_dicts.append(p_dict)
 
+            # Verifica presenza messaggio di istruzioni per il carpooling
+            carpooling_warning = None
+            if ruolo == "fleet_manager" and user_rep_id:
+                rep_row = c.execute(text("""
+                    SELECT reparto_id, nome, messaggio_carpooling 
+                    FROM reparti 
+                    WHERE reparto_id = :rid
+                """), {"rid": user_rep_id}).mappings().first()
+
+                if not rep_row or not (rep_row.get("messaggio_carpooling") or "").strip():
+                    rep_nome = rep_row.get("nome") if rep_row else "del tuo reparto"
+                    carpooling_warning = {
+                        "manca": True,
+                        "reparto_id": user_rep_id,
+                        "reparto_nome": rep_nome,
+                        "messaggio": f"Non è stato ancora configurato un messaggio di istruzioni per il carpooling per il reparto <strong>{rep_nome}</strong>.",
+                        "url_impostazioni": f"/admin/automezzi/impostazioni?reparto_id={user_rep_id}"
+                    }
+            else:
+                reparti_con_veicoli_senza = c.execute(text("""
+                    SELECT DISTINCT r.reparto_id, r.nome 
+                    FROM reparti r
+                    JOIN automezzi a ON a.reparto_assegnato_id = r.reparto_id
+                    WHERE r.messaggio_carpooling IS NULL OR TRIM(r.messaggio_carpooling) = ''
+                    ORDER BY r.nome
+                """)).mappings().all()
+
+                tutti_reparti_senza = c.execute(text("""
+                    SELECT r.reparto_id, r.nome 
+                    FROM reparti r
+                    WHERE r.messaggio_carpooling IS NULL OR TRIM(r.messaggio_carpooling) = ''
+                    ORDER BY r.nome
+                """)).mappings().all()
+
+                totale_reparti = c.execute(text("SELECT COUNT(*) FROM reparti")).scalar() or 0
+                target_senza = reparti_con_veicoli_senza if reparti_con_veicoli_senza else tutti_reparti_senza
+
+                if target_senza:
+                    first_rep_id = target_senza[0]["reparto_id"]
+                    if len(target_senza) == 1:
+                        msg = f"Non è stato ancora configurato un messaggio di istruzioni per il carpooling per il reparto <strong>{target_senza[0]['nome']}</strong>."
+                    elif len(target_senza) == totale_reparti and totale_reparti > 0:
+                        msg = "Non è stato ancora configurato alcun messaggio di istruzioni per il carpooling nei reparti aziendali."
+                    else:
+                        nomi = ", ".join([f"<strong>{r['nome']}</strong>" for r in target_senza[:3]])
+                        if len(target_senza) > 3:
+                            nomi += f" e altri {len(target_senza) - 3}"
+                        msg = f"Manca il messaggio di istruzioni per il carpooling nei seguenti reparti: {nomi}."
+
+                    carpooling_warning = {
+                        "manca": True,
+                        "reparto_id": first_rep_id,
+                        "reparti_mancanti": [dict(r) for r in target_senza],
+                        "totale_mancanti": len(target_senza),
+                        "totale_reparti": totale_reparti,
+                        "messaggio": msg,
+                        "url_impostazioni": f"/admin/automezzi/impostazioni?reparto_id={first_rep_id}"
+                    }
+
             stats = {
                 "fleet_total": fleet_total,
                 "fleet_available": fleet_available,
@@ -1543,7 +1611,8 @@ def home(r: Request):
                 "fleet_maintenance": fleet_maintenance,
                 "fleet_active_maintenance": fleet_active_maintenance,
                 "fleet_vehicles_list": fleet_vehicles_dicts,
-                "fleet_prenotazioni_list": fleet_prenotazioni_dicts
+                "fleet_prenotazioni_list": fleet_prenotazioni_dicts,
+                "carpooling_warning": carpooling_warning
             }
             return templates.TemplateResponse(r, "home_fleet_manager.html", {"request": r, "cfg": CFG, "avvisi": avvisi, "user": user, "stats": stats})
             
@@ -1574,10 +1643,13 @@ def home(r: Request):
             user_prenotazioni = c.execute(text("""
                 SELECT v.*, v.ora_riconsegna_prevista as ora_arrivo_presunta,
                        a.targa, m.nome as marca_nome, a.modello, a.km_attuali as auto_km_attuali,
+                       a.posizione_parcheggio as auto_posizione_parcheggio,
+                       s_att.nome as auto_sede_attuale_nome,
                        sp.nome as sede_partenza_nome, sa.nome as sede_arrivo_nome
                 FROM viaggi_automezzi v 
                 JOIN automezzi a ON v.automezzo_id = a.automezzo_id 
                 JOIN marche_automezzi m ON a.marca_id = m.marca_id
+                LEFT JOIN sedi s_att ON COALESCE(NULLIF(a.sede_attuale_id, 0), NULLIF(a.sede_assegnata_id, 0)) = s_att.sede_id
                 LEFT JOIN sedi sp ON v.sede_partenza_id = sp.sede_id
                 LEFT JOIN sedi sa ON v.sede_arrivo_id = sa.sede_id
                 WHERE v.user_id = :uid AND v.ora_arrivo IS NULL

@@ -156,6 +156,8 @@ class PrenotazioneResponse(BaseModel):
     driver_nome: Optional[str] = ""
     driver_cognome: Optional[str] = ""
     driver_email: Optional[str] = ""
+    auto_posizione_parcheggio: Optional[str] = ""
+    auto_sede_attuale_nome: Optional[str] = ""
     is_in_corso: Optional[bool] = False
     in_pausa: Optional[bool] = False
     can_start: Optional[bool] = False
@@ -953,6 +955,8 @@ def get_user_prenotazioni(
                        COALESCE(u.nome, '') AS driver_nome,
                        COALESCE(u.cognome, '') AS driver_cognome,
                        COALESCE(u.email, v.email_conducente, '') AS driver_email,
+                       COALESCE(a.posizione_parcheggio, '') AS auto_posizione_parcheggio,
+                       COALESCE(s_att.nome, '') AS auto_sede_attuale_nome,
                        COALESCE(v.in_pausa, 0) AS in_pausa
                 FROM viaggi_automezzi v
                 LEFT JOIN automezzi a ON v.automezzo_id = a.automezzo_id
@@ -960,6 +964,7 @@ def get_user_prenotazioni(
                 LEFT JOIN sedi s_part ON v.sede_partenza_id = s_part.sede_id
                 LEFT JOIN sedi s_arr ON v.sede_arrivo_id = s_arr.sede_id
                 LEFT JOIN users u ON v.user_id = u.user_id
+                LEFT JOIN sedi s_att ON COALESCE(NULLIF(a.sede_attuale_id, 0), NULLIF(a.sede_assegnata_id, 0)) = s_att.sede_id
                 WHERE 1=1
             """
             params = {}

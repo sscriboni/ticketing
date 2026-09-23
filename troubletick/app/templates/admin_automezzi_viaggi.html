@@ -121,7 +121,14 @@
                                 <td><span class="fw-bold">{{ v.marca }} {{ v.modello }}</span></td>
                                 <td><strong class="font-monospace text-dark fs-6 text-uppercase" style="letter-spacing: 1.2px; font-weight: 800;">{{ v.targa }}</strong></td>
                                 <td>{% if v.user_nome or v.user_cognome %}{{ v.user_nome }} {{ v.user_cognome }}{% else %}<span class="text-muted fst-italic">Non specificato</span>{% endif %}</td>
-                                <td><i class="bi bi-geo-alt-fill text-danger me-1"></i>{{ v.sede_partenza_nome }}</td>
+                                <td>
+                                    <i class="bi bi-geo-alt-fill text-danger me-1"></i>{{ v.sede_partenza_nome }}
+                                    {% if v.auto_sede_attuale_nome or v.auto_posizione_parcheggio or v.posizione_parcheggio %}
+                                        <br><span class="badge bg-light text-dark border small mt-1" title="Ultima posizione conosciuta del veicolo">
+                                            <i class="bi bi-pin-map-fill text-danger me-1"></i>Posizione: {{ v.auto_sede_attuale_nome or v.sede_partenza_nome }}{% if v.auto_posizione_parcheggio or v.posizione_parcheggio %} ({{ v.auto_posizione_parcheggio or v.posizione_parcheggio }}){% endif %}
+                                        </span>
+                                    {% endif %}
+                                </td>
                                 <td>{{ v.data_viaggio }} alle {{ v.ora_partenza }}</td>
                                 <td><span class="text-muted small">{{ v.note or '-' }}</span></td>
                                 <td class="text-end">

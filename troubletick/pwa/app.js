@@ -502,6 +502,7 @@ function renderUserActivePrenotazioniList(trips) {
           <div class="border-top border-slate-700 pt-2 mt-2 small text-slate-300">
             <div><i class="bi bi-calendar3 me-1 text-info"></i> <strong>Data:</strong> ${dataViaggio} ${orario ? '(' + orario + ')' : ''}</div>
             <div><i class="bi bi-geo-alt-fill me-1 text-danger"></i> <strong>Partenza da:</strong> ${sedePartenza}</div>
+            ${(t.auto_sede_attuale_nome || t.auto_posizione_parcheggio) ? `<div><i class="bi bi-pin-map-fill me-1 text-danger"></i> <strong>Ultima posizione:</strong> ${t.auto_sede_attuale_nome || sedePartenza}${t.auto_posizione_parcheggio ? ' — ' + t.auto_posizione_parcheggio : ''}</div>` : ''}
             ${driverLabel ? `<div><i class="bi bi-person-fill me-1 text-warning"></i> <strong>Conducente:</strong> ${driverLabel}</div>` : ''}
             ${t.ora_partenza_effettiva ? `<div><i class="bi bi-speedometer2 me-1 text-success"></i> <strong>Km partenza:</strong> ${t.km_iniziali} km (ore ${t.ora_partenza_effettiva})</div>` : ''}
             ${note ? `<div class="mt-1 text-truncate"><i class="bi bi-pencil-square me-1 text-info"></i> <strong>Note:</strong> ${note}</div>` : ''}

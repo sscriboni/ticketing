@@ -137,6 +137,18 @@
                     <p class="mb-2 text-dark">
                         Il veicolo <strong class="badge bg-dark text-light px-2 py-1 font-monospace">{{ booked_info.targa }}</strong> ({{ booked_info.marca_nome }} {{ booked_info.modello }}) è stato riservato per te. Buon viaggio!
                     </p>
+                    {% if booked_info.sede_attuale_nome or booked_info.posizione_parcheggio %}
+                    <div class="p-2 px-3 bg-white rounded-3 border shadow-sm my-2 d-inline-flex align-items-center gap-2 small text-dark">
+                        <i class="bi bi-pin-map-fill text-danger fs-5"></i>
+                        <div>
+                            <strong>Ultima posizione conosciuta:</strong>
+                            <span class="text-primary fw-semibold ms-1">{{ booked_info.sede_attuale_nome or 'Sede' }}</span>
+                            {% if booked_info.posizione_parcheggio %}
+                            <span class="badge bg-light text-dark border ms-1"><i class="bi bi-p-square text-primary me-1"></i>{{ booked_info.posizione_parcheggio }}</span>
+                            {% endif %}
+                        </div>
+                    </div>
+                    {% endif %}
                     {% else %}
                     <p class="mb-2 text-dark">Il veicolo è stato riservato. Buon viaggio!</p>
                     {% endif %}
@@ -487,6 +499,12 @@
                                                 <li class="mb-1"><i class="bi bi-speedometer2 me-2"></i><strong>KM di partenza:</strong> {{ p.km_iniziali }} km</li>
                                             {% endif %}
                                             <li class="mb-1"><i class="bi bi-geo-alt me-2"></i><strong>Partenza da:</strong> {{ p.sede_partenza_nome }}</li>
+                                            {% if p.auto_sede_attuale_nome or p.auto_posizione_parcheggio or p.posizione_parcheggio %}
+                                            <li class="mb-1 text-dark">
+                                                <i class="bi bi-pin-map-fill text-danger me-2"></i><strong>Ultima posizione:</strong>
+                                                <span class="badge bg-light text-dark border">{{ p.auto_sede_attuale_nome or p.sede_partenza_nome }}{% if p.auto_posizione_parcheggio or p.posizione_parcheggio %} &bull; {{ p.auto_posizione_parcheggio or p.posizione_parcheggio }}{% endif %}</span>
+                                            </li>
+                                            {% endif %}
                                             <li class="mb-1"><i class="bi bi-person-fill me-2"></i><strong>Guidatore:</strong> {{ p.driver_nome }} {{ p.driver_cognome }}</li>
                                             <li class="mb-1"><i class="bi bi-envelope me-2"></i><strong>Email:</strong> {{ p.driver_email }}</li>
                                             {% if p.note %}
