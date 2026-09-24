@@ -84,41 +84,71 @@
 
 <div class="row gap-4 mt-5">
   <div class="col-12 col-lg-8 bg-white p-4 rounded shadow-sm">
-    <h4>Elenco Argomenti</h4>
+    <div class="d-flex justify-content-between align-items-center mb-2">
+      <h4 class="mb-0">Elenco Argomenti</h4>
+      <span class="badge bg-secondary">{{ argomenti|length }} registrati</span>
+    </div>
     {% if error == 'argomento_in_uso' %}
     <div class="alert alert-danger py-2 mt-2">Impossibile eliminare: l'argomento è associato a ticket attivi.</div>
     {% endif %}
-    <table class="table table-sm table-striped mt-3">
-      <thead><tr><th>Argomento</th><th>Servizio Collegato</th><th>Azioni</th></tr></thead>
-      <tbody>
-      {% for argomento in argomenti %}
-      <tr>
-        <td><strong>{{ argomento.descrizione }}</strong></td>
-        <td>{{ argomento.servizio_nome }}</td>
-        <td>
-          <form method="post" action="/admin/argomento/delete" class="d-inline">
-            <input type="hidden" name="argomento_id" value="{{ argomento.argomento_id }}">
-            <button type="submit" class="btn btn-sm btn-danger" onclick="return confirm('Eliminare questo argomento?')">Elimina</button>
-          </form>
-        </td>
-      </tr>
-      {% endfor %}
-      {% if not argomenti %}
-      <tr><td colspan="3" class="text-muted text-center py-3">Nessun argomento registrato</td></tr>
-      {% endif %}
-      </tbody>
-    </table>
+    <div class="table-responsive">
+      <table class="table table-sm table-striped mt-3 align-middle">
+        <thead>
+          <tr>
+            <th>Argomento</th>
+            <th>Dettagli / Descrizione</th>
+            <th>Servizio Collegato</th>
+            <th class="text-end" style="min-width: 140px;">Azioni</th>
+          </tr>
+        </thead>
+        <tbody>
+        {% for argomento in argomenti %}
+        <tr>
+          <td><strong>{{ argomento.descrizione }}</strong></td>
+          <td>
+            {% if argomento.descrizione_lunga %}
+              <div class="small text-secondary text-truncate" style="max-width: 250px;" title="{{ argomento.descrizione_lunga }}">
+                {{ argomento.descrizione_lunga }}
+              </div>
+            {% else %}
+              <span class="text-muted small fst-italic">Nessun dettaglio</span>
+            {% endif %}
+          </td>
+          <td><span class="badge bg-light text-dark border">{{ argomento.servizio_nome }}</span></td>
+          <td class="text-end">
+            <button type="button" class="btn btn-sm btn-outline-primary btn-edit-argomento me-1"
+                    data-id="{{ argomento.argomento_id }}"
+                    data-descrizione="{{ (argomento.descrizione or '') | e }}"
+                    data-servizio="{{ argomento.servizio_id }}"
+                    data-descrizione-lunga="{{ (argomento.descrizione_lunga or '') | e }}">
+              <i class="bi bi-pencil"></i> Modifica
+            </button>
+            <form method="post" action="/admin/argomento/delete" class="d-inline">
+              <input type="hidden" name="argomento_id" value="{{ argomento.argomento_id }}">
+              <button type="submit" class="btn btn-sm btn-outline-danger" onclick="return confirm('Eliminare questo argomento?')">
+                <i class="bi bi-trash"></i>
+              </button>
+            </form>
+          </td>
+        </tr>
+        {% endfor %}
+        {% if not argomenti %}
+        <tr><td colspan="4" class="text-muted text-center py-3">Nessun argomento registrato</td></tr>
+        {% endif %}
+        </tbody>
+      </table>
+    </div>
   </div>
 
   <div class="col-12 col-lg-4 bg-white p-4 rounded shadow-sm">
     <h5>Nuovo Argomento</h5>
     <form method="post" action="/admin/argomento" class="mt-3">
       <div class="mb-3">
-        <label class="form-label">Nome Argomento</label>
+        <label class="form-label">Nome Argomento <span class="text-danger">*</span></label>
         <input name="descrizione" class="form-control" placeholder="es. Problema di Configurazione" required>
       </div>
       <div class="mb-3">
-        <label class="form-label">Servizio Collegato</label>
+        <label class="form-label">Servizio Collegato <span class="text-danger">*</span></label>
         <select name="servizio_id" class="form-select" required>
           <option value="" disabled selected>Seleziona servizio</option>
           {% for servizio in servizi %}
@@ -126,8 +156,52 @@
           {% endfor %}
         </select>
       </div>
+      <div class="mb-3">
+        <label class="form-label">Descrizione Dettagliata / Dettagli (opzionale)</label>
+        <textarea name="descrizione_lunga" rows="3" class="form-control" placeholder="Inserisci dettagli, istruzioni o indicazioni per l'utente che appariranno in fase di apertura ticket..."></textarea>
+        <div class="form-text small">Questa descrizione apparirà all'utente quando seleziona questo argomento durante la creazione del ticket.</div>
+      </div>
       <button type="submit" class="btn btn-primary w-100">Salva argomento</button>
     </form>
+  </div>
+</div>
+
+<!-- Modal Modifica Argomento -->
+<div class="modal fade" id="modalModificaArgomento" tabindex="-1" aria-labelledby="modalModificaArgomentoLabel" aria-hidden="true">
+  <div class="modal-dialog modal-dialog-centered">
+    <div class="modal-content">
+      <form method="post" action="/admin/argomento/edit">
+        <div class="modal-header">
+          <h5 class="modal-title" id="modalModificaArgomentoLabel"><i class="bi bi-pencil-square me-2"></i>Modifica Argomento</h5>
+          <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Chiudi"></button>
+        </div>
+        <div class="modal-body">
+          <input type="hidden" name="argomento_id" id="edit_argomento_id">
+          <div class="mb-3">
+            <label class="form-label fw-bold">Nome Argomento <span class="text-danger">*</span></label>
+            <input name="descrizione" id="edit_argomento_descrizione" class="form-control" required>
+          </div>
+          <div class="mb-3">
+            <label class="form-label fw-bold">Servizio Collegato <span class="text-danger">*</span></label>
+            <select name="servizio_id" id="edit_argomento_servizio_id" class="form-select" required>
+              <option value="" disabled>Seleziona servizio</option>
+              {% for servizio in servizi %}
+              <option value="{{ servizio.servizio_id }}">{{ servizio.descrizione }} ({{ servizio.reparto_nome }})</option>
+              {% endfor %}
+            </select>
+          </div>
+          <div class="mb-3">
+            <label class="form-label fw-bold">Descrizione Dettagliata / Dettagli (opzionale)</label>
+            <textarea name="descrizione_lunga" id="edit_argomento_descrizione_lunga" rows="4" class="form-control" placeholder="Inserisci dettagli, istruzioni o indicazioni per l'utente da mostrare all'apertura del ticket..."></textarea>
+            <div class="form-text small">Questa descrizione apparirà all'utente quando seleziona questo argomento.</div>
+          </div>
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Annulla</button>
+          <button type="submit" class="btn btn-primary"><i class="bi bi-check-lg me-1"></i>Salva Modifiche</button>
+        </div>
+      </form>
+    </div>
   </div>
 </div>
 
@@ -181,6 +255,25 @@ document.addEventListener('DOMContentLoaded', function() {
                 alert('Errore durante la comunicazione con il server.');
                 this.checked = !this.checked;
             });
+        });
+    });
+
+    const modalEl = document.getElementById('modalModificaArgomento');
+    const editModal = modalEl && typeof bootstrap !== 'undefined' ? new bootstrap.Modal(modalEl) : null;
+    
+    document.querySelectorAll('.btn-edit-argomento').forEach(btn => {
+        btn.addEventListener('click', function() {
+            document.getElementById('edit_argomento_id').value = this.dataset.id;
+            document.getElementById('edit_argomento_descrizione').value = this.dataset.descrizione || '';
+            document.getElementById('edit_argomento_servizio_id').value = this.dataset.servizio || '';
+            document.getElementById('edit_argomento_descrizione_lunga').value = this.dataset.descrizioneLunga || '';
+            if (editModal) {
+                editModal.show();
+            } else if (modalEl) {
+                // Fallback if bootstrap object is accessed differently
+                const bsModal = new (window.bootstrap ? window.bootstrap.Modal : bootstrap.Modal)(modalEl);
+                bsModal.show();
+            }
         });
     });
 });

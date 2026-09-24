@@ -329,6 +329,7 @@ try:
         c.execute(text(f"""CREATE TABLE IF NOT EXISTS argomenti (
             argomento_id {DB_PK},
             descrizione TEXT NOT NULL,
+            descrizione_lunga TEXT,
             servizio_id INTEGER NOT NULL
         )"""))
         
@@ -438,6 +439,7 @@ try:
             "ALTER TABLE consegne_programmate ADD COLUMN quando_disponibile INTEGER DEFAULT 0",
             "ALTER TABLE materiali ADD COLUMN soglia_attenzione INTEGER DEFAULT 0",
             "ALTER TABLE reparti ADD COLUMN messaggio_carpooling TEXT",
+            "ALTER TABLE argomenti ADD COLUMN descrizione_lunga TEXT",
             "INSERT OR IGNORE INTO operatori_magazzini (user_id, magazzino_id) SELECT user_id, magazzino_id FROM users WHERE magazzino_id IS NOT NULL"
         ]:
             try:
@@ -1674,7 +1676,7 @@ def new_form(r: Request, error: str = None):
         reparti = c.execute(text("SELECT reparto_id, nome FROM reparti ORDER BY nome")).mappings().all()
         reparti_dest = c.execute(text("SELECT reparto_id, nome, descrizione FROM reparti WHERE accetta_ticket = 1 ORDER BY nome")).mappings().all()
         servizi = c.execute(text("SELECT servizio_id, descrizione, descrizione_lunga, reparto_id, note FROM servizi WHERE accetta_ticket = 1 ORDER BY descrizione")).mappings().all()
-        argomenti = c.execute(text("SELECT argomento_id, descrizione, servizio_id FROM argomenti ORDER BY descrizione")).mappings().all()
+        argomenti = c.execute(text("SELECT argomento_id, descrizione, descrizione_lunga, servizio_id FROM argomenti ORDER BY descrizione")).mappings().all()
         sedi = c.execute(text("""
             SELECT s.sede_id, s.nome, c.nome as comune_nome 
             FROM sedi s 
@@ -2813,7 +2815,7 @@ def admin_servizi(r: Request, error: str = None):
     with engine.connect() as c:
         servizi_raw = c.execute(text("SELECT s.servizio_id, s.descrizione, s.descrizione_lunga, s.reparto_id, s.accetta_ticket, s.note, r.nome AS reparto_nome FROM servizi s LEFT JOIN reparti r ON s.reparto_id = r.reparto_id ORDER BY r.nome, s.descrizione")).mappings().all()
         reparti = c.execute(text("SELECT reparto_id, nome FROM reparti ORDER BY nome")).mappings().all()
-        argomenti = c.execute(text("SELECT a.argomento_id, a.descrizione, a.servizio_id, s.descrizione AS servizio_nome FROM argomenti a JOIN servizi s ON a.servizio_id = s.servizio_id ORDER BY s.descrizione, a.descrizione")).mappings().all()
+        argomenti = c.execute(text("SELECT a.argomento_id, a.descrizione, a.descrizione_lunga, a.servizio_id, s.descrizione AS servizio_nome FROM argomenti a JOIN servizi s ON a.servizio_id = s.servizio_id ORDER BY s.descrizione, a.descrizione")).mappings().all()
         
         # Aggrega fornitori associati a ciascun servizio
         servizi = []
@@ -2953,12 +2955,33 @@ def delete_servizio(r: Request, servizio_id: int = Form(...)):
     return RedirectResponse(url="/admin/servizi", status_code=303)
 
 @app.post("/admin/argomento")
-def add_argomento(r: Request, descrizione: str = Form(...), servizio_id: int = Form(...)):
+def add_argomento(r: Request, descrizione: str = Form(...), servizio_id: int = Form(...), descrizione_lunga: str = Form(None)):
     user = require_superuser(r)
     if isinstance(user, RedirectResponse): return user
+    desc_l = descrizione_lunga.strip() if descrizione_lunga and descrizione_lunga.strip() else None
     with engine.begin() as c:
-        c.execute(text("INSERT INTO argomenti (descrizione, servizio_id) VALUES (:descrizione, :servizio_id)"),
-                  {"descrizione": descrizione.strip(), "servizio_id": servizio_id})
+        c.execute(text("INSERT INTO argomenti (descrizione, descrizione_lunga, servizio_id) VALUES (:descrizione, :descrizione_lunga, :servizio_id)"),
+                  {"descrizione": descrizione.strip(), "descrizione_lunga": desc_l, "servizio_id": servizio_id})
+    return RedirectResponse(url="/admin/servizi", status_code=303)
+
+@app.post("/admin/argomento/edit")
+def edit_argomento(r: Request, argomento_id: int = Form(...), descrizione: str = Form(...), servizio_id: int = Form(...), descrizione_lunga: str = Form(None)):
+    user = require_superuser(r)
+    if isinstance(user, RedirectResponse): return user
+    desc_l = descrizione_lunga.strip() if descrizione_lunga and descrizione_lunga.strip() else None
+    with engine.begin() as c:
+        c.execute(text("""
+            UPDATE argomenti
+            SET descrizione = :descrizione,
+                descrizione_lunga = :descrizione_lunga,
+                servizio_id = :servizio_id
+            WHERE argomento_id = :id
+        """), {
+            "id": argomento_id,
+            "descrizione": descrizione.strip(),
+            "descrizione_lunga": desc_l,
+            "servizio_id": servizio_id
+        })
     return RedirectResponse(url="/admin/servizi", status_code=303)
 
 @app.post("/admin/argomento/delete")

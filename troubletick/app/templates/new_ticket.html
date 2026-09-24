@@ -50,9 +50,13 @@
               <select name="argomento_id" class="form-select" id="argomentoSelect">
                 <option value="">-- Seleziona Argomento (Opzionale) --</option>
                 {% for argomento in argomenti %}
-                <option value="{{ argomento.argomento_id }}" data-servizio="{{ argomento.servizio_id }}">{{ argomento.descrizione }}</option>
+                <option value="{{ argomento.argomento_id }}" data-servizio="{{ argomento.servizio_id }}" data-description="{{ (argomento.descrizione_lunga or '') | e }}">{{ argomento.descrizione }}</option>
                 {% endfor %}
               </select>
+              <div id="argomentoDescriptionAlert" class="alert alert-secondary py-2 px-3 mt-2 d-none" style="font-size: 0.9rem; border-left: 4px solid #6c757d; background-color: #f8f9fa;">
+                <div class="fw-bold mb-1 text-secondary-emphasis"><i class="bi bi-info-circle-fill me-1 text-primary"></i> Dettagli sull'Argomento selezionato:</div>
+                <div id="argomentoDescriptionText" style="white-space: pre-line;"></div>
+              </div>
             </div>
 
             <div class="col-12">
@@ -188,6 +192,26 @@ document.addEventListener('DOMContentLoaded', function() {
 
         const argomentoContainer = document.getElementById('argomentoContainer');
         const argomentoSelect = document.getElementById('argomentoSelect');
+        const argomentoAlert = document.getElementById('argomentoDescriptionAlert');
+        const argomentoText = document.getElementById('argomentoDescriptionText');
+
+        function updateArgomentoDescription() {
+            if (!argomentoAlert || !argomentoText || !argomentoSelect) return;
+            const selectedOpt = argomentoSelect.options[argomentoSelect.selectedIndex];
+            let hasDesc = false;
+            if (selectedOpt && selectedOpt.value !== "") {
+                const desc = selectedOpt.dataset.description;
+                if (desc && desc.trim() !== "") {
+                    argomentoText.textContent = desc.trim();
+                    argomentoAlert.classList.remove('d-none');
+                    hasDesc = true;
+                }
+            }
+            if (!hasDesc) {
+                argomentoAlert.classList.add('d-none');
+                argomentoText.textContent = "";
+            }
+        }
 
         function updateArgomenti() {
             if (!argomentoContainer || !argomentoSelect) return;
@@ -196,6 +220,7 @@ document.addEventListener('DOMContentLoaded', function() {
             if (servId === "") {
                 argomentoContainer.classList.add('d-none');
                 argomentoSelect.value = "";
+                updateArgomentoDescription();
                 return;
             }
 
@@ -218,6 +243,7 @@ document.addEventListener('DOMContentLoaded', function() {
                 argomentoContainer.classList.add('d-none');
                 argomentoSelect.value = "";
             }
+            updateArgomentoDescription();
         }
 
         function filterServizi() {
@@ -243,6 +269,7 @@ document.addEventListener('DOMContentLoaded', function() {
             updateServiceDescription();
             updateArgomenti();
         });
+        argomentoSelect.addEventListener('change', updateArgomentoDescription);
         filterServizi(); // Avvia il filtro al caricamento iniziale della pagina
     }
 });
