@@ -57,6 +57,8 @@ Per garantire una lettura rapida, i diversi stati sono identificati da abbreviaz
 | **CO** | Corsi | Viola | Partecipazione a corsi di formazione |
 | **TR** | Trasferta | Blu Chiaro | Attività di lavoro fuori sede/presso clienti |
 | **AS** | Altra Sede | Arancione | Lavoro temporaneo presso un'altra sede aziendale |
+| **1/2** | Presente 1/2 gg | Celeste / Ciano | Presenza limitata a mezza giornata |
+| **AP** | Assenza Parziale | Ambra / Arancio Scuro | Assenza parziale durante la giornata |
 
 ### Giorni Speciali
 - **S / D** (Grigio Chiaro): Fine settimana (Sabato e Domenica).

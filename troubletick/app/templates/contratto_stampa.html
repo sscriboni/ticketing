@@ -163,6 +163,95 @@
             </tfoot>
         </table>
 
+        <!-- Orders to Supplier Breakdown -->
+        <div class="section-title">{% if contratto.descrizione %}5{% else %}4{% endif %}. Ordini al Fornitore ed Esecuzione Attività (Importi IVA esclusa)</div>
+        {% if ordini %}
+        <table class="table table-sm table-bordered align-middle mb-4">
+            <thead class="table-light text-center">
+                <tr>
+                    <th style="width: 5%;">#</th>
+                    <th style="width: 15%;" class="text-start">Codice / CIG</th>
+                    <th style="width: 35%;" class="text-start">Descrizione / Durata</th>
+                    <th style="width: 10%;">Giornate</th>
+                    <th style="width: 15%;" class="text-end">Importo Ordine</th>
+                    <th style="width: 10%;" class="text-center">Stato</th>
+                    <th style="width: 10%;" class="text-end">Consumato</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for o in ordini %}
+                <tr class="table-light">
+                    <td class="text-center fw-bold">{{ loop.index }}</td>
+                    <td>
+                        <strong>{{ o.codice }}</strong>
+                        {% if o.cig %}<div class="small text-muted">CIG: {{ o.cig }}</div>{% endif %}
+                    </td>
+                    <td>
+                        <strong>{{ o.descrizione }}</strong>
+                        {% if o.durata %}<div class="small text-muted">{{ o.durata }}</div>{% endif %}
+                    </td>
+                    <td class="text-center">{% if o.giornate %}{{ "%.1f"|format(o.giornate) }} gg{% else %}—{% endif %}</td>
+                    <td class="text-end fw-bold">€ {{ "%.2f"|format(o.importo) }}</td>
+                    <td class="text-center text-uppercase small">{{ o.stato }}</td>
+                    <td class="text-end">€ {{ "%.2f"|format(o.totale_costo_attivita) }}</td>
+                </tr>
+                {% if o.attivita %}
+                <tr>
+                    <td colspan="7" class="p-2 ps-4 bg-white">
+                        <div class="small fw-bold text-secondary mb-1">Dettaglio Attività Operative dell'Ordine {{ o.codice }}:</div>
+                        <table class="table table-sm table-bordered mb-0 small">
+                            <thead class="table-light">
+                                <tr>
+                                    <th>Attività</th>
+                                    <th>Richiesta da / Data</th>
+                                    <th>Periodo</th>
+                                    <th class="text-center">Giornate</th>
+                                    <th class="text-end">Costo (€)</th>
+                                    <th class="text-center">Stato</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for a in o.attivita %}
+                                <tr>
+                                    <td>
+                                        {{ a.descrizione }}
+                                        {% if a.note %}<div class="text-muted fst-italic" style="font-size: 0.8rem;">Note: {{ a.note }}</div>{% endif %}
+                                    </td>
+                                    <td>
+                                        {% if a.richiedente %}<strong>{{ a.richiedente }}</strong>{% endif %}
+                                        {% if a.data_richiesta %}<div class="text-muted">del {{ a.data_richiesta }}</div>{% endif %}
+                                    </td>
+                                    <td>{{ a.data_inizio }}{% if a.data_fine %} &rarr; {{ a.data_fine }}{% endif %}</td>
+                                    <td class="text-center">{% if a.giornate %}{{ "%.1f"|format(a.giornate) }} gg{% else %}—{% endif %}</td>
+                                    <td class="text-end fw-semibold">€ {{ "%.2f"|format(a.costo) }}</td>
+                                    <td class="text-center text-uppercase" style="font-size: 0.75rem;">{{ a.stato }}</td>
+                                </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </td>
+                </tr>
+                {% endif %}
+                {% endfor %}
+            </tbody>
+            <tfoot class="table-light fw-bold">
+                <tr>
+                    <td colspan="4" class="text-end">TOTALE ORDINI EMESSI (IVA ESCLUSA):</td>
+                    <td class="text-end text-primary fs-6">€ {{ "%.2f"|format(financials.tot_ordini) }}</td>
+                    <td colspan="2" class="text-end">
+                        {% if financials.residuo_ordinabile > 0 %}
+                        <span class="small text-muted">Residuo da ordinare: € {{ "%.2f"|format(financials.residuo_ordinabile) }}</span>
+                        {% else %}
+                        <span class="small text-success">Interamente ordinato (100%)</span>
+                        {% endif %}
+                    </td>
+                </tr>
+            </tfoot>
+        </table>
+        {% else %}
+        <div class="p-3 bg-light border rounded small text-muted mb-4">Nessun ordine al fornitore registrato per questo contratto.</div>
+        {% endif %}
+
         <!-- Signatures Area -->
         <div class="row mt-5 pt-3">
             <div class="col-6 text-center">

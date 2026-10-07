@@ -86,6 +86,12 @@
                                         {% elif p.tipo == 'altra sede' %}
                                         <span class="badge bg-warning text-dark"><i
                                                 class="bi bi-building me-1"></i>Altra Sede</span>
+                                        {% elif p.tipo == 'presente 1/2 gg' %}
+                                        <span class="badge text-white" style="background-color: #0284c7;"><i
+                                                class="bi bi-pie-chart-fill me-1"></i>Presente 1/2 gg</span>
+                                        {% elif p.tipo == 'assenza parziale' %}
+                                        <span class="badge text-white" style="background-color: #d97706;"><i
+                                                class="bi bi-clock-history me-1"></i>Assenza Parziale</span>
                                         {% else %}
                                         <span class="badge bg-secondary text-white">{{ p.tipo|title }}</span>
                                         {% endif %}
@@ -136,6 +142,7 @@
                                 <option value="trasferta">Trasferta</option>
                                 <option value="altra sede">Altra Sede</option>
                                 <option value="presente 1/2 gg">Presente 1/2 gg</option>
+                                <option value="assenza parziale">Assenza Parziale</option>
                             </select>
                         </div>
                         <div class="mb-4">
@@ -190,6 +197,7 @@
                         if (t === 'trasferta') return '#0d6efd';
                         if (t === 'altra sede') return '#fd7e14';
                         if (t === 'presente 1/2 gg') return '#0284c7';
+                        if (t === 'assenza parziale') return '#d97706';
                         return '#6c757d';
                     })()
                 },

@@ -83,7 +83,41 @@ Dalla scheda di dettaglio del contratto:
    * **A tariffa oraria/giornaliera**: inserisci il numero di giornate stimate e il costo unitario giornaliero (il totale viene calcolato automaticamente).
    * **A canone fisso forfettario**: inserisci direttamente il costo totale della voce.
 
-### Passo 4: Monitoraggio, Filtri ed Esportazione CSV
+### Passo 4: Ordini al Fornitore e Regola di Quadratura Economica
+Dalla scheda di dettaglio del contratto è possibile associare **Ordini al Fornitore**:
+1. Clicca su **"Nuovo Ordine"**.
+2. Specifica il **Codice Ordine** (es. `ORD-2026/01`), il **CIG specifico**, la **Descrizione/Oggetto** e la **Durata** stimata (es. `12 mesi`).
+3. Definisci l'**Importo economico** dell'ordine (IVA esclusa), direttamente oppure calcolato moltiplicando **Giornate previste** $\times$ **Costo giornaliero**.
+4. **Regola Economica Vincolante**:
+   > [!IMPORTANT]
+   > **Tetto di Spesa**: La sommatoria degli importi degli ordini di un contratto **non può superare l'importo del contratto**.
+   > Se si tenta di inserire un ordine con importo eccedente la capienza residua, il sistema blocca l'operazione.
+   > 
+   > **Consiglio di quadratura**: È **consigliabile che la somma degli ordini corrisponda esattamente al 100% dell'importo del contratto**. Se residua un importo non ancora ordinato, il sistema mostra un avviso informativo che evidenzia la quota ancora disponibile.
+
+---
+
+### Passo 5: Creazione delle Attività Operative dell'Ordine (Fino ad Esaurimento)
+Dalla scheda del singolo ordine (cliccando su *"Apri Scheda"* o sul codice ordine):
+1. Clicca su **"Nuova Attività"**.
+2. Specifica la **Descrizione dell'intervento** o della prestazione svolta.
+3. Compila il tracciamento della richiesta:
+   * **Chi ha chiesto l'attività**: nominativo o ufficio del richiedente (es. *"Ing. Mario Rossi - Ufficio Tecnico"*).
+   * **Quando è stata chiesta**: data in cui è stata formalizzata o pervenuta la richiesta.
+   * **Note aggiuntive**: eventuali note descrittive, ticket correlati, SLA o modalità di esecuzione.
+4. Indica la **Data di Inizio** ed eventualmente la **Data di Fine**.
+5. Seleziona lo **Stato** (*Pianificata*, *In corso*, *Completata*, *Sospesa*, *Annullata*).
+6. Assegna il valore economico:
+   * **A costo diretto**: indica l'importo consuntivato/impegnato dall'attività.
+   * **A giornate**: se l'ordine prevede una tariffa giornaliera, indicando il numero di giornate il costo viene calcolato automaticamente.
+7. **Regola di Esaurimento**:
+   > [!IMPORTANT]
+   > Le attività possono essere create ed eseguite **fino ad esaurimento dell'importo dell'ordine**.
+   > Il sistema calcola in tempo reale la capienza residua e blocca inserimenti che eccedono il budget o le giornate dell'ordine.
+
+---
+
+### Passo 6: Monitoraggio, Filtri ed Esportazione CSV
 Dall'elenco contratti e dal riepilogo economico è possibile:
 * Filtrare i contratti per **Anno**, **Stato**, **Fornitore**, **Operatore DEC** e **Reparto**.
 * **Ordinare la tabella** cliccando sull'intestazione di qualsiasi colonna (*Anno*, *Titolo*, *Fornitore*, *DEC / Reparto*, *Moduli*, *Importo*, *Stato*) in ordine crescente o decrescente con anteprima immediata.
@@ -91,13 +125,17 @@ Dall'elenco contratti e dal riepilogo economico è possibile:
 * **Esportare in CSV** (`.csv`) l'elenco visibile filtrato per elaborazioni in Microsoft Excel, con encoding UTF-8 compatibile, separatore punto e virgola (`;`), importi economici e dettagli completi (fornitore, DEC, date, totali moduli e giornate).
 * Visualizzare il **Riepilogo Economico** con totali spesa, percentuali per fornitore e reparto.
 
-### Passo 5: Stampa del Contratto
+---
+
+### Passo 7: Stampa del Contratto con Ordini e Attività
 Cliccando su **"Stampa Scheda"** si ottiene una versione pulita, priva di elementi di navigazione, ideale per:
 * Archiviazione cartacea o salvataggio in PDF.
-* Report per il DEC, la Direzione o gli uffici amministrativi.
+* Report per il DEC, la Direzione o gli uffici amministrativi con il dettaglio sia dei moduli del capitolato sia di tutti gli **Ordini emessi e Attività operative eseguite**, con quadro di quadratura economica.
 * Raccolta firme formali tra DEC e Referente del Fornitore.
 
-### Passo 6: Rinnovo per l'Anno Successivo (Duplicazione)
+---
+
+### Passo 8: Rinnovo per l'Anno Successivo (Duplicazione)
 Quando si apre la nuova annualità:
 1. Apri la scheda del contratto dell'anno precedente.
 2. Clicca su **"Copia per Anno Successivo"** (icona con due fogli sovrapposti).
@@ -106,8 +144,9 @@ Quando si apre la nuova annualità:
 
 ---
 
-## 4. Stati del Contratto
+## 4. Stati del Contratto, degli Ordini e delle Attività
 
+### Stati del Contratto
 | Stato | Badge | Significato |
 |---|:---:|---|
 | **In Trattativa** | Arancione | Contratto in fase di negoziazione preliminare o commerciale con il fornitore. |
@@ -115,3 +154,20 @@ Quando si apre la nuova annualità:
 | **Attivo** | Verde | Contratto in corso di validità ed esecuzione per l'annualità di riferimento. |
 | **Scaduto** | Rosso | Annualità contrattuale terminata; è possibile rinnovare o archiviare. |
 | **Concluso** | Grigio | Fornitura completata e chiusa regolarmente. |
+
+### Stati dell'Ordine al Fornitore
+| Stato | Badge | Significato |
+|---|:---:|---|
+| **Emesso** | Blu | Ordine formalizzato e trasmesso al fornitore. |
+| **In Corso** | Azzurro | Ordine in fase di svolgimento con attività aperte. |
+| **Completato** | Verde | Fornitura dell'ordine ultimata con esaurimento o saldo delle prestazioni. |
+| **Annullato** | Grigio | Ordine revocato (non impegna capienza sul contratto). |
+
+### Stati delle Attività Operative
+| Stato | Badge | Significato |
+|---|:---:|---|
+| **Pianificata** | Giallo | Attività programmata o richiesta, in attesa di avvio. |
+| **In Corso** | Blu | Attività in fase di esecuzione o lavorazione tecnica. |
+| **Completata** | Verde | Attività conclusa con successo e consuntivata. |
+| **Sospesa** | Arancione | Attività temporaneamente bloccata in attesa di sblocco/parti. |
+| **Annullata** | Grigio | Attività annullata (il budget viene riaccreditato all'ordine). |

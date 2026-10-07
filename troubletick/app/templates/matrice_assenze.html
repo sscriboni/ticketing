@@ -147,6 +147,14 @@
             font-weight: bold;
             cursor: pointer;
         }
+
+        .cell-presenza-parziale {
+            background-color: #fef3c7 !important;
+            /* light amber */
+            color: #92400e !important;
+            font-weight: bold;
+            cursor: pointer;
+        }
     </style>
 </head>
 
@@ -287,6 +295,7 @@
                                        {% elif cell.presenza_tipo == 'trasferta' %}cell-presenza-trasferta
                                        {% elif cell.presenza_tipo == 'altra sede' %}cell-presenza-altra-sede
                                        {% elif cell.presenza_tipo == 'presente 1/2 gg' %}cell-presenza-mezza
+                                       {% elif cell.presenza_tipo == 'assenza parziale' %}cell-presenza-parziale
                                        {% else %}cell-absent-altro
                                        {% endif %}
                                    {% else %}cell-presente{% endif %}" {% if cell.holiday %} title="{{ cell.holiday }}"
@@ -303,8 +312,8 @@
                                  data-absent-text="A"
                                  data-absent-title="{{ row.operator_nome }}: Assente"
                                  data-present="{{ '1' if (cell.present and not cell.holiday and not cell.is_weekend) else '0' }}"
-                                 data-present-class="{% if cell.presenza_tipo == 'smartwork' %}cell-presenza-smartwork{% elif cell.presenza_tipo == 'corsi' %}cell-presenza-corsi{% elif cell.presenza_tipo == 'trasferta' %}cell-presenza-trasferta{% elif cell.presenza_tipo == 'altra sede' %}cell-presenza-altra-sede{% elif cell.presenza_tipo == 'presente 1/2 gg' %}cell-presenza-mezza{% else %}cell-absent-altro{% endif %}"
-                                 data-present-text="{% if cell.presenza_tipo == 'smartwork' %}SW{% elif cell.presenza_tipo == 'corsi' %}CO{% elif cell.presenza_tipo == 'trasferta' %}TR{% elif cell.presenza_tipo == 'altra sede' %}AS{% elif cell.presenza_tipo == 'presente 1/2 gg' %}1/2{% else %}P{% endif %}"
+                                 data-present-class="{% if cell.presenza_tipo == 'smartwork' %}cell-presenza-smartwork{% elif cell.presenza_tipo == 'corsi' %}cell-presenza-corsi{% elif cell.presenza_tipo == 'trasferta' %}cell-presenza-trasferta{% elif cell.presenza_tipo == 'altra sede' %}cell-presenza-altra-sede{% elif cell.presenza_tipo == 'presente 1/2 gg' %}cell-presenza-mezza{% elif cell.presenza_tipo == 'assenza parziale' %}cell-presenza-parziale{% else %}cell-absent-altro{% endif %}"
+                                 data-present-text="{% if cell.presenza_tipo == 'smartwork' %}SW{% elif cell.presenza_tipo == 'corsi' %}CO{% elif cell.presenza_tipo == 'trasferta' %}TR{% elif cell.presenza_tipo == 'altra sede' %}AS{% elif cell.presenza_tipo == 'presente 1/2 gg' %}1/2{% elif cell.presenza_tipo == 'assenza parziale' %}AP{% else %}P{% endif %}"
                                  data-present-title="{{ row.operator_nome }}: Presente in {{ cell.presenza_tipo|title }}{% if cell.presenza_nota %} - NOTA: {{ cell.presenza_nota }}{% endif %}">
                                  {% if cell.holiday or cell.is_weekend %}
                                  {% elif cell.absent %}A
@@ -314,6 +323,7 @@
                                  {% elif cell.presenza_tipo == 'trasferta' %}TR
                                  {% elif cell.presenza_tipo == 'altra sede' %}AS
                                  {% elif cell.presenza_tipo == 'presente 1/2 gg' %}1/2
+                                 {% elif cell.presenza_tipo == 'assenza parziale' %}AP
                                  {% else %}P
                                  {% endif %}
                                  {% endif %}
@@ -378,6 +388,12 @@
                  <div class="d-flex align-items-center gap-1"><span class="badge bg-warning text-dark px-2 py-1"
                          style="background-color: #fd7e14 !important;">AS</span> <small class="text-muted">Altra
                          Sede</small></div>
+                 <div class="d-flex align-items-center gap-1"><span class="badge px-2 py-1"
+                         style="background-color: #0284c7 !important; color: #fff;">1/2</span> <small
+                         class="text-muted">Presente 1/2 gg</small></div>
+                 <div class="d-flex align-items-center gap-1"><span class="badge px-2 py-1"
+                         style="background-color: #d97706 !important; color: #fff;">AP</span> <small
+                         class="text-muted">Assenza Parziale</small></div>
  
                  <div class="vr mx-2"></div>
  

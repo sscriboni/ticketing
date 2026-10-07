@@ -87,6 +87,34 @@
         <i class="bi bi-check-circle-fill me-2"></i>Modulo di fornitura rimosso con successo.
         <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
     </div>
+    {% elif success == 'ordine_creato' %}
+    <div class="alert alert-success alert-dismissible fade show" role="alert">
+        <i class="bi bi-check-circle-fill me-2"></i>Nuovo ordine al fornitore registrato con successo.
+        <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+    </div>
+    {% elif success == 'ordine_modificato' %}
+    <div class="alert alert-success alert-dismissible fade show" role="alert">
+        <i class="bi bi-check-circle-fill me-2"></i>Dati dell'ordine aggiornati con successo.
+        <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+    </div>
+    {% elif success == 'ordine_eliminato' %}
+    <div class="alert alert-success alert-dismissible fade show" role="alert">
+        <i class="bi bi-check-circle-fill me-2"></i>Ordine al fornitore e relative attività eliminati con successo.
+        <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+    </div>
+    {% elif error == 'superamento_importo_contratto' %}
+    <div class="alert alert-danger alert-dismissible fade show" role="alert">
+        <i class="bi bi-exclamation-triangle-fill me-2"></i>
+        <strong>Operazione Bloccata:</strong> La sommatoria degli importi degli ordini non può superare l'importo totale del contratto.
+        {% if request.query_params.get('disponibile') %}<span class="d-block small mt-1">Capienza contrattuale residua disponibile: <strong>€ {{ request.query_params.get('disponibile') }}</strong></span>{% endif %}
+        <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+    </div>
+    {% elif error == 'importo_contratto_nullo' %}
+    <div class="alert alert-danger alert-dismissible fade show" role="alert">
+        <i class="bi bi-exclamation-triangle-fill me-2"></i>
+        <strong>Attenzione:</strong> Il contratto ha un valore economico pari a € 0,00. Occorre prima definire i moduli di fornitura per poter emettere ordini.
+        <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+    </div>
     {% elif error %}
     <div class="alert alert-danger alert-dismissible fade show" role="alert">
         <i class="bi bi-exclamation-triangle-fill me-2"></i>Errore: {{ error }}
@@ -313,7 +341,167 @@
                     </div>
                 </div>
             </div>
-        </div>
+
+            <!-- Orders to Supplier Table Card -->
+            <div class="card border-0 shadow-sm mb-4">
+                <div class="card-header bg-white py-3 d-flex justify-content-between align-items-center border-bottom">
+                    <div class="d-flex align-items-center gap-2">
+                        <h5 class="h6 mb-0 fw-bold text-dark">
+                            <i class="bi bi-cart-check-fill text-primary me-2"></i>Ordini al Fornitore ({{ ordini|length }})
+                        </h5>
+                        {% if financials.is_allineato %}
+                        <span class="badge bg-success bg-opacity-10 text-success border border-success-subtle">
+                            <i class="bi bi-check-circle-fill me-1"></i>Copertura 100%
+                        </span>
+                        {% elif financials.residuo_ordinabile > 0 %}
+                        <span class="badge bg-warning bg-opacity-10 text-warning-emphasis border border-warning-subtle">
+                            Residuo da ordinare: € {{ "{:,.2f}".format(financials.residuo_ordinabile).replace(",", "X").replace(".", ",").replace("X", ".") }}
+                        </span>
+                        {% endif %}
+                    </div>
+                    {% if can_edit %}
+                    <button type="button" class="btn btn-primary btn-sm" data-bs-toggle="modal" data-bs-target="#modalNuovoOrdine">
+                        <i class="bi bi-plus-lg me-1"></i>Nuovo Ordine
+                    </button>
+                    {% endif %}
+                </div>
+                <div class="card-body p-3">
+                    <!-- Quadratura economica ordini -->
+                    <div class="p-3 bg-light rounded border mb-3">
+                        <div class="row g-2 align-items-center">
+                            <div class="col-12 col-md-4">
+                                <div class="info-label">Importo Totale Contratto</div>
+                                <div class="fw-bold text-dark fs-6">€ {{ "{:,.2f}".format(financials.importo_contratto).replace(",", "X").replace(".", ",").replace("X", ".") }}</div>
+                            </div>
+                            <div class="col-6 col-md-4">
+                                <div class="info-label">Somma Ordini Emessi</div>
+                                <div class="fw-bold text-primary fs-6">€ {{ "{:,.2f}".format(financials.tot_ordini).replace(",", "X").replace(".", ",").replace("X", ".") }}</div>
+                                <div class="small text-muted">{{ financials.perc_ordinata }}% del contratto</div>
+                            </div>
+                            <div class="col-6 col-md-4">
+                                <div class="info-label">Residuo da Ordinare</div>
+                                <div class="fw-bold {% if financials.residuo_ordinabile <= 0.009 and financials.importo_contratto > 0 %}text-success{% else %}text-warning-emphasis{% endif %} fs-6">
+                                    € {{ "{:,.2f}".format(financials.residuo_ordinabile if financials.residuo_ordinabile > 0 else 0).replace(",", "X").replace(".", ",").replace("X", ".") }}
+                                </div>
+                            </div>
+                        </div>
+
+                        {% if financials.is_allineato %}
+                        <div class="small text-success fw-semibold mt-2 pt-2 border-top">
+                            <i class="bi bi-check2-all me-1"></i>Ottimo: la sommatoria degli ordini corrisponde esattamente all'importo del contratto.
+                        </div>
+                        {% elif financials.residuo_ordinabile > 0 %}
+                        <div class="small text-muted mt-2 pt-2 border-top">
+                            <i class="bi bi-info-circle me-1 text-warning"></i>È consigliabile che la somma degli ordini corrisponda all'importo contrattuale (mancano € {{ "{:,.2f}".format(financials.residuo_ordinabile).replace(",", "X").replace(".", ",").replace("X", ".") }}).
+                        </div>
+                        {% endif %}
+                    </div>
+
+                    <!-- Tabella ordini -->
+                    <div class="table-responsive">
+                        <table class="table table-hover align-middle mb-0">
+                            <thead class="table-light">
+                                <tr>
+                                    <th class="ps-2" style="width: 25%;">Codice & Descrizione</th>
+                                    <th style="width: 14%;">CIG / Durata</th>
+                                    <th style="width: 12%;" class="text-end">Importo Ordine</th>
+                                    <th style="width: 27%;">Avanzamento Attività</th>
+                                    <th style="width: 10%;" class="text-center">Stato</th>
+                                    <th style="width: 12%;" class="text-end pe-2">Azioni</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for o in ordini %}
+                                <tr>
+                                    <td class="ps-2">
+                                        <a href="/contratto/{{ contratto.contratto_id }}/ordine/{{ o.ordine_id }}" class="fw-bold text-decoration-none text-primary d-block">
+                                            <i class="bi bi-receipt me-1"></i>{{ o.codice }}
+                                        </a>
+                                        <div class="small text-dark text-truncate" style="max-width: 240px;" title="{{ o.descrizione }}">
+                                            {{ o.descrizione }}
+                                        </div>
+                                    </td>
+                                    <td>
+                                        {% if o.cig %}
+                                        <div class="small fw-semibold text-dark"><span class="text-muted">CIG:</span> {{ o.cig }}</div>
+                                        {% endif %}
+                                        {% if o.durata %}
+                                        <div class="small text-muted"><i class="bi bi-calendar-range me-1"></i>{{ o.durata }}</div>
+                                        {% endif %}
+                                    </td>
+                                    <td class="text-end fw-bold text-dark">
+                                        € {{ "{:,.2f}".format(o.importo or 0).replace(",", "X").replace(".", ",").replace("X", ".") }}
+                                        {% if o.giornate and o.giornate > 0 %}
+                                        <div class="small text-muted fw-normal">{{ "%.1f"|format(o.giornate) }} gg</div>
+                                        {% endif %}
+                                    </td>
+                                    <td>
+                                        <div class="d-flex justify-content-between align-items-center small mb-1">
+                                            <span class="text-muted">{{ o.cnt_attivita }} att.</span>
+                                            <span class="fw-bold {% if o.is_esaurito %}text-danger{% else %}text-muted{% endif %}">
+                                                € {{ "{:,.2f}".format(o.totale_costo_attivita).replace(",", "X").replace(".", ",").replace("X", ".") }} ({{ o.perc_consumata }}%)
+                                            </span>
+                                        </div>
+                                        <div class="progress" style="height: 6px;">
+                                            <div class="progress-bar {% if o.perc_consumata >= 100 %}bg-danger{% elif o.perc_consumata >= 80 %}bg-warning{% else %}bg-success{% endif %}"
+                                                 style="width: {{ o.perc_consumata if o.perc_consumata <= 100 else 100 }}%;"></div>
+                                        </div>
+                                    </td>
+                                    <td class="text-center">
+                                        <span class="badge badge-stato-{{ o.stato }} text-uppercase">{{ o.stato }}</span>
+                                    </td>
+                                    <td class="text-end pe-2">
+                                        <script type="application/json" id="ordine-data-{{ o.ordine_id }}">
+                                        {
+                                            "ordine_id": {{ o.ordine_id }},
+                                            "codice": {{ o.codice|tojson }},
+                                            "descrizione": {{ o.descrizione|tojson }},
+                                            "durata": {{ (o.durata or '')|tojson }},
+                                            "importo": {{ o.importo|tojson }},
+                                            "cig": {{ (o.cig or '')|tojson }},
+                                            "giornate": {{ (o.giornate or '')|tojson }},
+                                            "costo_giornaliero": {{ (o.costo_giornaliero or '')|tojson }},
+                                            "stato": {{ o.stato|tojson }},
+                                            "note": {{ (o.note or '')|tojson }}
+                                        }
+                                        </script>
+                                        <div class="btn-group btn-group-sm">
+                                            <a href="/contratto/{{ contratto.contratto_id }}/ordine/{{ o.ordine_id }}" class="btn btn-outline-primary" title="Gestisci Attività Ordine">
+                                                <i class="bi bi-box-arrow-up-right"></i>
+                                            </a>
+                                            {% if can_edit %}
+                                            <button type="button" class="btn btn-outline-secondary" title="Modifica ordine" onclick="openEditOrdineModal({{ o.ordine_id }})">
+                                                <i class="bi bi-pencil"></i>
+                                            </button>
+                                            <form method="post" action="/contratto/{{ contratto.contratto_id }}/ordine/{{ o.ordine_id }}/elimina" class="d-inline" onsubmit="return confirm('Eliminare questo ordine e tutte le sue attività?');">
+                                                <button type="submit" class="btn btn-outline-danger" title="Elimina ordine">
+                                                    <i class="bi bi-trash"></i>
+                                                </button>
+                                            </form>
+                                            {% endif %}
+                                        </div>
+                                    </td>
+                                </tr>
+                                {% else %}
+                                <tr>
+                                    <td colspan="6" class="text-center py-4 text-muted">
+                                        <i class="bi bi-cart-x fs-2 d-block mb-1 text-secondary opacity-50"></i>
+                                        Nessun ordine al fornitore registrato per questo contratto.
+                                        {% if can_edit %}
+                                        <div class="mt-2">
+                                            <button type="button" class="btn btn-sm btn-primary" data-bs-toggle="modal" data-bs-target="#modalNuovoOrdine">
+                                                <i class="bi bi-plus-lg me-1"></i>Aggiungi il primo ordine
+                                            </button>
+                                        </div>
+                                        {% endif %}
+                                    </td>
+                                </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
 
         <!-- Supplier & Context Sidebar (Right) -->
         <div class="col-12 col-lg-4">
@@ -586,6 +774,161 @@
     </div>
 </div>
 
+<!-- Modal Nuovo Ordine al Fornitore -->
+{% if can_edit %}
+<div class="modal fade" id="modalNuovoOrdine" tabindex="-1" aria-labelledby="modalNuovoOrdineLabel" aria-hidden="true">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content border-0 shadow">
+            <form method="post" action="/contratto/{{ contratto.contratto_id }}/ordine/nuovo">
+                <div class="modal-header bg-primary text-white">
+                    <h5 class="modal-title h6 fw-bold" id="modalNuovoOrdineLabel">
+                        <i class="bi bi-cart-plus me-2"></i>Nuovo Ordine al Fornitore
+                    </h5>
+                    <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Chiudi"></button>
+                </div>
+                <div class="modal-body p-4">
+                    <div class="alert alert-info py-2 px-3 mb-3 small d-flex justify-content-between align-items-center">
+                        <span>Importo contratto: <strong>€ {{ "{:,.2f}".format(financials.importo_contratto).replace(",", "X").replace(".", ",").replace("X", ".") }}</strong></span>
+                        <span>Residuo contrattuale ordinabile: <strong class="text-primary">€ {{ "{:,.2f}".format(financials.residuo_ordinabile).replace(",", "X").replace(".", ",").replace("X", ".") }}</strong></span>
+                    </div>
+
+                    <div class="row g-3">
+                        <div class="col-12 col-md-6">
+                            <label class="form-label small fw-bold">Codice / N. Ordine <span class="text-danger">*</span></label>
+                            <input type="text" name="codice" class="form-control form-control-sm" placeholder="Es. ORD-2026/01" required>
+                        </div>
+
+                        <div class="col-12 col-md-6">
+                            <label class="form-label small fw-bold">Codice CIG Ordine</label>
+                            <input type="text" name="cig" class="form-control form-control-sm" placeholder="Es. Z9B3C812A4 (se specifico)" value="{{ contratto.cig or '' }}">
+                            <div class="form-text small">Precompilato con il CIG del contratto se noto.</div>
+                        </div>
+
+                        <div class="col-12">
+                            <label class="form-label small fw-bold">Descrizione / Oggetto Ordine <span class="text-danger">*</span></label>
+                            <textarea name="descrizione" class="form-control form-control-sm" rows="2" placeholder="Es. Fornitura e canone assistenza per il primo semestre..." required></textarea>
+                        </div>
+
+                        <div class="col-12 col-md-6">
+                            <label class="form-label small fw-bold">Durata / Periodo Riferimento</label>
+                            <input type="text" name="durata" class="form-control form-control-sm" placeholder="Es. 12 mesi, 01/01/2026 - 31/12/2026">
+                        </div>
+
+                        <div class="col-12 col-md-6">
+                            <label class="form-label small fw-bold">Stato Iniziale</label>
+                            <select name="stato" class="form-select form-select-sm">
+                                <option value="emesso" selected>Emesso</option>
+                                <option value="in_corso">In Corso</option>
+                                <option value="completato">Completato</option>
+                                <option value="annullato">Annullato</option>
+                            </select>
+                        </div>
+
+                        <div class="col-6 col-md-4">
+                            <label class="form-label small fw-bold">N. Giornate (Opzionale)</label>
+                            <input type="number" step="0.5" id="new_ord_giornate" name="giornate" class="form-control form-control-sm" placeholder="Es. 20" oninput="calcNewOrdCosto()">
+                        </div>
+
+                        <div class="col-6 col-md-4">
+                            <label class="form-label small fw-bold">Costo Giornaliero (€)</label>
+                            <input type="number" step="0.01" id="new_ord_costo_gg" name="costo_giornaliero" class="form-control form-control-sm" placeholder="Es. 350.00" oninput="calcNewOrdCosto()">
+                        </div>
+
+                        <div class="col-12 col-md-4">
+                            <label class="form-label small fw-bold">Importo Ordine (€ IVA escl.) <span class="text-danger">*</span></label>
+                            <input type="number" step="0.01" id="new_ord_importo" name="importo" class="form-control form-control-sm" placeholder="Es. 7000.00" required>
+                            <div class="form-text small">Max residuo: € {{ "{:,.2f}".format(financials.residuo_ordinabile if financials.residuo_ordinabile > 0 else 0) }}</div>
+                        </div>
+
+                        <div class="col-12">
+                            <label class="form-label small fw-bold">Note Aggiuntive</label>
+                            <textarea name="note" class="form-control form-control-sm" rows="2" placeholder="Note interne, capitolo di bilancio, condizioni di consegna..."></textarea>
+                        </div>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-outline-secondary btn-sm" data-bs-dismiss="modal">Annulla</button>
+                    <button type="submit" class="btn btn-primary btn-sm"><i class="bi bi-check-lg me-1"></i>Salva Ordine</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+<!-- Modal Modifica Ordine -->
+<div class="modal fade" id="modalModificaOrdine" tabindex="-1" aria-labelledby="modalModificaOrdineLabel" aria-hidden="true">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content border-0 shadow">
+            <form id="formModificaOrdine" method="post" action="">
+                <div class="modal-header bg-warning-subtle text-dark border-bottom">
+                    <h5 class="modal-title h6 fw-bold" id="modalModificaOrdineLabel">
+                        <i class="bi bi-pencil-square text-warning me-2"></i>Modifica Ordine al Fornitore
+                    </h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Chiudi"></button>
+                </div>
+                <div class="modal-body p-4">
+                    <div class="row g-3">
+                        <div class="col-12 col-md-6">
+                            <label class="form-label small fw-bold">Codice / N. Ordine <span class="text-danger">*</span></label>
+                            <input type="text" id="edit_ord_codice" name="codice" class="form-control form-control-sm" required>
+                        </div>
+
+                        <div class="col-12 col-md-6">
+                            <label class="form-label small fw-bold">Codice CIG Ordine</label>
+                            <input type="text" id="edit_ord_cig" name="cig" class="form-control form-control-sm">
+                        </div>
+
+                        <div class="col-12">
+                            <label class="form-label small fw-bold">Descrizione / Oggetto Ordine <span class="text-danger">*</span></label>
+                            <textarea id="edit_ord_desc" name="descrizione" class="form-control form-control-sm" rows="2" required></textarea>
+                        </div>
+
+                        <div class="col-12 col-md-6">
+                            <label class="form-label small fw-bold">Durata / Periodo Riferimento</label>
+                            <input type="text" id="edit_ord_durata" name="durata" class="form-control form-control-sm">
+                        </div>
+
+                        <div class="col-12 col-md-6">
+                            <label class="form-label small fw-bold">Stato Ordine</label>
+                            <select id="edit_ord_stato" name="stato" class="form-select form-select-sm">
+                                <option value="emesso">Emesso</option>
+                                <option value="in_corso">In Corso</option>
+                                <option value="completato">Completato</option>
+                                <option value="annullato">Annullato</option>
+                            </select>
+                        </div>
+
+                        <div class="col-6 col-md-4">
+                            <label class="form-label small fw-bold">N. Giornate</label>
+                            <input type="number" step="0.5" id="edit_ord_giornate_val" name="giornate" class="form-control form-control-sm" oninput="calcEditOrdCostoInList()">
+                        </div>
+
+                        <div class="col-6 col-md-4">
+                            <label class="form-label small fw-bold">Costo Giornaliero (€)</label>
+                            <input type="number" step="0.01" id="edit_ord_costo_gg_val" name="costo_giornaliero" class="form-control form-control-sm" oninput="calcEditOrdCostoInList()">
+                        </div>
+
+                        <div class="col-12 col-md-4">
+                            <label class="form-label small fw-bold">Importo Ordine (€ IVA escl.) <span class="text-danger">*</span></label>
+                            <input type="number" step="0.01" id="edit_ord_importo_val" name="importo" class="form-control form-control-sm" required>
+                        </div>
+
+                        <div class="col-12">
+                            <label class="form-label small fw-bold">Note Aggiuntive</label>
+                            <textarea id="edit_ord_note" name="note" class="form-control form-control-sm" rows="2"></textarea>
+                        </div>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-outline-secondary btn-sm" data-bs-dismiss="modal">Annulla</button>
+                    <button type="submit" class="btn btn-primary btn-sm"><i class="bi bi-check-lg me-1"></i>Aggiorna Ordine</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+{% endif %}
+
 <script>
 function calcAddCosto() {
     const gg = parseFloat(document.getElementById('add_giornate').value);
@@ -602,6 +945,24 @@ function calcEditCosto() {
     const totField = document.getElementById('edit_costo_tot');
     if (!isNaN(gg) && !isNaN(cgg)) {
         totField.value = (gg * cgg).toFixed(2);
+    }
+}
+
+function calcNewOrdCosto() {
+    const gg = parseFloat(document.getElementById('new_ord_giornate').value);
+    const cgg = parseFloat(document.getElementById('new_ord_costo_gg').value);
+    const impField = document.getElementById('new_ord_importo');
+    if (!isNaN(gg) && !isNaN(cgg) && gg > 0 && cgg > 0) {
+        impField.value = (gg * cgg).toFixed(2);
+    }
+}
+
+function calcEditOrdCostoInList() {
+    const gg = parseFloat(document.getElementById('edit_ord_giornate_val').value);
+    const cgg = parseFloat(document.getElementById('edit_ord_costo_gg_val').value);
+    const impField = document.getElementById('edit_ord_importo_val');
+    if (!isNaN(gg) && !isNaN(cgg) && gg > 0 && cgg > 0) {
+        impField.value = (gg * cgg).toFixed(2);
     }
 }
 
@@ -623,6 +984,29 @@ function openEditModuloModal(moduloId) {
         modal.show();
     } catch (err) {
         console.error("Errore durante l'apertura della modifica del modulo:", err);
+    }
+}
+
+function openEditOrdineModal(ordineId) {
+    const rawEl = document.getElementById('ordine-data-' + ordineId);
+    if (!rawEl) return;
+    try {
+        const data = JSON.parse(rawEl.textContent);
+        document.getElementById('formModificaOrdine').action = '/contratto/{{ contratto.contratto_id }}/ordine/' + ordineId + '/modifica';
+        document.getElementById('edit_ord_codice').value = data.codice || '';
+        document.getElementById('edit_ord_cig').value = data.cig || '';
+        document.getElementById('edit_ord_desc').value = data.descrizione || '';
+        document.getElementById('edit_ord_durata').value = data.durata || '';
+        document.getElementById('edit_ord_stato').value = data.stato || 'emesso';
+        document.getElementById('edit_ord_giornate_val').value = data.giornate || '';
+        document.getElementById('edit_ord_costo_gg_val').value = data.costo_giornaliero || '';
+        document.getElementById('edit_ord_importo_val').value = (data.importo !== null && data.importo !== undefined) ? data.importo : '0.00';
+        document.getElementById('edit_ord_note').value = data.note || '';
+
+        const modal = new bootstrap.Modal(document.getElementById('modalModificaOrdine'));
+        modal.show();
+    } catch (err) {
+        console.error("Errore durante l'apertura della modifica dell'ordine:", err);
     }
 }
 </script>

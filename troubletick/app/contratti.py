@@ -56,6 +56,63 @@ def init_contratti_db():
             FOREIGN KEY(servizio_id) REFERENCES servizi(servizio_id) ON DELETE SET NULL
         )"""))
 
+        # Colonna opzionale importo su contratti se non ancora presente
+        try:
+            c.execute(text("ALTER TABLE contratti ADD COLUMN importo REAL DEFAULT 0.0"))
+        except Exception:
+            pass
+
+        # Tabella ordini al fornitore associati al contratto
+        c.execute(text(f"""CREATE TABLE IF NOT EXISTS contratti_ordini (
+            ordine_id {DB_PK},
+            contratto_id INTEGER NOT NULL,
+            codice TEXT NOT NULL,
+            descrizione TEXT NOT NULL,
+            durata TEXT,
+            importo REAL NOT NULL DEFAULT 0.0,
+            cig TEXT,
+            giornate REAL,
+            costo_giornaliero REAL,
+            stato TEXT DEFAULT 'emesso',
+            note TEXT,
+            creato_da_id INTEGER,
+            creato_il TEXT DEFAULT CURRENT_TIMESTAMP,
+            aggiornato_il TEXT,
+            FOREIGN KEY(contratto_id) REFERENCES contratti(contratto_id) ON DELETE CASCADE,
+            FOREIGN KEY(creato_da_id) REFERENCES users(user_id) ON DELETE SET NULL
+        )"""))
+
+        # Tabella attività operative legate all'ordine
+        c.execute(text(f"""CREATE TABLE IF NOT EXISTS ordini_attivita (
+            attivita_id {DB_PK},
+            ordine_id INTEGER NOT NULL,
+            descrizione TEXT NOT NULL,
+            data_inizio TEXT NOT NULL,
+            data_fine TEXT,
+            costo REAL NOT NULL DEFAULT 0.0,
+            giornate REAL,
+            stato TEXT DEFAULT 'pianificata',
+            richiedente TEXT,
+            data_richiesta TEXT,
+            note TEXT,
+            creato_da_id INTEGER,
+            creato_il TEXT DEFAULT CURRENT_TIMESTAMP,
+            aggiornato_il TEXT,
+            FOREIGN KEY(ordine_id) REFERENCES contratti_ordini(ordine_id) ON DELETE CASCADE,
+            FOREIGN KEY(creato_da_id) REFERENCES users(user_id) ON DELETE SET NULL
+        )"""))
+
+        # Indici per velocizzare ricerche e foreign key
+        try:
+            if DB_DRIVER.startswith("sqlite") or "sqlite" in DB_DRIVER:
+                c.execute(text("CREATE INDEX IF NOT EXISTS idx_contratti_ordini_cid ON contratti_ordini (contratto_id)"))
+                c.execute(text("CREATE INDEX IF NOT EXISTS idx_ordini_attivita_oid ON ordini_attivita (ordine_id)"))
+            else:
+                c.execute(text("CREATE INDEX idx_contratti_ordini_cid ON contratti_ordini (contratto_id)"))
+                c.execute(text("CREATE INDEX idx_ordini_attivita_oid ON ordini_attivita (ordine_id)"))
+        except Exception:
+            pass
+
         # Assicuriamo la presenza del Tag DEC in tag_operatori
         try:
             dec_exists = c.execute(text("SELECT COUNT(*) FROM tag_operatori WHERE UPPER(nome) = 'DEC'")).scalar() or 0
@@ -188,6 +245,103 @@ def can_manage_single_contratto(user: dict, contratto_row: dict, conn=None) -> b
     else:
         with engine.connect() as c:
             return _check_in_db(c)
+
+
+# ==========================================
+# HELPER ECONOMICI / QUADRATURA ORDINI
+# ==========================================
+
+def get_contratto_financials(conn, contratto_id: int):
+    """
+    Calcola il quadro economico complessivo del contratto:
+    - importo_contratto: somma dei moduli contratti_moduli, oppure se contratti.importo > 0, il massimo tra i due
+    - tot_ordini: somma degli importi degli ordini associati (esclusi gli ordini in stato 'annullato')
+    - residuo_ordinabile: importo_contratto - tot_ordini
+    - is_allineato: True se l'importo degli ordini coincide esattamente (entro 1 centesimo) con l'importo contrattuale
+    - perc_ordinata: percentuale di capienza contrattuale impegnata da ordini
+    """
+    row_c = conn.execute(text("SELECT importo FROM contratti WHERE contratto_id = :cid"), {"cid": contratto_id}).mappings().first()
+    importo_esplicito = (row_c["importo"] or 0.0) if row_c else 0.0
+
+    tot_moduli = conn.execute(text("SELECT COALESCE(SUM(costo), 0.0) FROM contratti_moduli WHERE contratto_id = :cid"), {"cid": contratto_id}).scalar() or 0.0
+
+    if tot_moduli > 0:
+        importo_contratto = max(tot_moduli, importo_esplicito)
+    else:
+        importo_contratto = importo_esplicito
+
+    tot_ordini = conn.execute(text("""
+        SELECT COALESCE(SUM(importo), 0.0) 
+        FROM contratti_ordini 
+        WHERE contratto_id = :cid AND (stato IS NULL OR stato != 'annullato')
+    """), {"cid": contratto_id}).scalar() or 0.0
+
+    tot_giornate_ordini = conn.execute(text("""
+        SELECT COALESCE(SUM(giornate), 0.0) 
+        FROM contratti_ordini 
+        WHERE contratto_id = :cid AND (stato IS NULL OR stato != 'annullato')
+    """), {"cid": contratto_id}).scalar() or 0.0
+
+    residuo_ordinabile = importo_contratto - tot_ordini
+    is_allineato = (importo_contratto > 0 and abs(residuo_ordinabile) < 0.01)
+    perc_ordinata = round((tot_ordini / importo_contratto * 100.0), 1) if importo_contratto > 0 else 0.0
+
+    return {
+        "importo_contratto": importo_contratto,
+        "tot_moduli": tot_moduli,
+        "tot_ordini": tot_ordini,
+        "tot_giornate_ordini": tot_giornate_ordini,
+        "residuo_ordinabile": residuo_ordinabile,
+        "is_allineato": is_allineato,
+        "perc_ordinata": perc_ordinata
+    }
+
+def get_ordine_financials(conn, ordine_id: int):
+    """
+    Calcola il quadro economico del singolo ordine:
+    - importo_ordine: importo economico dell'ordine
+    - tot_costo_attivita: somma dei costi delle attività (escluse quelle annullate)
+    - tot_giornate_attivita: somma delle giornate delle attività (escluse quelle annullate)
+    - residuo_costo: capienza residua per creare nuove attività
+    - residuo_giornate: giornate residue disponibili (se l'ordine prevede giornate)
+    - perc_consumata: percentuale dell'ordine consumata da attività
+    - is_esaurito: True se l'ordine ha esaurito l'importo
+    """
+    ordine = conn.execute(text("SELECT * FROM contratti_ordini WHERE ordine_id = :oid"), {"oid": ordine_id}).mappings().first()
+    if not ordine:
+        return None
+
+    importo_ordine = ordine["importo"] or 0.0
+    giornate_ordine = ordine["giornate"] or 0.0
+
+    tot_costo_att = conn.execute(text("""
+        SELECT COALESCE(SUM(costo), 0.0) 
+        FROM ordini_attivita 
+        WHERE ordine_id = :oid AND (stato IS NULL OR stato != 'annullata')
+    """), {"oid": ordine_id}).scalar() or 0.0
+
+    tot_giornate_att = conn.execute(text("""
+        SELECT COALESCE(SUM(giornate), 0.0) 
+        FROM ordini_attivita 
+        WHERE ordine_id = :oid AND (stato IS NULL OR stato != 'annullata')
+    """), {"oid": ordine_id}).scalar() or 0.0
+
+    residuo_costo = importo_ordine - tot_costo_att
+    residuo_giornate = (giornate_ordine - tot_giornate_att) if giornate_ordine > 0 else 0.0
+    perc_consumata = round((tot_costo_att / importo_ordine * 100.0), 1) if importo_ordine > 0 else 0.0
+    is_esaurito = (residuo_costo <= 0.009 and importo_ordine > 0)
+
+    return {
+        "ordine": dict(ordine),
+        "importo_ordine": importo_ordine,
+        "giornate_ordine": giornate_ordine,
+        "tot_costo_attivita": tot_costo_att,
+        "tot_giornate_attivita": tot_giornate_att,
+        "residuo_costo": residuo_costo,
+        "residuo_giornate": residuo_giornate,
+        "perc_consumata": perc_consumata,
+        "is_esaurito": is_esaurito
+    }
 
 
 # ==========================================
@@ -1038,6 +1192,30 @@ def contratto_detail(
             SELECT * FROM fornitori_contatti WHERE fornitore_id = :fid ORDER BY ordine ASC, contatto_id ASC
         """), {"fid": contratto["fornitore_id"]}).mappings().all()
 
+        financials = get_contratto_financials(conn, contratto_id)
+
+        ordini_rows = conn.execute(text("""
+            SELECT co.*,
+                   u.nome AS creatore_nome, u.cognome AS creatore_cognome,
+                   (SELECT COUNT(*) FROM ordini_attivita oa WHERE oa.ordine_id = co.ordine_id AND (oa.stato IS NULL OR oa.stato != 'annullata')) AS cnt_attivita,
+                   COALESCE((SELECT SUM(costo) FROM ordini_attivita oa WHERE oa.ordine_id = co.ordine_id AND (oa.stato IS NULL OR oa.stato != 'annullata')), 0.0) AS totale_costo_attivita,
+                   COALESCE((SELECT SUM(giornate) FROM ordini_attivita oa WHERE oa.ordine_id = co.ordine_id AND (oa.stato IS NULL OR oa.stato != 'annullata')), 0.0) AS totale_giornate_attivita
+            FROM contratti_ordini co
+            LEFT JOIN users u ON co.creato_da_id = u.user_id
+            WHERE co.contratto_id = :cid
+            ORDER BY co.ordine_id ASC
+        """), {"cid": contratto_id}).mappings().all()
+
+        ordini = []
+        for o in ordini_rows:
+            od = dict(o)
+            imp = od.get("importo") or 0.0
+            tot_att = od.get("totale_costo_attivita") or 0.0
+            od["residuo_costo"] = imp - tot_att
+            od["perc_consumata"] = round((tot_att / imp * 100.0), 1) if imp > 0 else 0.0
+            od["is_esaurito"] = (od["residuo_costo"] <= 0.009 and imp > 0)
+            ordini.append(od)
+
     totale_costo = sum(m["costo"] for m in moduli)
     totale_giornate = sum((m["giornate"] or 0.0) for m in moduli)
     is_dec = user_has_tag_dec(user)
@@ -1050,6 +1228,8 @@ def contratto_detail(
         "can_edit": can_edit,
         "contratto": contratto,
         "moduli": moduli,
+        "ordini": ordini,
+        "financials": financials,
         "servizi": servizi,
         "contatti_fornitore": contatti_fornitore,
         "totale_costo": totale_costo,
@@ -1204,6 +1384,11 @@ def contratto_delete(r: Request, contratto_id: int):
         if not can_manage_single_contratto(user, dict(contratto)):
             return RedirectResponse(url=f"/contratto/{contratto_id}?error=permesso_negato", status_code=303)
 
+        conn.execute(text("""
+            DELETE FROM ordini_attivita 
+            WHERE ordine_id IN (SELECT ordine_id FROM contratti_ordini WHERE contratto_id = :cid)
+        """), {"cid": contratto_id})
+        conn.execute(text("DELETE FROM contratti_ordini WHERE contratto_id = :cid"), {"cid": contratto_id})
         conn.execute(text("DELETE FROM contratti_moduli WHERE contratto_id = :cid"), {"cid": contratto_id})
         conn.execute(text("DELETE FROM contratti WHERE contratto_id = :cid"), {"cid": contratto_id})
 
@@ -1461,6 +1646,515 @@ def modulo_delete(r: Request, contratto_id: int, modulo_id: int):
     return RedirectResponse(url=f"/contratto/{contratto_id}?success=modulo_eliminato", status_code=303)
 
 
+
+# ==========================================
+# GESTIONE ORDINI AL FORNITORE
+# ==========================================
+
+@router.post("/contratto/{contratto_id}/ordine/nuovo")
+@router.post("/contratti/{contratto_id}/ordine/nuovo")
+@router.post("/contratti/contratto/{contratto_id}/ordine/nuovo")
+def ordine_nuovo_save(
+    r: Request,
+    contratto_id: int,
+    codice: str = Form(...),
+    descrizione: str = Form(...),
+    durata: Optional[str] = Form(None),
+    importo: Optional[str] = Form(None),
+    cig: Optional[str] = Form(None),
+    giornate: Optional[str] = Form(None),
+    costo_giornaliero: Optional[str] = Form(None),
+    stato: str = Form("emesso"),
+    note: Optional[str] = Form(None)
+):
+    user = check_contratti_access(r)
+    if isinstance(user, RedirectResponse):
+        return user
+
+    codice = codice.strip()
+    descrizione = descrizione.strip()
+    if not codice or not descrizione:
+        return RedirectResponse(url=f"/contratto/{contratto_id}?error=campi_obbligatori_ordine", status_code=303)
+
+    giornate_val = safe_float(giornate)
+    costo_giornaliero_val = safe_float(costo_giornaliero)
+    importo_val = safe_float(importo) or 0.0
+
+    if (not importo_val or importo_val == 0) and giornate_val and costo_giornaliero_val:
+        importo_val = float(giornate_val) * float(costo_giornaliero_val)
+
+    if importo_val < 0:
+        return RedirectResponse(url=f"/contratto/{contratto_id}?error=importo_non_valido", status_code=303)
+
+    with engine.begin() as conn:
+        contratto = conn.execute(text("SELECT * FROM contratti WHERE contratto_id = :cid"), {"cid": contratto_id}).mappings().first()
+        if not contratto:
+            return RedirectResponse(url="/contratti?error=non_trovato", status_code=303)
+
+        if not can_manage_single_contratto(user, dict(contratto), conn=conn):
+            return RedirectResponse(url=f"/contratto/{contratto_id}?error=permesso_negato", status_code=303)
+
+        financials = get_contratto_financials(conn, contratto_id)
+        # Controllo capienza contratto: sommatoria importi ordini non può superare importo contratto
+        if financials["importo_contratto"] > 0:
+            if (financials["tot_ordini"] + importo_val) > (financials["importo_contratto"] + 0.009):
+                disp_str = f"{financials['residuo_ordinabile']:.2f}"
+                return RedirectResponse(
+                    url=f"/contratto/{contratto_id}?error=superamento_importo_contratto&disponibile={disp_str}",
+                    status_code=303
+                )
+        elif importo_val > 0:
+            return RedirectResponse(
+                url=f"/contratto/{contratto_id}?error=importo_contratto_nullo",
+                status_code=303
+            )
+
+        now = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+        conn.execute(text("""
+            INSERT INTO contratti_ordini (
+                contratto_id, codice, descrizione, durata, importo, cig,
+                giornate, costo_giornaliero, stato, note, creato_da_id, creato_il
+            ) VALUES (
+                :cid, :codice, :desc, :durata, :importo, :cig,
+                :giornate, :costo_gg, :stato, :note, :creato_da_id, :creato_il
+            )
+        """), {
+            "cid": contratto_id,
+            "codice": codice,
+            "desc": descrizione,
+            "durata": durata.strip() if durata else None,
+            "importo": importo_val,
+            "cig": cig.strip() if cig else None,
+            "giornate": giornate_val if giornate_val else None,
+            "costo_gg": costo_giornaliero_val if costo_giornaliero_val else None,
+            "stato": stato,
+            "note": note.strip() if note else None,
+            "creato_da_id": user.get("id"),
+            "creato_il": now
+        })
+
+    return RedirectResponse(url=f"/contratto/{contratto_id}?success=ordine_creato", status_code=303)
+
+
+@router.post("/contratto/{contratto_id}/ordine/{ordine_id}/modifica")
+@router.post("/contratti/{contratto_id}/ordine/{ordine_id}/modifica")
+@router.post("/contratti/contratto/{contratto_id}/ordine/{ordine_id}/modifica")
+def ordine_edit_save(
+    r: Request,
+    contratto_id: int,
+    ordine_id: int,
+    codice: str = Form(...),
+    descrizione: str = Form(...),
+    durata: Optional[str] = Form(None),
+    importo: Optional[str] = Form(None),
+    cig: Optional[str] = Form(None),
+    giornate: Optional[str] = Form(None),
+    costo_giornaliero: Optional[str] = Form(None),
+    stato: str = Form("emesso"),
+    note: Optional[str] = Form(None),
+    return_to: Optional[str] = Form(None)
+):
+    user = check_contratti_access(r)
+    if isinstance(user, RedirectResponse):
+        return user
+
+    codice = codice.strip()
+    descrizione = descrizione.strip()
+    redirect_target = f"/contratto/{contratto_id}/ordine/{ordine_id}" if return_to == "ordine" else f"/contratto/{contratto_id}"
+
+    if not codice or not descrizione:
+        return RedirectResponse(url=f"{redirect_target}?error=campi_obbligatori_ordine", status_code=303)
+
+    giornate_val = safe_float(giornate)
+    costo_giornaliero_val = safe_float(costo_giornaliero)
+    importo_val = safe_float(importo) or 0.0
+
+    if (not importo_val or importo_val == 0) and giornate_val and costo_giornaliero_val:
+        importo_val = float(giornate_val) * float(costo_giornaliero_val)
+
+    with engine.begin() as conn:
+        contratto = conn.execute(text("SELECT * FROM contratti WHERE contratto_id = :cid"), {"cid": contratto_id}).mappings().first()
+        if not contratto:
+            return RedirectResponse(url="/contratti?error=non_trovato", status_code=303)
+
+        if not can_manage_single_contratto(user, dict(contratto), conn=conn):
+            return RedirectResponse(url=f"/contratto/{contratto_id}?error=permesso_negato", status_code=303)
+
+        old_ordine = conn.execute(text("SELECT * FROM contratti_ordini WHERE ordine_id = :oid AND contratto_id = :cid"), {
+            "oid": ordine_id,
+            "cid": contratto_id
+        }).mappings().first()
+        if not old_ordine:
+            return RedirectResponse(url=f"/contratto/{contratto_id}?error=ordine_non_trovato", status_code=303)
+
+        financials = get_contratto_financials(conn, contratto_id)
+        vecchio_importo = old_ordine["importo"] if old_ordine["stato"] != 'annullato' else 0.0
+        nuovo_importo_effettivo = importo_val if stato != 'annullato' else 0.0
+        differenza = nuovo_importo_effettivo - vecchio_importo
+
+        if financials["importo_contratto"] > 0 and differenza > 0:
+            if (financials["tot_ordini"] + differenza) > (financials["importo_contratto"] + 0.009):
+                disp_str = f"{financials['residuo_ordinabile']:.2f}"
+                return RedirectResponse(
+                    url=f"{redirect_target}?error=superamento_importo_contratto&disponibile={disp_str}",
+                    status_code=303
+                )
+
+        ord_fin = get_ordine_financials(conn, ordine_id)
+        if ord_fin and stato != 'annullato' and importo_val < (ord_fin["tot_costo_attivita"] - 0.009):
+            util_str = f"{ord_fin['tot_costo_attivita']:.2f}"
+            return RedirectResponse(
+                url=f"{redirect_target}?error=importo_minore_attivita_esistenti&utilizzato={util_str}",
+                status_code=303
+            )
+
+        now = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+        conn.execute(text("""
+            UPDATE contratti_ordini SET
+                codice = :codice,
+                descrizione = :desc,
+                durata = :durata,
+                importo = :importo,
+                cig = :cig,
+                giornate = :giornate,
+                costo_giornaliero = :costo_gg,
+                stato = :stato,
+                note = :note,
+                aggiornato_il = :aggiornato_il
+            WHERE ordine_id = :oid AND contratto_id = :cid
+        """), {
+            "codice": codice,
+            "desc": descrizione,
+            "durata": durata.strip() if durata else None,
+            "importo": importo_val,
+            "cig": cig.strip() if cig else None,
+            "giornate": giornate_val if giornate_val else None,
+            "costo_gg": costo_giornaliero_val if costo_giornaliero_val else None,
+            "stato": stato,
+            "note": note.strip() if note else None,
+            "aggiornato_il": now,
+            "oid": ordine_id,
+            "cid": contratto_id
+        })
+
+    return RedirectResponse(url=f"{redirect_target}?success=ordine_modificato", status_code=303)
+
+
+@router.post("/contratto/{contratto_id}/ordine/{ordine_id}/elimina")
+@router.post("/contratti/{contratto_id}/ordine/{ordine_id}/elimina")
+@router.post("/contratti/contratto/{contratto_id}/ordine/{ordine_id}/elimina")
+def ordine_delete(r: Request, contratto_id: int, ordine_id: int):
+    user = check_contratti_access(r)
+    if isinstance(user, RedirectResponse):
+        return user
+
+    with engine.begin() as conn:
+        contratto = conn.execute(text("SELECT * FROM contratti WHERE contratto_id = :cid"), {"cid": contratto_id}).mappings().first()
+        if not contratto:
+            return RedirectResponse(url="/contratti?error=non_trovato", status_code=303)
+
+        if not can_manage_single_contratto(user, dict(contratto), conn=conn):
+            return RedirectResponse(url=f"/contratto/{contratto_id}?error=permesso_negato", status_code=303)
+
+        conn.execute(text("DELETE FROM ordini_attivita WHERE ordine_id = :oid"), {"oid": ordine_id})
+        conn.execute(text("DELETE FROM contratti_ordini WHERE ordine_id = :oid AND contratto_id = :cid"), {
+            "oid": ordine_id,
+            "cid": contratto_id
+        })
+
+    return RedirectResponse(url=f"/contratto/{contratto_id}?success=ordine_eliminato", status_code=303)
+
+
+# ==========================================
+# GESTIONE ATTIVITÀ DELL'ORDINE
+# ==========================================
+
+@router.get("/contratto/{contratto_id}/ordine/{ordine_id}", response_class=HTMLResponse)
+@router.get("/contratti/{contratto_id}/ordine/{ordine_id}", response_class=HTMLResponse)
+@router.get("/contratti/contratto/{contratto_id}/ordine/{ordine_id}", response_class=HTMLResponse)
+def ordine_detail(
+    r: Request,
+    contratto_id: int,
+    ordine_id: int,
+    error: Optional[str] = None,
+    success: Optional[str] = None,
+    disponibile: Optional[str] = None,
+    utilizzato: Optional[str] = None
+):
+    user = check_contratti_access(r)
+    if isinstance(user, RedirectResponse):
+        return user
+
+    with engine.connect() as conn:
+        contratto = conn.execute(text("""
+            SELECT c.*,
+                   f.ragione_sociale AS fornitore_nome,
+                   rep.nome AS reparto_nome,
+                   u_dec.nome AS dec_nome,
+                   u_dec.cognome AS dec_cognome
+            FROM contratti c
+            JOIN fornitori f ON c.fornitore_id = f.fornitore_id
+            LEFT JOIN reparti rep ON c.reparto_id = rep.reparto_id
+            LEFT JOIN users u_dec ON c.dec_user_id = u_dec.user_id
+            WHERE c.contratto_id = :cid
+        """), {"cid": contratto_id}).mappings().first()
+
+        if not contratto:
+            return RedirectResponse(url="/contratti?error=non_trovato", status_code=303)
+
+        can_edit = can_manage_single_contratto(user, dict(contratto), conn=conn)
+
+        ordine_fin = get_ordine_financials(conn, ordine_id)
+        if not ordine_fin or ordine_fin["ordine"]["contratto_id"] != contratto_id:
+            return RedirectResponse(url=f"/contratto/{contratto_id}?error=ordine_non_trovato", status_code=303)
+
+        attivita = conn.execute(text("""
+            SELECT oa.*,
+                   u.nome AS creatore_nome, u.cognome AS creatore_cognome
+            FROM ordini_attivita oa
+            LEFT JOIN users u ON oa.creato_da_id = u.user_id
+            WHERE oa.ordine_id = :oid
+            ORDER BY oa.data_inizio DESC, oa.attivita_id DESC
+        """), {"oid": ordine_id}).mappings().all()
+
+        contratto_fin = get_contratto_financials(conn, contratto_id)
+
+    is_dec = user_has_tag_dec(user)
+
+    return templates.TemplateResponse(r, "ordine_detail.html", {
+        "request": r,
+        "cfg": CFG,
+        "user": user,
+        "is_dec": is_dec,
+        "can_edit": can_edit,
+        "contratto": contratto,
+        "ordine": ordine_fin["ordine"],
+        "ordine_fin": ordine_fin,
+        "contratto_fin": contratto_fin,
+        "attivita": attivita,
+        "error": error,
+        "success": success,
+        "disponibile": disponibile,
+        "utilizzato": utilizzato
+    })
+
+
+@router.post("/contratto/{contratto_id}/ordine/{ordine_id}/attivita/nuova")
+@router.post("/contratti/{contratto_id}/ordine/{ordine_id}/attivita/nuova")
+@router.post("/contratti/contratto/{contratto_id}/ordine/{ordine_id}/attivita/nuova")
+def attivita_nuova_save(
+    r: Request,
+    contratto_id: int,
+    ordine_id: int,
+    descrizione: str = Form(...),
+    data_inizio: str = Form(...),
+    data_fine: Optional[str] = Form(None),
+    costo: Optional[str] = Form(None),
+    giornate: Optional[str] = Form(None),
+    stato: str = Form("pianificata"),
+    richiedente: Optional[str] = Form(None),
+    data_richiesta: Optional[str] = Form(None),
+    note: Optional[str] = Form(None)
+):
+    user = check_contratti_access(r)
+    if isinstance(user, RedirectResponse):
+        return user
+
+    descrizione = descrizione.strip()
+    data_inizio = data_inizio.strip()
+    if not descrizione or not data_inizio:
+        return RedirectResponse(url=f"/contratto/{contratto_id}/ordine/{ordine_id}?error=campi_obbligatori_attivita", status_code=303)
+
+    giornate_val = safe_float(giornate)
+    costo_val = safe_float(costo)
+
+    with engine.begin() as conn:
+        contratto = conn.execute(text("SELECT * FROM contratti WHERE contratto_id = :cid"), {"cid": contratto_id}).mappings().first()
+        if not contratto:
+            return RedirectResponse(url="/contratti?error=non_trovato", status_code=303)
+
+        if not can_manage_single_contratto(user, dict(contratto), conn=conn):
+            return RedirectResponse(url=f"/contratto/{contratto_id}?error=permesso_negato", status_code=303)
+
+        ordine_fin = get_ordine_financials(conn, ordine_id)
+        if not ordine_fin or ordine_fin["ordine"]["contratto_id"] != contratto_id:
+            return RedirectResponse(url=f"/contratto/{contratto_id}?error=ordine_non_trovato", status_code=303)
+
+        ordine = ordine_fin["ordine"]
+
+        if (costo_val is None or costo_val == 0) and giornate_val and ordine.get("costo_giornaliero"):
+            costo_val = float(giornate_val) * float(ordine["costo_giornaliero"])
+        elif costo_val is None:
+            costo_val = 0.0
+
+        if stato != 'annullata':
+            if costo_val > (ordine_fin["residuo_costo"] + 0.009):
+                disp_str = f"{ordine_fin['residuo_costo']:.2f}"
+                return RedirectResponse(
+                    url=f"/contratto/{contratto_id}/ordine/{ordine_id}?error=esaurimento_importo_ordine&disponibile={disp_str}",
+                    status_code=303
+                )
+            if ordine.get("giornate") and giornate_val and ordine_fin["residuo_giornate"] is not None:
+                if giornate_val > (ordine_fin["residuo_giornate"] + 0.009):
+                    disp_gg = f"{ordine_fin['residuo_giornate']:.1f}"
+                    return RedirectResponse(
+                        url=f"/contratto/{contratto_id}/ordine/{ordine_id}?error=esaurimento_giornate_ordine&disponibile={disp_gg}",
+                        status_code=303
+                    )
+
+        now = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+        conn.execute(text("""
+            INSERT INTO ordini_attivita (
+                ordine_id, descrizione, data_inizio, data_fine, costo, giornate,
+                stato, richiedente, data_richiesta, note, creato_da_id, creato_il
+            ) VALUES (
+                :oid, :desc, :d_ini, :d_fin, :costo, :giornate,
+                :stato, :richiedente, :data_richiesta, :note, :creato_da_id, :creato_il
+            )
+        """), {
+            "oid": ordine_id,
+            "desc": descrizione,
+            "d_ini": data_inizio,
+            "d_fin": data_fine.strip() if data_fine else None,
+            "costo": costo_val,
+            "giornate": giornate_val if giornate_val else None,
+            "stato": stato,
+            "richiedente": richiedente.strip() if richiedente else None,
+            "data_richiesta": data_richiesta.strip() if data_richiesta else None,
+            "note": note.strip() if note else None,
+            "creato_da_id": user.get("id"),
+            "creato_il": now
+        })
+
+    return RedirectResponse(url=f"/contratto/{contratto_id}/ordine/{ordine_id}?success=attivita_creata", status_code=303)
+
+
+@router.post("/contratto/{contratto_id}/ordine/{ordine_id}/attivita/{attivita_id}/modifica")
+@router.post("/contratti/{contratto_id}/ordine/{ordine_id}/attivita/{attivita_id}/modifica")
+@router.post("/contratti/contratto/{contratto_id}/ordine/{ordine_id}/attivita/{attivita_id}/modifica")
+def attivita_edit_save(
+    r: Request,
+    contratto_id: int,
+    ordine_id: int,
+    attivita_id: int,
+    descrizione: str = Form(...),
+    data_inizio: str = Form(...),
+    data_fine: Optional[str] = Form(None),
+    costo: Optional[str] = Form(None),
+    giornate: Optional[str] = Form(None),
+    stato: str = Form("pianificata"),
+    richiedente: Optional[str] = Form(None),
+    data_richiesta: Optional[str] = Form(None),
+    note: Optional[str] = Form(None)
+):
+    user = check_contratti_access(r)
+    if isinstance(user, RedirectResponse):
+        return user
+
+    descrizione = descrizione.strip()
+    data_inizio = data_inizio.strip()
+    if not descrizione or not data_inizio:
+        return RedirectResponse(url=f"/contratto/{contratto_id}/ordine/{ordine_id}?error=campi_obbligatori_attivita", status_code=303)
+
+    giornate_val = safe_float(giornate)
+    costo_val = safe_float(costo)
+
+    with engine.begin() as conn:
+        contratto = conn.execute(text("SELECT * FROM contratti WHERE contratto_id = :cid"), {"cid": contratto_id}).mappings().first()
+        if not contratto:
+            return RedirectResponse(url="/contratti?error=non_trovato", status_code=303)
+
+        if not can_manage_single_contratto(user, dict(contratto), conn=conn):
+            return RedirectResponse(url=f"/contratto/{contratto_id}?error=permesso_negato", status_code=303)
+
+        ordine_fin = get_ordine_financials(conn, ordine_id)
+        if not ordine_fin or ordine_fin["ordine"]["contratto_id"] != contratto_id:
+            return RedirectResponse(url=f"/contratto/{contratto_id}?error=ordine_non_trovato", status_code=303)
+
+        ordine = ordine_fin["ordine"]
+        old_att = conn.execute(text("SELECT * FROM ordini_attivita WHERE attivita_id = :aid AND ordine_id = :oid"), {
+            "aid": attivita_id,
+            "oid": ordine_id
+        }).mappings().first()
+        if not old_att:
+            return RedirectResponse(url=f"/contratto/{contratto_id}/ordine/{ordine_id}?error=attivita_non_trovata", status_code=303)
+
+        if (costo_val is None or costo_val == 0) and giornate_val and ordine.get("costo_giornaliero"):
+            costo_val = float(giornate_val) * float(ordine["costo_giornaliero"])
+        elif costo_val is None:
+            costo_val = 0.0
+
+        vecchio_costo = old_att["costo"] if old_att["stato"] != 'annullata' else 0.0
+        nuovo_costo_effettivo = costo_val if stato != 'annullata' else 0.0
+        diff_costo = nuovo_costo_effettivo - vecchio_costo
+
+        if diff_costo > 0 and (ordine_fin["tot_costo_attivita"] + diff_costo) > (ordine_fin["importo_ordine"] + 0.009):
+            residuo_reale = ordine_fin["residuo_costo"] + (vecchio_costo if old_att["stato"] != 'annullata' else 0.0)
+            return RedirectResponse(
+                url=f"/contratto/{contratto_id}/ordine/{ordine_id}?error=esaurimento_importo_ordine&disponibile={residuo_reale:.2f}",
+                status_code=303
+            )
+
+        now = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+        conn.execute(text("""
+            UPDATE ordini_attivita SET
+                descrizione = :desc,
+                data_inizio = :d_ini,
+                data_fine = :d_fin,
+                costo = :costo,
+                giornate = :giornate,
+                stato = :stato,
+                richiedente = :richiedente,
+                data_richiesta = :data_richiesta,
+                note = :note,
+                aggiornato_il = :aggiornato_il
+            WHERE attivita_id = :aid AND ordine_id = :oid
+        """), {
+            "desc": descrizione,
+            "d_ini": data_inizio,
+            "d_fin": data_fine.strip() if data_fine else None,
+            "costo": costo_val,
+            "giornate": giornate_val if giornate_val else None,
+            "stato": stato,
+            "richiedente": richiedente.strip() if richiedente else None,
+            "data_richiesta": data_richiesta.strip() if data_richiesta else None,
+            "note": note.strip() if note else None,
+            "aggiornato_il": now,
+            "aid": attivita_id,
+            "oid": ordine_id
+        })
+
+    return RedirectResponse(url=f"/contratto/{contratto_id}/ordine/{ordine_id}?success=attivita_modificata", status_code=303)
+
+
+@router.post("/contratto/{contratto_id}/ordine/{ordine_id}/attivita/{attivita_id}/elimina")
+@router.post("/contratti/{contratto_id}/ordine/{ordine_id}/attivita/{attivita_id}/elimina")
+@router.post("/contratti/contratto/{contratto_id}/ordine/{ordine_id}/attivita/{attivita_id}/elimina")
+def attivita_delete(r: Request, contratto_id: int, ordine_id: int, attivita_id: int):
+    user = check_contratti_access(r)
+    if isinstance(user, RedirectResponse):
+        return user
+
+    with engine.begin() as conn:
+        contratto = conn.execute(text("SELECT * FROM contratti WHERE contratto_id = :cid"), {"cid": contratto_id}).mappings().first()
+        if not contratto:
+            return RedirectResponse(url="/contratti?error=non_trovato", status_code=303)
+
+        if not can_manage_single_contratto(user, dict(contratto), conn=conn):
+            return RedirectResponse(url=f"/contratto/{contratto_id}?error=permesso_negato", status_code=303)
+
+        conn.execute(text("DELETE FROM ordini_attivita WHERE attivita_id = :aid AND ordine_id = :oid"), {
+            "aid": attivita_id,
+            "oid": ordine_id
+        })
+
+    return RedirectResponse(url=f"/contratto/{contratto_id}/ordine/{ordine_id}?success=attivita_eliminata", status_code=303)
+
+
+# ==========================================
+# STAMPA SCHEDA CONTRATTO
+# ==========================================
+
 @router.get("/contratto/{contratto_id}/stampa", response_class=HTMLResponse)
 @router.get("/contratti/{contratto_id}/stampa", response_class=HTMLResponse)
 @router.get("/contratti/contratto/{contratto_id}/stampa", response_class=HTMLResponse)
@@ -1501,6 +2195,28 @@ def contratto_stampa(r: Request, contratto_id: int):
             ORDER BY cm.ordine ASC, cm.modulo_id ASC
         """), {"cid": contratto_id}).mappings().all()
 
+        ordini_rows = conn.execute(text("""
+            SELECT co.*,
+                   (SELECT COUNT(*) FROM ordini_attivita oa WHERE oa.ordine_id = co.ordine_id AND (oa.stato IS NULL OR oa.stato != 'annullata')) AS cnt_attivita,
+                   COALESCE((SELECT SUM(costo) FROM ordini_attivita oa WHERE oa.ordine_id = co.ordine_id AND (oa.stato IS NULL OR oa.stato != 'annullata')), 0.0) AS totale_costo_attivita
+            FROM contratti_ordini co
+            WHERE co.contratto_id = :cid
+            ORDER BY co.ordine_id ASC
+        """), {"cid": contratto_id}).mappings().all()
+
+        ordini = []
+        for o in ordini_rows:
+            od = dict(o)
+            att_list = conn.execute(text("""
+                SELECT * FROM ordini_attivita 
+                WHERE ordine_id = :oid 
+                ORDER BY data_inizio ASC, attivita_id ASC
+            """), {"oid": od["ordine_id"]}).mappings().all()
+            od["attivita"] = [dict(a) for a in att_list]
+            ordini.append(od)
+
+        financials = get_contratto_financials(conn, contratto_id)
+
     totale_costo = sum(m["costo"] for m in moduli)
     totale_giornate = sum((m["giornate"] or 0.0) for m in moduli)
 
@@ -1510,7 +2226,10 @@ def contratto_stampa(r: Request, contratto_id: int):
         "user": user,
         "contratto": contratto,
         "moduli": moduli,
+        "ordini": ordini,
+        "financials": financials,
         "totale_costo": totale_costo,
         "totale_giornate": totale_giornate,
         "data_stampa": datetime.now().strftime("%d/%m/%Y %H:%M")
     })
+
