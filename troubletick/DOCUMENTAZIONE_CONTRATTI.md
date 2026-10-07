@@ -9,9 +9,9 @@ Questa guida descrive il funzionamento, la struttura e le migliori pratiche oper
 Il modulo **Contratti** permette di censire e monitorare i contratti di manutenzione e fornitura dei servizi, tracciare i relativi costi, associare i fornitori e identificare il **DEC** (*Direttore dell'Esecuzione del Contratto*).
 
 ### Chi ha accesso al modulo:
-* **Amministratori**: visualizzano e gestiscono tutti i contratti e le anagrafiche dei fornitori.
-* **Responsabili di Reparto**: visualizzano e gestiscono i contratti associati al proprio reparto o gestiti da operatori appartenenti al reparto stesso.
-* **Operatori con tag DEC**: gli operatori che hanno il tag `DEC` nel proprio profilo possono visualizzare e gestire i contratti di cui sono referenti o creatori, e dispongono della **gestione completa dei fornitori** (creazione, modifica, schede di contatto escalation e associazione ai servizi).
+* **Amministratori**: visualizzano e gestiscono tutti i contratti, gli ordini al fornitore, le attività operative e le anagrafiche dei fornitori.
+* **Responsabili di Reparto**: visualizzano e gestiscono i contratti, gli ordini e le attività operative associati al proprio reparto o gestiti da operatori appartenenti al reparto stesso.
+* **Operatori con tag DEC**: gli operatori che hanno il tag `DEC` nel proprio profilo possono visualizzare e gestire i contratti di cui sono referenti o creatori (inclusa l'emissione degli ordini e la rendicontazione delle relative attività operative), e dispongono della **gestione completa dei fornitori** (creazione, modifica, schede di contatto escalation e associazione ai servizi).
 * **Utenti con tag Amministrazione**: dispongono della **gestione completa dei fornitori** (creazione, modifica anagrafica, schede di contatto escalation e associazione ai servizi).
 
 ---
@@ -46,6 +46,19 @@ Per garantire una gestione snella, ordinata ed efficace dei contratti, si raccom
 >
 > È sufficiente indicare anche **soltanto la Ragione Sociale** della ditta fornitrice. Tutti gli altri dettagli (Partita IVA, Codice Fiscale, PEC, email per gli ordini, numeri telefonici, referente commerciale/tecnico e indirizzo) possono essere aggiunti in seguito dall'anagrafica fornitori.
 
+### E. Ordini al Fornitore e Allineamento Economico
+> [!IMPORTANT]
+> **Relazione tra Moduli e Ordini**: I moduli del capitolato definiscono il valore complessivo e la natura economica dell'accordo. Gli **Ordini al Fornitore** rappresentano gli atti di impegno esecutivo verso il fornitore.
+>
+> * **Quadratura consigliata al 100%**: È fortemente raccomandato che la somma degli importi degli ordini emessi coincida con l'importo totale del contratto. In questo modo l'intero plafond contrattuale risulta formalizzato e controllabile.
+> * **Vincolo di non superamento**: Il sistema impedisce qualsiasi emissione di ordini che ecceda il budget contrattuale.
+
+### F. Rendicontazione delle Attività e Tracciabilità delle Richieste
+> [!TIP]
+> **Tracciamento Chi / Quando**: Per ogni attività è fondamentale registrare **chi ha richiesto l'intervento** (es. Responsabile, Coordinatore o Ufficio) e **quando è stata effettuata la richiesta**. Questo consente al DEC e all'Amministrazione una tracciabilità trasparente in fase di liquidazione delle fatture.
+>
+> * **Fino ad esaurimento**: Le attività consumano progressivamente la capienza dell'ordine (sia in termini di importo in Euro sia in giornate/uomo). Quando l'ordine è esaurito al 100%, il sistema blocca ulteriori inserimenti.
+
 ---
 
 ## 3. Flusso di Lavoro Operativo
@@ -57,10 +70,15 @@ graph TD
     B --> C
     C --> D[Compila Dati Noti: Titolo, Fornitore, Anno, DEC]
     D --> E[Aggiungi Moduli / Capitoli con Costo Definito]
-    E --> F[Verifica Quadro Economico Totale]
-    F --> G[Stampa Documento / Esportazione PDF]
-    F -->|Fine Anno / Rinnovo| H[Duplica Contratto per Anno Successivo]
-    H --> E
+    E --> F[Quadro Economico Totale Contratto]
+    F --> G[Emetti Ordini al Fornitore - Capienza Contratto]
+    G --> H[Verifica Quadratura: Somma Ordini = Importo Contratto]
+    G --> I[Crea Attività Operative su Ordine]
+    I --> J[Traccia Richiedente, Data Richiesta e Costo/GG]
+    J --> K[Controllo Esaurimento Budget Ordine]
+    K --> L[Report Stampa Scheda / PDF con Ordini e Attività]
+    F -->|Fine Anno / Rinnovo| M[Duplica Contratto per Anno Successivo]
+    M --> E
 ```
 
 ### Passo 1: Creazione o Selezione del Fornitore
@@ -171,3 +189,42 @@ Quando si apre la nuova annualità:
 | **Completata** | Verde | Attività conclusa con successo e consuntivata. |
 | **Sospesa** | Arancione | Attività temporaneamente bloccata in attesa di sblocco/parti. |
 | **Annullata** | Grigio | Attività annullata (il budget viene riaccreditato all'ordine). |
+
+---
+
+## 5. Esempi Pratici di Quadratura ed Esaurimento
+
+### Scenario A: Quadratura Economica del Contratto
+Immaginiamo un contratto di manutenzione annuale con quadro economico di **€ 15.000,00** (IVA esclusa), composto da due moduli:
+* **Modulo 1**: Canone licenze e manutenzione base &rarr; **€ 9.000,00**
+* **Modulo 2**: Supporto specialistico sistemistico a consumo &rarr; 20 giornate a 300,00 €/gg = **€ 6.000,00**
+
+**Emissione degli Ordini al Fornitore:**
+1. Viene emesso l'**Ordine 1** per il canone con importo pari a **€ 9.000,00**.
+   * *Stato Quadro Economico*: Somma ordini = € 9.000,00 (60%).
+   * *Segnalazione Sistema*: Badge giallo *"Residuo da ordinare: € 6.000,00 - Consigliabile coprire l'intero importo contrattuale"*.
+2. Viene emesso l'**Ordine 2** per il supporto specialistico con 20 giornate a 300,00 €/gg = **€ 6.000,00**.
+   * *Stato Quadro Economico*: Somma ordini = € 15.000,00 (100%).
+   * *Segnalazione Sistema*: Badge verde *"Copertura 100% - La sommatoria degli ordini corrisponde esattamente all'importo del contratto"*.
+3. Se un operatore tentasse di inserire un ulteriore ordine da € 500,00, il sistema **bloccherà l'inserimento** con avviso esplicito di superamento capienza.
+
+### Scenario B: Tracciamento delle Attività ed Esaurimento dell'Ordine
+Prendiamo l'**Ordine 2** (Plafond: **€ 6.000,00**, 20 giornate a 300,00 €/gg).
+Durante l'anno il DEC e i referenti registrano gli interventi eseguiti:
+
+1. **Attività 1**: *"Risoluzione incidente cluster database di produzione"*
+   * **Chi ha chiesto**: *Ing. Mario Bianchi (Referente Sistemi)*
+   * **Quando è stata chiesta**: *10/02/2026*
+   * **Valore**: 2 giornate &rarr; Costo calcolato = **€ 600,00**
+   * *Residuo Ordine*: € 5.400,00 (18,0 giornate residue) &bull; Consumato: 10%.
+
+2. **Attività 2**: *"Aggiornamento firmware apparati di rete e bonifica VLAN"*
+   * **Chi ha chiesto**: *Ufficio Reti e Telecomunicazioni*
+   * **Quando è stata chiesta**: *05/03/2026*
+   * **Valore**: 4 giornate &rarr; Costo calcolato = **€ 1.200,00**
+   * *Residuo Ordine*: € 4.200,00 (14,0 giornate residue) &bull; Consumato: 30%.
+
+3. **Monitoraggio e Blocco Esaurimento**:
+   * La barra di avanzamento della scheda ordine indica in tempo reale il montante consumato.
+   * Se il fornitore presenta un intervento finale che richiederebbe 16 giornate (€ 4.800,00), il sistema rifiuta l'inserimento poiché eccede le 14 giornate (€ 4.200,00) residue, proteggendo l'ente o l'azienda da sforamenti di budget non autorizzati.
+
