@@ -419,6 +419,8 @@
                 <p class="text-muted mt-3">Nessun automezzo trovato per il raggruppamento per servizio.</p>
             </div>
             {% endfor %}
+        </div>
+
         <!-- TAB 3: ELENCO COMPLETO FLOTTA (NON RAGGRUPPATO CON CAMPI ESTESI) -->
         <div class="tab-pane fade" id="completo-pane" role="tabpanel" aria-labelledby="completo-tab" tabindex="0">
             <div class="vehicle-card bg-white p-3 mb-4 shadow-sm">
@@ -525,7 +527,7 @@
                         </thead>
                         <tbody id="tbodyAutomezziCompleto">
                         {% for v in automezzi_completi %}
-                            <tr class="searchable-row searchable-completo-row"
+                            <tr class="searchable-completo-row"
                                 data-targa="{{ v.targa|upper }}"
                                 data-marca="{{ v.marca_nome|lower }} {{ v.modello|lower }}"
                                 data-tipo="{{ v.tipo|lower }}"
@@ -696,6 +698,13 @@
                                             <i class="bi bi-wrench"></i>
                                         </a>
                                     </div>
+                                </td>
+                            </tr>
+                        {% else %}
+                            <tr id="rowEmptyCompleto">
+                                <td colspan="13" class="text-center py-5 text-muted">
+                                    <i class="bi bi-inbox display-4 d-block mb-2"></i>
+                                    Nessun automezzo trovato nell'elenco flotta.
                                 </td>
                             </tr>
                         {% endfor %}
@@ -1101,19 +1110,22 @@
         if (searchInput) {
             searchInput.addEventListener('input', function() {
                 var term = this.value.toLowerCase().trim();
-                var rows = document.querySelectorAll('.searchable-row');
-                var visibleCompleto = 0;
-                rows.forEach(function(row) {
-                    var text = row.innerText.toLowerCase();
-                    if (text.indexOf(term) !== -1) {
-                        row.style.display = '';
-                        if (row.classList.contains('searchable-completo-row')) visibleCompleto++;
-                    } else {
-                        row.style.display = 'none';
-                    }
+                // Filtra le righe raggruppate delle prime due tab (Sedi e Servizi)
+                var groupRows = document.querySelectorAll('#sedi-pane .searchable-row, #servizi-pane .searchable-row');
+                groupRows.forEach(function(row) {
+                    var text = (row.textContent || '').toLowerCase();
+                    row.style.display = (text.indexOf(term) !== -1) ? '' : 'none';
                 });
-                var counter = document.getElementById('counterCompleto');
-                if (counter) counter.textContent = visibleCompleto;
+                // Sincronizza anche il filtro sulla tabella completa
+                filterCompletoTable();
+            });
+        }
+
+        // Listener su cambio tab per aggiornare la tabella completa
+        var completoTab = document.getElementById('completo-tab');
+        if (completoTab) {
+            completoTab.addEventListener('shown.bs.tab', function() {
+                filterCompletoTable();
             });
         }
     });
@@ -1126,6 +1138,7 @@
         const tbody = document.getElementById('tbodyAutomezziCompleto');
         if (!tbody) return;
         const rows = Array.from(tbody.querySelectorAll('.searchable-completo-row'));
+        if (!rows.length) return;
 
         if (currentSortCol === col) {
             currentSortDir = (currentSortDir === 'asc') ? 'desc' : 'asc';
@@ -1171,7 +1184,10 @@
     }
 
     function filterCompletoTable() {
-        const textTerm = (document.getElementById('filterCompletoText')?.value || '').toLowerCase().trim();
+        const textLocal = (document.getElementById('filterCompletoText')?.value || '').toLowerCase().trim();
+        const textGlobal = (document.getElementById('dislocazioniSearch')?.value || '').toLowerCase().trim();
+        const textTerm = textLocal || textGlobal;
+
         const statoTerm = (document.getElementById('filterCompletoStato')?.value || '').toLowerCase().trim();
         const sedeTerm = (document.getElementById('filterCompletoSede')?.value || '').toLowerCase().trim();
         const servTerm = (document.getElementById('filterCompletoServizio')?.value || '').toLowerCase().trim();
@@ -1181,7 +1197,8 @@
         let visibleCount = 0;
 
         rows.forEach(row => {
-            const rowText = row.innerText.toLowerCase();
+            // Usa textContent così funziona anche quando la tab è nascosta o non ancora visibile
+            const rowText = (row.textContent || '').toLowerCase();
             const rowStato = (row.getAttribute('data-stato') || '').toLowerCase();
             const rowSedeAss = (row.getAttribute('data-sede-ass') || '').toLowerCase();
             const rowServ = (row.getAttribute('data-servizio') || '').toLowerCase();
@@ -1191,7 +1208,15 @@
             let matchesStato = !statoTerm || rowStato.includes(statoTerm);
             let matchesSede = !sedeTerm || rowSedeAss.includes(sedeTerm);
             let matchesServ = !servTerm || rowServ.includes(servTerm);
-            let matchesProp = !propTerm || rowProp.includes(propTerm);
+            
+            let matchesProp = true;
+            if (propTerm) {
+                if (propTerm.indexOf('propriet') !== -1) {
+                    matchesProp = (rowProp.indexOf('propriet') !== -1);
+                } else if (propTerm.indexOf('noleggio') !== -1) {
+                    matchesProp = (rowProp.indexOf('noleggio') !== -1);
+                }
+            }
 
             if (matchesText && matchesStato && matchesSede && matchesServ && matchesProp) {
                 row.style.display = '';
@@ -1207,10 +1232,16 @@
 
     function resetFiltriCompleto() {
         if (document.getElementById('filterCompletoText')) document.getElementById('filterCompletoText').value = '';
+        if (document.getElementById('dislocazioniSearch')) document.getElementById('dislocazioniSearch').value = '';
         if (document.getElementById('filterCompletoStato')) document.getElementById('filterCompletoStato').value = '';
         if (document.getElementById('filterCompletoSede')) document.getElementById('filterCompletoSede').value = '';
         if (document.getElementById('filterCompletoServizio')) document.getElementById('filterCompletoServizio').value = '';
         if (document.getElementById('filterCompletoProprieta')) document.getElementById('filterCompletoProprieta').value = '';
+        
+        // Ripristina anche le righe dei raggruppamenti
+        var groupRows = document.querySelectorAll('#sedi-pane .searchable-row, #servizi-pane .searchable-row');
+        groupRows.forEach(function(row) { row.style.display = ''; });
+
         filterCompletoTable();
     }
 

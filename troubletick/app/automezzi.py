@@ -531,6 +531,8 @@ def page_dislocazioni(r: Request):
         elif stato == "in uso" or is_trip_started or has_active_trip:
             totale_in_uso += 1
             stato_effettivo = "in uso"
+        elif stato == "eliminazione":
+            stato_effettivo = "eliminazione"
         else:
             totale_disponibili += 1
             stato_effettivo = "disponibile"
@@ -591,6 +593,8 @@ def page_dislocazioni(r: Request):
             stato_eff = "in manutenzione"
         elif stato == "in uso" or is_trip_started or has_active_trip:
             stato_eff = "in uso"
+        elif stato == "eliminazione":
+            stato_eff = "eliminazione"
         else:
             stato_eff = "disponibile"
         a["stato_effettivo"] = stato_eff
