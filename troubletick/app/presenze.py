@@ -57,13 +57,13 @@ def calendario(r: Request, copertura_alert: str = None, servizi_scoperti: str = 
             grouped_assenze[yr][m] = {
                 "mese_num": m,
                 "mese_nome": months_it.get(m, f"Mese {m}"),
-                "items": []
+                "elenco": []
             }
-        grouped_assenze[yr][m]["items"].append(a)
+        grouped_assenze[yr][m]["elenco"].append(a)
 
     storico_anni = []
     for yr, mesi_dict in grouped_assenze.items():
-        tot_anno = sum(len(m_data["items"]) for m_data in mesi_dict.values())
+        tot_anno = sum(len(m_data["elenco"]) for m_data in mesi_dict.values())
         storico_anni.append({
             "anno": yr,
             "is_current": (yr == current_year),

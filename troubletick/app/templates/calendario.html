@@ -110,7 +110,7 @@
                                                 <i class="bi bi-calendar-month text-primary me-1"></i> {{ m.mese_nome }} {{ anno_data.anno }}
                                             </span>
                                             <span class="badge bg-secondary-subtle text-secondary small">
-                                                {{ m.items|length }} {% if m.items|length == 1 %}periodo{% else %}periodi{% endif %}
+                                                {{ m.elenco|length }} {% if m.elenco|length == 1 %}periodo{% else %}periodi{% endif %}
                                             </span>
                                         </div>
                                         <div class="table-responsive">
@@ -125,7 +125,7 @@
                                                     </tr>
                                                 </thead>
                                                 <tbody>
-                                                    {% for a in m.items %}
+                                                    {% for a in m.elenco %}
                                                     <tr>
                                                         <td><strong>{{ a.nome }} {{ a.cognome }}</strong></td>
                                                         <td>{{ a.reparto_nome or '—' }}</td>
