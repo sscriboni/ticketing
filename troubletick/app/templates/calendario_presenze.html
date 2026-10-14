@@ -52,7 +52,15 @@
                         <hr>
                     </div>
 
-                    <h4 class="mb-3">Presenze Programmate</h4>
+                    <div class="d-flex justify-content-between align-items-center mb-3">
+                        <h4 class="mb-0">Presenze Programmate</h4>
+                        {% if num_vecchie > 0 %}
+                        <button type="button" id="btnToggleOldPresenze" class="btn btn-sm btn-outline-secondary" onclick="toggleOldPresenze()">
+                            <i class="bi bi-clock-history me-1"></i>
+                            <span id="btnToggleOldText">Mostra date precedenti ({{ num_vecchie }})</span>
+                        </button>
+                        {% endif %}
+                    </div>
                     <div class="table-responsive">
                         <table class="table table-striped align-middle">
                             <thead>
@@ -67,18 +75,39 @@
                                 </tr>
                             </thead>
                             <tbody>
-                                {% for p in presenze %}
+                                {% if presenze|length == 0 %}
                                 <tr>
+                                    <td colspan="7" class="text-muted text-center py-4">Nessuna presenza registrata.</td>
+                                </tr>
+                                {% elif presenze|length == num_vecchie %}
+                                <tr id="rowEmptyRecent">
+                                    <td colspan="7" class="text-muted text-center py-4">
+                                        <i class="bi bi-calendar-check text-secondary d-block fs-4 mb-1"></i>
+                                        Nessuna presenza recente nell'ultimo mese.
+                                        <a href="javascript:void(0)" onclick="toggleOldPresenze()" class="fw-bold text-decoration-none ms-1">
+                                            Visualizza le {{ num_vecchie }} presenze precedenti
+                                        </a>
+                                    </td>
+                                </tr>
+                                {% endif %}
+
+                                {% for p in presenze %}
+                                <tr class="{% if p.is_vecchia %}tr-presenza-vecchia d-none bg-light-subtle text-secondary{% endif %}">
                                     <td><strong>{{ p.nome }} {{ p.cognome }}</strong></td>
                                     <td>{{ p.reparto_nome or '—' }}</td>
-                                    <td>{{ p.data_inizio }}</td>
+                                    <td>
+                                        {{ p.data_inizio }}
+                                        {% if p.is_vecchia %}
+                                        <span class="badge bg-light text-muted border ms-1" style="font-size: 0.7rem;">Archivio</span>
+                                        {% endif %}
+                                    </td>
                                     <td>{{ p.data_fine }}</td>
                                     <td>
                                         {% if p.tipo == 'smartwork' %}
                                         <span class="badge bg-success text-white"><i
                                                 class="bi bi-laptop me-1"></i>Smartwork</span>
                                         {% elif p.tipo == 'corsi' %}
-                                        <span class="badge bg-purple text-white" style="background-color: #6f42c1;"><i
+                                        <span class="badge text-white" style="background-color: #6f42c1;"><i
                                                 class="bi bi-journal-bookmark me-1"></i>Corsi</span>
                                         {% elif p.tipo == 'trasferta' %}
                                         <span class="badge bg-primary text-white"><i
@@ -106,11 +135,6 @@
                                             </button>
                                         </form>
                                         {% endif %}
-                                    </td>
-                                </tr>
-                                {% else %}
-                                <tr>
-                                    <td colspan="7" class="text-muted text-center py-4">Nessuna presenza registrata.
                                     </td>
                                 </tr>
                                 {% endfor %}
@@ -240,6 +264,35 @@
                 input.min = today;
             });
         });
+
+        function toggleOldPresenze() {
+            const rows = document.querySelectorAll('.tr-presenza-vecchia');
+            const btn = document.getElementById('btnToggleOldPresenze');
+            const emptyRow = document.getElementById('rowEmptyRecent');
+            if (!rows.length) return;
+            const isHidden = rows[0].classList.contains('d-none');
+            rows.forEach(r => {
+                if (isHidden) {
+                    r.classList.remove('d-none');
+                } else {
+                    r.classList.add('d-none');
+                }
+            });
+            if (btn) {
+                if (isHidden) {
+                    btn.classList.remove('btn-outline-secondary');
+                    btn.classList.add('btn-secondary');
+                    btn.innerHTML = '<i class="bi bi-eye-slash me-1"></i> <span id="btnToggleOldText">Nascondi date precedenti</span>';
+                } else {
+                    btn.classList.remove('btn-secondary');
+                    btn.classList.add('btn-outline-secondary');
+                    btn.innerHTML = '<i class="bi bi-clock-history me-1"></i> <span id="btnToggleOldText">Mostra date precedenti ({{ num_vecchie }})</span>';
+                }
+            }
+            if (emptyRow) {
+                emptyRow.style.display = isHidden ? 'none' : '';
+            }
+        }
     </script>
 </body>
 

@@ -17,7 +17,7 @@ def calendario(r: Request, copertura_alert: str = None, servizi_scoperti: str = 
     
     with engine.connect() as c:
         uid = user.get("id")
-        assenze = c.execute(text("""
+        assenze_raw = c.execute(text("""
             SELECT a.*, u.nome, u.cognome, u.username, r.nome as reparto_nome
             FROM assenze a
             JOIN users u ON a.user_id = u.user_id
@@ -32,9 +32,47 @@ def calendario(r: Request, copertura_alert: str = None, servizi_scoperti: str = 
             LEFT JOIN comuni c ON f.comune_id = c.comune_id 
             ORDER BY f.data DESC
         """)).mappings().all()
+
+    assenze = [dict(a) for a in assenze_raw]
+    months_it = {
+        1: "Gennaio", 2: "Febbraio", 3: "Marzo", 4: "Aprile",
+        5: "Maggio", 6: "Giugno", 7: "Luglio", 8: "Agosto",
+        9: "Settembre", 10: "Ottobre", 11: "Novembre", 12: "Dicembre"
+    }
+    grouped_assenze = {}
+    current_year = date.today().year
+
+    for a in assenze:
+        d_init = str(a.get("data_inizio") or "")
+        try:
+            yr = int(d_init[:4])
+            m = int(d_init[5:7])
+        except (ValueError, IndexError):
+            yr = 0
+            m = 0
+
+        if yr not in grouped_assenze:
+            grouped_assenze[yr] = {}
+        if m not in grouped_assenze[yr]:
+            grouped_assenze[yr][m] = {
+                "mese_num": m,
+                "mese_nome": months_it.get(m, f"Mese {m}"),
+                "items": []
+            }
+        grouped_assenze[yr][m]["items"].append(a)
+
+    storico_anni = []
+    for yr, mesi_dict in grouped_assenze.items():
+        tot_anno = sum(len(m_data["items"]) for m_data in mesi_dict.values())
+        storico_anni.append({
+            "anno": yr,
+            "is_current": (yr == current_year),
+            "totale": tot_anno,
+            "mesi": list(mesi_dict.values())
+        })
             
     return templates.TemplateResponse(r, "calendario.html", {
-        "request": r, "cfg": CFG, "user": user, "assenze": assenze, "festivita": festivita,
+        "request": r, "cfg": CFG, "user": user, "assenze": assenze, "storico_anni": storico_anni, "festivita": festivita,
         "copertura_alert": copertura_alert, "servizi_scoperti": servizi_scoperti
     })
 
@@ -47,7 +85,7 @@ def calendario_presenze(r: Request):
     uid = user.get("id")
     
     with engine.connect() as c:
-        presenze = c.execute(text("""
+        presenze_raw = c.execute(text("""
             SELECT p.*, u.nome, u.cognome, r.nome as reparto_nome
             FROM presenze p
             JOIN users u ON p.user_id = u.user_id
@@ -62,9 +100,22 @@ def calendario_presenze(r: Request):
             LEFT JOIN comuni c ON f.comune_id = c.comune_id 
             ORDER BY f.data DESC
         """)).mappings().all()
+
+    today = date.today()
+    cutoff_date = (today - timedelta(days=30)).strftime("%Y-%m-%d")
+    presenze = []
+    num_vecchie = 0
+    for p_raw in presenze_raw:
+        p = dict(p_raw)
+        end_d = str(p.get("data_fine") or p.get("data_inizio") or "")
+        is_vecchia = bool(end_d and end_d < cutoff_date)
+        p["is_vecchia"] = is_vecchia
+        if is_vecchia:
+            num_vecchie += 1
+        presenze.append(p)
         
     return templates.TemplateResponse(r, "calendario_presenze.html", {
-        "request": r, "cfg": CFG, "user": user, "presenze": presenze, "festivita": festivita
+        "request": r, "cfg": CFG, "user": user, "presenze": presenze, "num_vecchie": num_vecchie, "cutoff_date": cutoff_date, "festivita": festivita
     })
 
 @router.post("/calendario-presenze/nuova")
