@@ -3660,7 +3660,7 @@ def documentazione(r: Request, page: str = None):
         doc_filename = "GUIDA_UTENTE.md"
     elif page == "magazzino":
         doc_filename = "DOCUMENTAZIONE_MAGAZZINO.md"
-    elif page == "carpooling":
+    elif page in ("carpooling", "autopark"):
         doc_filename = "DOCUMENTAZIONE_CARPOOLING.md"
     elif page == "presenze":
         doc_filename = "DOCUMENTAZIONE_PRESENZE.md"
