@@ -69,6 +69,23 @@
                 </div>
             </div>
 
+            {% if user.ruolo in ('admin', 'global_fleet_manager') %}
+            <!-- Scadenziario Noleggi Autoveicoli -->
+            <div class="mb-4 p-3 bg-light rounded border border-warning">
+                <h5 class="fw-bold text-dark mb-2">
+                    <i class="bi bi-calendar-range text-warning me-2"></i>Scadenziario Noleggi Autoveicoli
+                </h5>
+                <p class="small text-muted mb-3">
+                    Monitora le scadenze dei veicoli a noleggio, visualizza alert per contratti in scadenza (&le; 90 gg) o scaduti, calcola la durata ed esporta i report in CSV.
+                </p>
+                <div class="d-flex gap-2">
+                    <a href="/admin/automezzi/noleggi" class="btn btn-warning text-dark w-100 fw-bold">
+                        <i class="bi bi-calendar-check me-1"></i> Vai allo Scadenziario Noleggi
+                    </a>
+                </div>
+            </div>
+            {% endif %}
+
             <!-- Vai a Registro Manutenzioni -->
             <div class="mb-4 p-3 bg-light rounded border">
                 <h5 class="fw-bold text-dark mb-2">
@@ -174,7 +191,7 @@
                         <input type="file" name="file" class="form-control" accept=".csv" required>
                         <div class="form-text mt-2" style="font-size: 0.75rem;">
                             Il file deve contenere l'intestazione con questi campi: <br>
-                            <code>targa</code>, <code>marca</code>, <code>modello</code>, <code>tipo</code>, <code>note</code>, <code>alimentazione</code>, <code>data_immatricolazione</code>, <code>proprieta</code>, <code>canone_noleggio</code>, <code>km_attuali</code>, <code>stato</code>, <code>sede_assegnata</code>, <code>sede_attuale</code>, <code>reparto_assegnato</code>, <code>fornitore</code>, <code>classe_euro</code>.
+                            <code>targa</code>, <code>marca</code>, <code>modello</code>, <code>tipo</code>, <code>note</code>, <code>alimentazione</code>, <code>data_immatricolazione</code>, <code>proprieta</code>, <code>canone_noleggio</code>, <code>data_inizio_noleggio</code>, <code>durata_noleggio_anni</code>, <code>km_attuali</code>, <code>stato</code>, <code>sede_assegnata</code>, <code>sede_attuale</code>, <code>reparto_assegnato</code>, <code>fornitore</code>, <code>classe_euro</code>.
                         </div>
                     </div>
 

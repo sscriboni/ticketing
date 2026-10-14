@@ -50,10 +50,15 @@
                 Prospetto generale del parco auto raggruppato per Sede Assegnata e per Servizio/Reparto Assegnato.
             </p>
         </div>
-        <div class="d-flex gap-2">
-            <a href="/admin/automezzi" class="btn btn-outline-primary btn-sm fw-bold">
-                <i class="bi bi-car-front me-1"></i> Elenco Automezzi
+        <div class="d-flex flex-wrap gap-2">
+            {% if user.ruolo in ['admin', 'global_fleet_manager'] %}
+            <button type="button" class="btn btn-primary btn-sm fw-bold shadow-sm" data-bs-toggle="modal" data-bs-target="#addVehicleModal">
+                <i class="bi bi-plus-circle-fill me-1"></i> Nuovo Veicolo
+            </button>
+            <a href="/admin/automezzi/noleggi" class="btn btn-outline-warning text-dark btn-sm fw-bold shadow-sm">
+                <i class="bi bi-calendar-check me-1"></i> Scadenziario Noleggi
             </a>
+            {% endif %}
             <a href="/autopark" class="btn btn-outline-secondary btn-sm">
                 <i class="bi bi-calendar3 me-1"></i> Prenotazioni
             </a>
@@ -198,6 +203,8 @@
                                                 data-immatricolazione="{{ v.data_immatricolazione or '' }}"
                                                 data-proprieta="{{ v.proprieta or '' }}"
                                                 data-canone="{{ v.canone_noleggio or 0 }}"
+                                                data-inizio-noleggio="{{ v.data_inizio_noleggio or '' }}"
+                                                data-durata-noleggio="{{ v.durata_noleggio_anni or 0 }}"
                                                 data-km="{{ v.km_attuali or 0 }}"
                                                 data-stato="{{ v.stato }}"
                                                 data-sede-ass-id="{{ v.sede_assegnata_id or '' }}"
@@ -213,6 +220,11 @@
                                     </td>
                                     <td>
                                         <strong>{{ v.marca_nome }} {{ v.modello }}</strong>
+                                        {% if v.proprieta == 'Noleggio' %}
+                                            <span class="badge bg-warning-subtle text-warning-emphasis border border-warning-subtle ms-1" style="font-size:0.72rem;" title="Veicolo a Noleggio{% if v.data_scadenza_noleggio %} - Scadenza: {{ v.data_scadenza_noleggio }}{% endif %}">
+                                                <i class="bi bi-clock-history me-1"></i>Noleggio{% if v.data_scadenza_noleggio %} (Scad. {{ v.data_scadenza_noleggio }}){% endif %}
+                                            </span>
+                                        {% endif %}
                                         {% if v.note %}<span class="text-muted small">({{ v.note }})</span>{% endif %}
                                         {% if v.tags %}
                                             <div class="d-flex flex-wrap gap-1 mt-1">
@@ -324,6 +336,8 @@
                                                 data-immatricolazione="{{ v.data_immatricolazione or '' }}"
                                                 data-proprieta="{{ v.proprieta or '' }}"
                                                 data-canone="{{ v.canone_noleggio or 0 }}"
+                                                data-inizio-noleggio="{{ v.data_inizio_noleggio or '' }}"
+                                                data-durata-noleggio="{{ v.durata_noleggio_anni or 0 }}"
                                                 data-km="{{ v.km_attuali or 0 }}"
                                                 data-stato="{{ v.stato }}"
                                                 data-sede-ass-id="{{ v.sede_assegnata_id or '' }}"
@@ -339,6 +353,11 @@
                                     </td>
                                     <td>
                                         <strong>{{ v.marca_nome }} {{ v.modello }}</strong>
+                                        {% if v.proprieta == 'Noleggio' %}
+                                            <span class="badge bg-warning-subtle text-warning-emphasis border border-warning-subtle ms-1" style="font-size:0.72rem;" title="Veicolo a Noleggio{% if v.data_scadenza_noleggio %} - Scadenza: {{ v.data_scadenza_noleggio }}{% endif %}">
+                                                <i class="bi bi-clock-history me-1"></i>Noleggio{% if v.data_scadenza_noleggio %} (Scad. {{ v.data_scadenza_noleggio }}){% endif %}
+                                            </span>
+                                        {% endif %}
                                         {% if v.note %}<span class="text-muted small">({{ v.note }})</span>{% endif %}
                                         {% if v.tags %}
                                             <div class="d-flex flex-wrap gap-1 mt-1">
@@ -456,20 +475,44 @@
                     </div>
                     
                     <div class="row g-3 mb-3">
-                        <div class="col-md-4">
+                        <div class="col-md-6">
                             <label class="form-label text-muted fw-bold">Data Immatricolazione</label>
                             <input type="date" class="form-control" name="data_immatricolazione" id="editDataImmatricolazione">
                         </div>
-                        <div class="col-md-4">
+                        <div class="col-md-6">
                             <label class="form-label text-muted fw-bold">Proprietà</label>
-                            <select class="form-select" name="proprieta" id="editProprieta" onchange="toggleEditCanone()">
+                            <select class="form-select" name="proprieta" id="editProprieta" onchange="toggleEditNoleggio()">
                                 <option value="Proprietà">Proprietà</option>
                                 <option value="Noleggio">Noleggio</option>
                             </select>
                         </div>
-                        <div class="col-md-4" id="editCanoneDiv" style="display: none;">
-                            <label class="form-label text-muted fw-bold">Canone Noleggio (€/mese)</label>
-                            <input type="number" step="0.01" class="form-control" name="canone_noleggio" id="editCanoneNoleggio">
+                    </div>
+                    
+                    <!-- Sezione Dettagli Noleggio -->
+                    <div id="editNoleggioDiv" class="p-3 mb-3 rounded-3 border bg-light" style="display: none;">
+                        <h6 class="fw-bold text-primary mb-3">
+                            <i class="bi bi-file-earmark-text me-1"></i> Parametri Contratto di Noleggio
+                        </h6>
+                        <div class="row g-3">
+                            <div class="col-md-4">
+                                <label class="form-label text-muted fw-bold small">Canone Mensile (€/mese)</label>
+                                <div class="input-group">
+                                    <span class="input-group-text bg-white">€</span>
+                                    <input type="number" step="0.01" class="form-control" name="canone_noleggio" id="editCanoneNoleggio">
+                                </div>
+                            </div>
+                            <div class="col-md-4">
+                                <label class="form-label text-muted fw-bold small">Data Inizio Noleggio</label>
+                                <input type="date" class="form-control" name="data_inizio_noleggio" id="editDataInizioNoleggio" onchange="updateEditScadenzaPreview()">
+                            </div>
+                            <div class="col-md-4">
+                                <label class="form-label text-muted fw-bold small">Durata Contratto (Anni)</label>
+                                <input type="number" min="1" max="10" step="1" class="form-control" name="durata_noleggio_anni" id="editDurataNoleggioAnni" placeholder="Es. 3, 4, 5" oninput="updateEditScadenzaPreview()">
+                            </div>
+                        </div>
+                        <div class="mt-2 text-muted small" id="editScadenzaPreviewDiv">
+                            <i class="bi bi-info-circle me-1 text-primary"></i>
+                            <span id="editScadenzaPreviewText">Compila data di inizio e durata in anni per calcolare la scadenza.</span>
                         </div>
                     </div>
                     
@@ -573,6 +616,188 @@
     </div>
 </div>
 
+{% if user.ruolo in ['admin', 'global_fleet_manager'] %}
+<!-- Modal Inserimento Nuovo Veicolo (Solo Admin & Global Fleet Manager) -->
+<div class="modal fade" id="addVehicleModal" tabindex="-1" aria-labelledby="addVehicleModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered modal-lg">
+        <div class="modal-content border-0 shadow-lg rounded-4">
+            <div class="modal-header bg-primary text-white rounded-top-4 py-3">
+                <h5 class="modal-title fw-bold" id="addVehicleModalLabel">
+                    <i class="bi bi-plus-circle-fill me-2"></i> Inserisci Nuovo Automezzo
+                </h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <form action="/veicolo/nuovo" method="POST">
+                <div class="modal-body p-4">
+                    <div class="row g-3 mb-3">
+                        <div class="col-md-4">
+                            <label class="form-label text-muted fw-bold">Targa *</label>
+                            <input type="text" class="form-control font-monospace fw-bold text-uppercase" name="targa" placeholder="Es. AA123BB" oninput="this.value = this.value.replace(/\s+/g, '').toUpperCase();" required>
+                        </div>
+                        <div class="col-md-4">
+                            <label class="form-label text-muted fw-bold">Marca *</label>
+                            <select class="form-select" name="marca_id" required>
+                                <option value="" selected disabled>-- Seleziona Marca --</option>
+                                {% for m in marche %}
+                                <option value="{{ m.marca_id }}">{{ m.nome }}</option>
+                                {% endfor %}
+                            </select>
+                        </div>
+                        <div class="col-md-4">
+                            <label class="form-label text-muted fw-bold">Modello *</label>
+                            <input type="text" class="form-control fw-bold" name="modello" placeholder="Es. Panda, Golf..." required>
+                        </div>
+                    </div>
+                    
+                    <div class="row g-3 mb-3">
+                        <div class="col-md-4">
+                            <label class="form-label text-muted fw-bold">Tipo *</label>
+                            <select class="form-select" name="tipo" required>
+                                <option value="auto">Auto</option>
+                                <option value="furgone">Furgone</option>
+                            </select>
+                        </div>
+                        <div class="col-md-4">
+                            <label class="form-label text-muted fw-bold">Note Operative</label>
+                            <input type="text" class="form-control" name="note" placeholder="Note operative...">
+                        </div>
+                        <div class="col-md-4">
+                            <label class="form-label text-muted fw-bold">Alimentazione *</label>
+                            <select class="form-select" name="alimentazione" required>
+                                <option value="B">B (Benzina)</option>
+                                <option value="B-GPL">B-GPL (Benzina GPL)</option>
+                                <option value="B-M">B-M (Benzina Metano)</option>
+                                <option value="E">E (Elettrica)</option>
+                                <option value="G" selected>G (Gasolio)</option>
+                            </select>
+                        </div>
+                    </div>
+                    
+                    <div class="row g-3 mb-3">
+                        <div class="col-md-4">
+                            <label class="form-label text-muted fw-bold">Data Immatricolazione</label>
+                            <input type="date" class="form-control" name="data_immatricolazione">
+                        </div>
+                        <div class="col-md-4">
+                            <label class="form-label text-muted fw-bold">Proprietà</label>
+                            <select class="form-select" name="proprieta" id="addProprieta" onchange="toggleAddNoleggio()">
+                                <option value="Proprietà" selected>Proprietà</option>
+                                <option value="Noleggio">Noleggio</option>
+                            </select>
+                        </div>
+                        <div class="col-md-4">
+                            <label class="form-label text-muted fw-bold">Fornitore / Leasing</label>
+                            <input type="text" class="form-control" name="fornitore" placeholder="Es. Arval / LeasePlan...">
+                        </div>
+                    </div>
+
+                    <!-- Sezione Noleggio per Nuovo Veicolo -->
+                    <div id="addNoleggioDiv" class="p-3 mb-3 rounded-3 border bg-light" style="display: none;">
+                        <h6 class="fw-bold text-primary mb-3">
+                            <i class="bi bi-file-earmark-text me-1"></i> Parametri Contratto di Noleggio
+                        </h6>
+                        <div class="row g-3">
+                            <div class="col-md-4">
+                                <label class="form-label text-muted fw-bold small">Canone Mensile (€/mese)</label>
+                                <div class="input-group">
+                                    <span class="input-group-text bg-white">€</span>
+                                    <input type="number" step="0.01" class="form-control" name="canone_noleggio" id="addCanoneNoleggio" value="0.00">
+                                </div>
+                            </div>
+                            <div class="col-md-4">
+                                <label class="form-label text-muted fw-bold small">Data Inizio Noleggio</label>
+                                <input type="date" class="form-control" name="data_inizio_noleggio" id="addDataInizioNoleggio" onchange="updateAddScadenzaPreview()">
+                            </div>
+                            <div class="col-md-4">
+                                <label class="form-label text-muted fw-bold small">Durata Contratto (Anni)</label>
+                                <input type="number" min="1" max="10" step="1" class="form-control" name="durata_noleggio_anni" id="addDurataNoleggioAnni" placeholder="Es. 3, 4, 5" oninput="updateAddScadenzaPreview()">
+                            </div>
+                        </div>
+                        <div class="mt-2 text-muted small" id="addScadenzaPreviewDiv">
+                            <i class="bi bi-info-circle me-1 text-primary"></i>
+                            <span id="addScadenzaPreviewText">Compila data di inizio e durata in anni per calcolare la scadenza.</span>
+                        </div>
+                    </div>
+
+                    <div class="row g-3 mb-3">
+                        <div class="col-md-6">
+                            <label class="form-label text-muted fw-bold">Contachilometri Iniziale (KM)</label>
+                            <input type="number" class="form-control font-monospace fw-bold" name="km_attuali" value="0" min="0" required>
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label text-muted fw-bold">Stato Iniziale</label>
+                            <select class="form-select fw-bold" name="stato" required>
+                                <option value="Disponibile" selected>Disponibile</option>
+                                <option value="In Uso">In Uso</option>
+                                <option value="In Manutenzione">In Manutenzione</option>
+                            </select>
+                        </div>
+                    </div>
+                    
+                    <div class="row g-3 mb-4">
+                        <div class="col-md-4">
+                            <label class="form-label text-muted fw-bold">Sede Assegnata *</label>
+                            <select class="form-select" name="sede_assegnata_id" required>
+                                <option value="" selected disabled>-- Seleziona Sede --</option>
+                                {% for s in sedi %}
+                                <option value="{{ s.sede_id }}">{{ s.nome }}</option>
+                                {% endfor %}
+                            </select>
+                        </div>
+                        <div class="col-md-4">
+                            <label class="form-label text-muted fw-bold">Sede Attuale (Logistica)</label>
+                            <select class="form-select" name="sede_attuale_id">
+                                <option value="">-- Uguale a Sede Assegnata --</option>
+                                {% for s in sedi %}
+                                <option value="{{ s.sede_id }}">{{ s.nome }}</option>
+                                {% endfor %}
+                            </select>
+                        </div>
+                        <div class="col-md-4">
+                            <label class="form-label text-muted fw-bold">Reparto / Servizio *</label>
+                            <select class="form-select" name="reparto_assegnato_id" required>
+                                <option value="" selected disabled>-- Seleziona Reparto --</option>
+                                {% for rep in reparti %}
+                                <option value="{{ rep.reparto_id }}">{{ rep.nome }}</option>
+                                {% endfor %}
+                            </select>
+                        </div>
+                    </div>
+
+                    <div class="row g-3 mb-3">
+                        <div class="col-md-6">
+                            <label class="form-label text-muted fw-bold">Classe Euro</label>
+                            <input type="text" class="form-control" name="classe_euro" placeholder="Es. Euro 6d-ISC-FCM">
+                        </div>
+                    </div>
+
+                    <!-- Tags -->
+                    <div class="mb-3">
+                        <label class="form-label text-muted fw-bold"><i class="bi bi-tags-fill me-1 text-primary"></i> Tag Automezzo Associati</label>
+                        <div class="d-flex flex-wrap gap-2 px-1">
+                            {% for tag in all_tags %}
+                            <div class="form-check form-check-inline border rounded px-3 py-1.5 bg-light mb-1 me-1">
+                                <input class="form-check-input" type="checkbox" name="tag_ids" value="{{ tag.tag_id }}" id="add_tag_{{ tag.tag_id }}">
+                                <label class="form-check-label fw-bold" for="add_tag_{{ tag.tag_id }}" style="color: {{ tag.colore or '#0d6efd' }}; font-size: 0.85rem;">
+                                    <i class="bi bi-tag-fill me-1"></i>{{ tag.nome }}
+                                </label>
+                            </div>
+                            {% endfor %}
+                        </div>
+                    </div>
+                </div>
+                <div class="modal-footer bg-light rounded-bottom-4 py-2.5 px-4">
+                    <button type="button" class="btn btn-secondary fw-semibold" data-bs-dismiss="modal">Annulla</button>
+                    <button type="submit" class="btn btn-primary px-4 fw-bold shadow-sm">
+                        <i class="bi bi-check-circle me-1"></i> Inserisci Veicolo
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+{% endif %}
+
 <script>
     document.addEventListener('DOMContentLoaded', function() {
         var searchInput = document.getElementById('dislocazioniSearch');
@@ -611,6 +836,8 @@
         document.getElementById('editDataImmatricolazione').value = btn.getAttribute('data-immatricolazione') || '';
         document.getElementById('editProprieta').value = btn.getAttribute('data-proprieta') || 'Proprietà';
         document.getElementById('editCanoneNoleggio').value = btn.getAttribute('data-canone') || '0';
+        document.getElementById('editDataInizioNoleggio').value = btn.getAttribute('data-inizio-noleggio') || '';
+        document.getElementById('editDurataNoleggioAnni').value = btn.getAttribute('data-durata-noleggio') || '';
         document.getElementById('editKmAttuali').value = btn.getAttribute('data-km') || '0';
         document.getElementById('editStato').value = btn.getAttribute('data-stato') || 'Disponibile';
         document.getElementById('editSedeAssegnataId').value = btn.getAttribute('data-sede-ass-id') || '';
@@ -640,18 +867,79 @@
             kmInput.disabled = true;
         }
 
-        toggleEditCanone();
+        toggleEditNoleggio();
+        updateEditScadenzaPreview();
 
         const modal = new bootstrap.Modal(document.getElementById('editVehicleModal'));
         modal.show();
     }
 
-    function toggleEditCanone() {
+    function toggleEditNoleggio() {
         const propEl = document.getElementById('editProprieta');
-        const div = document.getElementById('editCanoneDiv');
+        const div = document.getElementById('editNoleggioDiv');
         if (propEl && div) {
             div.style.display = (propEl.value === 'Noleggio') ? 'block' : 'none';
         }
+    }
+
+    function updateEditScadenzaPreview() {
+        const dIniStr = document.getElementById('editDataInizioNoleggio').value;
+        const durStr = document.getElementById('editDurataNoleggioAnni').value;
+        const previewEl = document.getElementById('editScadenzaPreviewText');
+        if (!previewEl) return;
+
+        if (dIniStr && durStr && parseInt(durStr) > 0) {
+            try {
+                const parts = dIniStr.split('-');
+                if (parts.length === 3) {
+                    const year = parseInt(parts[0]) + parseInt(durStr);
+                    const month = parts[1];
+                    let day = parts[2];
+                    if (month === '02' && day === '29') {
+                        const isLeap = (year % 4 === 0 && (year % 100 !== 0 || year % 400 === 0));
+                        if (!isLeap) day = '28';
+                    }
+                    const formattedDate = `${day}/${month}/${year}`;
+                    previewEl.innerHTML = `<span class="text-success fw-bold"><i class="bi bi-calendar-check me-1"></i>Data Scadenza Calcolata: ${formattedDate} (${year}-${month}-${day})</span>`;
+                    return;
+                }
+            } catch(e) {}
+        }
+        previewEl.textContent = 'Compila data di inizio e durata in anni per calcolare la scadenza.';
+    }
+
+    function toggleAddNoleggio() {
+        const propEl = document.getElementById('addProprieta');
+        const div = document.getElementById('addNoleggioDiv');
+        if (propEl && div) {
+            div.style.display = (propEl.value === 'Noleggio') ? 'block' : 'none';
+        }
+    }
+
+    function updateAddScadenzaPreview() {
+        const dIniStr = document.getElementById('addDataInizioNoleggio').value;
+        const durStr = document.getElementById('addDurataNoleggioAnni').value;
+        const previewEl = document.getElementById('addScadenzaPreviewText');
+        if (!previewEl) return;
+
+        if (dIniStr && durStr && parseInt(durStr) > 0) {
+            try {
+                const parts = dIniStr.split('-');
+                if (parts.length === 3) {
+                    const year = parseInt(parts[0]) + parseInt(durStr);
+                    const month = parts[1];
+                    let day = parts[2];
+                    if (month === '02' && day === '29') {
+                        const isLeap = (year % 4 === 0 && (year % 100 !== 0 || year % 400 === 0));
+                        if (!isLeap) day = '28';
+                    }
+                    const formattedDate = `${day}/${month}/${year}`;
+                    previewEl.innerHTML = `<span class="text-success fw-bold"><i class="bi bi-calendar-check me-1"></i>Data Scadenza Calcolata: ${formattedDate} (${year}-${month}-${day})</span>`;
+                    return;
+                }
+            } catch(e) {}
+        }
+        previewEl.textContent = 'Compila data di inizio e durata in anni per calcolare la scadenza.';
     }
 
     function toggleKmLock() {

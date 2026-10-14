@@ -43,6 +43,9 @@ with engine.begin() as conn:
             fornitore TEXT,
             classe_euro TEXT,
             escluso_prenotazione INTEGER DEFAULT 0,
+            data_inizio_noleggio TEXT,
+            durata_noleggio_anni INTEGER DEFAULT 0,
+            data_scadenza_noleggio TEXT,
             FOREIGN KEY(marca_id) REFERENCES marche_automezzi(marca_id)
         )
     """))
@@ -70,6 +73,21 @@ with engine.begin() as conn:
 
     try:
         conn.execute(text("ALTER TABLE automezzi ADD COLUMN posizione_parcheggio TEXT"))
+    except Exception:
+        pass
+
+    try:
+        conn.execute(text("ALTER TABLE automezzi ADD COLUMN data_inizio_noleggio TEXT"))
+    except Exception:
+        pass
+
+    try:
+        conn.execute(text("ALTER TABLE automezzi ADD COLUMN durata_noleggio_anni INTEGER DEFAULT 0"))
+    except Exception:
+        pass
+
+    try:
+        conn.execute(text("ALTER TABLE automezzi ADD COLUMN data_scadenza_noleggio TEXT"))
     except Exception:
         pass
     
@@ -400,6 +418,25 @@ def _get_tags_map_for_automezzi(conn):
         print(f"Error in _get_tags_map_for_automezzi: {e}")
         return {}
 
+
+def calcola_scadenza_noleggio(data_inizio_str: Optional[str], durata_anni: Optional[int]) -> Optional[str]:
+    if not data_inizio_str or not durata_anni:
+        return None
+    try:
+        durata = int(durata_anni)
+        if durata <= 0:
+            return None
+        d = datetime.datetime.strptime(data_inizio_str.strip(), "%Y-%m-%d").date()
+        try:
+            scadenza = d.replace(year=d.year + durata)
+        except ValueError:
+            # Gestione del 29 febbraio in anno non bisestile
+            scadenza = d.replace(year=d.year + durata, day=28)
+        return scadenza.strftime("%Y-%m-%d")
+    except Exception:
+        return None
+
+
 @router.get("/admin/automezzi/dislocazioni", response_class=HTMLResponse)
 def page_dislocazioni(r: Request):
     if "user" not in r.session: 
@@ -561,116 +598,9 @@ def page_dislocazioni(r: Request):
         "user_reparto_id": user_reparto_id
     })
 
-@router.get("/admin/automezzi", response_class=HTMLResponse)
-def list_automezzi(r: Request):
-    if "user" not in r.session: 
-        return RedirectResponse(url="/login")
-    user = r.session.get("user")
-    if user.get("ruolo") not in ("admin", "fleet_manager", "global_fleet_manager"):
-        return RedirectResponse(url="/")
-    
-    user_reparto_id = None
-    with engine.connect() as conn:
-        if user.get("ruolo") == "fleet_manager":
-            user_reparto_id = conn.execute(text("SELECT reparto_id FROM users WHERE user_id = :uid"), {"uid": user.get("id")}).scalar()
-
-        # Fetch automezzi
-        if user.get("ruolo") == "fleet_manager" and user_reparto_id is not None:
-            automezzi = conn.execute(text("""
-                SELECT a.*, 
-                       m.nome as marca_nome,
-                       s_ass.nome as sede_assegnata_nome, 
-                       s_att.nome as sede_attuale_nome, 
-                       r.nome as reparto_assegnato_nome
-                FROM automezzi a
-                JOIN marche_automezzi m ON a.marca_id = m.marca_id
-                LEFT JOIN sedi s_ass ON a.sede_assegnata_id = s_ass.sede_id
-                LEFT JOIN sedi s_att ON a.sede_attuale_id = s_att.sede_id
-                LEFT JOIN reparti r ON a.reparto_assegnato_id = r.reparto_id
-                WHERE a.reparto_assegnato_id = :rep
-                ORDER BY a.automezzo_id DESC
-            """), {"rep": user_reparto_id}).mappings().all()
-        else:
-            automezzi = conn.execute(text("""
-                SELECT a.*, 
-                       m.nome as marca_nome,
-                       s_ass.nome as sede_assegnata_nome, 
-                       s_att.nome as sede_attuale_nome, 
-                       r.nome as reparto_assegnato_nome
-                FROM automezzi a
-                JOIN marche_automezzi m ON a.marca_id = m.marca_id
-                LEFT JOIN sedi s_ass ON a.sede_assegnata_id = s_ass.sede_id
-                LEFT JOIN sedi s_att ON a.sede_attuale_id = s_att.sede_id
-                LEFT JOIN reparti r ON a.reparto_assegnato_id = r.reparto_id
-                ORDER BY a.automezzo_id DESC
-            """)).mappings().all()
-        
-        # Fetch sedi
-        sedi = conn.execute(text("SELECT sede_id, nome FROM sedi ORDER BY nome")).mappings().all()
-        
-        # Fetch reparti
-        reparti = conn.execute(text("SELECT reparto_id, nome FROM reparti ORDER BY nome")).mappings().all()
-        
-        # Fetch marche
-        marche = conn.execute(text("SELECT marca_id, nome FROM marche_automezzi ORDER BY nome")).mappings().all()
-
-        # Fetch tipi manutenzione
-        tipi_manutenzione_mappings = conn.execute(text("SELECT * FROM tipi_manutenzione ORDER BY nome")).mappings().all()
-        tipi_manutenzione = [dict(t) for t in tipi_manutenzione_mappings]
-
-        # Fetch associations
-        assoc = conn.execute(text("SELECT automezzo_id, tipo_manutenzione_id, data_inizio_calcolo, km_partenza_calcolo FROM automezzi_tipi_manutenzione")).mappings().all()
-        veicolo_tipi = {}
-        veicolo_tipi_dati = {}
-        for row in assoc:
-            aid = row["automezzo_id"]
-            tid = row["tipo_manutenzione_id"]
-            if aid not in veicolo_tipi:
-                veicolo_tipi[aid] = []
-                veicolo_tipi_dati[aid] = {}
-            veicolo_tipi[aid].append(tid)
-            veicolo_tipi_dati[aid][tid] = {
-                "data_inizio": row["data_inizio_calcolo"],
-                "km_partenza": row["km_partenza_calcolo"]
-            }
-
-        # Fetch tag_automezzi
-        all_tags = [dict(t) for t in conn.execute(text("SELECT * FROM tag_automezzi ORDER BY nome")).mappings().all()]
-        tags_map = _get_tags_map_for_automezzi(conn)
-
-        # Convert automezzi to dicts and attach types and tags
-        veicoli_list = []
-        oggi = datetime.date.today()
-        for row in automezzi:
-            v_dict = dict(row)
-            v_dict["tipi_manutenzione_ids"] = veicolo_tipi.get(v_dict["automezzo_id"], [])
-            v_dict["tipi_manutenzione_dati"] = veicolo_tipi_dati.get(v_dict["automezzo_id"], {})
-            v_dict["tags"] = tags_map.get(v_dict["automezzo_id"], [])
-            v_dict["tag_ids"] = [t["tag_id"] for t in v_dict["tags"]]
-            
-            v_dict["anzianita_anni"] = None
-            if v_dict.get("data_immatricolazione"):
-                try:
-                    d_imm = datetime.datetime.strptime(v_dict["data_immatricolazione"], "%Y-%m-%d").date()
-                    anni = oggi.year - d_imm.year - ((oggi.month, oggi.day) < (d_imm.month, d_imm.day))
-                    v_dict["anzianita_anni"] = anni
-                except Exception:
-                    pass
-                    
-            veicoli_list.append(v_dict)
-
-    return templates.TemplateResponse(r, "appautopark.html", {
-        "request": r,
-        "cfg": CFG,
-        "user": user,
-        "veicoli": veicoli_list,
-        "sedi": sedi,
-        "reparti": reparti,
-        "marche": marche,
-        "tipi_manutenzione": tipi_manutenzione,
-        "all_tags": all_tags,
-        "user_reparto_id": user_reparto_id
-    })
+@router.get("/admin/automezzi")
+def list_automezzi():
+    return RedirectResponse(url="/admin/automezzi/dislocazioni", status_code=302)
 
 @router.get("/admin/automezzi/esporta/csv")
 def export_automezzi_csv(r: Request):
@@ -722,8 +652,9 @@ def export_automezzi_csv(r: Request):
     writer.writerow([
         "ID", "Targa", "Marca", "Modello", "Tipo", "Note", "Alimentazione",
         "Km Attuali", "Classe Euro", "Data Immatricolazione", "Proprietà",
-        "Società Noleggio", "Canone Noleggio (€)", "Sede Assegnata", "Sede Attuale",
-        "Reparto Assegnato", "Stato", "Escluso Prenotazione"
+        "Società Noleggio / Fornitore", "Canone Noleggio (€)", "Data Inizio Noleggio",
+        "Durata Noleggio (Anni)", "Data Scadenza Noleggio",
+        "Sede Assegnata", "Sede Attuale", "Reparto Assegnato", "Stato", "Escluso Prenotazione"
     ])
 
     for v in automezzi:
@@ -743,14 +674,16 @@ def export_automezzi_csv(r: Request):
             v_dict.get("classe_euro", "") or "",
             v_dict.get("data_immatricolazione", "") or "",
             v_dict.get("proprieta", "") or "",
-            v_dict.get("societa_noleggio", "") or "",
+            v_dict.get("fornitore", "") or v_dict.get("societa_noleggio", "") or "",
             v_dict.get("canone_noleggio", 0) or 0,
+            v_dict.get("data_inizio_noleggio", "") or "",
+            v_dict.get("durata_noleggio_anni", 0) or 0,
+            v_dict.get("data_scadenza_noleggio", "") or "",
             v_dict.get("sede_assegnata_nome", "") or "",
             v_dict.get("sede_attuale_nome", "") or "",
             v_dict.get("reparto_assegnato_nome", "") or "",
             v_dict.get("stato", "") or "",
-            escluso_str,
-            v_dict.get("note", "") or ""
+            escluso_str
         ])
 
     today_str = datetime.date.today().strftime("%Y%m%d")
@@ -760,6 +693,302 @@ def export_automezzi_csv(r: Request):
         media_type="text/csv; charset=utf-8",
         headers={"Content-Disposition": f"attachment; filename={filename}"}
     )
+
+
+@router.get("/admin/automezzi/noleggi", response_class=HTMLResponse)
+def page_scadenziario_noleggi(
+    r: Request,
+    q: Optional[str] = None,
+    stato: Optional[str] = None,
+    sede_id: Optional[int] = None,
+    reparto_id: Optional[int] = None,
+    sort_by: Optional[str] = "scadenza",
+    sort_dir: Optional[str] = "asc"
+):
+    if "user" not in r.session:
+        return RedirectResponse(url="/login")
+    user = r.session.get("user")
+    if user.get("ruolo") not in ("admin", "global_fleet_manager"):
+        return RedirectResponse(url="/admin/automezzi/dislocazioni?error=Accesso+riservato+ad+Amministratori+e+Global+Fleet+Manager")
+
+    oggi = datetime.date.today()
+    q_str = (q or "").strip().lower()
+    stato_filter = (stato or "").strip()
+
+    with engine.connect() as conn:
+        automezzi_raw = conn.execute(text("""
+            SELECT a.*, 
+                   m.nome as marca_nome,
+                   s_ass.nome as sede_assegnata_nome, 
+                   s_att.nome as sede_attuale_nome, 
+                   r.nome as reparto_assegnato_nome
+            FROM automezzi a
+            JOIN marche_automezzi m ON a.marca_id = m.marca_id
+            LEFT JOIN sedi s_ass ON a.sede_assegnata_id = s_ass.sede_id
+            LEFT JOIN sedi s_att ON a.sede_attuale_id = s_att.sede_id
+            LEFT JOIN reparti r ON a.reparto_assegnato_id = r.reparto_id
+            WHERE a.proprieta = 'Noleggio'
+            ORDER BY a.targa ASC
+        """)).mappings().all()
+
+        sedi = conn.execute(text("SELECT sede_id, nome FROM sedi ORDER BY nome")).mappings().all()
+        reparti = conn.execute(text("SELECT reparto_id, nome FROM reparti ORDER BY nome")).mappings().all()
+        marche = conn.execute(text("SELECT marca_id, nome FROM marche_automezzi ORDER BY nome")).mappings().all()
+        all_tags = [dict(t) for t in conn.execute(text("SELECT * FROM tag_automezzi ORDER BY nome")).mappings().all()]
+        tags_map = _get_tags_map_for_automezzi(conn)
+
+    all_noleggi = []
+    totale_spesa_mensile = 0.0
+
+    for row in automezzi_raw:
+        item = dict(row)
+        item["tags"] = tags_map.get(item["automezzo_id"], [])
+        item["tag_ids"] = [t["tag_id"] for t in item["tags"]]
+        canone = float(item.get("canone_noleggio") or 0.0)
+        item["canone_noleggio_val"] = canone
+        totale_spesa_mensile += canone
+
+        # Calcolo o riallineamento data di scadenza
+        d_scad_str = item.get("data_scadenza_noleggio")
+        d_ini_str = item.get("data_inizio_noleggio")
+        dur_anni = item.get("durata_noleggio_anni")
+
+        if not d_scad_str and d_ini_str and dur_anni:
+            d_scad_str = calcola_scadenza_noleggio(d_ini_str, dur_anni)
+            item["data_scadenza_noleggio"] = d_scad_str
+
+        giorni_rim = None
+        stato_scad = "Non Definito"
+        stato_badge = "secondary"
+        tempo_label = "Date non specificate"
+
+        if d_scad_str:
+            try:
+                d_scad = datetime.datetime.strptime(d_scad_str.strip(), "%Y-%m-%d").date()
+                giorni_rim = (d_scad - oggi).days
+                if giorni_rim < 0:
+                    stato_scad = "Scaduto"
+                    stato_badge = "danger"
+                    giorni_fa = abs(giorni_rim)
+                    tempo_label = f"Scaduto da {giorni_fa} {'giorno' if giorni_fa == 1 else 'giorni'}"
+                elif giorni_rim <= 90:
+                    stato_scad = "In Scadenza"
+                    stato_badge = "warning"
+                    tempo_label = f"Scade tra {giorni_rim} {'giorno' if giorni_rim == 1 else 'giorni'}"
+                else:
+                    stato_scad = "Regolare"
+                    stato_badge = "success"
+                    if giorni_rim >= 365:
+                        anni = round(giorni_rim / 365.25, 1)
+                        tempo_label = f"Scade tra {anni} anni ({giorni_rim} gg)"
+                    else:
+                        mesi = max(1, round(giorni_rim / 30.4))
+                        tempo_label = f"Scade tra ~{mesi} mesi ({giorni_rim} gg)"
+            except Exception:
+                stato_scad = "Non Definito"
+                stato_badge = "secondary"
+                tempo_label = "Data non valida"
+
+        item["giorni_rimanenti"] = giorni_rim
+        item["stato_scadenza"] = stato_scad
+        item["stato_badge"] = stato_badge
+        item["tempo_label"] = tempo_label
+
+        all_noleggi.append(item)
+
+    # Calcolo KPI prima del filtraggio
+    totale_noleggi = len(all_noleggi)
+    totale_regolari = sum(1 for v in all_noleggi if v["stato_scadenza"] == "Regolare")
+    totale_in_scadenza = sum(1 for v in all_noleggi if v["stato_scadenza"] == "In Scadenza")
+    totale_scaduti = sum(1 for v in all_noleggi if v["stato_scadenza"] == "Scaduto")
+    totale_non_definiti = sum(1 for v in all_noleggi if v["stato_scadenza"] == "Non Definito")
+    totale_spesa_annua = totale_spesa_mensile * 12
+
+    # Applicazione filtri
+    filtered = []
+    for v in all_noleggi:
+        if q_str:
+            targa_norm = (v.get("targa") or "").lower().replace(" ", "").replace("-", "")
+            q_norm = q_str.replace(" ", "").replace("-", "")
+            marca_mod = f"{v.get('marca_nome', '')} {v.get('modello', '')}".lower()
+            fornitore = (v.get("fornitore") or "").lower()
+            note = (v.get("note") or "").lower()
+            if q_norm not in targa_norm and q_str not in marca_mod and q_str not in fornitore and q_str not in note:
+                continue
+
+        if stato_filter and v["stato_scadenza"] != stato_filter:
+            continue
+
+        if sede_id and v.get("sede_assegnata_id") != sede_id and v.get("sede_attuale_id") != sede_id:
+            continue
+
+        if reparto_id and v.get("reparto_assegnato_id") != reparto_id:
+            continue
+
+        filtered.append(v)
+
+    # Ordinamento
+    reverse_sort = (sort_dir.lower() == "desc") if sort_dir else False
+    if sort_by == "scadenza":
+        filtered.sort(
+            key=lambda x: (x.get("giorni_rimanenti") is None, x.get("giorni_rimanenti") if x.get("giorni_rimanenti") is not None else 999999),
+            reverse=reverse_sort
+        )
+    elif sort_by == "canone":
+        filtered.sort(key=lambda x: x.get("canone_noleggio_val", 0.0), reverse=reverse_sort)
+    elif sort_by == "targa":
+        filtered.sort(key=lambda x: (x.get("targa") or "").lower(), reverse=reverse_sort)
+    elif sort_by == "veicolo":
+        filtered.sort(key=lambda x: f"{x.get('marca_nome', '')} {x.get('modello', '')}".lower(), reverse=reverse_sort)
+    elif sort_by == "fornitore":
+        filtered.sort(key=lambda x: (x.get("fornitore") or "").lower(), reverse=reverse_sort)
+
+    stats = {
+        "totale_noleggi": totale_noleggi,
+        "totale_regolari": totale_regolari,
+        "totale_in_scadenza": totale_in_scadenza,
+        "totale_scaduti": totale_scaduti,
+        "totale_non_definiti": totale_non_definiti,
+        "totale_spesa_mensile": totale_spesa_mensile,
+        "totale_spesa_annua": totale_spesa_annua
+    }
+
+    return templates.TemplateResponse(r, "admin_automezzi_scadenziario_noleggi.html", {
+        "request": r,
+        "cfg": CFG,
+        "user": user,
+        "veicoli": filtered,
+        "stats": stats,
+        "sedi": sedi,
+        "reparti": reparti,
+        "marche": marche,
+        "all_tags": all_tags,
+        "filters": {
+            "q": q or "",
+            "stato": stato or "",
+            "sede_id": sede_id,
+            "reparto_id": reparto_id,
+            "sort_by": sort_by or "scadenza",
+            "sort_dir": sort_dir or "asc"
+        }
+    })
+
+
+@router.get("/admin/automezzi/noleggi/esporta/csv")
+def export_scadenziario_noleggi_csv(
+    r: Request,
+    q: Optional[str] = None,
+    stato: Optional[str] = None,
+    sede_id: Optional[int] = None,
+    reparto_id: Optional[int] = None
+):
+    if "user" not in r.session:
+        return RedirectResponse(url="/login")
+    user = r.session.get("user")
+    if user.get("ruolo") not in ("admin", "global_fleet_manager"):
+        return RedirectResponse(url="/admin/automezzi/dislocazioni")
+
+    oggi = datetime.date.today()
+    q_str = (q or "").strip().lower()
+    stato_filter = (stato or "").strip()
+
+    with engine.connect() as conn:
+        automezzi_raw = conn.execute(text("""
+            SELECT a.*, 
+                   m.nome as marca_nome,
+                   s_ass.nome as sede_assegnata_nome, 
+                   s_att.nome as sede_attuale_nome, 
+                   r.nome as reparto_assegnato_nome
+            FROM automezzi a
+            JOIN marche_automezzi m ON a.marca_id = m.marca_id
+            LEFT JOIN sedi s_ass ON a.sede_assegnata_id = s_ass.sede_id
+            LEFT JOIN sedi s_att ON a.sede_attuale_id = s_att.sede_id
+            LEFT JOIN reparti r ON a.reparto_assegnato_id = r.reparto_id
+            WHERE a.proprieta = 'Noleggio'
+            ORDER BY a.targa ASC
+        """)).mappings().all()
+
+    output = io.StringIO()
+    output.write('\ufeff')
+    writer = csv.writer(output, delimiter=';')
+
+    writer.writerow([
+        "Targa", "Marca", "Modello", "Tipo", "Sede Assegnata", "Sede Attuale", "Reparto Assegnato",
+        "Società Noleggio / Fornitore", "Canone Noleggio (€/mese)", "Data Inizio Noleggio",
+        "Durata (Anni)", "Data Scadenza Noleggio", "Giorni Rimanenti", "Stato Scadenza", "Km Attuali", "Note"
+    ])
+
+    for row in automezzi_raw:
+        v = dict(row)
+        d_scad_str = v.get("data_scadenza_noleggio")
+        d_ini_str = v.get("data_inizio_noleggio")
+        dur_anni = v.get("durata_noleggio_anni")
+
+        if not d_scad_str and d_ini_str and dur_anni:
+            d_scad_str = calcola_scadenza_noleggio(d_ini_str, dur_anni)
+
+        giorni_rim = None
+        stato_scad = "Non Definito"
+
+        if d_scad_str:
+            try:
+                d_scad = datetime.datetime.strptime(d_scad_str.strip(), "%Y-%m-%d").date()
+                giorni_rim = (d_scad - oggi).days
+                if giorni_rim < 0:
+                    stato_scad = "Scaduto"
+                elif giorni_rim <= 90:
+                    stato_scad = "In Scadenza"
+                else:
+                    stato_scad = "Regolare"
+            except Exception:
+                stato_scad = "Non Definito"
+
+        if q_str:
+            targa_norm = (v.get("targa") or "").lower().replace(" ", "").replace("-", "")
+            q_norm = q_str.replace(" ", "").replace("-", "")
+            marca_mod = f"{v.get('marca_nome', '')} {v.get('modello', '')}".lower()
+            fornitore = (v.get("fornitore") or "").lower()
+            if q_norm not in targa_norm and q_str not in marca_mod and q_str not in fornitore:
+                continue
+
+        if stato_filter and stato_scad != stato_filter:
+            continue
+
+        if sede_id and v.get("sede_assegnata_id") != sede_id and v.get("sede_attuale_id") != sede_id:
+            continue
+
+        if reparto_id and v.get("reparto_assegnato_id") != reparto_id:
+            continue
+
+        tipo_str = "Auto" if v.get("tipo") == "auto" else "Furgone" if v.get("tipo") == "furgone" else (v.get("tipo") or "")
+
+        writer.writerow([
+            v.get("targa", ""),
+            v.get("marca_nome", ""),
+            v.get("modello", ""),
+            tipo_str,
+            v.get("sede_assegnata_nome", "") or "",
+            v.get("sede_attuale_nome", "") or "",
+            v.get("reparto_assegnato_nome", "") or "",
+            v.get("fornitore", "") or "",
+            v.get("canone_noleggio", 0) or 0,
+            v.get("data_inizio_noleggio", "") or "",
+            v.get("durata_noleggio_anni", 0) or "",
+            d_scad_str or "",
+            giorni_rim if giorni_rim is not None else "",
+            stato_scad,
+            v.get("km_attuali", 0) or 0,
+            v.get("note", "") or ""
+        ])
+
+    today_str = datetime.date.today().strftime("%Y%m%d")
+    filename = f"scadenziario_noleggi_{today_str}.csv"
+    return Response(
+        content=output.getvalue(),
+        media_type="text/csv; charset=utf-8",
+        headers={"Content-Disposition": f"attachment; filename={filename}"}
+    )
+
 
 @router.post("/veicolo/nuovo")
 async def add_vehicle(
@@ -773,6 +1002,8 @@ async def add_vehicle(
     data_immatricolazione: str = Form(None),
     proprieta: str = Form(None),
     canone_noleggio: float = Form(0.0),
+    data_inizio_noleggio: str = Form(None),
+    durata_noleggio_anni: int = Form(None),
     km_attuali: int = Form(0),
     stato: str = Form("Disponibile"),
     sede_assegnata_id: int = Form(None),
@@ -786,65 +1017,92 @@ async def add_vehicle(
     if "user" not in r.session:
         return RedirectResponse(url="/login", status_code=303)
     user = r.session.get("user")
-    if user.get("ruolo") not in ("admin", "fleet_manager", "global_fleet_manager"):
-        return RedirectResponse(url="/", status_code=303)
+    if user.get("ruolo") not in ("admin", "global_fleet_manager"):
+        return RedirectResponse(url="/admin/automezzi/dislocazioni?error=Solo+i+Global+Fleet+Manager+possono+inserire+nuovi+veicoli", status_code=303)
         
     clean_targa = targa.strip().upper()
     norm_targa = clean_targa.replace(" ", "").replace("-", "")
 
-    with engine.begin() as conn:
-        if user.get("ruolo") == "fleet_manager":
-            user_rep_id = conn.execute(text("SELECT reparto_id FROM users WHERE user_id = :uid"), {"uid": user.get("id")}).scalar()
-            if user_rep_id:
-                reparto_assegnato_id = user_rep_id
+    clean_data_inizio_noleggio = None
+    clean_durata_noleggio = 0
+    data_scad_noleggio = None
+    if proprieta == "Noleggio":
+        clean_data_inizio_noleggio = data_inizio_noleggio.strip() if data_inizio_noleggio and isinstance(data_inizio_noleggio, str) and data_inizio_noleggio.strip() else None
+        try:
+            clean_durata_noleggio = int(durata_noleggio_anni) if durata_noleggio_anni and int(durata_noleggio_anni) > 0 else 0
+        except (ValueError, TypeError):
+            clean_durata_noleggio = 0
+        data_scad_noleggio = calcola_scadenza_noleggio(clean_data_inizio_noleggio, clean_durata_noleggio)
+    else:
+        canone_noleggio = 0.0
 
+    clean_sede_ass = sede_assegnata_id if isinstance(sede_assegnata_id, int) else None
+    clean_sede_att = sede_attuale_id if isinstance(sede_attuale_id, int) else clean_sede_ass
+    clean_rep_ass = reparto_assegnato_id if isinstance(reparto_assegnato_id, int) else None
+
+    try:
+        clean_canone = float(canone_noleggio) if canone_noleggio else 0.0
+    except (ValueError, TypeError):
+        clean_canone = 0.0
+
+    try:
+        clean_km = int(km_attuali) if km_attuali else 0
+    except (ValueError, TypeError):
+        clean_km = 0
+
+    with engine.begin() as conn:
         # Duplicate targa check before inserting
         dup = conn.execute(text("""
             SELECT automezzo_id FROM automezzi
             WHERE UPPER(REPLACE(REPLACE(targa, ' ', ''), '-', '')) = :targa
         """), {"targa": norm_targa}).scalar()
         if dup:
-            return RedirectResponse(url=f"/admin/automezzi?error=Impossibile+creare+il+veicolo:+la+targa+{clean_targa}+è+già+presente+in+archivio", status_code=303)
+            return RedirectResponse(url=f"/admin/automezzi/dislocazioni?error=Impossibile+creare+il+veicolo:+la+targa+{clean_targa}+è+già+presente+in+archivio", status_code=303)
 
         try:
             conn.execute(text("""
                 INSERT INTO automezzi (
                     targa, marca_id, modello, tipo, note, alimentazione, data_immatricolazione, 
-                    proprieta, canone_noleggio, km_attuali, stato, 
+                    proprieta, canone_noleggio, data_inizio_noleggio, durata_noleggio_anni, data_scadenza_noleggio,
+                    km_attuali, stato, 
                     sede_assegnata_id, sede_attuale_id, reparto_assegnato_id,
                     fornitore, classe_euro
                 ) VALUES (
                     :targa, :marca_id, :modello, :tipo, :note, :alimentazione, :data_immatricolazione, 
-                    :proprieta, :canone_noleggio, :km_attuali, :stato, 
+                    :proprieta, :canone_noleggio, :data_inizio_noleggio, :durata_noleggio_anni, :data_scadenza_noleggio,
+                    :km_attuali, :stato, 
                     :sede_assegnata_id, :sede_attuale_id, :reparto_assegnato_id,
                     :fornitore, :classe_euro
                 )
             """), {
                 "targa": clean_targa,
                 "marca_id": marca_id,
-                "modello": modello.strip(),
-                "tipo": tipo,
-                "note": note.strip() if note else None,
-                "alimentazione": alimentazione.strip() if alimentazione else None,
-                "data_immatricolazione": data_immatricolazione if data_immatricolazione else None,
-                "proprieta": proprieta,
-                "canone_noleggio": canone_noleggio,
-                "km_attuali": km_attuali,
-                "stato": stato,
-                "sede_assegnata_id": sede_assegnata_id,
-                "sede_attuale_id": sede_attuale_id if sede_attuale_id else sede_assegnata_id,
-                "reparto_assegnato_id": reparto_assegnato_id,
-                "fornitore": fornitore.strip() if fornitore else None,
-                "classe_euro": classe_euro.strip() if classe_euro else None
+                "modello": modello.strip() if isinstance(modello, str) else str(modello),
+                "tipo": tipo if isinstance(tipo, str) else "Auto",
+                "note": note.strip() if note and isinstance(note, str) else None,
+                "alimentazione": alimentazione.strip() if alimentazione and isinstance(alimentazione, str) else None,
+                "data_immatricolazione": data_immatricolazione if data_immatricolazione and isinstance(data_immatricolazione, str) else None,
+                "proprieta": proprieta if isinstance(proprieta, str) else "Proprietà",
+                "canone_noleggio": clean_canone,
+                "data_inizio_noleggio": clean_data_inizio_noleggio,
+                "durata_noleggio_anni": clean_durata_noleggio,
+                "data_scadenza_noleggio": data_scad_noleggio,
+                "km_attuali": clean_km,
+                "stato": stato if isinstance(stato, str) else "Disponibile",
+                "sede_assegnata_id": clean_sede_ass,
+                "sede_attuale_id": clean_sede_att,
+                "reparto_assegnato_id": clean_rep_ass,
+                "fornitore": fornitore.strip() if fornitore and isinstance(fornitore, str) else None,
+                "classe_euro": classe_euro.strip() if classe_euro and isinstance(classe_euro, str) else None
             })
         except IntegrityError:
-            return RedirectResponse(url=f"/admin/automezzi?error=Attenzione:+la+targa+{clean_targa}+è+già+presente+in+archivio", status_code=303)
+            return RedirectResponse(url=f"/admin/automezzi/dislocazioni?error=Attenzione:+la+targa+{clean_targa}+è+già+presente+in+archivio", status_code=303)
         
         # Save associated maintenance types
         new_id = get_last_inserted_id(conn)
         registra_storico_km(conn, new_id, km_attuali, "Manuale", user_id=user.get("id"), note="Inserimento Veicolo Iniziale")
 
-        if tipi_manutenzione_ids:
+        if tipi_manutenzione_ids and isinstance(tipi_manutenzione_ids, (list, tuple)):
             form_data = await r.form()
             for tid in tipi_manutenzione_ids:
                 d_inizio = form_data.get(f"data_inizio_{tid}")
@@ -859,14 +1117,14 @@ async def add_vehicle(
                 """), {"aid": new_id, "tid": int(tid), "din": din, "kmp": kmp})
 
         # Save associated tags
-        if tag_ids:
+        if tag_ids and isinstance(tag_ids, (list, tuple)):
             for tid in tag_ids:
                 try:
                     conn.execute(text("INSERT INTO automezzi_tag (automezzo_id, tag_id) VALUES (:aid, :tid)"), {"aid": new_id, "tid": int(tid)})
                 except Exception:
                     pass
                 
-    return RedirectResponse(url="/admin/automezzi", status_code=303)
+    return RedirectResponse(url="/admin/automezzi/dislocazioni", status_code=303)
 
 @router.post("/veicolo/modifica/{id}")
 async def edit_vehicle(
@@ -881,6 +1139,8 @@ async def edit_vehicle(
     data_immatricolazione: str = Form(None),
     proprieta: str = Form(None),
     canone_noleggio: float = Form(0.0),
+    data_inizio_noleggio: str = Form(None),
+    durata_noleggio_anni: int = Form(None),
     km_attuali: int = Form(0),
     stato: str = Form(...),
     sede_assegnata_id: int = Form(None),
@@ -900,12 +1160,22 @@ async def edit_vehicle(
     clean_targa = targa.strip().upper()
     norm_targa = clean_targa.replace(" ", "").replace("-", "")
 
+    clean_data_inizio_noleggio = None
+    clean_durata_noleggio = 0
+    data_scad_noleggio = None
+    if proprieta == "Noleggio":
+        clean_data_inizio_noleggio = data_inizio_noleggio.strip() if data_inizio_noleggio and data_inizio_noleggio.strip() else None
+        clean_durata_noleggio = int(durata_noleggio_anni) if durata_noleggio_anni and int(durata_noleggio_anni) > 0 else 0
+        data_scad_noleggio = calcola_scadenza_noleggio(clean_data_inizio_noleggio, clean_durata_noleggio)
+    else:
+        canone_noleggio = 0.0
+
     with engine.begin() as conn:
         if user.get("ruolo") == "fleet_manager":
             user_rep_id = conn.execute(text("SELECT reparto_id FROM users WHERE user_id = :uid"), {"uid": user.get("id")}).scalar()
             target_rep = conn.execute(text("SELECT reparto_assegnato_id FROM automezzi WHERE automezzo_id = :id"), {"id": id}).scalar()
             if target_rep != user_rep_id:
-                return RedirectResponse(url="/admin/automezzi?error=Non+hai+i+permessi+per+modificare+questo+veicolo", status_code=303)
+                return RedirectResponse(url="/admin/automezzi/dislocazioni?error=Non+hai+i+permessi+per+modificare+questo+veicolo", status_code=303)
             if user_rep_id:
                 reparto_assegnato_id = user_rep_id
 
@@ -916,7 +1186,7 @@ async def edit_vehicle(
               AND automezzo_id != :id
         """), {"targa": norm_targa, "id": id}).scalar()
         if dup:
-            return RedirectResponse(url=f"/admin/automezzi?error=Impossibile+salvare:+la+targa+{clean_targa}+appartiene+già+ad+un+altro+veicolo+in+archivio", status_code=303)
+            return RedirectResponse(url=f"/admin/automezzi/dislocazioni?error=Impossibile+salvare:+la+targa+{clean_targa}+appartiene+già+ad+un+altro+veicolo+in+archivio", status_code=303)
 
         old_km = conn.execute(text("SELECT km_attuali FROM automezzi WHERE automezzo_id = :id"), {"id": id}).scalar() or 0
 
@@ -932,6 +1202,9 @@ async def edit_vehicle(
                     data_immatricolazione = :data_immatricolazione,
                     proprieta = :proprieta,
                     canone_noleggio = :canone_noleggio,
+                    data_inizio_noleggio = :data_inizio_noleggio,
+                    durata_noleggio_anni = :durata_noleggio_anni,
+                    data_scadenza_noleggio = :data_scadenza_noleggio,
                     km_attuali = :km_attuali,
                     stato = :stato,
                     sede_assegnata_id = :sede_assegnata_id,
@@ -944,20 +1217,23 @@ async def edit_vehicle(
                 "id": id,
                 "targa": clean_targa,
                 "marca_id": marca_id,
-                "modello": modello.strip(),
-                "tipo": tipo,
-                "note": note.strip() if note else None,
-                "alimentazione": alimentazione.strip() if alimentazione else None,
-                "data_immatricolazione": data_immatricolazione if data_immatricolazione else None,
-                "proprieta": proprieta,
-                "canone_noleggio": canone_noleggio,
-                "km_attuali": km_attuali,
-                "stato": stato,
-                "sede_assegnata_id": sede_assegnata_id,
-                "sede_attuale_id": sede_attuale_id,
-                "reparto_assegnato_id": reparto_assegnato_id,
-                "fornitore": fornitore.strip() if fornitore else None,
-                "classe_euro": classe_euro.strip() if classe_euro else None
+                "modello": modello.strip() if isinstance(modello, str) else str(modello),
+                "tipo": tipo if isinstance(tipo, str) else "Auto",
+                "note": note.strip() if note and isinstance(note, str) else None,
+                "alimentazione": alimentazione.strip() if alimentazione and isinstance(alimentazione, str) else None,
+                "data_immatricolazione": data_immatricolazione if data_immatricolazione and isinstance(data_immatricolazione, str) else None,
+                "proprieta": proprieta if isinstance(proprieta, str) else "Proprietà",
+                "canone_noleggio": float(canone_noleggio) if str(canone_noleggio).replace('.', '', 1).isdigit() else 0.0,
+                "data_inizio_noleggio": clean_data_inizio_noleggio,
+                "durata_noleggio_anni": clean_durata_noleggio,
+                "data_scadenza_noleggio": data_scad_noleggio,
+                "km_attuali": int(km_attuali) if str(km_attuali).isdigit() else 0,
+                "stato": stato if isinstance(stato, str) else "Disponibile",
+                "sede_assegnata_id": sede_assegnata_id if isinstance(sede_assegnata_id, int) else None,
+                "sede_attuale_id": (sede_attuale_id if isinstance(sede_attuale_id, int) else None) or (sede_assegnata_id if isinstance(sede_assegnata_id, int) else None),
+                "reparto_assegnato_id": reparto_assegnato_id if isinstance(reparto_assegnato_id, int) else None,
+                "fornitore": fornitore.strip() if fornitore and isinstance(fornitore, str) else None,
+                "classe_euro": classe_euro.strip() if classe_euro and isinstance(classe_euro, str) else None
             })
         except IntegrityError:
             return RedirectResponse(url=f"/admin/automezzi?error=Impossibile+salvare:+la+targa+{clean_targa}+appartiene+già+ad+un+altro+veicolo+in+archivio", status_code=303)
@@ -974,7 +1250,7 @@ async def edit_vehicle(
         }
 
         conn.execute(text("DELETE FROM automezzi_tipi_manutenzione WHERE automezzo_id = :id"), {"id": id})
-        if tipi_manutenzione_ids:
+        if tipi_manutenzione_ids and isinstance(tipi_manutenzione_ids, (list, tuple)):
             form_data = await r.form()
             for tid in tipi_manutenzione_ids:
                 d_inizio = form_data.get(f"data_inizio_{tid}")
@@ -1005,7 +1281,7 @@ async def edit_vehicle(
 
         # Sync associated tags
         conn.execute(text("DELETE FROM automezzi_tag WHERE automezzo_id = :id"), {"id": id})
-        if tag_ids:
+        if tag_ids and isinstance(tag_ids, (list, tuple)):
             for tid in tag_ids:
                 try:
                     conn.execute(text("INSERT INTO automezzi_tag (automezzo_id, tag_id) VALUES (:aid, :tid)"), {"aid": id, "tid": int(tid)})
@@ -1013,9 +1289,11 @@ async def edit_vehicle(
                     pass
                 
     referer = r.headers.get("referer") or ""
+    if "noleggi" in referer:
+        return RedirectResponse(url="/admin/automezzi/noleggi", status_code=303)
     if "dislocazioni" in referer:
         return RedirectResponse(url="/admin/automezzi/dislocazioni", status_code=303)
-    return RedirectResponse(url="/admin/automezzi", status_code=303)
+    return RedirectResponse(url="/admin/automezzi/dislocazioni", status_code=303)
 
 @router.get("/admin/automezzi/registro-km/{automezzo_id}")
 def get_registro_km_automezzo(automezzo_id: int, r: Request):
@@ -1499,6 +1777,18 @@ def import_automezzi_csv(r: Request, file: UploadFile = File(...)):
                 
             stato = data.get("stato", "Disponibile")
             
+            data_inizio_noleggio = data.get("data_inizio_noleggio") or data.get("data_inizio") or None
+            if data_inizio_noleggio:
+                data_inizio_noleggio = str(data_inizio_noleggio).strip() or None
+            try:
+                durata_noleggio_anni = int(data.get("durata_noleggio_anni") or data.get("durata_anni") or 0)
+            except ValueError:
+                durata_noleggio_anni = 0
+            
+            data_scadenza_noleggio = data.get("data_scadenza_noleggio") or None
+            if proprieta == "Noleggio" and not data_scadenza_noleggio and data_inizio_noleggio and durata_noleggio_anni > 0:
+                data_scadenza_noleggio = calcola_scadenza_noleggio(data_inizio_noleggio, durata_noleggio_anni)
+
             raw_sede_assegnata = data.get("sede_assegnata") or data.get("sede_assegnata_nome") or data.get("sede_assegnata_id")
             raw_sede_attuale = data.get("sede_attuale") or data.get("sede_attuale_nome") or data.get("sede_attuale_id")
             raw_reparto_assegnato = data.get("reparto_assegnato") or data.get("reparto_assegnato_nome") or data.get("reparto_assegnato_id")
@@ -1513,7 +1803,9 @@ def import_automezzi_csv(r: Request, file: UploadFile = File(...)):
                     UPDATE automezzi SET
                         marca_id = :marca_id, modello = :modello, tipo = :tipo, note = :note,
                         alimentazione = :alimentazione, data_immatricolazione = :data_immatricolazione,
-                        proprieta = :proprieta, canone_noleggio = :canone_noleggio, km_attuali = :km_attuali,
+                        proprieta = :proprieta, canone_noleggio = :canone_noleggio,
+                        data_inizio_noleggio = :data_inizio_noleggio, durata_noleggio_anni = :durata_noleggio_anni, data_scadenza_noleggio = :data_scadenza_noleggio,
+                        km_attuali = :km_attuali,
                         stato = :stato, sede_assegnata_id = :sede_assegnata_id, sede_attuale_id = :sede_attuale_id,
                         reparto_assegnato_id = :reparto_assegnato_id, fornitore = :fornitore, classe_euro = :classe_euro,
                         escluso_prenotazione = 1
@@ -1521,7 +1813,9 @@ def import_automezzi_csv(r: Request, file: UploadFile = File(...)):
                 """), {
                     "id": existing, "targa": targa, "marca_id": marca_id, "modello": modello, "tipo": tipo, "note": note,
                     "alimentazione": alimentazione, "data_immatricolazione": data_immatricolazione, "proprieta": proprieta,
-                    "canone_noleggio": canone_noleggio, "km_attuali": km_attuali, "stato": stato,
+                    "canone_noleggio": canone_noleggio,
+                    "data_inizio_noleggio": data_inizio_noleggio, "durata_noleggio_anni": durata_noleggio_anni, "data_scadenza_noleggio": data_scadenza_noleggio,
+                    "km_attuali": km_attuali, "stato": stato,
                     "sede_assegnata_id": sede_assegnata_id, "sede_attuale_id": sede_attuale_id,
                     "reparto_assegnato_id": reparto_assegnato_id,
                     "fornitore": fornitore.strip() if fornitore else None,
@@ -1531,17 +1825,21 @@ def import_automezzi_csv(r: Request, file: UploadFile = File(...)):
                 conn.execute(text("""
                     INSERT INTO automezzi (
                         targa, marca_id, modello, tipo, note, alimentazione, data_immatricolazione,
-                        proprieta, canone_noleggio, km_attuali, stato, sede_assegnata_id, sede_attuale_id,
+                        proprieta, canone_noleggio, data_inizio_noleggio, durata_noleggio_anni, data_scadenza_noleggio,
+                        km_attuali, stato, sede_assegnata_id, sede_attuale_id,
                         reparto_assegnato_id, fornitore, classe_euro, escluso_prenotazione
                     ) VALUES (
                         :targa, :marca_id, :modello, :tipo, :note, :alimentazione, :data_immatricolazione,
-                        :proprieta, :canone_noleggio, :km_attuali, :stato, :sede_assegnata_id, :sede_attuale_id,
+                        :proprieta, :canone_noleggio, :data_inizio_noleggio, :durata_noleggio_anni, :data_scadenza_noleggio,
+                        :km_attuali, :stato, :sede_assegnata_id, :sede_attuale_id,
                         :reparto_assegnato_id, :fornitore, :classe_euro, 1
                     )
                 """), {
                     "targa": targa, "marca_id": marca_id, "modello": modello, "tipo": tipo, "note": note,
                     "alimentazione": alimentazione, "data_immatricolazione": data_immatricolazione, "proprieta": proprieta,
-                    "canone_noleggio": canone_noleggio, "km_attuali": km_attuali, "stato": stato,
+                    "canone_noleggio": canone_noleggio,
+                    "data_inizio_noleggio": data_inizio_noleggio, "durata_noleggio_anni": durata_noleggio_anni, "data_scadenza_noleggio": data_scadenza_noleggio,
+                    "km_attuali": km_attuali, "stato": stato,
                     "sede_assegnata_id": sede_assegnata_id, "sede_attuale_id": sede_attuale_id,
                     "reparto_assegnato_id": reparto_assegnato_id,
                     "fornitore": fornitore.strip() if fornitore else None,

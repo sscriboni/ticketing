@@ -57,7 +57,7 @@ Il ruolo `fleet_manager` gestisce e coordina il parco veicoli assegnato al propr
 * Un Fleet Manager ha visibilità ed operatività circoscritta al proprio reparto: nell'anagrafica automezzi e nel registro prenotazioni può visualizzare e gestire esclusivamente i veicoli e i viaggi associati al proprio reparto.
 
 ### B. Operatività del Fleet Manager
-* **Gestione Schede Automezzi (Reparto)**: Può inserire nuovi veicoli (che verranno automaticamente assegnati al suo reparto), nonché modificare ed eliminare le schede degli automezzi assegnati al proprio reparto.
+* **Gestione Schede Automezzi (Reparto)**: Può consultare, modificare ed eliminare le schede degli automezzi assegnati al proprio reparto. *Nota:* l'inserimento di **nuovi veicoli** è riservato esclusivamente ai Global Fleet Manager e agli Amministratori.
 * **Prenotazione per Terzi (Reparto)**: Può inserire prenotazioni a nome di altri colleghi appartenenti al suo stesso reparto. In fase di prenotazione, compilerà il campo *Email Conducente* con l'indirizzo del dipendente interessato. Il sistema convalida che il conducente appartenga allo stesso reparto del Fleet Manager.
 * **Esclusione Veicoli di Reparto**: Può escludere temporaneamente i veicoli assegnati al suo reparto dalle prenotazioni degli utenti comuni (es. per fermi tecnici o assegnazioni speciali), oppure riabilitarli quando tornano idonei.
 * **Annullamento Prenotazioni**: Ha la facoltà di cancellare o eliminare le prenotazioni programmate o i viaggi passati esclusivamente per gli utenti del proprio reparto.
@@ -69,17 +69,30 @@ L'Amministratore (`admin`) e il `global_fleet_manager` hanno il controllo comple
 
 ### A. Gestione Globale e Anagrafiche
 * **Nessun Limite di Reparto**: Hanno visibilità su tutti i veicoli e le prenotazioni a livello aziendale, indipendentemente dal reparto assegnato.
+* **Inserimento Esclusivo Nuovi Automezzi**: Solo `admin` e `global_fleet_manager` possono inserire nuovi veicoli nella flotta aziendale.
 * **Prenotazione per Qualsiasi Utente**: Possono effettuare prenotazioni per conto di qualsiasi dipendente attivo nel sistema inserendo la sua email, senza alcuna restrizione di reparto.
-* **Anagrafica Flotta**: Hanno i permessi esclusivi per creare, modificare ed eliminare le schede dei veicoli, impostando targa, modello, alimentazione, tipo di proprietà (proprietà o noleggio a lungo termine), canone mensile, chilometri iniziali e sede/reparto di assegnazione.
+* **Anagrafica Flotta**: Hanno i permessi per creare, modificare ed eliminare le schede dei veicoli, impostando targa, modello, alimentazione, tipo di proprietà (proprietà o noleggio a lungo termine), canone mensile, data inizio noleggio, durata noleggio in anni (con data scadenza calcolata automaticamente), chilometri iniziali e sede/reparto di assegnazione.
 * **Gestione Tipi Manutenzione**: Hanno l'esclusiva per creare, modificare e rimuovere i tipi di manutenzione e le relative regole di scadenza, associandoli poi ai diversi veicoli della flotta.
 
-### B. Gestione Manutenzioni e Fermo Tecnico
+### B. Gestione Noleggi e Scadenziario (`/admin/automezzi/noleggi`)
+Riservato esclusivamente ad **Admin** e **Global Fleet Manager** (inaccessibile a utenti e fleet manager standard):
+* **Tracciamento Contratti Noleggio**: Per i veicoli a noleggio lungo termine vengono registrati: *Data di inizio noleggio*, *Durata in anni* e *Data di scadenza calcolata automaticamente* (con gestione corretta degli anni bisestili).
+* **Cruscotto Scadenziario con KPI**: Contatori in tempo reale per totale veicoli a noleggio, noleggi scaduti, noleggi in scadenza entro 90 giorni (3 mesi) e noleggi regolari.
+* **Badge Visivi di Stato**:
+  - 🔴 **Scaduto**: data di scadenza superata (giorni rimanenti < 0).
+  - 🟡 **In Scadenza**: scadenza entro 90 giorni.
+  - 🟢 **Regolare**: scadenza a più di 90 giorni.
+  - ⚪ **Non Definito**: veicolo a noleggio privo di data di inizio o durata.
+* **Filtri e Ricerca**: Filtro per stato scadenza, per fornitore di noleggio e ricerca per targa/modello.
+* **Esportazione CSV**: Esportazione dedicata dei soli veicoli a noleggio con tutti i parametri temporali e contrattuali.
+
+### C. Gestione Manutenzioni e Fermo Tecnico
 * Solo questi ruoli possono registrare le **Manutenzioni** (tagliandi, cambio gomme, riparazioni d'officina):
   * All'apertura di una manutenzione, viene registrata la data/ora di inizio, il luogo e i km registrati.
   * **Manutenzione Bloccante**: Se contrassegnata come *Bloccante*, lo stato del veicolo passa automaticamente a **In Manutenzione**, impedendone la prenotazione o il ritiro da parte di qualsiasi utilizzatore.
   * **Chiusura Manutenzione**: Al ritiro del veicolo dall'officina, viene registrata la data/ora di fine e i km finali dell'intervento, riallineando lo stato dell'automezzo a *Disponibile*.
 
-### C. Gestione Esclusioni ed Eliminazioni
+### D. Gestione Esclusioni ed Eliminazioni
 * **Esclusioni Globali**: Possono escludere o includere qualunque veicolo della flotta aziendale dal pannello prenotazioni.
 * **Eliminazione Prenotazioni e Storico**: Possono cancellare o rettificare qualunque prenotazione attiva o viaggio già completato nello storico per liberare la flotta o correggere errori di inserimento.
 

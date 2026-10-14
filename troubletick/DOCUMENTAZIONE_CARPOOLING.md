@@ -8,9 +8,9 @@ Benvenuto nella documentazione operativa avanzata per la **Gestione della Flotta
 
 L'accesso alle funzionalità del modulo Carpooling è regolato dalla matrice dei ruoli dell'applicazione:
 
-* **Amministratore (`admin`):** Accesso illimitato e globale su tutta la flotta. Gestisce anagrafica marche, modelli, automezzi, dislocazioni, rifornimenti, manutenzioni, tipi manutenzione, viaggi ed esclusioni dalla prenotazione.
-* **Global Fleet Manager (`global_fleet_manager`):** Gestione operativa ed anagrafica completa su tutti i veicoli aziendali (inserimento nuovi mezzi, manutenzioni, rifornimenti, registro viaggi ed esclusioni su scala globale).
-* **Fleet Manager di Reparto (`fleet_manager`):** Gestione circoscritta al parco automezzi assegnato al proprio reparto. Può consultare il registro viaggi, registrare i rifornimenti, ed attivare/disattivare l'esclusione dalla prenotazione per i veicoli del proprio reparto. Non può modificare le anagrafiche base o i tipi manutenzione.
+* **Amministratore (`admin`):** Accesso illimitato e globale su tutta la flotta. Gestisce anagrafica marche, modelli, inserimento automezzi, dislocazioni, scadenziario noleggi, rifornimenti, manutenzioni, tipi manutenzione, viaggi ed esclusioni dalla prenotazione.
+* **Global Fleet Manager (`global_fleet_manager`):** Gestione operativa ed anagrafica completa su tutti i veicoli aziendali (inserimento esclusivo nuovi mezzi insieme ad admin, scadenziario noleggi, manutenzioni, rifornimenti, registro viaggi ed esclusioni su scala globale).
+* **Fleet Manager di Reparto (`fleet_manager`):** Gestione circoscritta al parco automezzi assegnato al proprio reparto. Può consultare e modificare i mezzi del proprio reparto, consultare il registro viaggi, registrare i rifornimenti, ed attivare/disattivare l'esclusione dalla prenotazione per i veicoli del proprio reparto. Non può inserire nuovi automezzi (riservato a Global Fleet Manager e Admin), né accedere allo Scadenziario Noleggi o ai tipi manutenzione.
 * **Operatore di Assistenza (`assistenza`):** Visualizzazione dello stato dei veicoli, prenotazione mezzi per trasferte operative, avvio e chiusura delle sessioni di guida.
 * **Utente Normale (`normale`):** Consultazione disponibilità, prenotazione autonoma di un veicolo, avvio viaggio e registrazione rientro con km finali.
 
@@ -31,10 +31,13 @@ Ogni veicolo presente nel parco auto aziendale è identificato da una scheda det
   - **Alimentazione:** *Benzina*, *Diesel*, *GPL*, *Metano*, *Ibrida*, *Elettrica*.
   - **Classe Euro:** Normativa antinquinamento (es. *Euro 6d-Temp*, *Euro 5*).
   - **Note / Colore:** Eventuali dettagli estetici o dotazioni particolari (es. *Bianco - Dotata di gancio traino e barre porta tutto*).
-* **Gestione Proprietà e Contabilità:**
+* **Gestione Proprietà, Noleggio e Contabilità:**
   - **Proprietà:** *Proprietà aziendale* o *Noleggio a lungo termine*.
   - **Fornitore / Società di Noleggio:** Ragione sociale della società di leasing/noleggio (es. *LeasePlan*, *Arval*, *ALD Automotive*).
   - **Canone Noleggio (€):** Importo del canone mensile per il calcolo dei costi di gestione.
+  - **Data Inizio Noleggio:** Data di consegna e decorrenza del contratto di noleggio (`AAAA-MM-GG`).
+  - **Durata Noleggio (Anni):** Durata contrattuale espressa in anni (es. 2, 3, 4, 5 anni).
+  - **Data Scadenza Noleggio:** Calcolata in automatico dal sistema sommando la durata in anni alla data di inizio (con gestione corretta del 29 febbraio negli anni bisestili).
   - **Data Immatricolazione:** Data di prima immatricolazione del mezzo.
 * **Stato e Chilometraggio:**
   - **Km Attuali:** Chilometraggio cumulativo aggiornato automaticamente da viaggi e rifornimenti.
@@ -67,6 +70,29 @@ La funzionalità **Escludi da Prenotazione** (`escluso_prenotazione = 1`) consen
 * **Regole di Autorizzazione (RBAC):**
   - I **Fleet Manager di Reparto** possono attivare o rimuovere l'esclusione **esclusivamente** per gli automezzi assegnati al proprio reparto.
   - I **Global Fleet Manager** e gli **Amministratori** possono attivare o rimuovere l'esclusione su qualsiasi veicolo della flotta aziendale.
+
+---
+
+### 1.5 Scadenziario Noleggi Autoveicoli (`/admin/automezzi/noleggi`)
+
+Lo **Scadenziario Noleggi** è un cruscotto dedicato alla gestione dei contratti di noleggio a lungo termine dei veicoli della flotta:
+
+* **Controllo Accessi Riservato:** Visibile ed accessibile esclusivamente per i ruoli **`admin`** e **`global_fleet_manager`**. Gli utenti comuni e i `fleet_manager` di reparto non possono visualizzare o accedere a questa sezione.
+* **Indicatori di Prestazione (KPI):**
+  - *Totale Noleggi:* Numero complessivo dei veicoli a noleggio censiti a sistema.
+  - *Scaduti:* Noleggi con data di scadenza passata rispetto alla data odierna.
+  - *In Scadenza (≤ 90 gg):* Contratti che giungeranno a termine nei successivi 3 mesi, con giorni residui evidenziati.
+  - *Regolari (> 90 gg):* Noleggi attivi con scadenza oltre i 3 mesi.
+* **Badge Visivi di Stato:**
+  - 🔴 **Scaduto**: visualizzato per contratti scaduti con il numero di giorni trascorsi dalla scadenza.
+  - 🟡 **In Scadenza**: visualizzato quando mancano tra 0 e 90 giorni.
+  - 🟢 **Regolare**: contratti attivi oltre i 90 giorni di validità residua.
+  - ⚪ **Non Definito**: veicoli a noleggio per cui non è stata valorizzata la data di inizio o la durata in anni.
+* **Strumenti Operativi:**
+  - Modifica rapida della scheda del veicolo direttamente dal cruscotto.
+  - Filtri per stato di scadenza, società di noleggio fornitrice e ricerca testuale per targa/modello.
+  - Ordinamento per data di scadenza (più urgenti prima), targa o canone mensile.
+  - Esportazione dedicata in formato CSV (`/admin/automezzi/noleggi/esporta/csv`).
 
 ---
 

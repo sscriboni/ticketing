@@ -96,7 +96,10 @@ try:
             stato TEXT DEFAULT 'Disponibile',
             sede_assegnata_id INTEGER,
             sede_attuale_id INTEGER,
-            reparto_assegnato_id INTEGER
+            reparto_assegnato_id INTEGER,
+            data_inizio_noleggio TEXT,
+            durata_noleggio_anni INTEGER DEFAULT 0,
+            data_scadenza_noleggio TEXT
         )"""))
         try:
             c.execute(text("ALTER TABLE automezzi ADD COLUMN note TEXT"))
@@ -108,6 +111,18 @@ try:
             pass
         try:
             c.execute(text("ALTER TABLE automezzi ADD COLUMN posizione_parcheggio TEXT"))
+        except Exception:
+            pass
+        try:
+            c.execute(text("ALTER TABLE automezzi ADD COLUMN data_inizio_noleggio TEXT"))
+        except Exception:
+            pass
+        try:
+            c.execute(text("ALTER TABLE automezzi ADD COLUMN durata_noleggio_anni INTEGER DEFAULT 0"))
+        except Exception:
+            pass
+        try:
+            c.execute(text("ALTER TABLE automezzi ADD COLUMN data_scadenza_noleggio TEXT"))
         except Exception:
             pass
         c.execute(text(f"""CREATE TABLE IF NOT EXISTS users (

@@ -118,7 +118,7 @@
           <!-- Autopark Dropdown -->
           {% if cfg.get('modulo_autopark', True) %}
           <li class="nav-item dropdown">
-            <a class="nav-link dropdown-toggle {% if request.url.path == '/autopark' or request.url.path == '/admin/automezzi' or request.url.path == '/admin/automezzi/dislocazioni' or request.url.path == '/admin/automezzi/manutenzioni' or request.url.path.startswith('/admin/automezzi/manutenzioni/') or request.url.path == '/admin/automezzi/viaggi' or request.url.path == '/admin/automezzi/rifornimenti' or request.url.path == '/admin/automezzi/tipi-manutenzione' or request.url.path == '/admin/automezzi/impostazioni' %}active fw-bold{% endif %}" href="#" id="autoparkDropdown" role="button" data-bs-toggle="dropdown" aria-expanded="false">
+            <a class="nav-link dropdown-toggle {% if request.url.path == '/autopark' or request.url.path == '/admin/automezzi' or request.url.path == '/admin/automezzi/dislocazioni' or request.url.path == '/admin/automezzi/noleggi' or request.url.path == '/admin/automezzi/manutenzioni' or request.url.path.startswith('/admin/automezzi/manutenzioni/') or request.url.path == '/admin/automezzi/viaggi' or request.url.path == '/admin/automezzi/rifornimenti' or request.url.path == '/admin/automezzi/tipi-manutenzione' or request.url.path == '/admin/automezzi/impostazioni' %}active fw-bold{% endif %}" href="#" id="autoparkDropdown" role="button" data-bs-toggle="dropdown" aria-expanded="false">
               <i class="bi bi-car-front-fill me-1"></i> Carpooling
             </a>
             <ul class="dropdown-menu shadow" aria-labelledby="autoparkDropdown">
@@ -127,6 +127,9 @@
               <li><a class="dropdown-item" href="/admin/automezzi"><i class="bi bi-car-front me-2 text-primary"></i>Elenco Automezzi</a></li>
               {% if user.ruolo in ('admin', 'fleet_manager', 'global_fleet_manager') %}
               <li><a class="dropdown-item" href="/admin/automezzi/dislocazioni"><i class="bi bi-geo-alt-fill me-2 text-danger"></i>Dislocazioni Sedi/Reparti</a></li>
+              {% endif %}
+              {% if user.ruolo in ('admin', 'global_fleet_manager') %}
+              <li><a class="dropdown-item" href="/admin/automezzi/noleggi"><i class="bi bi-calendar-range me-2 text-warning"></i>Scadenziario Noleggi</a></li>
               {% endif %}
 
               <li><hr class="dropdown-divider"></li>
@@ -490,7 +493,7 @@
 
           {% if cfg.get('modulo_autopark', True) %}
           <li class="nav-item dropdown">
-            <a class="nav-link dropdown-toggle {% if request.url.path == '/autopark' or request.url.path == '/admin/automezzi' or request.url.path == '/admin/automezzi/dislocazioni' or request.url.path == '/admin/automezzi/manutenzioni' or request.url.path.startswith('/admin/automezzi/manutenzioni/') or request.url.path == '/admin/automezzi/viaggi' or request.url.path == '/admin/automezzi/rifornimenti' or request.url.path == '/admin/automezzi/tipi-manutenzione' or request.url.path == '/admin/automezzi/impostazioni' %}active fw-bold{% endif %}" href="#" id="autoparkDropdownFM" role="button" data-bs-toggle="dropdown" aria-expanded="false">
+            <a class="nav-link dropdown-toggle {% if request.url.path == '/autopark' or request.url.path == '/admin/automezzi' or request.url.path == '/admin/automezzi/dislocazioni' or request.url.path == '/admin/automezzi/noleggi' or request.url.path == '/admin/automezzi/manutenzioni' or request.url.path.startswith('/admin/automezzi/manutenzioni/') or request.url.path == '/admin/automezzi/viaggi' or request.url.path == '/admin/automezzi/rifornimenti' or request.url.path == '/admin/automezzi/tipi-manutenzione' or request.url.path == '/admin/automezzi/impostazioni' %}active fw-bold{% endif %}" href="#" id="autoparkDropdownFM" role="button" data-bs-toggle="dropdown" aria-expanded="false">
               <i class="bi bi-car-front-fill me-1"></i> Carpooling
             </a>
             <ul class="dropdown-menu shadow" aria-labelledby="autoparkDropdownFM">
@@ -499,6 +502,9 @@
               <li><a class="dropdown-item" href="/admin/automezzi"><i class="bi bi-car-front me-2 text-primary"></i>Elenco Automezzi</a></li>
               {% if user.ruolo in ('admin', 'fleet_manager', 'global_fleet_manager') %}
               <li><a class="dropdown-item" href="/admin/automezzi/dislocazioni"><i class="bi bi-geo-alt-fill me-2 text-danger"></i>Dislocazioni Sedi/Reparti</a></li>
+              {% endif %}
+              {% if user.ruolo in ('admin', 'global_fleet_manager') %}
+              <li><a class="dropdown-item" href="/admin/automezzi/noleggi"><i class="bi bi-calendar-range me-2 text-warning"></i>Scadenziario Noleggi</a></li>
               {% endif %}
 
               <li><hr class="dropdown-divider"></li>
