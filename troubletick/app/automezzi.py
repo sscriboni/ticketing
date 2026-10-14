@@ -576,6 +576,45 @@ def page_dislocazioni(r: Request):
     elenco_sedi = sorted(list(sedi_map.values()), key=lambda x: x["nome"])
     elenco_servizi = sorted(list(servizi_map.values()), key=lambda x: x["nome"])
 
+    # Elenco completo per la terza vista non raggruppata
+    automezzi_completi = []
+    oggi = datetime.date.today()
+    for a_raw in automezzi:
+        a = dict(a_raw)
+        a["tags"] = tags_map.get(a["automezzo_id"], [])
+        a["tag_ids"] = [t["tag_id"] for t in a["tags"]]
+
+        stato = (a.get("stato") or "").strip().lower()
+        has_active_trip = bool(a.get("active_viaggio_id"))
+        is_trip_started = bool(a.get("active_viaggio_partenza_effettiva"))
+        if stato == "in manutenzione":
+            stato_eff = "in manutenzione"
+        elif stato == "in uso" or is_trip_started or has_active_trip:
+            stato_eff = "in uso"
+        else:
+            stato_eff = "disponibile"
+        a["stato_effettivo"] = stato_eff
+
+        giorni_rim = None
+        stato_scad = "non_definito"
+        if (a.get("proprieta") or "").strip().lower() == "noleggio":
+            d_scad_str = a.get("data_scadenza_noleggio")
+            if d_scad_str:
+                try:
+                    d_scad = datetime.datetime.strptime(d_scad_str, "%Y-%m-%d").date()
+                    giorni_rim = (d_scad - oggi).days
+                    if giorni_rim < 0:
+                        stato_scad = "scaduto"
+                    elif giorni_rim <= 90:
+                        stato_scad = "in_scadenza"
+                    else:
+                        stato_scad = "regolare"
+                except Exception:
+                    stato_scad = "non_definito"
+        a["giorni_rimanenti_scadenza"] = giorni_rim
+        a["stato_scadenza"] = stato_scad
+        automezzi_completi.append(a)
+
     stats = {
         "totale_veicoli": totale_veicoli,
         "totale_sedi": len(elenco_sedi),
@@ -589,6 +628,7 @@ def page_dislocazioni(r: Request):
         "request": r, "cfg": CFG, "user": user,
         "elenco_sedi": elenco_sedi,
         "elenco_servizi": elenco_servizi,
+        "automezzi_completi": automezzi_completi,
         "stats": stats,
         "marche": marche,
         "sedi": sedi,

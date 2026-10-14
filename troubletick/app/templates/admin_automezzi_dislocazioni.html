@@ -128,14 +128,20 @@
     <ul class="nav nav-pills mb-4 bg-white p-2 rounded shadow-sm gap-2" id="dislocazioniTabs" role="tablist">
         <li class="nav-item" role="presentation">
             <button class="nav-link active fw-bold" id="sedi-tab" data-bs-toggle="tab" data-bs-target="#sedi-pane" type="button" role="tab" aria-controls="sedi-pane" aria-selected="true">
-                <i class="bi bi-buildings me-2"></i>Raggruppamento per Sede Assegnata
+                <i class="bi bi-buildings me-2"></i>Raggruppamento per Sede
                 <span class="badge bg-primary rounded-pill ms-2">{{ elenco_sedi|length }}</span>
             </button>
         </li>
         <li class="nav-item" role="presentation">
             <button class="nav-link fw-bold" id="servizi-tab" data-bs-toggle="tab" data-bs-target="#servizi-pane" type="button" role="tab" aria-controls="servizi-pane" aria-selected="false">
-                <i class="bi bi-diagram-3 me-2"></i>Raggruppamento per Servizio Assegnato
+                <i class="bi bi-diagram-3 me-2"></i>Raggruppamento per Servizio
                 <span class="badge bg-success rounded-pill ms-2">{{ elenco_servizi|length }}</span>
+            </button>
+        </li>
+        <li class="nav-item" role="presentation">
+            <button class="nav-link fw-bold" id="completo-tab" data-bs-toggle="tab" data-bs-target="#completo-pane" type="button" role="tab" aria-controls="completo-pane" aria-selected="false">
+                <i class="bi bi-list-columns-reverse me-2"></i>Elenco Completo Flotta
+                <span class="badge bg-dark rounded-pill ms-2">{{ automezzi_completi|length }}</span>
             </button>
         </li>
     </ul>
@@ -413,6 +419,297 @@
                 <p class="text-muted mt-3">Nessun automezzo trovato per il raggruppamento per servizio.</p>
             </div>
             {% endfor %}
+        <!-- TAB 3: ELENCO COMPLETO FLOTTA (NON RAGGRUPPATO CON CAMPI ESTESI) -->
+        <div class="tab-pane fade" id="completo-pane" role="tabpanel" aria-labelledby="completo-tab" tabindex="0">
+            <div class="vehicle-card bg-white p-3 mb-4 shadow-sm">
+                <!-- Filtri Avanzati Tabella Completa -->
+                <div class="row g-2 align-items-center mb-3">
+                    <div class="col-12 col-md-3">
+                        <div class="input-group input-group-sm">
+                            <span class="input-group-text bg-light"><i class="bi bi-search text-muted"></i></span>
+                            <input type="text" id="filterCompletoText" class="form-control" placeholder="Cerca targa, modello, note, fornitore..." oninput="filterCompletoTable()">
+                        </div>
+                    </div>
+                    <div class="col-6 col-md-2">
+                        <select id="filterCompletoStato" class="form-select form-select-sm" onchange="filterCompletoTable()">
+                            <option value="">Tutti gli Stati</option>
+                            <option value="disponibile">Disponibile</option>
+                            <option value="in uso">In Uso</option>
+                            <option value="in manutenzione">In Manutenzione</option>
+                            <option value="eliminazione">In Eliminazione</option>
+                        </select>
+                    </div>
+                    <div class="col-6 col-md-2">
+                        <select id="filterCompletoSede" class="form-select form-select-sm" onchange="filterCompletoTable()">
+                            <option value="">Tutte le Sedi</option>
+                            {% for s in sedi %}
+                            <option value="{{ s.nome|lower }}">{{ s.nome }}</option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                    <div class="col-6 col-md-2">
+                        <select id="filterCompletoServizio" class="form-select form-select-sm" onchange="filterCompletoTable()">
+                            <option value="">Tutti i Servizi</option>
+                            {% for rep in reparti %}
+                            <option value="{{ rep.nome|lower }}">{{ rep.nome }}</option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                    <div class="col-6 col-md-3 d-flex justify-content-end gap-2">
+                        <select id="filterCompletoProprieta" class="form-select form-select-sm" onchange="filterCompletoTable()" style="max-width: 140px;">
+                            <option value="">Tutte le Proprietà</option>
+                            <option value="proprietà">Proprietà</option>
+                            <option value="noleggio">Noleggio</option>
+                        </select>
+                        <button type="button" class="btn btn-outline-secondary btn-sm" onclick="resetFiltriCompleto()" title="Ripristina filtri">
+                            <i class="bi bi-arrow-counterclockwise"></i>
+                        </button>
+                        <a href="/admin/automezzi/esporta/csv" class="btn btn-outline-success btn-sm fw-semibold" title="Esporta l'intera anagrafica in CSV">
+                            <i class="bi bi-file-earmark-spreadsheet me-1"></i>CSV
+                        </a>
+                    </div>
+                </div>
+
+                <!-- Info contatore e guida ordinamento -->
+                <div class="d-flex justify-content-between align-items-center mb-2 px-1">
+                    <div class="small text-muted">
+                        Visualizzati: <span id="counterCompleto" class="fw-bold text-primary">{{ automezzi_completi|length }}</span> di <span class="fw-semibold">{{ automezzi_completi|length }}</span> veicoli totali
+                    </div>
+                    <div class="small text-muted">
+                        <i class="bi bi-arrow-down-up me-1 text-primary"></i>Clicca sulle colonne per ordinare la tabella
+                    </div>
+                </div>
+
+                <div class="table-responsive">
+                    <table class="table table-hover table-striped align-middle custom-table mb-0" id="tableAutomezziCompleto">
+                        <thead class="table-dark">
+                            <tr>
+                                <th class="text-nowrap sortable-th" style="cursor: pointer;" onclick="sortCompletoTable('targa')">
+                                    Targa <i class="bi bi-arrow-down-up ms-1 text-light-emphasis small sort-icon" id="sort-icon-targa"></i>
+                                </th>
+                                <th class="text-nowrap sortable-th" style="cursor: pointer;" onclick="sortCompletoTable('marca')">
+                                    Marca & Modello <i class="bi bi-arrow-down-up ms-1 text-light-emphasis small sort-icon" id="sort-icon-marca"></i>
+                                </th>
+                                <th class="text-nowrap sortable-th" style="cursor: pointer;" onclick="sortCompletoTable('tipo')">
+                                    Tipo <i class="bi bi-arrow-down-up ms-1 text-light-emphasis small sort-icon" id="sort-icon-tipo"></i>
+                                </th>
+                                <th class="text-nowrap sortable-th" style="cursor: pointer;" onclick="sortCompletoTable('alimentazione')">
+                                    Alim. <i class="bi bi-arrow-down-up ms-1 text-light-emphasis small sort-icon" id="sort-icon-alimentazione"></i>
+                                </th>
+                                <th class="text-nowrap sortable-th" style="cursor: pointer;" onclick="sortCompletoTable('euro')">
+                                    Euro <i class="bi bi-arrow-down-up ms-1 text-light-emphasis small sort-icon" id="sort-icon-euro"></i>
+                                </th>
+                                <th class="text-nowrap sortable-th" style="cursor: pointer;" onclick="sortCompletoTable('stato')">
+                                    Stato <i class="bi bi-arrow-down-up ms-1 text-light-emphasis small sort-icon" id="sort-icon-stato"></i>
+                                </th>
+                                <th class="text-nowrap sortable-th" style="cursor: pointer;" onclick="sortCompletoTable('sede-ass')">
+                                    Sede Assegnata <i class="bi bi-arrow-down-up ms-1 text-light-emphasis small sort-icon" id="sort-icon-sede-ass"></i>
+                                </th>
+                                <th class="text-nowrap sortable-th" style="cursor: pointer;" onclick="sortCompletoTable('sede-att')">
+                                    Sede Attuale <i class="bi bi-arrow-down-up ms-1 text-light-emphasis small sort-icon" id="sort-icon-sede-att"></i>
+                                </th>
+                                <th class="text-nowrap sortable-th" style="cursor: pointer;" onclick="sortCompletoTable('servizio')">
+                                    Servizio / Reparto <i class="bi bi-arrow-down-up ms-1 text-light-emphasis small sort-icon" id="sort-icon-servizio"></i>
+                                </th>
+                                <th class="text-nowrap sortable-th" style="cursor: pointer;" onclick="sortCompletoTable('proprieta')">
+                                    Proprietà & Noleggio <i class="bi bi-arrow-down-up ms-1 text-light-emphasis small sort-icon" id="sort-icon-proprieta"></i>
+                                </th>
+                                <th class="text-nowrap sortable-th" style="cursor: pointer;" onclick="sortCompletoTable('immatricolazione')">
+                                    Immatricolazione <i class="bi bi-arrow-down-up ms-1 text-light-emphasis small sort-icon" id="sort-icon-immatricolazione"></i>
+                                </th>
+                                <th class="text-nowrap sortable-th text-end" style="cursor: pointer;" onclick="sortCompletoTable('km')">
+                                    KM Attuali <i class="bi bi-arrow-down-up ms-1 text-light-emphasis small sort-icon" id="sort-icon-km"></i>
+                                </th>
+                                <th class="text-center text-nowrap">Azioni</th>
+                            </tr>
+                        </thead>
+                        <tbody id="tbodyAutomezziCompleto">
+                        {% for v in automezzi_completi %}
+                            <tr class="searchable-row searchable-completo-row"
+                                data-targa="{{ v.targa|upper }}"
+                                data-marca="{{ v.marca_nome|lower }} {{ v.modello|lower }}"
+                                data-tipo="{{ v.tipo|lower }}"
+                                data-alimentazione="{{ v.alimentazione|lower if v.alimentazione else '' }}"
+                                data-euro="{{ v.classe_euro|lower if v.classe_euro else '' }}"
+                                data-stato="{{ v.stato_effettivo|lower }}"
+                                data-sede-ass="{{ v.sede_assegnata_nome|lower if v.sede_assegnata_nome else '' }}"
+                                data-sede-att="{{ v.sede_attuale_nome|lower if v.sede_attuale_nome else '' }}"
+                                data-servizio="{{ v.reparto_assegnato_nome|lower if v.reparto_assegnato_nome else '' }}"
+                                data-proprieta="{{ v.proprieta|lower if v.proprieta else '' }}"
+                                data-scadenza="{{ v.data_scadenza_noleggio or '' }}"
+                                data-immatricolazione="{{ v.data_immatricolazione or '' }}"
+                                data-km="{{ v.km_attuali or 0 }}">
+                                <td>
+                                    <button type="button" 
+                                            class="btn btn-outline-dark btn-sm font-monospace text-uppercase px-2 py-1 shadow-sm btn-scheda-anagrafica" 
+                                            id="btn-anag-{{ v.automezzo_id }}"
+                                            style="letter-spacing: 1.5px; font-weight: 800; font-size: 0.95rem;" 
+                                            data-id="{{ v.automezzo_id }}"
+                                            data-targa="{{ v.targa }}"
+                                            data-marca-id="{{ v.marca_id }}"
+                                            data-modello="{{ v.modello }}"
+                                            data-tipo="{{ v.tipo }}"
+                                            data-note="{{ v.note or '' }}"
+                                            data-alimentazione="{{ v.alimentazione or '' }}"
+                                            data-immatricolazione="{{ v.data_immatricolazione or '' }}"
+                                            data-proprieta="{{ v.proprieta or '' }}"
+                                            data-canone="{{ v.canone_noleggio or 0 }}"
+                                            data-inizio-noleggio="{{ v.data_inizio_noleggio or '' }}"
+                                            data-durata-noleggio="{{ v.durata_noleggio_anni or 0 }}"
+                                            data-km="{{ v.km_attuali or 0 }}"
+                                            data-stato="{{ v.stato }}"
+                                            data-sede-ass-id="{{ v.sede_assegnata_id or '' }}"
+                                            data-sede-att-id="{{ v.sede_attuale_id or '' }}"
+                                            data-reparto-id="{{ v.reparto_assegnato_id or '' }}"
+                                            data-fornitore="{{ v.fornitore or '' }}"
+                                            data-euro="{{ v.classe_euro or '' }}"
+                                            data-tag-ids="{{ v.tag_ids | tojson if v.tag_ids else '[]' }}"
+                                            onclick="openSchedaAnagraficaFromBtn(this)"
+                                            title="Clicca per modificare la Scheda Anagrafica di {{ v.targa }}">
+                                        <i class="bi bi-pencil-square me-1 text-primary"></i> {{ v.targa }}
+                                    </button>
+                                </td>
+                                <td>
+                                    <strong>{{ v.marca_nome }} {{ v.modello }}</strong>
+                                    {% if v.note %}<div class="text-muted small fst-italic">{{ v.note }}</div>{% endif %}
+                                    {% if v.tags %}
+                                        <div class="d-flex flex-wrap gap-1 mt-1">
+                                            {% for tag in v.tags %}
+                                                <span class="badge shadow-sm" style="background-color: {{ tag.colore or '#0d6efd' }}; color: #ffffff; font-size: 0.7rem;">
+                                                    <i class="bi bi-tag-fill me-1"></i>{{ tag.nome }}
+                                                </span>
+                                            {% endfor %}
+                                        </div>
+                                    {% endif %}
+                                </td>
+                                <td>
+                                    {% if v.tipo == 'furgone' %}
+                                    <span class="badge bg-secondary"><i class="bi bi-truck me-1"></i>Furgone</span>
+                                    {% else %}
+                                    <span class="badge bg-info text-dark"><i class="bi bi-car-front me-1"></i>Auto</span>
+                                    {% endif %}
+                                </td>
+                                <td>
+                                    {% set alim = (v.alimentazione or '')|lower %}
+                                    {% if 'diesel' in alim %}
+                                    <span class="badge bg-primary text-white"><i class="bi bi-fuel-pump me-1"></i>Diesel</span>
+                                    {% elif 'benzina' in alim %}
+                                    <span class="badge bg-danger text-white"><i class="bi bi-fuel-pump me-1"></i>Benzina</span>
+                                    {% elif 'ibrid' in alim %}
+                                    <span class="badge bg-success text-white"><i class="bi bi-lightning-charge me-1"></i>Ibrida</span>
+                                    {% elif 'elettric' in alim %}
+                                    <span class="badge bg-success-subtle text-success border border-success-subtle"><i class="bi bi-lightning-charge-fill me-1"></i>Elettrica</span>
+                                    {% elif 'gpl' in alim %}
+                                    <span class="badge bg-warning text-dark"><i class="bi bi-fire me-1"></i>GPL</span>
+                                    {% elif 'metano' in alim %}
+                                    <span class="badge bg-warning text-dark"><i class="bi bi-fire me-1"></i>Metano</span>
+                                    {% else %}
+                                    <span class="badge bg-light text-dark border">{{ v.alimentazione or '—' }}</span>
+                                    {% endif %}
+                                </td>
+                                <td>
+                                    <span class="badge bg-light text-dark border font-monospace" style="font-size:0.75rem;">{{ v.classe_euro or '—' }}</span>
+                                </td>
+                                <td>
+                                    {% if v.stato_effettivo == 'disponibile' %}
+                                    <span class="badge bg-success-subtle text-success border border-success-subtle px-2 py-1"><i class="bi bi-check-circle-fill me-1"></i>Disponibile</span>
+                                    {% elif v.stato_effettivo == 'in uso' %}
+                                    <span class="badge bg-warning-subtle text-warning-emphasis border border-warning-subtle px-2 py-1"><i class="bi bi-key-fill me-1"></i>In Uso</span>
+                                    {% elif v.stato == 'Eliminazione' %}
+                                    <span class="badge bg-secondary-subtle text-secondary border border-secondary-subtle px-2 py-1"><i class="bi bi-trash-fill me-1"></i>Eliminazione</span>
+                                    {% else %}
+                                    <span class="badge bg-danger-subtle text-danger border border-danger-subtle px-2 py-1"><i class="bi bi-wrench me-1"></i>{{ v.stato }}</span>
+                                    {% endif %}
+                                </td>
+                                <td>
+                                    <span class="fw-semibold text-dark"><i class="bi bi-building me-1 text-primary"></i>{{ v.sede_assegnata_nome or '—' }}</span>
+                                </td>
+                                <td>
+                                    {% if v.sede_attuale_id and v.sede_assegnata_id and v.sede_attuale_id != v.sede_assegnata_id %}
+                                    <span class="badge bg-warning text-dark border border-warning-subtle shadow-sm" title="Attualmente in trasferta presso una sede diversa da quella assegnata">
+                                        <i class="bi bi-geo-alt-fill me-1 text-danger"></i>{{ v.sede_attuale_nome }}
+                                    </span>
+                                    {% else %}
+                                    <span class="text-secondary"><i class="bi bi-geo-alt me-1"></i>{{ v.sede_attuale_nome or v.sede_assegnata_nome or '—' }}</span>
+                                    {% endif %}
+                                </td>
+                                <td>
+                                    <span class="fw-semibold text-dark">{{ v.reparto_assegnato_nome or '—' }}</span>
+                                </td>
+                                <td>
+                                    {% if v.proprieta == 'Noleggio' %}
+                                    <div>
+                                        <span class="badge bg-warning-subtle text-warning-emphasis border border-warning-subtle" style="font-size:0.75rem;">
+                                            <i class="bi bi-clock-history me-1"></i>Noleggio
+                                        </span>
+                                        {% if v.fornitore %}
+                                        <div class="small fw-semibold text-dark mt-1">{{ v.fornitore }}</div>
+                                        {% endif %}
+                                        {% if v.canone_noleggio and v.canone_noleggio > 0 %}
+                                        <div class="small text-muted" style="font-size:0.75rem;">{{ "{:,.2f}".format(v.canone_noleggio).replace(",", "X").replace(".", ",").replace("X", ".") }} €/m</div>
+                                        {% endif %}
+                                        {% if v.data_inizio_noleggio or v.durata_noleggio_anni %}
+                                        <div class="small text-muted" style="font-size:0.72rem;">
+                                            Dal {{ v.data_inizio_noleggio or '—' }} ({{ v.durata_noleggio_anni or '?' }} anni)
+                                        </div>
+                                        {% endif %}
+                                        {% if v.data_scadenza_noleggio %}
+                                            {% if v.stato_scadenza == 'scaduto' %}
+                                            <span class="badge bg-danger shadow-sm mt-1" style="font-size:0.72rem;">
+                                                <i class="bi bi-exclamation-octagon-fill me-1"></i>Scaduto ({{ v.giorni_rimanenti_scadenza }} gg)
+                                            </span>
+                                            {% elif v.stato_scadenza == 'in_scadenza' %}
+                                            <span class="badge bg-warning text-dark border border-warning-subtle shadow-sm mt-1" style="font-size:0.72rem;">
+                                                <i class="bi bi-exclamation-triangle-fill me-1"></i>Scad: {{ v.data_scadenza_noleggio }} ({{ v.giorni_rimanenti_scadenza }} gg)
+                                            </span>
+                                            {% else %}
+                                            <span class="badge bg-success-subtle text-success border border-success-subtle mt-1" style="font-size:0.72rem;">
+                                                <i class="bi bi-check-circle me-1"></i>Scad: {{ v.data_scadenza_noleggio }}
+                                            </span>
+                                            {% endif %}
+                                        {% endif %}
+                                    </div>
+                                    {% else %}
+                                    <span class="badge bg-light text-secondary border" style="font-size:0.75rem;">
+                                        <i class="bi bi-shield-check me-1 text-primary"></i>Proprietà
+                                    </span>
+                                    {% endif %}
+                                </td>
+                                <td>
+                                    <span class="text-secondary small">{{ v.data_immatricolazione or '—' }}</span>
+                                </td>
+                                <td class="text-end">
+                                    <span class="font-monospace fw-bold text-nowrap text-dark">{{ "{:,}".format(v.km_attuali or 0).replace(",", ".") }} km</span>
+                                </td>
+                                <td class="text-center text-nowrap">
+                                    <div class="btn-group btn-group-sm">
+                                        <button type="button" 
+                                                class="btn btn-outline-primary" 
+                                                onclick="openSchedaAnagraficaFromBtn(document.getElementById('btn-anag-{{ v.automezzo_id }}'))" 
+                                                title="Modifica Scheda Anagrafica">
+                                            <i class="bi bi-pencil-fill"></i>
+                                        </button>
+                                        <a href="/admin/automezzi/registro-km/{{ v.automezzo_id }}" class="btn btn-outline-secondary" title="Registro Storico KM">
+                                            <i class="bi bi-speedometer2"></i>
+                                        </a>
+                                        <a href="/admin/automezzi/manutenzioni/storico?automezzo_id={{ v.automezzo_id }}" class="btn btn-outline-warning text-dark" title="Storico Manutenzioni">
+                                            <i class="bi bi-wrench"></i>
+                                        </a>
+                                    </div>
+                                </td>
+                            </tr>
+                        {% endfor %}
+                        </tbody>
+                        <tfoot class="table-light fw-bold">
+                            <tr>
+                                <td colspan="11" class="text-end text-uppercase small text-muted">TOTALE VEICOLI IN FLOTTA:</td>
+                                <td class="text-end text-primary fs-6">{{ stats.totale_veicoli }} auto</td>
+                                <td></td>
+                            </tr>
+                        </tfoot>
+                    </table>
+                </div>
+            </div>
         </div>
 
     </div>
@@ -805,17 +1102,117 @@
             searchInput.addEventListener('input', function() {
                 var term = this.value.toLowerCase().trim();
                 var rows = document.querySelectorAll('.searchable-row');
+                var visibleCompleto = 0;
                 rows.forEach(function(row) {
                     var text = row.innerText.toLowerCase();
                     if (text.indexOf(term) !== -1) {
                         row.style.display = '';
+                        if (row.classList.contains('searchable-completo-row')) visibleCompleto++;
                     } else {
                         row.style.display = 'none';
                     }
                 });
+                var counter = document.getElementById('counterCompleto');
+                if (counter) counter.textContent = visibleCompleto;
             });
         }
     });
+
+    // ===== ORDINAMENTO E FILTRI TABELLA COMPLETA =====
+    let currentSortCol = null;
+    let currentSortDir = 'asc';
+
+    function sortCompletoTable(col) {
+        const tbody = document.getElementById('tbodyAutomezziCompleto');
+        if (!tbody) return;
+        const rows = Array.from(tbody.querySelectorAll('.searchable-completo-row'));
+
+        if (currentSortCol === col) {
+            currentSortDir = (currentSortDir === 'asc') ? 'desc' : 'asc';
+        } else {
+            currentSortCol = col;
+            currentSortDir = 'asc';
+        }
+
+        // Aggiorna icone
+        document.querySelectorAll('#tableAutomezziCompleto .sort-icon').forEach(icon => {
+            icon.className = 'bi bi-arrow-down-up ms-1 text-light-emphasis small sort-icon';
+        });
+        const activeIcon = document.getElementById('sort-icon-' + col);
+        if (activeIcon) {
+            activeIcon.className = (currentSortDir === 'asc') 
+                ? 'bi bi-sort-up ms-1 text-warning small sort-icon' 
+                : 'bi bi-sort-down ms-1 text-warning small sort-icon';
+        }
+
+        rows.sort((a, b) => {
+            let valA = (a.getAttribute('data-' + col) || '').trim();
+            let valB = (b.getAttribute('data-' + col) || '').trim();
+
+            if (col === 'km') {
+                const numA = parseFloat(valA) || 0;
+                const numB = parseFloat(valB) || 0;
+                return currentSortDir === 'asc' ? numA - numB : numB - numA;
+            }
+
+            if (col === 'scadenza' || col === 'immatricolazione') {
+                if (!valA && !valB) return 0;
+                if (!valA) return 1;
+                if (!valB) return -1;
+                return currentSortDir === 'asc' ? valA.localeCompare(valB) : valB.localeCompare(valA);
+            }
+
+            return currentSortDir === 'asc' 
+                ? valA.localeCompare(valB, 'it', { sensitivity: 'base' }) 
+                : valB.localeCompare(valA, 'it', { sensitivity: 'base' });
+        });
+
+        rows.forEach(r => tbody.appendChild(r));
+    }
+
+    function filterCompletoTable() {
+        const textTerm = (document.getElementById('filterCompletoText')?.value || '').toLowerCase().trim();
+        const statoTerm = (document.getElementById('filterCompletoStato')?.value || '').toLowerCase().trim();
+        const sedeTerm = (document.getElementById('filterCompletoSede')?.value || '').toLowerCase().trim();
+        const servTerm = (document.getElementById('filterCompletoServizio')?.value || '').toLowerCase().trim();
+        const propTerm = (document.getElementById('filterCompletoProprieta')?.value || '').toLowerCase().trim();
+
+        const rows = document.querySelectorAll('.searchable-completo-row');
+        let visibleCount = 0;
+
+        rows.forEach(row => {
+            const rowText = row.innerText.toLowerCase();
+            const rowStato = (row.getAttribute('data-stato') || '').toLowerCase();
+            const rowSedeAss = (row.getAttribute('data-sede-ass') || '').toLowerCase();
+            const rowServ = (row.getAttribute('data-servizio') || '').toLowerCase();
+            const rowProp = (row.getAttribute('data-proprieta') || '').toLowerCase();
+
+            let matchesText = !textTerm || rowText.includes(textTerm);
+            let matchesStato = !statoTerm || rowStato.includes(statoTerm);
+            let matchesSede = !sedeTerm || rowSedeAss.includes(sedeTerm);
+            let matchesServ = !servTerm || rowServ.includes(servTerm);
+            let matchesProp = !propTerm || rowProp.includes(propTerm);
+
+            if (matchesText && matchesStato && matchesSede && matchesServ && matchesProp) {
+                row.style.display = '';
+                visibleCount++;
+            } else {
+                row.style.display = 'none';
+            }
+        });
+
+        const counter = document.getElementById('counterCompleto');
+        if (counter) counter.textContent = visibleCount;
+    }
+
+    function resetFiltriCompleto() {
+        if (document.getElementById('filterCompletoText')) document.getElementById('filterCompletoText').value = '';
+        if (document.getElementById('filterCompletoStato')) document.getElementById('filterCompletoStato').value = '';
+        if (document.getElementById('filterCompletoSede')) document.getElementById('filterCompletoSede').value = '';
+        if (document.getElementById('filterCompletoServizio')) document.getElementById('filterCompletoServizio').value = '';
+        if (document.getElementById('filterCompletoProprieta')) document.getElementById('filterCompletoProprieta').value = '';
+        filterCompletoTable();
+    }
 
     function openSchedaAnagraficaFromBtn(btn) {
         const id = btn.getAttribute('data-id');
