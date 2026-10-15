@@ -619,13 +619,30 @@ def page_dislocazioni(r: Request):
         a["stato_scadenza"] = stato_scad
         automezzi_completi.append(a)
 
+    # Elenco automezzi considerati per il pooling e conteggi disponibilità
+    automezzi_pooling = []
+    totale_pooling_disponibili = 0
+    totale_pooling_esclusi = 0
+    for a in automezzi_completi:
+        a["escluso_prenotazione"] = int(a.get("escluso_prenotazione") or 0)
+        # Escludi veicoli impostati in stato Eliminazione
+        if (a.get("stato") or "").strip().lower() != "eliminazione":
+            if a["escluso_prenotazione"] == 1:
+                totale_pooling_esclusi += 1
+            else:
+                totale_pooling_disponibili += 1
+            automezzi_pooling.append(a)
+
     stats = {
         "totale_veicoli": totale_veicoli,
         "totale_sedi": len(elenco_sedi),
         "totale_servizi": len(elenco_servizi),
         "totale_disponibili": totale_disponibili,
         "totale_in_uso": totale_in_uso,
-        "totale_in_manutenzione": totale_in_manutenzione
+        "totale_in_manutenzione": totale_in_manutenzione,
+        "totale_pooling": len(automezzi_pooling),
+        "totale_pooling_disponibili": totale_pooling_disponibili,
+        "totale_pooling_esclusi": totale_pooling_esclusi
     }
 
     return templates.TemplateResponse(r, "admin_automezzi_dislocazioni.html", {
@@ -633,6 +650,7 @@ def page_dislocazioni(r: Request):
         "elenco_sedi": elenco_sedi,
         "elenco_servizi": elenco_servizi,
         "automezzi_completi": automezzi_completi,
+        "automezzi_pooling": automezzi_pooling,
         "stats": stats,
         "marche": marche,
         "sedi": sedi,
@@ -1192,6 +1210,7 @@ async def edit_vehicle(
     reparto_assegnato_id: int = Form(None),
     fornitore: str = Form(None),
     classe_euro: str = Form(None),
+    escluso_prenotazione: int = Form(0),
     tipi_manutenzione_ids: list[int] = Form(None),
     tag_ids: list[int] = Form(None)
 ):
@@ -1255,7 +1274,8 @@ async def edit_vehicle(
                     sede_attuale_id = :sede_attuale_id,
                     reparto_assegnato_id = :reparto_assegnato_id,
                     fornitore = :fornitore,
-                    classe_euro = :classe_euro
+                    classe_euro = :classe_euro,
+                    escluso_prenotazione = :escluso_prenotazione
                 WHERE automezzo_id = :id
             """), {
                 "id": id,
@@ -1277,7 +1297,8 @@ async def edit_vehicle(
                 "sede_attuale_id": (sede_attuale_id if isinstance(sede_attuale_id, int) else None) or (sede_assegnata_id if isinstance(sede_assegnata_id, int) else None),
                 "reparto_assegnato_id": reparto_assegnato_id if isinstance(reparto_assegnato_id, int) else None,
                 "fornitore": fornitore.strip() if fornitore and isinstance(fornitore, str) else None,
-                "classe_euro": classe_euro.strip() if classe_euro and isinstance(classe_euro, str) else None
+                "classe_euro": classe_euro.strip() if classe_euro and isinstance(classe_euro, str) else None,
+                "escluso_prenotazione": int(escluso_prenotazione) if escluso_prenotazione is not None else 0
             })
         except IntegrityError:
             return RedirectResponse(url=f"/admin/automezzi?error=Impossibile+salvare:+la+targa+{clean_targa}+appartiene+già+ad+un+altro+veicolo+in+archivio", status_code=303)
@@ -4482,7 +4503,35 @@ def toggle_prenotazione_veicolo(id: int, r: Request):
         new_val = 1 if car.escluso_prenotazione == 0 else 0
         conn.execute(text("UPDATE automezzi SET escluso_prenotazione = :new_val WHERE automezzo_id = :id"), {"new_val": new_val, "id": id})
         
-    return RedirectResponse(url="/admin/automezzi", status_code=303)
+    return RedirectResponse(url="/admin/automezzi/dislocazioni?tab=pooling", status_code=303)
+
+
+@router.post("/admin/automezzi/{id}/disponibilita-prenotazione")
+def update_disponibilita_prenotazione_veicolo(id: int, r: Request, escluso_prenotazione: int = Form(...)):
+    if "user" not in r.session:
+        return RedirectResponse(url="/login", status_code=303)
+    user = r.session.get("user")
+    if user.get("ruolo") not in ("admin", "fleet_manager", "global_fleet_manager"):
+        return RedirectResponse(url="/", status_code=303)
+        
+    with engine.begin() as conn:
+        car = conn.execute(text("SELECT targa, reparto_assegnato_id, escluso_prenotazione FROM automezzi WHERE automezzo_id = :id"), {"id": id}).first()
+        if not car:
+            return RedirectResponse(url="/admin/automezzi/dislocazioni?tab=pooling&error=Veicolo+non+trovato", status_code=303)
+            
+        if user.get("ruolo") == "fleet_manager":
+            user_reparto_id = conn.execute(text("SELECT reparto_id FROM users WHERE user_id = :uid"), {"uid": user.get("id")}).scalar()
+            if car.reparto_assegnato_id != user_reparto_id:
+                import urllib.parse
+                return RedirectResponse(url=f"/admin/automezzi/dislocazioni?tab=pooling&error={urllib.parse.quote('Non sei autorizzato a gestire i veicoli di altri reparti.')}", status_code=303)
+                
+        new_val = 1 if int(escluso_prenotazione) == 1 else 0
+        conn.execute(text("UPDATE automezzi SET escluso_prenotazione = :new_val WHERE automezzo_id = :id"), {"new_val": new_val, "id": id})
+        
+    import urllib.parse
+    stato_lbl = "escluso dalle prenotazioni" if new_val == 1 else "reso disponibile per la prenotazione"
+    msg = urllib.parse.quote(f"Veicolo {car.targa} {stato_lbl} con successo.")
+    return RedirectResponse(url=f"/admin/automezzi/dislocazioni?tab=pooling&msg={msg}", status_code=303)
 
 
 @router.post("/autopark/registra-viaggio")

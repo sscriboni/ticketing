@@ -2,7 +2,7 @@
 <html lang="it">
 <head>
     <meta charset="utf-8">
-    <title>Dislocazioni Automezzi — {{ cfg.get('app_title', 'TroubleTick') }}</title>
+    <title>Parco automezzi — {{ cfg.get('app_title', 'TroubleTick') }}</title>
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css">
     <style>
@@ -44,10 +44,10 @@
     <div class="d-flex justify-content-between align-items-center mb-4">
         <div>
             <h2 class="mb-1 fw-bold text-dark">
-                <i class="bi bi-geo-fill text-primary me-2"></i>Dislocazioni Automezzi
+                <i class="bi bi-car-front-fill text-primary me-2"></i>Parco automezzi
             </h2>
             <p class="text-muted mb-0 small">
-                Prospetto generale del parco auto raggruppato per Sede Assegnata e per Servizio/Reparto Assegnato.
+                Prospetto generale del parco auto: raggruppamento per Sede Assegnata, Servizio, Flotta Completa e Mezzi in Pooling.
             </p>
         </div>
         <div class="d-flex flex-wrap gap-2">
@@ -64,6 +64,19 @@
             </a>
         </div>
     </div>
+
+    {% if request.query_params.get('msg') %}
+    <div class="alert alert-success alert-dismissible fade show fw-semibold shadow-sm mb-4" role="alert">
+        <i class="bi bi-check-circle-fill me-2"></i>{{ request.query_params.get('msg') }}
+        <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+    </div>
+    {% endif %}
+    {% if request.query_params.get('error') %}
+    <div class="alert alert-danger alert-dismissible fade show fw-semibold shadow-sm mb-4" role="alert">
+        <i class="bi bi-exclamation-triangle-fill me-2"></i>{{ request.query_params.get('error') }}
+        <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+    </div>
+    {% endif %}
 
     <!-- KPI Summary Cards -->
     <div class="row g-3 mb-4">
@@ -144,6 +157,12 @@
                 <span class="badge bg-dark rounded-pill ms-2">{{ automezzi_completi|length }}</span>
             </button>
         </li>
+        <li class="nav-item" role="presentation">
+            <button class="nav-link fw-bold" id="pooling-tab" data-bs-toggle="tab" data-bs-target="#pooling-pane" type="button" role="tab" aria-controls="pooling-pane" aria-selected="false">
+                <i class="bi bi-car-front-fill me-2 text-warning"></i>Automezzi in Pooling
+                <span class="badge bg-warning text-dark rounded-pill ms-2" id="badgeTabPooling">{{ automezzi_pooling|length }}</span>
+            </button>
+        </li>
     </ul>
 
     <!-- Filter input -->
@@ -218,6 +237,7 @@
                                                 data-reparto-id="{{ v.reparto_assegnato_id or '' }}"
                                                 data-fornitore="{{ v.fornitore or '' }}"
                                                 data-euro="{{ v.classe_euro or '' }}"
+                                                data-escluso="{{ v.escluso_prenotazione or 0 }}"
                                                 data-tag-ids="{{ v.tag_ids | tojson if v.tag_ids else '[]' }}"
                                                 onclick="openSchedaAnagraficaFromBtn(this)"
                                                 title="Clicca per modificare la Scheda Anagrafica di {{ v.targa }}">
@@ -351,6 +371,7 @@
                                                 data-reparto-id="{{ v.reparto_assegnato_id or '' }}"
                                                 data-fornitore="{{ v.fornitore or '' }}"
                                                 data-euro="{{ v.classe_euro or '' }}"
+                                                data-escluso="{{ v.escluso_prenotazione or 0 }}"
                                                 data-tag-ids="{{ v.tag_ids | tojson if v.tag_ids else '[]' }}"
                                                 onclick="openSchedaAnagraficaFromBtn(this)"
                                                 title="Clicca per modificare la Scheda Anagrafica di {{ v.targa }}">
@@ -565,6 +586,7 @@
                                             data-reparto-id="{{ v.reparto_assegnato_id or '' }}"
                                             data-fornitore="{{ v.fornitore or '' }}"
                                             data-euro="{{ v.classe_euro or '' }}"
+                                            data-escluso="{{ v.escluso_prenotazione or 0 }}"
                                             data-tag-ids="{{ v.tag_ids | tojson if v.tag_ids else '[]' }}"
                                             onclick="openSchedaAnagraficaFromBtn(this)"
                                             title="Clicca per modificare la Scheda Anagrafica di {{ v.targa }}">
@@ -691,6 +713,22 @@
                                                 title="Modifica Scheda Anagrafica">
                                             <i class="bi bi-pencil-fill"></i>
                                         </button>
+                                        <button type="button" 
+                                                class="btn btn-outline-warning text-dark" 
+                                                data-id="{{ v.automezzo_id }}"
+                                                data-targa="{{ v.targa }}"
+                                                data-marca="{{ v.marca_nome }}"
+                                                data-modello="{{ v.modello }}"
+                                                data-tipo="{{ v.tipo }}"
+                                                data-sede="{{ v.sede_attuale_nome or v.sede_assegnata_nome or '—' }}"
+                                                data-reparto="{{ v.reparto_assegnato_nome or '—' }}"
+                                                data-stato="{{ v.stato }}"
+                                                data-km="{{ v.km_attuali or 0 }}"
+                                                data-escluso="{{ v.escluso_prenotazione or 0 }}"
+                                                onclick="openSchedaDisponibilita(this)" 
+                                                title="Gestisci disponibilità per prenotazione carpooling">
+                                            <i class="bi bi-car-front-fill"></i>
+                                        </button>
                                         <a href="/admin/automezzi/registro-km/{{ v.automezzo_id }}" class="btn btn-outline-secondary" title="Registro Storico KM">
                                             <i class="bi bi-speedometer2"></i>
                                         </a>
@@ -714,6 +752,228 @@
                                 <td colspan="11" class="text-end text-uppercase small text-muted">TOTALE VEICOLI IN FLOTTA:</td>
                                 <td class="text-end text-primary fs-6">{{ stats.totale_veicoli }} auto</td>
                                 <td></td>
+                            </tr>
+                        </tfoot>
+                    </table>
+        <!-- TAB 4: AUTOMEZZI PRENOTABILI IN POOLING -->
+        <div class="tab-pane fade" id="pooling-pane" role="tabpanel" aria-labelledby="pooling-tab" tabindex="0">
+            <div class="vehicle-card bg-white p-3 mb-4 shadow-sm">
+                <!-- Intestazione e Contatori Rapidi -->
+                <div class="d-flex flex-wrap justify-content-between align-items-center mb-3 pb-2 border-bottom">
+                    <div>
+                        <h5 class="fw-bold text-dark mb-1 d-flex align-items-center gap-2">
+                            <i class="bi bi-car-front-fill text-warning"></i>
+                            <span>Automezzi Prenotabili in Pooling</span>
+                        </h5>
+                        <p class="text-muted small mb-0">
+                            Gestione della disponibilità per il carpooling aziendale. Clicca sul pulsante <strong>Scheda Prenotazione</strong> di ciascun mezzo per selezionare se il veicolo è disponibile o meno per la prenotazione.
+                        </p>
+                    </div>
+                    <div class="d-flex flex-wrap gap-2 mt-2 mt-md-0">
+                        <button type="button" class="btn btn-sm btn-outline-secondary fw-semibold" onclick="setPoolingFilterDisp('')" id="btnFilterPoolAll">
+                            Tutti <span class="badge bg-secondary ms-1">{{ automezzi_pooling|length }}</span>
+                        </button>
+                        <button type="button" class="btn btn-sm btn-outline-success fw-semibold" onclick="setPoolingFilterDisp('0')" id="btnFilterPoolDisp">
+                            <i class="bi bi-check-circle-fill me-1"></i>Disponibili <span class="badge bg-success ms-1">{{ stats.totale_pooling_disponibili }}</span>
+                        </button>
+                        <button type="button" class="btn btn-sm btn-outline-danger fw-semibold" onclick="setPoolingFilterDisp('1')" id="btnFilterPoolEscl">
+                            <i class="bi bi-slash-circle-fill me-1"></i>Non disponibili <span class="badge bg-danger ms-1">{{ stats.totale_pooling_esclusi }}</span>
+                        </button>
+                    </div>
+                </div>
+
+                <!-- Filtri Avanzati Tabella Pooling -->
+                <div class="row g-2 align-items-center mb-3">
+                    <div class="col-12 col-md-4">
+                        <div class="input-group input-group-sm">
+                            <span class="input-group-text bg-light"><i class="bi bi-search text-muted"></i></span>
+                            <input type="text" id="filterPoolingText" class="form-control" placeholder="Cerca targa, modello, sede o servizio..." oninput="filterPoolingTable()">
+                        </div>
+                    </div>
+                    <div class="col-6 col-md-3">
+                        <select id="filterPoolingDisponibilita" class="form-select form-select-sm" onchange="filterPoolingTable()">
+                            <option value="">Tutte le Disponibilità</option>
+                            <option value="0">Solo Disponibili per la prenotazione</option>
+                            <option value="1">Solo Non disponibili per la prenotazione</option>
+                        </select>
+                    </div>
+                    <div class="col-6 col-md-2">
+                        <select id="filterPoolingSede" class="form-select form-select-sm" onchange="filterPoolingTable()">
+                            <option value="">Tutte le Sedi</option>
+                            {% for s in sedi %}
+                            <option value="{{ s.nome|lower }}">{{ s.nome }}</option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                    <div class="col-6 col-md-2">
+                        <select id="filterPoolingServizio" class="form-select form-select-sm" onchange="filterPoolingTable()">
+                            <option value="">Tutti i Servizi</option>
+                            {% for rep in reparti %}
+                            <option value="{{ rep.nome|lower }}">{{ rep.nome }}</option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                    <div class="col-6 col-md-1 d-flex justify-content-end">
+                        <button type="button" class="btn btn-outline-secondary btn-sm w-100" onclick="resetFiltriPooling()" title="Ripristina filtri">
+                            <i class="bi bi-arrow-counterclockwise"></i>
+                        </button>
+                    </div>
+                </div>
+
+                <!-- Info contatore -->
+                <div class="d-flex justify-content-between align-items-center mb-2 px-1">
+                    <div class="small text-muted">
+                        Visualizzati: <span id="counterPooling" class="fw-bold text-primary">{{ automezzi_pooling|length }}</span> di <span class="fw-semibold">{{ automezzi_pooling|length }}</span> veicoli pooling
+                    </div>
+                    <div class="small text-muted">
+                        <span class="text-success fw-bold me-2"><i class="bi bi-check-circle-fill me-1"></i>{{ stats.totale_pooling_disponibili }} Disponibili</span>
+                        <span class="text-danger fw-bold"><i class="bi bi-slash-circle-fill me-1"></i>{{ stats.totale_pooling_esclusi }} Esclusi/Non disponibili</span>
+                    </div>
+                </div>
+
+                <!-- Tabella Mezzi Pooling -->
+                <div class="table-responsive">
+                    <table class="table table-hover table-striped align-middle custom-table mb-0" id="tableAutomezziPooling">
+                        <thead class="table-dark">
+                            <tr>
+                                <th class="text-nowrap">Targa</th>
+                                <th class="text-nowrap">Marca & Modello</th>
+                                <th class="text-nowrap">Tipo</th>
+                                <th class="text-nowrap">Sede Assegnata</th>
+                                <th class="text-nowrap">Sede Attuale</th>
+                                <th class="text-nowrap">Servizio / Reparto</th>
+                                <th class="text-nowrap">Stato Flotta</th>
+                                <th class="text-nowrap">Disponibilità Pooling</th>
+                                <th class="text-nowrap text-end">KM</th>
+                                <th class="text-center text-nowrap">Gestione Scheda</th>
+                            </tr>
+                        </thead>
+                        <tbody id="tbodyAutomezziPooling">
+                        {% for v in automezzi_pooling %}
+                            <tr class="searchable-pooling-row"
+                                data-targa="{{ v.targa|upper }}"
+                                data-marca="{{ v.marca_nome|lower }} {{ v.modello|lower }}"
+                                data-sede="{{ v.sede_attuale_nome|lower if v.sede_attuale_nome else (v.sede_assegnata_nome|lower if v.sede_assegnata_nome else '') }}"
+                                data-servizio="{{ v.reparto_assegnato_nome|lower if v.reparto_assegnato_nome else '' }}"
+                                data-escluso="{{ v.escluso_prenotazione or 0 }}">
+                                <td>
+                                    <button type="button" 
+                                            class="btn btn-outline-dark btn-sm font-monospace text-uppercase px-2 py-1 shadow-sm btn-scheda-anagrafica" 
+                                            style="letter-spacing: 1.5px; font-weight: 800; font-size: 0.95rem;" 
+                                            data-id="{{ v.automezzo_id }}"
+                                            data-targa="{{ v.targa }}"
+                                            data-marca-id="{{ v.marca_id }}"
+                                            data-modello="{{ v.modello }}"
+                                            data-tipo="{{ v.tipo }}"
+                                            data-note="{{ v.note or '' }}"
+                                            data-alimentazione="{{ v.alimentazione or '' }}"
+                                            data-immatricolazione="{{ v.data_immatricolazione or '' }}"
+                                            data-proprieta="{{ v.proprieta or '' }}"
+                                            data-canone="{{ v.canone_noleggio or 0 }}"
+                                            data-inizio-noleggio="{{ v.data_inizio_noleggio or '' }}"
+                                            data-durata-noleggio="{{ v.durata_noleggio_anni or 0 }}"
+                                            data-km="{{ v.km_attuali or 0 }}"
+                                            data-stato="{{ v.stato }}"
+                                            data-sede-ass-id="{{ v.sede_assegnata_id or '' }}"
+                                            data-sede-att-id="{{ v.sede_attuale_id or '' }}"
+                                            data-reparto-id="{{ v.reparto_assegnato_id or '' }}"
+                                            data-fornitore="{{ v.fornitore or '' }}"
+                                            data-euro="{{ v.classe_euro or '' }}"
+                                            data-escluso="{{ v.escluso_prenotazione or 0 }}"
+                                            data-tag-ids="{{ v.tag_ids | tojson if v.tag_ids else '[]' }}"
+                                            onclick="openSchedaAnagraficaFromBtn(this)"
+                                            title="Clicca per modificare la Scheda Anagrafica di {{ v.targa }}">
+                                        <i class="bi bi-pencil-square me-1 text-primary"></i> {{ v.targa }}
+                                    </button>
+                                </td>
+                                <td>
+                                    <strong>{{ v.marca_nome }} {{ v.modello }}</strong>
+                                    {% if v.proprieta == 'Noleggio' %}
+                                        <span class="badge bg-warning-subtle text-warning-emphasis border border-warning-subtle ms-1" style="font-size:0.72rem;">
+                                            <i class="bi bi-clock-history me-1"></i>Noleggio
+                                        </span>
+                                    {% endif %}
+                                    {% if v.tags %}
+                                        <div class="d-flex flex-wrap gap-1 mt-1">
+                                            {% for tag in v.tags %}
+                                                <span class="badge shadow-sm" style="background-color: {{ tag.colore or '#0d6efd' }}; color: #ffffff; font-size: 0.68rem;">
+                                                    <i class="bi bi-tag-fill me-1"></i>{{ tag.nome }}
+                                                </span>
+                                            {% endfor %}
+                                        </div>
+                                    {% endif %}
+                                </td>
+                                <td>
+                                    {% if v.tipo == 'furgone' %}
+                                    <span class="badge bg-secondary"><i class="bi bi-truck me-1"></i>Furgone</span>
+                                    {% else %}
+                                    <span class="badge bg-info text-dark"><i class="bi bi-car-front me-1"></i>Auto</span>
+                                    {% endif %}
+                                </td>
+                                <td>
+                                    <span class="fw-semibold text-dark"><i class="bi bi-building me-1 text-primary"></i>{{ v.sede_assegnata_nome or '—' }}</span>
+                                </td>
+                                <td>
+                                    <span class="text-secondary"><i class="bi bi-geo-alt me-1 text-danger"></i>{{ v.sede_attuale_nome or v.sede_assegnata_nome or '—' }}</span>
+                                </td>
+                                <td>
+                                    <span class="fw-semibold text-dark">{{ v.reparto_assegnato_nome or '—' }}</span>
+                                </td>
+                                <td>
+                                    {% if v.stato_effettivo == 'disponibile' %}
+                                    <span class="badge bg-success-subtle text-success border border-success-subtle px-2 py-1"><i class="bi bi-check-circle-fill me-1"></i>Disponibile</span>
+                                    {% elif v.stato_effettivo == 'in uso' %}
+                                    <span class="badge bg-warning-subtle text-warning-emphasis border border-warning-subtle px-2 py-1"><i class="bi bi-key-fill me-1"></i>In Uso</span>
+                                    {% else %}
+                                    <span class="badge bg-danger-subtle text-danger border border-danger-subtle px-2 py-1"><i class="bi bi-wrench me-1"></i>{{ v.stato }}</span>
+                                    {% endif %}
+                                </td>
+                                <td>
+                                    {% if v.escluso_prenotazione == 1 %}
+                                    <span class="badge bg-danger-subtle text-danger border border-danger-subtle px-2 py-1 shadow-sm">
+                                        <i class="bi bi-slash-circle me-1"></i>Non disponibile (Escluso)
+                                    </span>
+                                    {% else %}
+                                    <span class="badge bg-success-subtle text-success border border-success-subtle px-2 py-1 shadow-sm">
+                                        <i class="bi bi-check-circle-fill me-1"></i>Disponibile
+                                    </span>
+                                    {% endif %}
+                                </td>
+                                <td class="text-end">
+                                    <span class="font-monospace fw-semibold text-dark">{{ "{:,}".format(v.km_attuali or 0).replace(",", ".") }} km</span>
+                                </td>
+                                <td class="text-center text-nowrap">
+                                    <button type="button" 
+                                            class="btn btn-primary btn-sm fw-bold px-3 shadow-sm btn-scheda-disponibilita" 
+                                            data-id="{{ v.automezzo_id }}"
+                                            data-targa="{{ v.targa }}"
+                                            data-marca="{{ v.marca_nome }}"
+                                            data-modello="{{ v.modello }}"
+                                            data-tipo="{{ v.tipo }}"
+                                            data-sede="{{ v.sede_attuale_nome or v.sede_assegnata_nome or '—' }}"
+                                            data-reparto="{{ v.reparto_assegnato_nome or '—' }}"
+                                            data-stato="{{ v.stato }}"
+                                            data-km="{{ v.km_attuali or 0 }}"
+                                            data-escluso="{{ v.escluso_prenotazione or 0 }}"
+                                            onclick="openSchedaDisponibilita(this)"
+                                            title="Apri scheda per selezionare se il veicolo è disponibile o meno per la prenotazione">
+                                        <i class="bi bi-sliders me-1"></i> Scheda Prenotazione
+                                    </button>
+                                </td>
+                            </tr>
+                        {% else %}
+                            <tr>
+                                <td colspan="10" class="text-center py-5 text-muted">
+                                    <i class="bi bi-inbox display-4 d-block mb-2"></i>
+                                    Nessun automezzo trovato per la sezione pooling.
+                                </td>
+                            </tr>
+                        {% endfor %}
+                        </tbody>
+                        <tfoot class="table-light fw-bold">
+                            <tr>
+                                <td colspan="7" class="text-end text-uppercase small text-muted">TOTALE MEZZI IN POOLING:</td>
+                                <td colspan="3" class="text-primary fs-6">{{ automezzi_pooling|length }} veicoli</td>
                             </tr>
                         </tfoot>
                     </table>
@@ -844,6 +1104,17 @@
                         </div>
                     </div>
                     
+                    <div class="row g-3 mb-3">
+                        <div class="col-md-12">
+                            <label class="form-label text-muted fw-bold"><i class="bi bi-calendar-check text-primary me-1"></i> Disponibilità Prenotazione Carpooling / Pooling *</label>
+                            <select class="form-select fw-bold" name="escluso_prenotazione" id="editEsclusoPrenotazione" required>
+                                <option value="0">Disponibile per la prenotazione</option>
+                                <option value="1">Non disponibile per la prenotazione (Escluso)</option>
+                            </select>
+                            <div class="form-text small text-muted">Seleziona se il veicolo è abilitato e prenotabile per i viaggi carpooling del personale o se deve essere escluso.</div>
+                        </div>
+                    </div>
+                    
                     <div class="row g-3 mb-4">
                         <div class="col-md-4">
                             <label class="form-label text-muted fw-bold">Sede Assegnata Fissa *</label>
@@ -921,6 +1192,83 @@
         </div>
     </div>
 </div>
+
+<!-- Modal Scheda Disponibilità Prenotazione Carpooling -->
+<div class="modal fade" id="schedaDisponibilitaModal" tabindex="-1" aria-labelledby="schedaDisponibilitaModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered modal-md">
+        <div class="modal-content border-0 shadow-lg rounded-4">
+            <div class="modal-header bg-dark text-white rounded-top-4 py-3">
+                <h5 class="modal-title fw-bold" id="schedaDisponibilitaModalLabel">
+                    <i class="bi bi-car-front-fill me-2 text-warning"></i> Scheda Prenotazione: <span id="sdModalTarga" class="font-monospace text-warning ms-1"></span>
+                </h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <form id="sdModalForm" method="POST" action="">
+                <div class="modal-body p-4">
+                    <!-- Riepilogo Veicolo -->
+                    <div class="p-3 bg-light rounded-3 border mb-3">
+                        <div class="d-flex justify-content-between align-items-center mb-1">
+                            <span class="fw-bold fs-6 text-dark" id="sdModalVeicolo"></span>
+                            <span class="badge bg-secondary" id="sdModalTipo"></span>
+                        </div>
+                        <div class="small text-muted mb-1">
+                            <i class="bi bi-geo-alt me-1 text-danger"></i>Sede: <strong id="sdModalSede" class="text-dark"></strong> &bull; 
+                            <i class="bi bi-diagram-3 me-1 text-primary"></i>Reparto: <strong id="sdModalReparto" class="text-dark"></strong>
+                        </div>
+                        <div class="small text-muted">
+                            <i class="bi bi-speedometer2 me-1"></i>KM: <span id="sdModalKm" class="font-monospace fw-semibold text-dark"></span> &bull; 
+                            Stato Flotta: <span id="sdModalStato" class="fw-semibold"></span>
+                        </div>
+                    </div>
+
+                    <label class="form-label fw-bold text-dark mb-2">
+                        <i class="bi bi-calendar-check text-primary me-1"></i> Seleziona disponibilità per la prenotazione:
+                    </label>
+
+                    <div class="d-flex flex-column gap-2 mb-3">
+                        <!-- Opzione 1: Disponibile -->
+                        <div class="form-check p-3 border rounded-3 position-relative bg-white" id="cardOptDisp" style="cursor: pointer;" onclick="document.getElementById('sdOptDisponibile').checked = true; updateCardSelection();">
+                            <input class="form-check-input mt-1 fs-5 me-2" type="radio" name="escluso_prenotazione" id="sdOptDisponibile" value="0" onchange="updateCardSelection()">
+                            <label class="form-check-label w-100" for="sdOptDisponibile" style="cursor: pointer;">
+                                <div class="fw-bold text-success d-flex align-items-center gap-1">
+                                    <i class="bi bi-check-circle-fill"></i> Disponibile per la prenotazione
+                                </div>
+                                <div class="small text-muted mt-1">
+                                    Il veicolo è abilitato e compare nel modulo Carpooling per consentire agli utenti di prenotarlo per trasferte aziendali.
+                                </div>
+                            </label>
+                        </div>
+
+                        <!-- Opzione 2: Non Disponibile -->
+                        <div class="form-check p-3 border rounded-3 position-relative bg-white" id="cardOptEscl" style="cursor: pointer;" onclick="document.getElementById('sdOptEscluso').checked = true; updateCardSelection();">
+                            <input class="form-check-input mt-1 fs-5 me-2" type="radio" name="escluso_prenotazione" id="sdOptEscluso" value="1" onchange="updateCardSelection()">
+                            <label class="form-check-label w-100" for="sdOptEscluso" style="cursor: pointer;">
+                                <div class="fw-bold text-danger d-flex align-items-center gap-1">
+                                    <i class="bi bi-slash-circle-fill"></i> Non disponibile per la prenotazione
+                                </div>
+                                <div class="small text-muted mt-1">
+                                    Il veicolo viene escluso dal tabellone di prenotazione (es. fermo tecnico prolungato, assegnazione esclusiva, riparazione o alienazione).
+                                </div>
+                            </label>
+                        </div>
+                    </div>
+
+                    <div class="alert alert-info py-2 px-3 small mb-0 d-flex align-items-center gap-2">
+                        <i class="bi bi-info-circle-fill fs-5 text-primary"></i>
+                        <span>La selezione aggiorna all'istante la disponibilità del veicolo per le prenotazioni di carpooling.</span>
+                    </div>
+                </div>
+                <div class="modal-footer bg-light rounded-bottom-4 py-2.5 px-4">
+                    <button type="button" class="btn btn-secondary fw-semibold" data-bs-dismiss="modal">Annulla</button>
+                    <button type="submit" class="btn btn-primary px-4 fw-bold">
+                        <i class="bi bi-check-circle me-1"></i> Salva Disponibilità
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
 
 {% if user.ruolo in ['admin', 'global_fleet_manager'] %}
 <!-- Modal Inserimento Nuovo Veicolo (Solo Admin & Global Fleet Manager) -->
@@ -1116,8 +1464,9 @@
                     var text = (row.textContent || '').toLowerCase();
                     row.style.display = (text.indexOf(term) !== -1) ? '' : 'none';
                 });
-                // Sincronizza anche il filtro sulla tabella completa
+                // Sincronizza anche il filtro sulla tabella completa e pooling
                 filterCompletoTable();
+                filterPoolingTable();
             });
         }
 
@@ -1128,7 +1477,147 @@
                 filterCompletoTable();
             });
         }
+
+        // Listener su cambio tab per aggiornare la tabella pooling
+        var poolingTab = document.getElementById('pooling-tab');
+        if (poolingTab) {
+            poolingTab.addEventListener('shown.bs.tab', function() {
+                filterPoolingTable();
+            });
+        }
+
+        // Selezione automatica tab se indicata nei parametri URL o nell'ancora hash
+        const urlParams = new URLSearchParams(window.location.search);
+        const activeTab = urlParams.get('tab');
+        if (activeTab === 'pooling' || window.location.hash === '#pooling-pane' || window.location.hash === '#pooling' || window.location.hash === '#pooling-tab') {
+            if (poolingTab) {
+                bootstrap.Tab.getOrCreateInstance(poolingTab).show();
+            }
+        }
     });
+
+    // ===== GESTIONE SCHEDA DISPONIBILITA PRENOTAZIONE POOLING =====
+    function openSchedaDisponibilita(btn) {
+        if (!btn) return;
+        const id = btn.getAttribute('data-id');
+        const targa = btn.getAttribute('data-targa') || '';
+        const marca = btn.getAttribute('data-marca') || '';
+        const modello = btn.getAttribute('data-modello') || '';
+        const tipo = (btn.getAttribute('data-tipo') || 'auto').toUpperCase();
+        const sede = btn.getAttribute('data-sede') || '—';
+        const reparto = btn.getAttribute('data-reparto') || '—';
+        const stato = btn.getAttribute('data-stato') || 'Disponibile';
+        const km = btn.getAttribute('data-km') || '0';
+        const escluso = btn.getAttribute('data-escluso') || '0';
+
+        document.getElementById('sdModalTarga').textContent = targa;
+        document.getElementById('sdModalVeicolo').textContent = marca + ' ' + modello;
+        document.getElementById('sdModalTipo').textContent = tipo;
+        document.getElementById('sdModalSede').textContent = sede;
+        document.getElementById('sdModalReparto').textContent = reparto;
+        document.getElementById('sdModalKm').textContent = (parseInt(km) || 0).toLocaleString('it-IT') + ' km';
+
+        const statoEl = document.getElementById('sdModalStato');
+        if (statoEl) {
+            statoEl.textContent = stato;
+            if (stato.toLowerCase() === 'disponibile') {
+                statoEl.className = 'text-success fw-bold';
+            } else if (stato.toLowerCase() === 'in uso') {
+                statoEl.className = 'text-warning text-dark fw-bold';
+            } else {
+                statoEl.className = 'text-danger fw-bold';
+            }
+        }
+
+        if (escluso === '1' || escluso === 1) {
+            document.getElementById('sdOptEscluso').checked = true;
+        } else {
+            document.getElementById('sdOptDisponibile').checked = true;
+        }
+        updateCardSelection();
+
+        const form = document.getElementById('sdModalForm');
+        if (form) {
+            form.action = '/admin/automezzi/' + id + '/disponibilita-prenotazione';
+        }
+
+        const modal = bootstrap.Modal.getOrCreateInstance(document.getElementById('schedaDisponibilitaModal'));
+        modal.show();
+    }
+
+    function updateCardSelection() {
+        const isDisp = document.getElementById('sdOptDisponibile')?.checked;
+        const cardDisp = document.getElementById('cardOptDisp');
+        const cardEscl = document.getElementById('cardOptEscl');
+        if (cardDisp && cardEscl) {
+            if (isDisp) {
+                cardDisp.classList.add('border-success', 'bg-success-subtle');
+                cardDisp.classList.remove('border-secondary', 'bg-white');
+                cardEscl.classList.remove('border-danger', 'bg-danger-subtle');
+                cardEscl.classList.add('bg-white');
+            } else {
+                cardEscl.classList.add('border-danger', 'bg-danger-subtle');
+                cardEscl.classList.remove('border-secondary', 'bg-white');
+                cardDisp.classList.remove('border-success', 'bg-success-subtle');
+                cardDisp.classList.add('bg-white');
+            }
+        }
+    }
+
+    // ===== ORDINAMENTO E FILTRI TABELLA POOLING =====
+    function filterPoolingTable() {
+        const textLocal = (document.getElementById('filterPoolingText')?.value || '').toLowerCase().trim();
+        const textGlobal = (document.getElementById('dislocazioniSearch')?.value || '').toLowerCase().trim();
+        const textTerm = textLocal || textGlobal;
+
+        const dispTerm = (document.getElementById('filterPoolingDisponibilita')?.value || '').trim();
+        const sedeTerm = (document.getElementById('filterPoolingSede')?.value || '').toLowerCase().trim();
+        const servTerm = (document.getElementById('filterPoolingServizio')?.value || '').toLowerCase().trim();
+
+        const rows = document.querySelectorAll('.searchable-pooling-row');
+        let visibleCount = 0;
+
+        rows.forEach(row => {
+            const rowText = (row.textContent || '').toLowerCase();
+            const rowEscluso = (row.getAttribute('data-escluso') || '0').trim();
+            const rowSede = (row.getAttribute('data-sede') || '').toLowerCase();
+            const rowServ = (row.getAttribute('data-servizio') || '').toLowerCase();
+
+            let matchesText = !textTerm || rowText.includes(textTerm);
+            let matchesDisp = true;
+            if (dispTerm !== '') {
+                matchesDisp = (rowEscluso === dispTerm);
+            }
+            let matchesSede = !sedeTerm || rowSede.includes(sedeTerm);
+            let matchesServ = !servTerm || rowServ.includes(servTerm);
+
+            if (matchesText && matchesDisp && matchesSede && matchesServ) {
+                row.style.display = '';
+                visibleCount++;
+            } else {
+                row.style.display = 'none';
+            }
+        });
+
+        const counter = document.getElementById('counterPooling');
+        if (counter) counter.textContent = visibleCount;
+    }
+
+    function setPoolingFilterDisp(val) {
+        const select = document.getElementById('filterPoolingDisponibilita');
+        if (select) {
+            select.value = val;
+            filterPoolingTable();
+        }
+    }
+
+    function resetFiltriPooling() {
+        if (document.getElementById('filterPoolingText')) document.getElementById('filterPoolingText').value = '';
+        if (document.getElementById('filterPoolingDisponibilita')) document.getElementById('filterPoolingDisponibilita').value = '';
+        if (document.getElementById('filterPoolingSede')) document.getElementById('filterPoolingSede').value = '';
+        if (document.getElementById('filterPoolingServizio')) document.getElementById('filterPoolingServizio').value = '';
+        filterPoolingTable();
+    }
 
     // ===== ORDINAMENTO E FILTRI TABELLA COMPLETA =====
     let currentSortCol = null;
@@ -1268,6 +1757,12 @@
         document.getElementById('editDurataNoleggioAnni').value = btn.getAttribute('data-durata-noleggio') || '';
         document.getElementById('editKmAttuali').value = btn.getAttribute('data-km') || '0';
         document.getElementById('editStato').value = btn.getAttribute('data-stato') || 'Disponibile';
+        
+        const esclusoPrenEl = document.getElementById('editEsclusoPrenotazione');
+        if (esclusoPrenEl) {
+            esclusoPrenEl.value = btn.getAttribute('data-escluso') || '0';
+        }
+
         document.getElementById('editSedeAssegnataId').value = btn.getAttribute('data-sede-ass-id') || '';
         document.getElementById('editSedeAttualeId').value = btn.getAttribute('data-sede-att-id') || '';
         document.getElementById('editRepartoAssegnatoId').value = btn.getAttribute('data-reparto-id') || '';
@@ -1298,7 +1793,7 @@
         toggleEditNoleggio();
         updateEditScadenzaPreview();
 
-        const modal = new bootstrap.Modal(document.getElementById('editVehicleModal'));
+        const modal = bootstrap.Modal.getOrCreateInstance(document.getElementById('editVehicleModal'));
         modal.show();
     }
 

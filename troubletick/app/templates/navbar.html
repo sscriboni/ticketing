@@ -122,12 +122,9 @@
               <i class="bi bi-car-front-fill me-1"></i> Carpooling
             </a>
             <ul class="dropdown-menu shadow" aria-labelledby="autoparkDropdown">
-              <!-- Parco Auto & Dislocazioni -->
+              <!-- Parco Automezzi -->
               <li><h6 class="dropdown-header text-uppercase fw-bold text-primary small"><i class="bi bi-car-front-fill me-1"></i> Flotta & Sedi</h6></li>
-              <li><a class="dropdown-item" href="/admin/automezzi"><i class="bi bi-car-front me-2 text-primary"></i>Elenco Automezzi</a></li>
-              {% if user.ruolo in ('admin', 'fleet_manager', 'global_fleet_manager') %}
-              <li><a class="dropdown-item" href="/admin/automezzi/dislocazioni"><i class="bi bi-geo-alt-fill me-2 text-danger"></i>Dislocazioni Sedi/Reparti</a></li>
-              {% endif %}
+              <li><a class="dropdown-item" href="/admin/automezzi"><i class="bi bi-car-front me-2 text-primary"></i>Parco automezzi</a></li>
               {% if user.ruolo in ('admin', 'global_fleet_manager') %}
               <li><a class="dropdown-item" href="/admin/automezzi/noleggi"><i class="bi bi-calendar-range me-2 text-warning"></i>Scadenziario Noleggi</a></li>
               {% endif %}
@@ -497,12 +494,9 @@
               <i class="bi bi-car-front-fill me-1"></i> Carpooling
             </a>
             <ul class="dropdown-menu shadow" aria-labelledby="autoparkDropdownFM">
-              <!-- Parco Auto & Dislocazioni -->
+              <!-- Parco Automezzi -->
               <li><h6 class="dropdown-header text-uppercase fw-bold text-primary small"><i class="bi bi-car-front-fill me-1"></i> Flotta & Sedi</h6></li>
-              <li><a class="dropdown-item" href="/admin/automezzi"><i class="bi bi-car-front me-2 text-primary"></i>Elenco Automezzi</a></li>
-              {% if user.ruolo in ('admin', 'fleet_manager', 'global_fleet_manager') %}
-              <li><a class="dropdown-item" href="/admin/automezzi/dislocazioni"><i class="bi bi-geo-alt-fill me-2 text-danger"></i>Dislocazioni Sedi/Reparti</a></li>
-              {% endif %}
+              <li><a class="dropdown-item" href="/admin/automezzi"><i class="bi bi-car-front me-2 text-primary"></i>Parco automezzi</a></li>
               {% if user.ruolo in ('admin', 'global_fleet_manager') %}
               <li><a class="dropdown-item" href="/admin/automezzi/noleggi"><i class="bi bi-calendar-range me-2 text-warning"></i>Scadenziario Noleggi</a></li>
               {% endif %}
