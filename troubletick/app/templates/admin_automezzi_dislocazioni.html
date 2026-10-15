@@ -29,17 +29,31 @@
             margin-bottom: 1.5rem;
         }
         .custom-table th {
-            font-size: 0.8rem;
+            font-size: 0.78rem;
             text-transform: uppercase;
             letter-spacing: 0.5px;
             color: #6c757d;
+            padding-top: 0.65rem;
+            padding-bottom: 0.65rem;
+        }
+        .custom-table td {
+            vertical-align: middle;
+            font-size: 0.85rem;
+            padding-top: 0.5rem;
+            padding-bottom: 0.5rem;
+        }
+        .modal {
+            z-index: 2100 !important;
+        }
+        .modal-backdrop {
+            z-index: 2090 !important;
         }
     </style>
 </head>
 <body class="bg-light">
 {% include 'navbar.html' %}
 
-<div class="container py-4">
+<div class="container-fluid px-3 px-xl-4 py-4">
     <!-- Header -->
     <div class="d-flex justify-content-between align-items-center mb-4">
         <div>
@@ -514,34 +528,22 @@
                                     Marca & Modello <i class="bi bi-arrow-down-up ms-1 text-light-emphasis small sort-icon" id="sort-icon-marca"></i>
                                 </th>
                                 <th class="text-nowrap sortable-th" style="cursor: pointer;" onclick="sortCompletoTable('tipo')">
-                                    Tipo <i class="bi bi-arrow-down-up ms-1 text-light-emphasis small sort-icon" id="sort-icon-tipo"></i>
-                                </th>
-                                <th class="text-nowrap sortable-th" style="cursor: pointer;" onclick="sortCompletoTable('alimentazione')">
-                                    Alim. <i class="bi bi-arrow-down-up ms-1 text-light-emphasis small sort-icon" id="sort-icon-alimentazione"></i>
-                                </th>
-                                <th class="text-nowrap sortable-th" style="cursor: pointer;" onclick="sortCompletoTable('euro')">
-                                    Euro <i class="bi bi-arrow-down-up ms-1 text-light-emphasis small sort-icon" id="sort-icon-euro"></i>
+                                    Tipo / Alim. <i class="bi bi-arrow-down-up ms-1 text-light-emphasis small sort-icon" id="sort-icon-tipo"></i>
                                 </th>
                                 <th class="text-nowrap sortable-th" style="cursor: pointer;" onclick="sortCompletoTable('stato')">
                                     Stato <i class="bi bi-arrow-down-up ms-1 text-light-emphasis small sort-icon" id="sort-icon-stato"></i>
                                 </th>
-                                <th class="text-nowrap sortable-th" style="cursor: pointer;" onclick="sortCompletoTable('sede-ass')">
-                                    Sede Assegnata <i class="bi bi-arrow-down-up ms-1 text-light-emphasis small sort-icon" id="sort-icon-sede-ass"></i>
-                                </th>
                                 <th class="text-nowrap sortable-th" style="cursor: pointer;" onclick="sortCompletoTable('sede-att')">
-                                    Sede Attuale <i class="bi bi-arrow-down-up ms-1 text-light-emphasis small sort-icon" id="sort-icon-sede-att"></i>
+                                    Sede Attuale & Ass. <i class="bi bi-arrow-down-up ms-1 text-light-emphasis small sort-icon" id="sort-icon-sede-att"></i>
                                 </th>
                                 <th class="text-nowrap sortable-th" style="cursor: pointer;" onclick="sortCompletoTable('servizio')">
                                     Servizio / Reparto <i class="bi bi-arrow-down-up ms-1 text-light-emphasis small sort-icon" id="sort-icon-servizio"></i>
                                 </th>
                                 <th class="text-nowrap sortable-th" style="cursor: pointer;" onclick="sortCompletoTable('proprieta')">
-                                    Proprietà & Noleggio <i class="bi bi-arrow-down-up ms-1 text-light-emphasis small sort-icon" id="sort-icon-proprieta"></i>
-                                </th>
-                                <th class="text-nowrap sortable-th" style="cursor: pointer;" onclick="sortCompletoTable('immatricolazione')">
-                                    Immatricolazione <i class="bi bi-arrow-down-up ms-1 text-light-emphasis small sort-icon" id="sort-icon-immatricolazione"></i>
+                                    Proprietà / Noleggio <i class="bi bi-arrow-down-up ms-1 text-light-emphasis small sort-icon" id="sort-icon-proprieta"></i>
                                 </th>
                                 <th class="text-nowrap sortable-th text-end" style="cursor: pointer;" onclick="sortCompletoTable('km')">
-                                    KM Attuali <i class="bi bi-arrow-down-up ms-1 text-light-emphasis small sort-icon" id="sort-icon-km"></i>
+                                    KM <i class="bi bi-arrow-down-up ms-1 text-light-emphasis small sort-icon" id="sort-icon-km"></i>
                                 </th>
                                 <th class="text-center text-nowrap">Azioni</th>
                             </tr>
@@ -566,7 +568,7 @@
                                     <button type="button" 
                                             class="btn btn-outline-dark btn-sm font-monospace text-uppercase px-2 py-1 shadow-sm btn-scheda-anagrafica" 
                                             id="btn-anag-{{ v.automezzo_id }}"
-                                            style="letter-spacing: 1.5px; font-weight: 800; font-size: 0.95rem;" 
+                                            style="letter-spacing: 1px; font-weight: 800; font-size: 0.88rem;" 
                                             data-id="{{ v.automezzo_id }}"
                                             data-targa="{{ v.targa }}"
                                             data-marca-id="{{ v.marca_id }}"
@@ -599,7 +601,7 @@
                                     {% if v.tags %}
                                         <div class="d-flex flex-wrap gap-1 mt-1">
                                             {% for tag in v.tags %}
-                                                <span class="badge shadow-sm" style="background-color: {{ tag.colore or '#0d6efd' }}; color: #ffffff; font-size: 0.7rem;">
+                                                <span class="badge shadow-sm" style="background-color: {{ tag.colore or '#0d6efd' }}; color: #ffffff; font-size: 0.68rem;">
                                                     <i class="bi bi-tag-fill me-1"></i>{{ tag.nome }}
                                                 </span>
                                             {% endfor %}
@@ -607,32 +609,32 @@
                                     {% endif %}
                                 </td>
                                 <td>
-                                    {% if v.tipo == 'furgone' %}
-                                    <span class="badge bg-secondary"><i class="bi bi-truck me-1"></i>Furgone</span>
-                                    {% else %}
-                                    <span class="badge bg-info text-dark"><i class="bi bi-car-front me-1"></i>Auto</span>
-                                    {% endif %}
-                                </td>
-                                <td>
-                                    {% set alim = (v.alimentazione or '')|lower %}
-                                    {% if 'diesel' in alim %}
-                                    <span class="badge bg-primary text-white"><i class="bi bi-fuel-pump me-1"></i>Diesel</span>
-                                    {% elif 'benzina' in alim %}
-                                    <span class="badge bg-danger text-white"><i class="bi bi-fuel-pump me-1"></i>Benzina</span>
-                                    {% elif 'ibrid' in alim %}
-                                    <span class="badge bg-success text-white"><i class="bi bi-lightning-charge me-1"></i>Ibrida</span>
-                                    {% elif 'elettric' in alim %}
-                                    <span class="badge bg-success-subtle text-success border border-success-subtle"><i class="bi bi-lightning-charge-fill me-1"></i>Elettrica</span>
-                                    {% elif 'gpl' in alim %}
-                                    <span class="badge bg-warning text-dark"><i class="bi bi-fire me-1"></i>GPL</span>
-                                    {% elif 'metano' in alim %}
-                                    <span class="badge bg-warning text-dark"><i class="bi bi-fire me-1"></i>Metano</span>
-                                    {% else %}
-                                    <span class="badge bg-light text-dark border">{{ v.alimentazione or '—' }}</span>
-                                    {% endif %}
-                                </td>
-                                <td>
-                                    <span class="badge bg-light text-dark border font-monospace" style="font-size:0.75rem;">{{ v.classe_euro or '—' }}</span>
+                                    <div class="d-flex align-items-center gap-1">
+                                        {% if v.tipo == 'furgone' %}
+                                        <span class="badge bg-secondary"><i class="bi bi-truck me-1"></i>Furgone</span>
+                                        {% else %}
+                                        <span class="badge bg-info text-dark"><i class="bi bi-car-front me-1"></i>Auto</span>
+                                        {% endif %}
+                                    </div>
+                                    <div class="d-flex flex-wrap gap-1 mt-1">
+                                        {% set alim = (v.alimentazione or '')|lower %}
+                                        {% if 'diesel' in alim %}
+                                        <span class="badge bg-primary text-white" style="font-size:0.68rem;">Diesel</span>
+                                        {% elif 'benzina' in alim %}
+                                        <span class="badge bg-danger text-white" style="font-size:0.68rem;">Benzina</span>
+                                        {% elif 'ibrid' in alim %}
+                                        <span class="badge bg-success text-white" style="font-size:0.68rem;">Ibrida</span>
+                                        {% elif 'elettric' in alim %}
+                                        <span class="badge bg-success-subtle text-success border" style="font-size:0.68rem;">Elettrica</span>
+                                        {% elif 'gpl' in alim or 'metano' in alim %}
+                                        <span class="badge bg-warning text-dark" style="font-size:0.68rem;">Gas</span>
+                                        {% elif v.alimentazione %}
+                                        <span class="badge bg-light text-dark border" style="font-size:0.68rem;">{{ v.alimentazione }}</span>
+                                        {% endif %}
+                                        {% if v.classe_euro %}
+                                        <span class="badge bg-light text-secondary border font-monospace" style="font-size:0.65rem;">{{ v.classe_euro }}</span>
+                                        {% endif %}
+                                    </div>
                                 </td>
                                 <td>
                                     {% if v.stato_effettivo == 'disponibile' %}
@@ -646,15 +648,17 @@
                                     {% endif %}
                                 </td>
                                 <td>
-                                    <span class="fw-semibold text-dark"><i class="bi bi-building me-1 text-primary"></i>{{ v.sede_assegnata_nome or '—' }}</span>
-                                </td>
-                                <td>
-                                    {% if v.sede_attuale_id and v.sede_assegnata_id and v.sede_attuale_id != v.sede_assegnata_id %}
-                                    <span class="badge bg-warning text-dark border border-warning-subtle shadow-sm" title="Attualmente in trasferta presso una sede diversa da quella assegnata">
-                                        <i class="bi bi-geo-alt-fill me-1 text-danger"></i>{{ v.sede_attuale_nome }}
-                                    </span>
-                                    {% else %}
-                                    <span class="text-secondary"><i class="bi bi-geo-alt me-1"></i>{{ v.sede_attuale_nome or v.sede_assegnata_nome or '—' }}</span>
+                                    <div>
+                                        {% if v.sede_attuale_id and v.sede_assegnata_id and v.sede_attuale_id != v.sede_assegnata_id %}
+                                        <span class="badge bg-warning text-dark border border-warning-subtle shadow-sm" title="Attualmente in trasferta presso una sede diversa da quella assegnata">
+                                            <i class="bi bi-geo-alt-fill me-1 text-danger"></i>{{ v.sede_attuale_nome }}
+                                        </span>
+                                        {% else %}
+                                        <span class="fw-semibold text-dark"><i class="bi bi-geo-alt me-1 text-danger"></i>{{ v.sede_attuale_nome or v.sede_assegnata_nome or '—' }}</span>
+                                        {% endif %}
+                                    </div>
+                                    {% if v.sede_assegnata_nome and v.sede_attuale_id != v.sede_assegnata_id %}
+                                    <div class="small text-muted" style="font-size:0.75rem;"><i class="bi bi-building me-1"></i>Ass: {{ v.sede_assegnata_nome }}</div>
                                     {% endif %}
                                 </td>
                                 <td>
@@ -663,44 +667,36 @@
                                 <td>
                                     {% if v.proprieta == 'Noleggio' %}
                                     <div>
-                                        <span class="badge bg-warning-subtle text-warning-emphasis border border-warning-subtle" style="font-size:0.75rem;">
+                                        <span class="badge bg-warning-subtle text-warning-emphasis border border-warning-subtle" style="font-size:0.72rem;">
                                             <i class="bi bi-clock-history me-1"></i>Noleggio
                                         </span>
                                         {% if v.fornitore %}
-                                        <div class="small fw-semibold text-dark mt-1">{{ v.fornitore }}</div>
-                                        {% endif %}
-                                        {% if v.canone_noleggio and v.canone_noleggio > 0 %}
-                                        <div class="small text-muted" style="font-size:0.75rem;">{{ "{:,.2f}".format(v.canone_noleggio).replace(",", "X").replace(".", ",").replace("X", ".") }} €/m</div>
-                                        {% endif %}
-                                        {% if v.data_inizio_noleggio or v.durata_noleggio_anni %}
-                                        <div class="small text-muted" style="font-size:0.72rem;">
-                                            Dal {{ v.data_inizio_noleggio or '—' }} ({{ v.durata_noleggio_anni or '?' }} anni)
-                                        </div>
+                                        <div class="small fw-semibold text-dark" style="font-size:0.75rem;">{{ v.fornitore }}</div>
                                         {% endif %}
                                         {% if v.data_scadenza_noleggio %}
                                             {% if v.stato_scadenza == 'scaduto' %}
-                                            <span class="badge bg-danger shadow-sm mt-1" style="font-size:0.72rem;">
+                                            <span class="badge bg-danger shadow-sm mt-1" style="font-size:0.68rem;">
                                                 <i class="bi bi-exclamation-octagon-fill me-1"></i>Scaduto ({{ v.giorni_rimanenti_scadenza }} gg)
                                             </span>
                                             {% elif v.stato_scadenza == 'in_scadenza' %}
-                                            <span class="badge bg-warning text-dark border border-warning-subtle shadow-sm mt-1" style="font-size:0.72rem;">
-                                                <i class="bi bi-exclamation-triangle-fill me-1"></i>Scad: {{ v.data_scadenza_noleggio }} ({{ v.giorni_rimanenti_scadenza }} gg)
+                                            <span class="badge bg-warning text-dark border border-warning-subtle shadow-sm mt-1" style="font-size:0.68rem;">
+                                                <i class="bi bi-exclamation-triangle-fill me-1"></i>Scad: {{ v.data_scadenza_noleggio }}
                                             </span>
                                             {% else %}
-                                            <span class="badge bg-success-subtle text-success border border-success-subtle mt-1" style="font-size:0.72rem;">
-                                                <i class="bi bi-check-circle me-1"></i>Scad: {{ v.data_scadenza_noleggio }}
-                                            </span>
+                                            <div class="small text-muted" style="font-size:0.72rem;">Scad: {{ v.data_scadenza_noleggio }}</div>
                                             {% endif %}
                                         {% endif %}
                                     </div>
                                     {% else %}
-                                    <span class="badge bg-light text-secondary border" style="font-size:0.75rem;">
-                                        <i class="bi bi-shield-check me-1 text-primary"></i>Proprietà
-                                    </span>
+                                    <div>
+                                        <span class="badge bg-light text-secondary border" style="font-size:0.72rem;">
+                                            <i class="bi bi-shield-check me-1 text-primary"></i>Proprietà
+                                        </span>
+                                        {% if v.data_immatricolazione %}
+                                        <div class="small text-muted" style="font-size:0.72rem;">Imm: {{ v.data_immatricolazione }}</div>
+                                        {% endif %}
+                                    </div>
                                     {% endif %}
-                                </td>
-                                <td>
-                                    <span class="text-secondary small">{{ v.data_immatricolazione or '—' }}</span>
                                 </td>
                                 <td class="text-end">
                                     <span class="font-monospace fw-bold text-nowrap text-dark">{{ "{:,}".format(v.km_attuali or 0).replace(",", ".") }} km</span>
@@ -740,7 +736,7 @@
                             </tr>
                         {% else %}
                             <tr id="rowEmptyCompleto">
-                                <td colspan="13" class="text-center py-5 text-muted">
+                                <td colspan="9" class="text-center py-5 text-muted">
                                     <i class="bi bi-inbox display-4 d-block mb-2"></i>
                                     Nessun automezzo trovato nell'elenco flotta.
                                 </td>
@@ -749,12 +745,16 @@
                         </tbody>
                         <tfoot class="table-light fw-bold">
                             <tr>
-                                <td colspan="11" class="text-end text-uppercase small text-muted">TOTALE VEICOLI IN FLOTTA:</td>
+                                <td colspan="7" class="text-end text-uppercase small text-muted">TOTALE VEICOLI IN FLOTTA:</td>
                                 <td class="text-end text-primary fs-6">{{ stats.totale_veicoli }} auto</td>
                                 <td></td>
                             </tr>
                         </tfoot>
                     </table>
+                </div>
+            </div>
+        </div>
+
         <!-- TAB 4: AUTOMEZZI PRENOTABILI IN POOLING -->
         <div class="tab-pane fade" id="pooling-pane" role="tabpanel" aria-labelledby="pooling-tab" tabindex="0">
             <div class="vehicle-card bg-white p-3 mb-4 shadow-sm">
@@ -836,15 +836,27 @@
                     <table class="table table-hover table-striped align-middle custom-table mb-0" id="tableAutomezziPooling">
                         <thead class="table-dark">
                             <tr>
-                                <th class="text-nowrap">Targa</th>
-                                <th class="text-nowrap">Marca & Modello</th>
-                                <th class="text-nowrap">Tipo</th>
-                                <th class="text-nowrap">Sede Assegnata</th>
-                                <th class="text-nowrap">Sede Attuale</th>
-                                <th class="text-nowrap">Servizio / Reparto</th>
-                                <th class="text-nowrap">Stato Flotta</th>
-                                <th class="text-nowrap">Disponibilità Pooling</th>
-                                <th class="text-nowrap text-end">KM</th>
+                                <th class="text-nowrap sortable-th" style="cursor: pointer;" onclick="sortPoolingTable('targa')">
+                                    Targa <i class="bi bi-arrow-down-up ms-1 text-light-emphasis small sort-icon" id="sort-pool-targa"></i>
+                                </th>
+                                <th class="text-nowrap sortable-th" style="cursor: pointer;" onclick="sortPoolingTable('marca')">
+                                    Veicolo <i class="bi bi-arrow-down-up ms-1 text-light-emphasis small sort-icon" id="sort-pool-marca"></i>
+                                </th>
+                                <th class="text-nowrap sortable-th" style="cursor: pointer;" onclick="sortPoolingTable('tipo')">
+                                    Tipo / Alim. <i class="bi bi-arrow-down-up ms-1 text-light-emphasis small sort-icon" id="sort-pool-tipo"></i>
+                                </th>
+                                <th class="text-nowrap sortable-th" style="cursor: pointer;" onclick="sortPoolingTable('sede')">
+                                    Sede Attuale & Reparto <i class="bi bi-arrow-down-up ms-1 text-light-emphasis small sort-icon" id="sort-pool-sede"></i>
+                                </th>
+                                <th class="text-nowrap sortable-th" style="cursor: pointer;" onclick="sortPoolingTable('stato')">
+                                    Stato Flotta <i class="bi bi-arrow-down-up ms-1 text-light-emphasis small sort-icon" id="sort-pool-stato"></i>
+                                </th>
+                                <th class="text-nowrap sortable-th" style="cursor: pointer;" onclick="sortPoolingTable('escluso')">
+                                    Disponibilità Pooling <i class="bi bi-arrow-down-up ms-1 text-light-emphasis small sort-icon" id="sort-pool-escluso"></i>
+                                </th>
+                                <th class="text-nowrap sortable-th text-end" style="cursor: pointer;" onclick="sortPoolingTable('km')">
+                                    KM <i class="bi bi-arrow-down-up ms-1 text-light-emphasis small sort-icon" id="sort-pool-km"></i>
+                                </th>
                                 <th class="text-center text-nowrap">Gestione Scheda</th>
                             </tr>
                         </thead>
@@ -853,13 +865,16 @@
                             <tr class="searchable-pooling-row"
                                 data-targa="{{ v.targa|upper }}"
                                 data-marca="{{ v.marca_nome|lower }} {{ v.modello|lower }}"
+                                data-tipo="{{ v.tipo|lower }}"
                                 data-sede="{{ v.sede_attuale_nome|lower if v.sede_attuale_nome else (v.sede_assegnata_nome|lower if v.sede_assegnata_nome else '') }}"
                                 data-servizio="{{ v.reparto_assegnato_nome|lower if v.reparto_assegnato_nome else '' }}"
+                                data-stato="{{ v.stato_effettivo|lower }}"
+                                data-km="{{ v.km_attuali or 0 }}"
                                 data-escluso="{{ v.escluso_prenotazione or 0 }}">
                                 <td>
                                     <button type="button" 
                                             class="btn btn-outline-dark btn-sm font-monospace text-uppercase px-2 py-1 shadow-sm btn-scheda-anagrafica" 
-                                            style="letter-spacing: 1.5px; font-weight: 800; font-size: 0.95rem;" 
+                                            style="letter-spacing: 1px; font-weight: 800; font-size: 0.88rem;" 
                                             data-id="{{ v.automezzo_id }}"
                                             data-targa="{{ v.targa }}"
                                             data-marca-id="{{ v.marca_id }}"
@@ -889,7 +904,7 @@
                                 <td>
                                     <strong>{{ v.marca_nome }} {{ v.modello }}</strong>
                                     {% if v.proprieta == 'Noleggio' %}
-                                        <span class="badge bg-warning-subtle text-warning-emphasis border border-warning-subtle ms-1" style="font-size:0.72rem;">
+                                        <span class="badge bg-warning-subtle text-warning-emphasis border border-warning-subtle ms-1" style="font-size:0.7rem;">
                                             <i class="bi bi-clock-history me-1"></i>Noleggio
                                         </span>
                                     {% endif %}
@@ -904,20 +919,29 @@
                                     {% endif %}
                                 </td>
                                 <td>
-                                    {% if v.tipo == 'furgone' %}
-                                    <span class="badge bg-secondary"><i class="bi bi-truck me-1"></i>Furgone</span>
-                                    {% else %}
-                                    <span class="badge bg-info text-dark"><i class="bi bi-car-front me-1"></i>Auto</span>
+                                    <div>
+                                        {% if v.tipo == 'furgone' %}
+                                        <span class="badge bg-secondary"><i class="bi bi-truck me-1"></i>Furgone</span>
+                                        {% else %}
+                                        <span class="badge bg-info text-dark"><i class="bi bi-car-front me-1"></i>Auto</span>
+                                        {% endif %}
+                                    </div>
+                                    {% if v.alimentazione %}
+                                    <div class="mt-1">
+                                        <span class="badge bg-light text-dark border" style="font-size:0.68rem;">{{ v.alimentazione }}</span>
+                                    </div>
                                     {% endif %}
                                 </td>
                                 <td>
-                                    <span class="fw-semibold text-dark"><i class="bi bi-building me-1 text-primary"></i>{{ v.sede_assegnata_nome or '—' }}</span>
-                                </td>
-                                <td>
-                                    <span class="text-secondary"><i class="bi bi-geo-alt me-1 text-danger"></i>{{ v.sede_attuale_nome or v.sede_assegnata_nome or '—' }}</span>
-                                </td>
-                                <td>
-                                    <span class="fw-semibold text-dark">{{ v.reparto_assegnato_nome or '—' }}</span>
+                                    <div>
+                                        <span class="text-dark fw-semibold"><i class="bi bi-geo-alt-fill me-1 text-danger"></i>{{ v.sede_attuale_nome or v.sede_assegnata_nome or '—' }}</span>
+                                    </div>
+                                    <div class="small text-muted" style="font-size:0.75rem;">
+                                        <i class="bi bi-diagram-3 me-1"></i>{{ v.reparto_assegnato_nome or '—' }}
+                                        {% if v.sede_attuale_id and v.sede_assegnata_id and v.sede_attuale_id != v.sede_assegnata_id %}
+                                        &bull; <span class="text-muted">(Ass: {{ v.sede_assegnata_nome }})</span>
+                                        {% endif %}
+                                    </div>
                                 </td>
                                 <td>
                                     {% if v.stato_effettivo == 'disponibile' %}
@@ -931,11 +955,11 @@
                                 <td>
                                     {% if v.escluso_prenotazione == 1 %}
                                     <span class="badge bg-danger-subtle text-danger border border-danger-subtle px-2 py-1 shadow-sm">
-                                        <i class="bi bi-slash-circle me-1"></i>Non disponibile (Escluso)
+                                        <i class="bi bi-slash-circle-fill me-1"></i>Non disponibile
                                     </span>
                                     {% else %}
                                     <span class="badge bg-success-subtle text-success border border-success-subtle px-2 py-1 shadow-sm">
-                                        <i class="bi bi-check-circle-fill me-1"></i>Disponibile
+                                        <i class="bi bi-check-circle-fill me-1"></i>Disponibile per la prenotazione
                                     </span>
                                     {% endif %}
                                 </td>
@@ -944,7 +968,7 @@
                                 </td>
                                 <td class="text-center text-nowrap">
                                     <button type="button" 
-                                            class="btn btn-primary btn-sm fw-bold px-3 shadow-sm btn-scheda-disponibilita" 
+                                            class="btn btn-primary btn-sm fw-bold px-2 py-1 shadow-sm text-nowrap btn-scheda-disponibilita" 
                                             data-id="{{ v.automezzo_id }}"
                                             data-targa="{{ v.targa }}"
                                             data-marca="{{ v.marca_nome }}"
@@ -952,7 +976,7 @@
                                             data-tipo="{{ v.tipo }}"
                                             data-sede="{{ v.sede_attuale_nome or v.sede_assegnata_nome or '—' }}"
                                             data-reparto="{{ v.reparto_assegnato_nome or '—' }}"
-                                            data-stato="{{ v.stato }}"
+                                            data-stato="{{ v.stato_effettivo or v.stato }}"
                                             data-km="{{ v.km_attuali or 0 }}"
                                             data-escluso="{{ v.escluso_prenotazione or 0 }}"
                                             onclick="openSchedaDisponibilita(this)"
@@ -963,7 +987,7 @@
                             </tr>
                         {% else %}
                             <tr>
-                                <td colspan="10" class="text-center py-5 text-muted">
+                                <td colspan="8" class="text-center py-5 text-muted">
                                     <i class="bi bi-inbox display-4 d-block mb-2"></i>
                                     Nessun automezzo trovato per la sezione pooling.
                                 </td>
@@ -972,8 +996,8 @@
                         </tbody>
                         <tfoot class="table-light fw-bold">
                             <tr>
-                                <td colspan="7" class="text-end text-uppercase small text-muted">TOTALE MEZZI IN POOLING:</td>
-                                <td colspan="3" class="text-primary fs-6">{{ automezzi_pooling|length }} veicoli</td>
+                                <td colspan="6" class="text-end text-uppercase small text-muted">TOTALE MEZZI IN POOLING:</td>
+                                <td colspan="2" class="text-primary fs-6">{{ automezzi_pooling|length }} veicoli</td>
                             </tr>
                         </tfoot>
                     </table>
@@ -1165,6 +1189,8 @@
                                 <option value="Elettrico">Elettrico (Esente)</option>
                             </select>
                         </div>
+                    </div>
+                    
                     <!-- Tag Automezzo Associati -->
                     <div class="row g-3 mb-3">
                         <div class="col-12">
@@ -1510,12 +1536,12 @@
         const km = btn.getAttribute('data-km') || '0';
         const escluso = btn.getAttribute('data-escluso') || '0';
 
-        document.getElementById('sdModalTarga').textContent = targa;
-        document.getElementById('sdModalVeicolo').textContent = marca + ' ' + modello;
-        document.getElementById('sdModalTipo').textContent = tipo;
-        document.getElementById('sdModalSede').textContent = sede;
-        document.getElementById('sdModalReparto').textContent = reparto;
-        document.getElementById('sdModalKm').textContent = (parseInt(km) || 0).toLocaleString('it-IT') + ' km';
+        const elTarga = document.getElementById('sdModalTarga'); if (elTarga) elTarga.textContent = targa;
+        const elVeic = document.getElementById('sdModalVeicolo'); if (elVeic) elVeic.textContent = (marca + ' ' + modello).trim();
+        const elTipo = document.getElementById('sdModalTipo'); if (elTipo) elTipo.textContent = tipo;
+        const elSede = document.getElementById('sdModalSede'); if (elSede) elSede.textContent = sede;
+        const elRep = document.getElementById('sdModalReparto'); if (elRep) elRep.textContent = reparto;
+        const elKm = document.getElementById('sdModalKm'); if (elKm) elKm.textContent = (parseInt(km) || 0).toLocaleString('it-IT') + ' km';
 
         const statoEl = document.getElementById('sdModalStato');
         if (statoEl) {
@@ -1529,10 +1555,12 @@
             }
         }
 
+        const optEscl = document.getElementById('sdOptEscluso');
+        const optDisp = document.getElementById('sdOptDisponibile');
         if (escluso === '1' || escluso === 1) {
-            document.getElementById('sdOptEscluso').checked = true;
+            if (optEscl) optEscl.checked = true;
         } else {
-            document.getElementById('sdOptDisponibile').checked = true;
+            if (optDisp) optDisp.checked = true;
         }
         updateCardSelection();
 
@@ -1541,8 +1569,11 @@
             form.action = '/admin/automezzi/' + id + '/disponibilita-prenotazione';
         }
 
-        const modal = bootstrap.Modal.getOrCreateInstance(document.getElementById('schedaDisponibilitaModal'));
-        modal.show();
+        const modalEl = document.getElementById('schedaDisponibilitaModal');
+        if (modalEl) {
+            const modal = bootstrap.Modal.getOrCreateInstance(modalEl);
+            modal.show();
+        }
     }
 
     function updateCardSelection() {
@@ -1552,12 +1583,12 @@
         if (cardDisp && cardEscl) {
             if (isDisp) {
                 cardDisp.classList.add('border-success', 'bg-success-subtle');
-                cardDisp.classList.remove('border-secondary', 'bg-white');
+                cardDisp.classList.remove('border-danger', 'bg-white');
                 cardEscl.classList.remove('border-danger', 'bg-danger-subtle');
                 cardEscl.classList.add('bg-white');
             } else {
                 cardEscl.classList.add('border-danger', 'bg-danger-subtle');
-                cardEscl.classList.remove('border-secondary', 'bg-white');
+                cardEscl.classList.remove('border-success', 'bg-white');
                 cardDisp.classList.remove('border-success', 'bg-success-subtle');
                 cardDisp.classList.add('bg-white');
             }
@@ -1565,6 +1596,50 @@
     }
 
     // ===== ORDINAMENTO E FILTRI TABELLA POOLING =====
+    let currentPoolSortCol = null;
+    let currentPoolSortDir = 'asc';
+
+    function sortPoolingTable(col) {
+        const tbody = document.getElementById('tbodyAutomezziPooling');
+        if (!tbody) return;
+        const rows = Array.from(tbody.querySelectorAll('.searchable-pooling-row'));
+        if (!rows.length) return;
+
+        if (currentPoolSortCol === col) {
+            currentPoolSortDir = (currentPoolSortDir === 'asc') ? 'desc' : 'asc';
+        } else {
+            currentPoolSortCol = col;
+            currentPoolSortDir = 'asc';
+        }
+
+        document.querySelectorAll('#tableAutomezziPooling .sort-icon').forEach(icon => {
+            icon.className = 'bi bi-arrow-down-up ms-1 text-light-emphasis small sort-icon';
+        });
+        const activeIcon = document.getElementById('sort-pool-' + col);
+        if (activeIcon) {
+            activeIcon.className = (currentPoolSortDir === 'asc') 
+                ? 'bi bi-sort-up ms-1 text-warning small sort-icon' 
+                : 'bi bi-sort-down ms-1 text-warning small sort-icon';
+        }
+
+        rows.sort((a, b) => {
+            let valA = (a.getAttribute('data-' + col) || '').trim();
+            let valB = (b.getAttribute('data-' + col) || '').trim();
+
+            if (col === 'km' || col === 'escluso') {
+                const numA = parseFloat(valA) || 0;
+                const numB = parseFloat(valB) || 0;
+                return currentPoolSortDir === 'asc' ? numA - numB : numB - numA;
+            }
+
+            return currentPoolSortDir === 'asc' 
+                ? valA.localeCompare(valB, 'it', { sensitivity: 'base' }) 
+                : valB.localeCompare(valA, 'it', { sensitivity: 'base' });
+        });
+
+        rows.forEach(r => tbody.appendChild(r));
+    }
+
     function filterPoolingTable() {
         const textLocal = (document.getElementById('filterPoolingText')?.value || '').toLowerCase().trim();
         const textGlobal = (document.getElementById('dislocazioniSearch')?.value || '').toLowerCase().trim();
