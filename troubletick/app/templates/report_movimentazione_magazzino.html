@@ -280,6 +280,7 @@
                                 <th>Destinatario / Reparto</th>
                                 <th>Operatore</th>
                                 <th>Note / Dettagli</th>
+                                <th class="text-center">Buono di Movimento</th>
                             </tr>
                         </thead>
                         <tbody>
@@ -314,6 +315,20 @@
                                     <small class="text-dark">{{ d.descrizione }}</small>
                                     {% if d.posizione_fisica != '-' %}
                                     <br><small class="text-muted"><i class="bi bi-geo-alt me-1"></i>Pos: {{ d.posizione_fisica }}</small>
+                                    {% endif %}
+                                </td>
+                                <td class="text-center">
+                                    {% if d.gruppo_scarico %}
+                                    <a href="/magazzini/stampa-consegna/multiplo/{{ d.gruppo_scarico }}" target="_blank" class="btn btn-sm btn-outline-primary text-nowrap shadow-sm" title="Ristampa Buono di Movimento (Scarico Multiplo)">
+                                        <i class="bi bi-printer me-1"></i> Ristampa
+                                    </a>
+                                    <div class="text-muted" style="font-size: 0.68rem;" title="Operazione parte di scarico multiplo">
+                                        <i class="bi bi-collection me-1"></i>Cumulativo
+                                    </div>
+                                    {% else %}
+                                    <a href="/magazzini/stampa-consegna/scarico/{{ d.movimento_id }}" target="_blank" class="btn btn-sm btn-outline-primary text-nowrap shadow-sm" title="Ristampa Buono di Movimento">
+                                        <i class="bi bi-printer me-1"></i> Ristampa
+                                    </a>
                                     {% endif %}
                                 </td>
                             </tr>

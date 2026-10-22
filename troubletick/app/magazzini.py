@@ -945,13 +945,14 @@ def stampa_consegna_multiplo(r: Request, gruppo_scarico: str):
     
     with engine.connect() as c:
         movements = c.execute(text("""
-            SELECT m.*, mag.nome AS magazzino_nome, s.nome AS sede_nome,
+            SELECT m.*, mag.nome AS magazzino_nome, s.nome AS sede_nome, rep.nome AS reparto_nome,
                    mat.nome AS materiale_nome, u.nome AS user_nome, u.cognome AS user_cognome,
                    u.telefono AS user_telefono, s_orig.nome AS magazzino_sede_nome
             FROM movimenti_magazzino m
             JOIN magazzini mag ON m.magazzino_id = mag.magazzino_id
             LEFT JOIN sedi s_orig ON mag.sede_id = s_orig.sede_id
             LEFT JOIN sedi s ON m.sede_assegnazione_id = s.sede_id
+            LEFT JOIN reparti rep ON m.reparto_id = rep.reparto_id
             JOIN materiali mat ON m.materiale_id = mat.materiale_id
             JOIN users u ON m.user_id = u.user_id
             WHERE m.gruppo_scarico = :grp AND m.operazione = 'scarico'
@@ -961,7 +962,7 @@ def stampa_consegna_multiplo(r: Request, gruppo_scarico: str):
         if not movements:
             return RedirectResponse(url="/magazzini")
             
-        if user.get("ruolo") != "admin":
+        if user.get("ruolo") not in ("admin", "responsabile"):
             user_mag_ids = c.execute(text("SELECT magazzino_id FROM operatori_magazzini WHERE user_id = :uid"), {"uid": user["id"]}).scalars().all()
             has_permission = False
             for mov in movements:
@@ -1061,6 +1062,14 @@ def stampa_consegna(r: Request, tipo: str, doc_id: int):
 
         if not mov:
             return RedirectResponse(url="/magazzini")
+            
+        if user.get("ruolo") not in ("admin", "responsabile"):
+            user_mag_ids = c.execute(text("SELECT magazzino_id FROM operatori_magazzini WHERE user_id = :uid"), {"uid": user.get("id")}).scalars().all()
+            if mov["magazzino_id"] not in user_mag_ids:
+                return RedirectResponse(url="/magazzini")
+
+        if mov.get("gruppo_scarico"):
+            return RedirectResponse(url=f"/magazzini/stampa-consegna/multiplo/{mov['gruppo_scarico']}")
             
     return templates.TemplateResponse(r, "stampa_consegna.html", {
         "request": r, "cfg": CFG, "user": user, "mov": mov, "tipo": tipo
@@ -2352,7 +2361,7 @@ def report_movimentazione_magazzini(r: Request, mese: int = None, anno: int = No
 
         # 1. Query Detailed Movements (Dettaglio Movimenti)
         detail_query = f"""
-            SELECT mm.movimento_id, mm.data_movimento, mm.quantita, mm.descrizione,
+            SELECT mm.movimento_id, mm.gruppo_scarico, mm.data_movimento, mm.quantita, mm.descrizione,
                    mm.nominativo_consegna, mm.email_consegna, mm.posizione_fisica, mm.marca, mm.modello,
                    m.magazzino_id, m.nome AS magazzino_nome,
                    mat.materiale_id, mat.nome AS materiale_nome,
@@ -2382,6 +2391,7 @@ def report_movimentazione_magazzini(r: Request, mese: int = None, anno: int = No
             op_fullname = f"{r_item['op_nome'] or ''} {r_item['op_cognome'] or ''}".strip() or r_item['op_username'] or "Sistema"
             dettaglio.append({
                 "movimento_id": r_item["movimento_id"],
+                "gruppo_scarico": r_item["gruppo_scarico"],
                 "data_movimento": r_item["data_movimento"],
                 "magazzino_nome": r_item["magazzino_nome"],
                 "materiale_nome": r_item["materiale_nome"],
