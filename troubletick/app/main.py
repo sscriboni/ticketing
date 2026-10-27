@@ -71,7 +71,9 @@ try:
         c.execute(text(f"""CREATE TABLE IF NOT EXISTS reparti (
             reparto_id {DB_PK},
             nome TEXT NOT NULL,
-            descrizione TEXT
+            descrizione TEXT,
+            reperibilita_h24 INTEGER DEFAULT 0,
+            reperibilita_orario_inizio TEXT DEFAULT '18:00'
         )"""))
         c.execute(text(f"""CREATE TABLE IF NOT EXISTS servizi (
             servizio_id {DB_PK},
@@ -79,7 +81,8 @@ try:
             descrizione_lunga TEXT,
             reparto_id INTEGER NOT NULL,
             accetta_ticket INTEGER DEFAULT 1,
-            note TEXT
+            note TEXT,
+            reperibilita_h24 INTEGER DEFAULT 0
         )"""))
         c.execute(text(f"""CREATE TABLE IF NOT EXISTS automezzi (
             automezzo_id {DB_PK},
@@ -454,6 +457,9 @@ try:
             "ALTER TABLE consegne_programmate ADD COLUMN quando_disponibile INTEGER DEFAULT 0",
             "ALTER TABLE materiali ADD COLUMN soglia_attenzione INTEGER DEFAULT 0",
             "ALTER TABLE reparti ADD COLUMN messaggio_carpooling TEXT",
+            "ALTER TABLE reparti ADD COLUMN reperibilita_h24 INTEGER DEFAULT 0",
+            "ALTER TABLE reparti ADD COLUMN reperibilita_orario_inizio TEXT DEFAULT '18:00'",
+            "ALTER TABLE servizi ADD COLUMN reperibilita_h24 INTEGER DEFAULT 0",
             "ALTER TABLE argomenti ADD COLUMN descrizione_lunga TEXT",
             "INSERT OR IGNORE INTO operatori_magazzini (user_id, magazzino_id) SELECT user_id, magazzino_id FROM users WHERE magazzino_id IS NOT NULL"
         ]:
@@ -1189,6 +1195,60 @@ def get_db_tables_occupancy(conn) -> dict:
         "db_type": DB_TYPE
     }
 
+def get_active_reperibilita(conn, current_dt: datetime = None) -> list:
+    """
+    Restituisce la lista dei reparti con Reperibilità h24 attualmente attiva
+    (nei giorni festivi tutto il giorno, nei feriali dopo l'orario impostato)
+    con i relativi servizi coperti (servizi con reperibilita_h24 = 1).
+    """
+    if current_dt is None:
+        current_dt = datetime.now()
+
+    today_str = current_dt.strftime("%Y-%m-%d")
+    current_time_str = current_dt.strftime("%H:%M")
+
+    # Recupera tutte le date festive dal DB
+    fest_rows = conn.execute(text("SELECT data FROM festivita")).mappings().all()
+    festivita_dates = {r["data"] for r in fest_rows}
+
+    # Sabato (5), Domenica (6) o presente nella tabella festivita
+    is_festivo = (current_dt.weekday() in (5, 6)) or (today_str in festivita_dates)
+
+    reparti_rep = conn.execute(text("""
+        SELECT reparto_id, nome, reperibilita_orario_inizio 
+        FROM reparti 
+        WHERE reperibilita_h24 = 1 
+        ORDER BY nome
+    """)).mappings().all()
+
+    active_reparti = []
+    for r in reparti_rep:
+        orario_inizio = (r["reperibilita_orario_inizio"] or "18:00").strip()
+        is_active = False
+        if is_festivo:
+            is_active = True
+        else:
+            if current_time_str >= orario_inizio:
+                is_active = True
+
+        if is_active:
+            servizi_rep = conn.execute(text("""
+                SELECT servizio_id, descrizione, descrizione_lunga, note 
+                FROM servizi 
+                WHERE reparto_id = :rid AND reperibilita_h24 = 1 
+                ORDER BY descrizione
+            """), {"rid": r["reparto_id"]}).mappings().all()
+
+            active_reparti.append({
+                "reparto_id": r["reparto_id"],
+                "reparto_nome": r["nome"],
+                "orario_inizio": orario_inizio,
+                "is_festivo": is_festivo,
+                "servizi": [dict(s) for s in servizi_rep]
+            })
+
+    return active_reparti
+
 @app.get("/", response_class=HTMLResponse)
 def home(r: Request):
     user = r.session.get("user")
@@ -1205,8 +1265,13 @@ def home(r: Request):
               a.creato_il DESC
         """), {"now": now}).mappings().all()
         
+        reperibilita_attiva = get_active_reperibilita(c)
+
         if not user:
-            return templates.TemplateResponse(r, "home.html", {"request": r, "cfg": CFG, "avvisi": avvisi, "user": user})
+            return templates.TemplateResponse(r, "home.html", {
+                "request": r, "cfg": CFG, "avvisi": avvisi, "user": user,
+                "reperibilita_attiva": reperibilita_attiva
+            })
         
         ruolo = user.get("ruolo")
         uid = user.get("id")
@@ -1237,7 +1302,8 @@ def home(r: Request):
                 "avvisi": avvisi, 
                 "user": user, 
                 "stats": stats,
-                "db_occupancy": db_occupancy
+                "db_occupancy": db_occupancy,
+                "reperibilita_attiva": reperibilita_attiva
             })
             
         elif ruolo == "magazziniere":
@@ -1263,7 +1329,10 @@ def home(r: Request):
                 "reparto_active_ops": reparto_active_ops,
                 "reparto_services": reparto_services
             }
-            return templates.TemplateResponse(r, "home_responsabile.html", {"request": r, "cfg": CFG, "avvisi": avvisi, "user": user, "stats": stats})
+            return templates.TemplateResponse(r, "home_responsabile.html", {
+                "request": r, "cfg": CFG, "avvisi": avvisi, "user": user, "stats": stats,
+                "reperibilita_attiva": reperibilita_attiva
+            })
             
         elif ruolo in ("assistenza", "amministrativo"):
             uid = user.get("id")
@@ -1325,7 +1394,10 @@ def home(r: Request):
             stats["operator_prenotazioni"] = operator_prenotazioni
             stats["all_sedi"] = all_sedi
 
-            return templates.TemplateResponse(r, "home_assistenza.html", {"request": r, "cfg": CFG, "avvisi": avvisi, "user": user, "stats": stats})
+            return templates.TemplateResponse(r, "home_assistenza.html", {
+                "request": r, "cfg": CFG, "avvisi": avvisi, "user": user, "stats": stats,
+                "reperibilita_attiva": reperibilita_attiva
+            })
             
         elif ruolo in ("fleet_manager", "global_fleet_manager"):
             today_str = datetime.now().strftime("%Y-%m-%d")
@@ -1632,7 +1704,10 @@ def home(r: Request):
                 "fleet_prenotazioni_list": fleet_prenotazioni_dicts,
                 "carpooling_warning": carpooling_warning
             }
-            return templates.TemplateResponse(r, "home_fleet_manager.html", {"request": r, "cfg": CFG, "avvisi": avvisi, "user": user, "stats": stats})
+            return templates.TemplateResponse(r, "home_fleet_manager.html", {
+                "request": r, "cfg": CFG, "avvisi": avvisi, "user": user, "stats": stats,
+                "reperibilita_attiva": reperibilita_attiva
+            })
             
         else: # normale
             uid = user.get("id")
@@ -1684,7 +1759,10 @@ def home(r: Request):
                 "user_prenotazioni": user_prenotazioni,
                 "all_sedi": all_sedi
             }
-            return templates.TemplateResponse(r, "home_normale.html", {"request": r, "cfg": CFG, "avvisi": avvisi, "user": user, "stats": stats})
+            return templates.TemplateResponse(r, "home_normale.html", {
+                "request": r, "cfg": CFG, "avvisi": avvisi, "user": user, "stats": stats,
+                "reperibilita_attiva": reperibilita_attiva
+            })
 
 @app.get("/new", response_class=HTMLResponse)
 def new_form(r: Request, error: str = None):
@@ -2820,7 +2898,7 @@ def admin_reparti(r: Request, error: str = None):
     if isinstance(user, RedirectResponse):
         return user
     with engine.connect() as c:
-        reparti = c.execute(text("SELECT reparto_id, nome, descrizione, accetta_ticket FROM reparti ORDER BY nome")).mappings().all()
+        reparti = c.execute(text("SELECT reparto_id, nome, descrizione, accetta_ticket, reperibilita_h24, reperibilita_orario_inizio FROM reparti ORDER BY nome")).mappings().all()
     return templates.TemplateResponse(r, "admin_reparti.html", {"request": r, "cfg": CFG, "user": user, "reparti": reparti, "error": error})
 
 @app.get("/admin/servizi", response_class=HTMLResponse)
@@ -2829,8 +2907,14 @@ def admin_servizi(r: Request, error: str = None):
     if isinstance(user, RedirectResponse):
         return user
     with engine.connect() as c:
-        servizi_raw = c.execute(text("SELECT s.servizio_id, s.descrizione, s.descrizione_lunga, s.reparto_id, s.accetta_ticket, s.note, r.nome AS reparto_nome FROM servizi s LEFT JOIN reparti r ON s.reparto_id = r.reparto_id ORDER BY r.nome, s.descrizione")).mappings().all()
-        reparti = c.execute(text("SELECT reparto_id, nome FROM reparti ORDER BY nome")).mappings().all()
+        servizi_raw = c.execute(text("""
+            SELECT s.servizio_id, s.descrizione, s.descrizione_lunga, s.reparto_id, s.accetta_ticket, s.note, s.reperibilita_h24,
+                   r.nome AS reparto_nome, r.reperibilita_h24 AS reparto_reperibilita_h24 
+            FROM servizi s 
+            LEFT JOIN reparti r ON s.reparto_id = r.reparto_id 
+            ORDER BY r.nome, s.descrizione
+        """)).mappings().all()
+        reparti = c.execute(text("SELECT reparto_id, nome, reperibilita_h24 FROM reparti ORDER BY nome")).mappings().all()
         argomenti = c.execute(text("SELECT a.argomento_id, a.descrizione, a.descrizione_lunga, a.servizio_id, s.descrizione AS servizio_nome FROM argomenti a JOIN servizi s ON a.servizio_id = s.servizio_id ORDER BY s.descrizione, a.descrizione")).mappings().all()
         
         # Aggrega fornitori associati a ciascun servizio
@@ -2851,12 +2935,30 @@ def admin_servizi(r: Request, error: str = None):
     return templates.TemplateResponse(r, "admin_servizi.html", {"request": r, "cfg": CFG, "user": user, "servizi": servizi, "reparti": reparti, "argomenti": argomenti, "error": error})
 
 @app.post("/admin/reparto")
-def add_reparto(r: Request, nome: str = Form(...), descrizione: str = Form(""), accetta_ticket: int = Form(0)):
+def add_reparto(
+    r: Request,
+    nome: str = Form(...),
+    descrizione: str = Form(""),
+    accetta_ticket: int = Form(0),
+    reperibilita_h24: int = Form(0),
+    reperibilita_orario_inizio: str = Form("18:00")
+):
     user = require_superuser(r)
     if isinstance(user, RedirectResponse):
         return user
+    rep_h24 = 1 if reperibilita_h24 else 0
+    rep_ora = (reperibilita_orario_inizio or "18:00").strip()
     with engine.begin() as c:
-        c.execute(text("INSERT INTO reparti (nome, descrizione, accetta_ticket) VALUES (:nome, :descrizione, :at)"), {"nome": nome, "descrizione": descrizione, "at": accetta_ticket})
+        c.execute(text("""
+            INSERT INTO reparti (nome, descrizione, accetta_ticket, reperibilita_h24, reperibilita_orario_inizio) 
+            VALUES (:nome, :descrizione, :at, :rep_h24, :rep_ora)
+        """), {
+            "nome": nome,
+            "descrizione": descrizione,
+            "at": accetta_ticket,
+            "rep_h24": rep_h24,
+            "rep_ora": rep_ora
+        })
     return RedirectResponse(url="/admin/reparti", status_code=303)
 
 @app.get("/admin/reparto/{reparto_id}/modifica", response_class=HTMLResponse)
@@ -2869,12 +2971,31 @@ def edit_reparto_form(r: Request, reparto_id: int):
     return templates.TemplateResponse(r, "edit_reparto.html", {"request": r, "cfg": CFG, "user": user, "reparto": reparto})
 
 @app.post("/admin/reparto/{reparto_id}/modifica")
-def edit_reparto_action(r: Request, reparto_id: int, nome: str = Form(...), descrizione: str = Form(""), accetta_ticket: int = Form(0)):
+def edit_reparto_action(
+    r: Request,
+    reparto_id: int,
+    nome: str = Form(...),
+    descrizione: str = Form(""),
+    accetta_ticket: int = Form(0),
+    reperibilita_h24: int = Form(0),
+    reperibilita_orario_inizio: str = Form("18:00")
+):
     user = require_superuser(r)
     if isinstance(user, RedirectResponse): return user
+    rep_h24 = 1 if reperibilita_h24 else 0
+    rep_ora = (reperibilita_orario_inizio or "18:00").strip()
     with engine.begin() as c:
-        c.execute(text("UPDATE reparti SET nome = :nome, descrizione = :desc, accetta_ticket = :at WHERE reparto_id = :id"),
-                  {"nome": nome, "desc": descrizione, "at": accetta_ticket, "id": reparto_id})
+        c.execute(text("""
+            UPDATE reparti 
+            SET nome = :nome, descrizione = :desc, accetta_ticket = :at,
+                reperibilita_h24 = :rep_h24, reperibilita_orario_inizio = :rep_ora 
+            WHERE reparto_id = :id
+        """), {
+            "nome": nome, "desc": descrizione, "at": accetta_ticket,
+            "rep_h24": rep_h24, "rep_ora": rep_ora, "id": reparto_id
+        })
+        if rep_h24 == 0:
+            c.execute(text("UPDATE servizi SET reperibilita_h24 = 0 WHERE reparto_id = :id"), {"id": reparto_id})
     return RedirectResponse(url="/admin/reparti", status_code=303)
 
 @app.post("/admin/reparto/delete")
@@ -2894,12 +3015,34 @@ def delete_reparto(r: Request, reparto_id: int = Form(...)):
     return RedirectResponse(url="/admin/reparti", status_code=303)
 
 @app.post("/admin/servizio")
-def add_servizio(r: Request, descrizione: str = Form(...), descrizione_lunga: str = Form(""), note: str = Form(""), reparto_id: int = Form(...), accetta_ticket: int = Form(0)):
+def add_servizio(
+    r: Request,
+    descrizione: str = Form(...),
+    descrizione_lunga: str = Form(""),
+    note: str = Form(""),
+    reparto_id: int = Form(...),
+    accetta_ticket: int = Form(0),
+    reperibilita_h24: int = Form(0)
+):
     user = require_superuser(r)
     if isinstance(user, RedirectResponse):
         return user
     with engine.begin() as c:
-        c.execute(text("INSERT INTO servizi (descrizione, descrizione_lunga, reparto_id, accetta_ticket, note) VALUES (:descrizione, :descrizione_lunga, :reparto_id, :at, :note)"), {"descrizione": descrizione, "descrizione_lunga": descrizione_lunga, "reparto_id": reparto_id, "at": accetta_ticket, "note": note})
+        rep_h24 = c.execute(text("SELECT reperibilita_h24 FROM reparti WHERE reparto_id = :rid"), {"rid": reparto_id}).scalar() or 0
+        service_rep_h24 = 1 if (reperibilita_h24 and rep_h24) else 0
+        desc_lunga = "" if (hasattr(descrizione_lunga, "default") or descrizione_lunga is None) else str(descrizione_lunga)
+        note_val = "" if (hasattr(note, "default") or note is None) else str(note)
+        c.execute(text("""
+            INSERT INTO servizi (descrizione, descrizione_lunga, reparto_id, accetta_ticket, note, reperibilita_h24) 
+            VALUES (:descrizione, :descrizione_lunga, :reparto_id, :at, :note, :rep_h24)
+        """), {
+            "descrizione": descrizione,
+            "descrizione_lunga": desc_lunga,
+            "reparto_id": reparto_id,
+            "at": accetta_ticket,
+            "note": note_val,
+            "rep_h24": service_rep_h24
+        })
     return RedirectResponse(url="/admin/servizi", status_code=303)
 
 @app.get("/admin/servizio/{servizio_id}/modifica", response_class=HTMLResponse)
@@ -2909,7 +3052,7 @@ def edit_servizio_form(r: Request, servizio_id: int):
     with engine.connect() as c:
         servizio = c.execute(text("SELECT * FROM servizi WHERE servizio_id = :id"), {"id": servizio_id}).mappings().first()
         if not servizio: return RedirectResponse(url="/admin/servizi")
-        reparti = c.execute(text("SELECT reparto_id, nome FROM reparti ORDER BY nome")).mappings().all()
+        reparti = c.execute(text("SELECT reparto_id, nome, reperibilita_h24 FROM reparti ORDER BY nome")).mappings().all()
         tutti_fornitori = c.execute(text("SELECT fornitore_id, ragione_sociale FROM fornitori WHERE attivo = 1 ORDER BY ragione_sociale")).mappings().all()
         fornitori_associati = c.execute(text("""
             SELECT sf.fornitore_id, sf.note as sf_note, sf.principale, f.ragione_sociale
@@ -2925,7 +3068,16 @@ def edit_servizio_form(r: Request, servizio_id: int):
     })
 
 @app.post("/admin/servizio/{servizio_id}/modifica")
-async def edit_servizio_action(r: Request, servizio_id: int, descrizione: str = Form(...), descrizione_lunga: str = Form(""), note: str = Form(""), reparto_id: int = Form(...), accetta_ticket: int = Form(0)):
+async def edit_servizio_action(
+    r: Request,
+    servizio_id: int,
+    descrizione: str = Form(...),
+    descrizione_lunga: str = Form(""),
+    note: str = Form(""),
+    reparto_id: int = Form(...),
+    accetta_ticket: int = Form(0),
+    reperibilita_h24: int = Form(0)
+):
     user = require_superuser(r)
     if isinstance(user, RedirectResponse): return user
     
@@ -2934,8 +3086,25 @@ async def edit_servizio_action(r: Request, servizio_id: int, descrizione: str = 
     fornitori_ids = form_data.getlist("fornitori_ids")
 
     with engine.begin() as c:
-        c.execute(text("UPDATE servizi SET descrizione = :desc, descrizione_lunga = :desc_lunga, reparto_id = :rid, accetta_ticket = :at, note = :note WHERE servizio_id = :id"),
-                  {"desc": descrizione, "desc_lunga": descrizione_lunga, "rid": reparto_id, "at": accetta_ticket, "note": note, "id": servizio_id})
+        rep_h24 = c.execute(text("SELECT reperibilita_h24 FROM reparti WHERE reparto_id = :rid"), {"rid": reparto_id}).scalar() or 0
+        service_rep_h24 = 1 if (reperibilita_h24 and rep_h24) else 0
+        desc_lunga = "" if (hasattr(descrizione_lunga, "default") or descrizione_lunga is None) else str(descrizione_lunga)
+        note_val = "" if (hasattr(note, "default") or note is None) else str(note)
+
+        c.execute(text("""
+            UPDATE servizi 
+            SET descrizione = :desc, descrizione_lunga = :desc_lunga, reparto_id = :rid, 
+                accetta_ticket = :at, note = :note, reperibilita_h24 = :rep_h24 
+            WHERE servizio_id = :id
+        """), {
+            "desc": descrizione,
+            "desc_lunga": desc_lunga,
+            "rid": reparto_id,
+            "at": accetta_ticket,
+            "note": note_val,
+            "rep_h24": service_rep_h24,
+            "id": servizio_id
+        })
         
         # Aggiorna associazioni fornitori
         c.execute(text("DELETE FROM servizi_fornitori WHERE servizio_id = :sid"), {"sid": servizio_id})

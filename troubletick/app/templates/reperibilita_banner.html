@@ -1,0 +1,49 @@
+{% if reperibilita_attiva %}
+<div class="alert alert-warning border-start border-warning border-4 shadow-sm mb-4 rounded-3 text-start" role="alert">
+  <div class="d-flex align-items-center mb-2">
+    <div class="fs-4 text-warning me-2">
+      <i class="bi bi-clock-history"></i>
+    </div>
+    <div>
+      <h4 class="alert-heading h5 fw-bold mb-0 text-dark">
+        Servizio di Reperibilità Attivo
+      </h4>
+      <small class="text-muted">
+        {% for rep in reperibilita_attiva %}
+          {% if rep.is_festivo %}
+            Servizio festivo attivo tutto il giorno per il reparto <strong>{{ rep.reparto_nome }}</strong>.
+          {% else %}
+            Servizio feriale attivo (dalle ore {{ rep.orario_inizio }}) per il reparto <strong>{{ rep.reparto_nome }}</strong>.
+          {% endif %}
+          {% if not loop.last %} — {% endif %}
+        {% endfor %}
+      </small>
+    </div>
+  </div>
+  <hr class="my-2">
+  <div class="mt-2">
+    {% for rep in reperibilita_attiva %}
+      <div class="mb-2">
+        <p class="mb-1 fw-bold text-dark">
+          <i class="bi bi-shield-check text-success me-1"></i>Reparto: <strong>{{ rep.reparto_nome }}</strong>
+        </p>
+        {% if rep.servizi %}
+          <div class="small text-muted mb-1">Servizi coperti dal servizio di reperibilità:</div>
+          <ul class="mb-0 list-inline">
+            {% for s in rep.servizi %}
+            <li class="list-inline-item me-2 mb-1">
+              <span class="badge bg-warning text-dark border border-warning-subtle px-2 py-1 shadow-xs">
+                <i class="bi bi-check2-circle me-1"></i>{{ s.descrizione }}
+              </span>
+            </li>
+            {% endfor %}
+          </ul>
+        {% else %}
+          <div class="small text-muted fst-italic">Nessun servizio coperto configurato per questo reparto.</div>
+        {% endif %}
+      </div>
+      {% if not loop.last %}<hr class="my-2 border-secondary-subtle">{% endif %}
+    {% endfor %}
+  </div>
+</div>
+{% endif %}

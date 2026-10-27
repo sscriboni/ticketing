@@ -49,12 +49,17 @@
                         </div>
                         <div class="mb-3">
                             <label class="form-label fw-bold small">Reparto di Competenza *</label>
-                            <select name="reparto_id" class="form-select" required>
+                            <select name="reparto_id" id="selectRepartoEdit" class="form-select" required>
                                 <option value="" disabled>Seleziona reparto</option>
                                 {% for reparto in reparti %}
-                                <option value="{{ reparto.reparto_id }}" {% if reparto.reparto_id == servizio.reparto_id %}selected{% endif %}>{{ reparto.nome }}</option>
+                                <option value="{{ reparto.reparto_id }}" data-reperibilita="{{ 1 if reparto.reperibilita_h24 else 0 }}" {% if reparto.reparto_id == servizio.reparto_id %}selected{% endif %}>{{ reparto.nome }}</option>
                                 {% endfor %}
                             </select>
+                        </div>
+                        <div class="mb-3 form-check form-switch">
+                            <input type="checkbox" name="reperibilita_h24" class="form-check-input" value="1" id="chkReperibilitaEdit" {% if servizio.reperibilita_h24 %}checked{% endif %}>
+                            <label class="form-check-label small fw-bold" for="chkReperibilitaEdit">Reperibilità h24</label>
+                            <div id="helpRepServizioEdit" class="form-text text-muted small">Disponibile solo se il reparto di competenza ha la Reperibilità h24 attiva.</div>
                         </div>
                         <div class="mb-4 form-check form-switch">
                             <input type="checkbox" name="accetta_ticket" class="form-check-input" value="1" id="chkAccettaEdit" {% if servizio.accetta_ticket %}checked{% endif %}>
@@ -126,5 +131,37 @@
         </div>
     </div>
 </div>
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    const selRepartoEdit = document.getElementById('selectRepartoEdit');
+    const chkRepEdit = document.getElementById('chkReperibilitaEdit');
+    const helpRepEdit = document.getElementById('helpRepServizioEdit');
+
+    function updateEditRepServizioState() {
+        if (!selRepartoEdit || !chkRepEdit) return;
+        const opt = selRepartoEdit.options[selRepartoEdit.selectedIndex];
+        const repActive = opt && opt.getAttribute('data-reperibilita') === '1';
+        if (repActive) {
+            chkRepEdit.disabled = false;
+            if (helpRepEdit) {
+                helpRepEdit.textContent = "Reperibilità h24 disponibile per questo reparto.";
+                helpRepEdit.className = "form-text text-success small";
+            }
+        } else {
+            chkRepEdit.checked = false;
+            chkRepEdit.disabled = true;
+            if (helpRepEdit) {
+                helpRepEdit.textContent = "Disponibile solo se il reparto di competenza ha la Reperibilità h24 attiva.";
+                helpRepEdit.className = "form-text text-muted small";
+            }
+        }
+    }
+
+    if (selRepartoEdit) {
+        selRepartoEdit.addEventListener('change', updateEditRepServizioState);
+        updateEditRepServizioState();
+    }
+});
+</script>
 </body>
 </html>

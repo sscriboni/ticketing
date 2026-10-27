@@ -17,8 +17,8 @@
     {% if error == 'in_uso' %}
     <div class="alert alert-danger py-2 mt-2">Impossibile eliminare: il reparto è associato a ticket, servizi o operatori attivi.</div>
     {% endif %}
-    <table class="table table-sm table-striped mt-3">
-      <thead><tr><th>Nome</th><th>Descrizione</th><th>Accetta Ticket</th><th>Azioni</th></tr></thead>
+    <table class="table table-sm table-striped mt-3 align-middle">
+      <thead><tr><th>Nome</th><th>Descrizione</th><th>Accetta Ticket</th><th>Reperibilità H24</th><th>Azioni</th></tr></thead>
       <tbody>
       {% for reparto in reparti %}
       <tr>
@@ -27,6 +27,13 @@
         <td>
           {% if reparto.accetta_ticket %}
           <span class="badge bg-success">Sì</span>
+          {% else %}
+          <span class="badge bg-secondary">No</span>
+          {% endif %}
+        </td>
+        <td>
+          {% if reparto.reperibilita_h24 %}
+          <span class="badge bg-warning text-dark"><i class="bi bi-clock-history me-1"></i>Attiva (dalle {{ reparto.reperibilita_orario_inizio or '18:00' }})</span>
           {% else %}
           <span class="badge bg-secondary">No</span>
           {% endif %}
@@ -49,9 +56,18 @@
     <form method="post" action="/admin/reparto" class="mt-3">
       <div class="mb-3"><label class="form-label">Nome</label><input name="nome" class="form-control" required></div>
       <div class="mb-3"><label class="form-label">Descrizione</label><input name="descrizione" class="form-control"></div>
-      <div class="mb-4 form-check">
+      <div class="mb-3 form-check">
         <input type="checkbox" name="accetta_ticket" value="1" class="form-check-input" id="checkNuovoAt" checked>
         <label class="form-check-label" for="checkNuovoAt">Reparto di Supporto (accetta ticket)</label>
+      </div>
+      <div class="mb-3 form-check">
+        <input type="checkbox" name="reperibilita_h24" value="1" class="form-check-input" id="checkNuovoRep">
+        <label class="form-check-label fw-bold" for="checkNuovoRep">Reperibilità h24</label>
+      </div>
+      <div class="mb-4" id="divOrarioNuovoRep" style="display: none;">
+        <label class="form-label small fw-bold">Orario inizio (giorni feriali)</label>
+        <input type="time" name="reperibilita_orario_inizio" class="form-control" value="18:00">
+        <small class="text-muted d-block mt-1">Orario di inizio della reperibilità nei giorni lavorativi.</small>
       </div>
       <button type="submit" class="btn btn-primary w-100">Salva reparto</button>
     </form>
@@ -76,4 +92,14 @@
   </form>
 </div>
 
-</div></body></html>
+</div>
+<script>
+  const chkNuovo = document.getElementById('checkNuovoRep');
+  const divOraNuovo = document.getElementById('divOrarioNuovoRep');
+  if (chkNuovo && divOraNuovo) {
+    chkNuovo.addEventListener('change', function() {
+      divOraNuovo.style.display = this.checked ? 'block' : 'none';
+    });
+  }
+</script>
+</body></html>

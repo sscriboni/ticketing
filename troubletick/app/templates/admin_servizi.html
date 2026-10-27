@@ -11,7 +11,7 @@
     <div class="alert alert-danger py-2 mt-2">Impossibile eliminare: il servizio è associato a ticket o operatori attivi.</div>
     {% endif %}
     <table class="table table-sm table-striped mt-3 align-middle">
-      <thead><tr><th>Servizio</th><th>Descrizione</th><th>Reparto</th><th>Fornitori Collegati</th><th>Stato</th><th>Azioni</th></tr></thead>
+      <thead><tr><th>Servizio</th><th>Descrizione</th><th>Reparto</th><th>Fornitori Collegati</th><th>Reperibilità H24</th><th>Stato</th><th>Azioni</th></tr></thead>
       <tbody>
       {% for servizio in servizi %}
       <tr>
@@ -32,6 +32,13 @@
             {% endfor %}
           {% else %}
             <span class="text-muted small">Nessuno</span>
+          {% endif %}
+        </td>
+        <td>
+          {% if servizio.reperibilita_h24 %}
+          <span class="badge bg-warning text-dark"><i class="bi bi-clock-history me-1"></i>Attiva</span>
+          {% else %}
+          <span class="badge bg-secondary">No</span>
           {% endif %}
         </td>
         <td>
@@ -67,12 +74,17 @@
         <label class="form-label">Note / Istruzioni utente (HTML supportato)</label>
         <textarea name="note" class="form-control" rows="3" placeholder="Spiega all'utente i dati da inserire (es. matricola, modello, ubicazione...)"></textarea>
       </div>
-      <div class="mb-3"><label class="form-label">Reparto</label><select name="reparto_id" class="form-select" required>
+      <div class="mb-3"><label class="form-label">Reparto</label><select name="reparto_id" id="selectRepartoNuovo" class="form-select" required>
         <option value="" disabled selected>Seleziona reparto</option>
         {% for reparto in reparti %}
-        <option value="{{ reparto.reparto_id }}">{{ reparto.nome }}</option>
+        <option value="{{ reparto.reparto_id }}" data-reperibilita="{{ 1 if reparto.reperibilita_h24 else 0 }}">{{ reparto.nome }}</option>
         {% endfor %}
       </select></div>
+      <div class="mb-3 form-check form-switch">
+        <input type="checkbox" name="reperibilita_h24" class="form-check-input" value="1" id="chkReperibilitaNuovo" disabled>
+        <label class="form-check-label small fw-bold" for="chkReperibilitaNuovo">Reperibilità h24</label>
+        <div id="helpRepServizioNuovo" class="form-text text-muted small">Disponibile solo se il reparto selezionato ha la Reperibilità h24 attiva.</div>
+      </div>
       <div class="mb-3 form-check form-switch">
         <input type="checkbox" name="accetta_ticket" class="form-check-input" value="1" id="chkAccetta" checked>
         <label class="form-check-label" for="chkAccetta">Abilita ricezione ticket (visibile al pubblico)</label>
@@ -276,6 +288,34 @@ document.addEventListener('DOMContentLoaded', function() {
             }
         });
     });
+
+    // Gestione abilitazione/disabilitazione Reperibilità h24 in base al reparto selezionato
+    const selRepartoNuovo = document.getElementById('selectRepartoNuovo');
+    const chkRepNuovo = document.getElementById('chkReperibilitaNuovo');
+    const helpRepNuovo = document.getElementById('helpRepServizioNuovo');
+    function updateRepServizioState() {
+        if (!selRepartoNuovo || !chkRepNuovo) return;
+        const opt = selRepartoNuovo.options[selRepartoNuovo.selectedIndex];
+        const repActive = opt && opt.getAttribute('data-reperibilita') === '1';
+        if (repActive) {
+            chkRepNuovo.disabled = false;
+            if (helpRepNuovo) {
+                helpRepNuovo.textContent = "Reperibilità h24 disponibile per questo reparto.";
+                helpRepNuovo.className = "form-text text-success small";
+            }
+        } else {
+            chkRepNuovo.checked = false;
+            chkRepNuovo.disabled = true;
+            if (helpRepNuovo) {
+                helpRepNuovo.textContent = "Disponibile solo se il reparto selezionato ha la Reperibilità h24 attiva.";
+                helpRepNuovo.className = "form-text text-muted small";
+            }
+        }
+    }
+    if (selRepartoNuovo) {
+        selRepartoNuovo.addEventListener('change', updateRepServizioState);
+        updateRepServizioState();
+    }
 });
 </script>
 </body></html>
