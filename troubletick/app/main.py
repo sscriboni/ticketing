@@ -11,7 +11,11 @@ from sqlalchemy import create_engine, text
 import bcrypt
 
 from core import CFG, BASE_DIR, UPLOAD_DIR, LOG_DIR, engine, DB_TYPE, DB_PK, DB_DRIVER, templates
-from utils import current_user, require_superuser, save_upload, save_user_roles, user_can_manage_fornitori, user_has_tag_dec, user_has_tag_amministrazione, resolve_sede_id
+from utils import (
+    current_user, require_superuser, save_upload, save_user_roles, 
+    user_can_manage_fornitori, user_has_tag_dec, user_has_tag_amministrazione, 
+    user_has_tag_reperibile, user_has_tag_rep_admin, resolve_sede_id
+)
 from email_utils import send_email_async
 
 import auth
@@ -997,6 +1001,8 @@ templates.env.globals["user_has_tag_dec"] = user_has_tag_dec
 templates.env.globals["user_has_tag_amministrazione"] = user_has_tag_amministrazione
 templates.env.globals["user_can_access_contratti"] = contratti.user_can_access_contratti
 templates.env.globals["user_can_manage_fornitori"] = user_can_manage_fornitori
+templates.env.globals["user_has_tag_reperibile"] = user_has_tag_reperibile
+templates.env.globals["user_has_tag_rep_admin"] = user_has_tag_rep_admin
 
 
 @app.exception_handler(Exception)
@@ -2045,6 +2051,42 @@ def create_ticket(r: Request,
         if servizio_id:
             operatori_emails = c.execute(text("SELECT u.email FROM users u JOIN operatori_servizi os ON u.user_id = os.user_id WHERE os.servizio_id = :sid AND u.email IS NOT NULL AND u.email != '' AND u.attivo = 1"), {"sid": servizio_id}).scalars().all()
 
+        # Verifica se il servizio è coperto da reperibilità h24 e se siamo in orario di reperibilità
+        is_in_reperibilita = False
+        reperibili_emails = set()
+        if servizio_id and reparto_id:
+            servizio_rep_h24 = bool(c.execute(text("SELECT reperibilita_h24 FROM servizi WHERE servizio_id = :sid"), {"sid": servizio_id}).scalar())
+            if servizio_rep_h24:
+                active_reps = get_active_reperibilita(c)
+                matching_rep = next((ar for ar in active_reps if ar["reparto_id"] == reparto_id), None)
+                if matching_rep:
+                    is_in_reperibilita = True
+                    # 1. Tutti gli operatori del reparto con il tag 'Reperibile'
+                    tag_ops = c.execute(text("""
+                        SELECT DISTINCT u.email
+                        FROM users u
+                        JOIN operatori_tag ot ON u.user_id = ot.user_id
+                        JOIN tag_operatori t ON ot.tag_id = t.tag_id
+                        WHERE LOWER(t.nome) = 'reperibile'
+                          AND u.attivo = 1
+                          AND u.email IS NOT NULL AND TRIM(u.email) != ''
+                          AND u.reparto_id = :rid
+                    """), {"rid": reparto_id}).scalars().all()
+                    for em in tag_ops:
+                        if em and em.strip():
+                            reperibili_emails.add(em.strip())
+
+                    # 2. Tutti gli operatori assegnati ai turni di reperibilità in questa sessione
+                    if matching_rep.get("turni"):
+                        for t_slot in matching_rep["turni"]:
+                            for op in t_slot.get("operatori", []):
+                                if op.get("email") and op["email"].strip():
+                                    reperibili_emails.add(op["email"].strip())
+
+        destinatari_operatori = set(e.strip() for e in operatori_emails if e and e.strip())
+        if is_in_reperibilita and reperibili_emails:
+            destinatari_operatori.update(reperibili_emails)
+
         c.execute(text("""INSERT INTO tickets (codice_ticket, nome,cognome,email,telefono,riferimento,sede,reparto_appartenenza,reparto_id,servizio_id,argomento_id,descrizione,priorita,ip,allegato)
                           VALUES (:codice, :n,:c,:e,:tel,:r,:sede,:rep_app,:rid,:sid,:arg_id,:d,:p,:ip,:all)"""),
                  {"codice": codice_ticket, "n":nome,"c":cognome,"e":email,"tel":telefono,"r":riferimento,"sede":sede,"rep_app":reparto_appartenenza.strip(),"rid":reparto_id,"sid":servizio_id,"arg_id":argomento_id,
@@ -2062,18 +2104,27 @@ def create_ticket(r: Request,
         })
         background_tasks.add_task(send_email_async, email, subject, body, "Conferma apertura ticket")
         
-    if operatori_emails:
-        subject_ops = f"[{CFG.get('company_name', 'Helpdesk')}] Nuovo Ticket #{codice_ticket} nel tuo servizio"
+    if destinatari_operatori:
+        if is_in_reperibilita:
+            subject_ops = f"[{CFG.get('company_name', 'Helpdesk')}] [REPERIBILITÀ] Nuovo Ticket #{codice_ticket} - {serv_desc}"
+            titolo_ops = "Notifica Reperibilità: Nuovo ticket aperto durante gli orari di reperibilità"
+            reason_log = "Notifica nuovo ticket reperibilita"
+        else:
+            subject_ops = f"[{CFG.get('company_name', 'Helpdesk')}] Nuovo Ticket #{codice_ticket} nel tuo servizio"
+            titolo_ops = "Nuovo ticket assegnato al tuo servizio"
+            reason_log = "Notifica nuovo ticket operatore"
+
         body_ops = templates.get_template("email_ticket_operatore.html").render({
             "cfg": CFG,
-            "titolo": "Nuovo ticket assegnato al tuo servizio",
+            "titolo": titolo_ops,
             "codice_ticket": codice_ticket,
             "nome_richiedente": f"{nome} {cognome}".strip(),
             "serv_desc": serv_desc,
             "descrizione": descrizione
         })
-        for op_email in set(operatori_emails):
-            background_tasks.add_task(send_email_async, op_email, subject_ops, body_ops, "Notifica nuovo ticket operatore")
+        for op_email in destinatari_operatori:
+            background_tasks.add_task(send_email_async, op_email, subject_ops, body_ops, reason_log)
+
             
     url_redirect = f"/success?codice={codice_ticket}"
     if email:
@@ -4765,30 +4816,56 @@ def reset_accesso_utente(r: Request, user_id: int):
 # ===== GESTIONE AVVISI IN HOMEPAGE =====
 
 @app.get("/avvisi", response_class=HTMLResponse)
-def manage_avvisi(r: Request):
+def manage_avvisi(r: Request, error: str = None, msg: str = None):
     if not CFG.get('modulo_avvisi', True):
         return RedirectResponse(url="/")
     if "user" not in r.session: return RedirectResponse(url="/login")
     user = r.session.get("user")
+    uid = user.get("id")
+    user_rep_id = user.get("reparto_id")
+    is_admin = (user.get("ruolo") == "admin")
     
     with engine.connect() as c:
-        if user.get("ruolo") == "admin":
+        is_reperibile = bool(c.execute(text("""
+            SELECT 1 FROM operatori_tag ot
+            JOIN tag_operatori t ON ot.tag_id = t.tag_id
+            WHERE ot.user_id = :uid AND LOWER(t.nome) IN ('reperibile', 'rep_admin')
+        """), {"uid": uid}).scalar())
+
+        if is_admin:
             where_clause = "1=1"
             params = {}
-            servizi = c.execute(text("SELECT servizio_id, descrizione FROM servizi ORDER BY descrizione")).mappings().all()
+            servizi = c.execute(text("SELECT servizio_id, descrizione, reperibilita_h24 FROM servizi ORDER BY descrizione")).mappings().all()
         else:
-            where_clause = "a.user_id = :uid OR a.servizio_id IN (SELECT servizio_id FROM operatori_servizi WHERE user_id = :uid)"
-            params = {"uid": user.get("id")}
-            servizi = c.execute(text("""
-                SELECT s.servizio_id, s.descrizione 
-                FROM servizi s
-                JOIN operatori_servizi os ON s.servizio_id = os.servizio_id
-                WHERE os.user_id = :uid
-                ORDER BY s.descrizione
-            """), {"uid": user.get("id")}).mappings().all()
+            if is_reperibile:
+                servizi = c.execute(text("""
+                    SELECT DISTINCT s.servizio_id, s.descrizione, s.reperibilita_h24 
+                    FROM servizi s
+                    LEFT JOIN operatori_servizi os ON s.servizio_id = os.servizio_id AND os.user_id = :uid
+                    WHERE os.user_id = :uid 
+                       OR (s.reperibilita_h24 = 1 AND (s.reparto_id = :rep_id OR :rep_id IS NULL OR s.reparto_id IN (SELECT DISTINCT reparto_id FROM reperibilita_assegnazioni WHERE user_id = :uid)))
+                    ORDER BY s.descrizione
+                """), {"uid": uid, "rep_id": user_rep_id}).mappings().all()
+
+                where_clause = """
+                    (a.user_id = :uid 
+                     OR a.servizio_id IN (SELECT servizio_id FROM operatori_servizi WHERE user_id = :uid)
+                     OR a.servizio_id IN (SELECT servizio_id FROM servizi WHERE reperibilita_h24 = 1 AND (reparto_id = :rep_id OR :rep_id IS NULL OR reparto_id IN (SELECT DISTINCT reparto_id FROM reperibilita_assegnazioni WHERE user_id = :uid))))
+                """
+                params = {"uid": uid, "rep_id": user_rep_id}
+            else:
+                where_clause = "a.user_id = :uid OR a.servizio_id IN (SELECT servizio_id FROM operatori_servizi WHERE user_id = :uid)"
+                params = {"uid": uid}
+                servizi = c.execute(text("""
+                    SELECT s.servizio_id, s.descrizione, s.reperibilita_h24 
+                    FROM servizi s
+                    JOIN operatori_servizi os ON s.servizio_id = os.servizio_id
+                    WHERE os.user_id = :uid
+                    ORDER BY s.descrizione
+                """), {"uid": uid}).mappings().all()
             
         avvisi = c.execute(text(f"""
-            SELECT a.*, s.descrizione as servizio_desc, u.nome, u.cognome
+            SELECT a.*, s.descrizione as servizio_desc, s.reperibilita_h24, u.nome, u.cognome
             FROM avvisi a
             LEFT JOIN servizi s ON a.servizio_id = s.servizio_id
             LEFT JOIN users u ON a.user_id = u.user_id
@@ -4796,7 +4873,11 @@ def manage_avvisi(r: Request):
             ORDER BY a.creato_il DESC
         """), params).mappings().all()
             
-    return templates.TemplateResponse(r, "manage_avvisi.html", {"request": r, "cfg": CFG, "user": user, "avvisi": avvisi, "servizi": servizi})
+    return templates.TemplateResponse(r, "manage_avvisi.html", {
+        "request": r, "cfg": CFG, "user": user, "avvisi": avvisi, 
+        "servizi": servizi, "is_reperibile": is_reperibile,
+        "error": error, "msg": msg
+    })
 
 @app.post("/avviso/nuovo")
 def nuovo_avviso(r: Request, titolo: str = Form(...), testo: str = Form(...), 
@@ -4805,30 +4886,78 @@ def nuovo_avviso(r: Request, titolo: str = Form(...), testo: str = Form(...),
                  data_fine: str = Form(""), ora_fine: str = Form("")):
     if "user" not in r.session: return RedirectResponse(url="/login")
     user = r.session.get("user")
+    uid = user.get("id")
+    is_admin = (user.get("ruolo") == "admin")
     
     dt_inizio = f"{data_inizio} {ora_inizio or '00:00'}:00" if data_inizio else None
     dt_fine = f"{data_fine} {ora_fine or '23:59'}:00" if data_fine else None
     sid = int(servizio_id) if servizio_id and str(servizio_id).isdigit() else None
     
     with engine.begin() as c:
+        is_reperibile = bool(c.execute(text("""
+            SELECT 1 FROM operatori_tag ot
+            JOIN tag_operatori t ON ot.tag_id = t.tag_id
+            WHERE ot.user_id = :uid AND LOWER(t.nome) IN ('reperibile', 'rep_admin')
+        """), {"uid": uid}).scalar())
+
+        # Controllo autorizzazioni inserimento avviso
+        if not is_admin:
+            can_post = False
+            if sid:
+                # 1) Servizio assegnato all'operatore
+                is_op_serv = c.execute(text("SELECT 1 FROM operatori_servizi WHERE user_id = :uid AND servizio_id = :sid"), {"uid": uid, "sid": sid}).scalar()
+                if is_op_serv:
+                    can_post = True
+                # 2) Servizio coperto da reperibilità se l'utente ha il tag Reperibile o Rep_Admin
+                elif is_reperibile:
+                    is_rep_serv = c.execute(text("SELECT 1 FROM servizi WHERE servizio_id = :sid AND reperibilita_h24 = 1"), {"sid": sid}).scalar()
+                    if is_rep_serv:
+                        can_post = True
+            elif user.get("ruolo") in ("responsabile", "assistenza"):
+                can_post = True
+            
+            if not can_post:
+                err = urllib.parse.quote("Non hai i permessi per pubblicare avvisi per il servizio selezionato.")
+                return RedirectResponse(url=f"/avvisi?error={err}", status_code=303)
+
         c.execute(text("""
             INSERT INTO avvisi (user_id, servizio_id, titolo, testo, gravita, data_inizio, data_fine)
             VALUES (:uid, :sid, :titolo, :testo, :gravita, :di, :df)
         """), {
-            "uid": user.get("id"), "sid": sid, "titolo": titolo, "testo": testo,
+            "uid": uid, "sid": sid, "titolo": titolo, "testo": testo,
             "gravita": gravita, "di": dt_inizio, "df": dt_fine
         })
-    return RedirectResponse(url="/avvisi", status_code=303)
+    msg = urllib.parse.quote("Avviso pubblicato con successo.")
+    return RedirectResponse(url=f"/avvisi?msg={msg}", status_code=303)
 
 @app.post("/avviso/{avviso_id}/elimina")
 def elimina_avviso(r: Request, avviso_id: int):
     if "user" not in r.session: return RedirectResponse(url="/login")
     user = r.session.get("user")
+    uid = user.get("id")
+    is_admin = (user.get("ruolo") == "admin")
     
     with engine.begin() as c:
-        if user.get("ruolo") == "admin":
+        if is_admin:
             c.execute(text("DELETE FROM avvisi WHERE avviso_id = :id"), {"id": avviso_id})
         else:
-            c.execute(text("DELETE FROM avvisi WHERE avviso_id = :id AND (user_id = :uid OR servizio_id IN (SELECT servizio_id FROM operatori_servizi WHERE user_id = :uid))"), 
-                      {"id": avviso_id, "uid": user.get("id")})
-    return RedirectResponse(url="/avvisi", status_code=303)
+            is_reperibile = bool(c.execute(text("""
+                SELECT 1 FROM operatori_tag ot
+                JOIN tag_operatori t ON ot.tag_id = t.tag_id
+                WHERE ot.user_id = :uid AND LOWER(t.nome) IN ('reperibile', 'rep_admin')
+            """), {"uid": uid}).scalar())
+
+            if is_reperibile:
+                c.execute(text("""
+                    DELETE FROM avvisi 
+                    WHERE avviso_id = :id 
+                      AND (user_id = :uid 
+                           OR servizio_id IN (SELECT servizio_id FROM operatori_servizi WHERE user_id = :uid)
+                           OR servizio_id IN (SELECT servizio_id FROM servizi WHERE reperibilita_h24 = 1))
+                """), {"id": avviso_id, "uid": uid})
+            else:
+                c.execute(text("DELETE FROM avvisi WHERE avviso_id = :id AND (user_id = :uid OR servizio_id IN (SELECT servizio_id FROM operatori_servizi WHERE user_id = :uid))"), 
+                          {"id": avviso_id, "uid": uid})
+    msg = urllib.parse.quote("Avviso eliminato con successo.")
+    return RedirectResponse(url=f"/avvisi?msg={msg}", status_code=303)
+

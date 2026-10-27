@@ -11,8 +11,28 @@
 
 <div class="container flex-grow-1 mb-5">
     <div class="d-flex justify-content-between align-items-center mb-4">
-        <h2 class="h3 mb-0">📢 Gestione Avvisi in Homepage</h2>
+        <div>
+            <h2 class="h3 mb-1">📢 Gestione Avvisi in Homepage</h2>
+            {% if is_reperibile %}
+            <span class="badge bg-warning-subtle text-warning-emphasis border border-warning-subtle">
+                <i class="bi bi-clock-history me-1"></i>Abilitato alla pubblicazione per i Servizi di Reperibilità H24
+            </span>
+            {% endif %}
+        </div>
     </div>
+
+    {% if error %}
+    <div class="alert alert-danger alert-dismissible fade show shadow-sm" role="alert">
+        <i class="bi bi-exclamation-triangle-fill me-2"></i>{{ error }}
+        <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+    </div>
+    {% endif %}
+    {% if msg %}
+    <div class="alert alert-success alert-dismissible fade show shadow-sm" role="alert">
+        <i class="bi bi-check-circle-fill me-2"></i>{{ msg }}
+        <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+    </div>
+    {% endif %}
     
     <div class="card shadow-sm mb-4">
         <div class="card-header bg-white fw-bold">Pubblica un nuovo Avviso</div>
@@ -25,10 +45,16 @@
                     </div>
                     <div class="col-md-3">
                         <label class="form-label">Servizio Riferimento</label>
-                        <select name="servizio_id" class="form-select">
+                        <select name="servizio_id" class="form-select" {% if is_reperibile and user.ruolo == 'normale' %}required{% endif %}>
+                            {% if user.ruolo in ('admin', 'responsabile', 'assistenza') %}
                             <option value="">-- Nessuno (Generale) --</option>
+                            {% else %}
+                            <option value="">-- Seleziona Servizio Reperibile --</option>
+                            {% endif %}
                             {% for s in servizi %}
-                            <option value="{{ s.servizio_id }}">{{ s.descrizione }}</option>
+                            <option value="{{ s.servizio_id }}">
+                                {{ s.descrizione }}{% if s.reperibilita_h24 %} 🌙 [H24 Reperibilità]{% endif %}
+                            </option>
                             {% endfor %}
                         </select>
                     </div>
@@ -78,7 +104,7 @@
             <thead class="table-light">
                 <tr>
                     <th class="text-center" style="width: 80px;">Gravità</th>
-                    <th style="width: 15%;">Servizio</th>
+                    <th style="width: 18%;">Servizio</th>
                     <th>Titolo e Testo</th>
                     <th style="width: 20%;">Visibilità</th>
                     <th style="width: 12%;">Autore</th>
@@ -93,11 +119,17 @@
                         {% elif a.gravita == 'warning' %}<span class="badge bg-warning text-dark w-100">Allerta</span>
                         {% else %}<span class="badge bg-info w-100">Info</span>{% endif %}
                     </td>
-                    <td>{{ a.servizio_desc or 'Generale' }}</td>
+                    <td>
+                        {{ a.servizio_desc or 'Generale' }}
+                        {% if a.reperibilita_h24 %}
+                        <br><span class="badge bg-warning-subtle text-warning-emphasis border border-warning-subtle" style="font-size: 0.68rem;"><i class="bi bi-clock-history me-1"></i>H24</span>
+                        {% endif %}
+                    </td>
                     <td>
                         <strong>{{ a.titolo }}</strong><br>
                         <span class="text-muted">{{ a.testo }}</span>
                     </td>
+
                     <td>
                         {% if not a.data_inizio and not a.data_fine %}
                             <span class="badge bg-success">Pubblicato / Fino a rimozione</span>

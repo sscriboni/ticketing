@@ -573,6 +573,22 @@
             </a>
           </li>
           {% endif %}
+
+          {% if user_has_tag_reperibile(user) %}
+          <li class="nav-item">
+            <a class="nav-link {% if request.url.path == '/reperibilita' %}active fw-bold{% endif %}" href="/reperibilita">
+              <i class="bi bi-clock-history text-warning me-1"></i> Reperibilità
+            </a>
+          </li>
+          {% if cfg.get('modulo_avvisi', True) %}
+          <li class="nav-item">
+            <a class="nav-link {% if request.url.path.startswith('/avvisi') %}active fw-bold{% endif %}" href="/avvisi">
+              <i class="bi bi-megaphone me-1"></i> Avvisi
+            </a>
+          </li>
+          {% endif %}
+          {% endif %}
+
         {% endif %}
 
         <!-- Documentazione Dropdown (Common to all roles) -->

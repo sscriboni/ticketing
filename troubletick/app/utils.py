@@ -55,9 +55,16 @@ def user_has_tag_amministrazione(user: dict) -> bool:
     """Verifica se l'utente possiede il tag Amministrazione assegnato"""
     return user_has_tag(user, "AMMINISTRAZIONE")
 
+def user_has_tag_reperibile(user: dict) -> bool:
+    """Verifica se l'utente possiede il tag Reperibile o Rep_Admin assegnato"""
+    if not user:
+        return False
+    return user_has_tag(user, "REPERIBILE") or user_has_tag(user, "REP_ADMIN")
+
 def user_has_tag_rep_admin(user: dict) -> bool:
     """Verifica se l'utente possiede il tag Rep_Admin assegnato"""
     return user_has_tag(user, "REP_ADMIN")
+
 
 def user_can_manage_reperibilita(user: dict) -> bool:
     """Verifica se l'utente ha privilegi Rep_Admin (amministratore o tag Rep_Admin)"""
