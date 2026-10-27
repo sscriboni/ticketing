@@ -360,8 +360,8 @@
             </ul>
           </li>
 
-        <!-- NAVBAR OPERATORE ASSISTENZA -->
-        {% elif user.ruolo == 'assistenza' %}
+        <!-- NAVBAR OPERATORE ASSISTENZA & AMMINISTRATIVO -->
+        {% elif user.ruolo in ('assistenza', 'amministrativo') %}
           <li class="nav-item dropdown">
             <a class="nav-link dropdown-toggle {% if request.url.path == '/tickets' or request.url.path.startswith('/ticket/') or request.url.path == '/new' %}active fw-bold{% endif %}" href="#" id="ticketDropdown" role="button" data-bs-toggle="dropdown" aria-expanded="false">
               <i class="bi bi-ticket-detailed"></i> Ticket

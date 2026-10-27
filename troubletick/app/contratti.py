@@ -141,7 +141,7 @@ def user_can_access_contratti(user: dict) -> bool:
     if not user:
         return False
     ruolo = user.get("ruolo", "normale")
-    if ruolo in ("admin", "responsabile"):
+    if ruolo in ("admin", "responsabile", "amministrativo"):
         return True
     return user_has_tag_dec(user)
 
@@ -150,6 +150,7 @@ def check_contratti_access(r: Request):
     Verifica se l'utente autenticato può accedere al modulo contratti:
     - Ruolo admin
     - Ruolo responsabile
+    - Ruolo amministrativo
     - Operatore/Utente con tag DEC
     """
     user = current_user(r)
@@ -157,7 +158,7 @@ def check_contratti_access(r: Request):
         return RedirectResponse(url="/login", status_code=303)
 
     ruolo = user.get("ruolo", "normale")
-    if ruolo == "admin" or ruolo == "responsabile":
+    if ruolo in ("admin", "responsabile", "amministrativo"):
         return user
 
     if user_has_tag_dec(user):
@@ -177,7 +178,7 @@ def get_contratto_scope_filter(user: dict):
 def can_manage_single_contratto(user: dict, contratto_row: dict, conn=None) -> bool:
     """
     Verifica se l'utente può modificare o eliminare un determinato contratto:
-    - Admin: sempre True
+    - Admin / Amministrativo: sempre True
     - Inserito dall'operatore collegato (creato_da_id): True
     - Operatore è il DEC designato (dec_user_id): True
     - Legato ai propri servizi:
@@ -191,7 +192,7 @@ def can_manage_single_contratto(user: dict, contratto_row: dict, conn=None) -> b
     uid = user["id"]
     ruolo = user.get("ruolo", "normale")
 
-    if ruolo == "admin":
+    if ruolo in ("admin", "amministrativo"):
         return True
 
     # Inserito dall'operatore collegato
@@ -491,7 +492,7 @@ def contratti_list(
             anni_disponibili = sorted(list(set(list(anni_disponibili) + [current_year])), reverse=True)
 
         # Calcolo permessi di modifica per ciascun contratto in lista
-        if user.get("ruolo") == "admin":
+        if user.get("ruolo") in ("admin", "amministrativo"):
             editable_ids_set = None
         else:
             uid = user["id"]
@@ -519,7 +520,7 @@ def contratti_list(
         contratti_augmented = []
         for c_item in contratti:
             c_dict = dict(c_item)
-            c_dict["can_edit"] = True if (user.get("ruolo") == "admin" or c_dict["contratto_id"] in editable_ids_set) else False
+            c_dict["can_edit"] = True if (user.get("ruolo") in ("admin", "amministrativo") or (editable_ids_set is not None and c_dict["contratto_id"] in editable_ids_set)) else False
             contratti_augmented.append(c_dict)
 
         # Calcolo KPI per la selezione

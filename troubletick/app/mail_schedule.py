@@ -546,6 +546,8 @@ def build_html_admin_status(data):
                 ruolo_badge = "<span class='badge badge-warning'>responsabile</span>"
             elif r['ruolo'] == 'assistenza':
                 ruolo_badge = "<span class='badge badge-primary'>assistenza</span>"
+            elif r['ruolo'] == 'amministrativo':
+                ruolo_badge = "<span class='badge badge-primary'>amministrativo</span>"
                 
             login_rows_html += f"""
             <tr>
@@ -1643,7 +1645,7 @@ def main():
                     JOIN user_roles ur ON u.user_id = ur.user_id
                     JOIN reparti r ON u.reparto_id = r.reparto_id
                     JOIN servizi s ON r.reparto_id = s.reparto_id
-                    WHERE ur.ruolo = 'assistenza' AND u.attivo = 1 AND s.accetta_ticket = 1
+                    WHERE ur.ruolo IN ('assistenza', 'amministrativo') AND u.attivo = 1 AND s.accetta_ticket = 1
                 """)).mappings().all()
                 
                 if not operators_rows:

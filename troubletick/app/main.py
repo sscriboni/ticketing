@@ -473,6 +473,7 @@ try:
         for r_nome, r_desc in [
             ('admin', 'Amministratore (massima visibilità)'),
             ('responsabile', 'Responsabile del reparto (vede operatori, ticket, report)'),
+            ('amministrativo', 'Personale amministrativo (visibilità ticket assistenza, gestione contratti e fornitori)'),
             ('assistenza', 'Operatore di assistenza (gestisce ticket dei propri servizi)'),
             ('normale', 'Operatore normale (non vede/gestisce ticket)'),
             ('fleet_manager', 'Fleet Manager (gestisce gli automezzi)'),
@@ -869,7 +870,7 @@ def get_operators_count(user):
                 if user_rep:
                     return c.execute(text("SELECT COUNT(*) FROM users WHERE attivo = 0 AND user_id != 1 AND ruolo != 'normale' AND reparto_id = :rep"), {"rep": user_rep}).scalar() or 0
                 return 0
-            elif user.get("ruolo") == "assistenza":
+            elif user.get("ruolo") in ("assistenza", "amministrativo"):
                 return c.execute(text("SELECT COUNT(*) FROM users WHERE attivo = 0 AND user_id != 1 AND ruolo != 'normale'")).scalar() or 0
     except Exception:
         pass
@@ -888,7 +889,7 @@ def get_users_count(user):
                 if user_rep:
                     return c.execute(text("SELECT COUNT(*) FROM users WHERE attivo = 0 AND ruolo = 'normale' AND reparto_id = :rep"), {"rep": user_rep}).scalar() or 0
                 return 0
-            elif user.get("ruolo") == "assistenza":
+            elif user.get("ruolo") in ("assistenza", "amministrativo"):
                 return c.execute(text("SELECT COUNT(*) FROM users WHERE attivo = 0 AND ruolo = 'normale'")).scalar() or 0
     except Exception:
         pass
@@ -1264,7 +1265,7 @@ def home(r: Request):
             }
             return templates.TemplateResponse(r, "home_responsabile.html", {"request": r, "cfg": CFG, "avvisi": avvisi, "user": user, "stats": stats})
             
-        elif ruolo == "assistenza":
+        elif ruolo in ("assistenza", "amministrativo"):
             uid = user.get("id")
             operator_tickets_open = c.execute(text("""
                 SELECT COUNT(*) FROM tickets 
@@ -1864,7 +1865,7 @@ def tickets(r: Request, reparto_id: str = None, servizio_id: str = None, stato: 
             elif user.get("ruolo") == "responsabile":
                 where_clauses.append("t.reparto_id = (SELECT reparto_id FROM users WHERE user_id = :user_id)")
                 params["user_id"] = user.get("id")
-            elif user.get("ruolo") == "assistenza":
+            elif user.get("ruolo") in ("assistenza", "amministrativo"):
                 where_clauses.append("""
                     (t.reparto_id = (SELECT reparto_id FROM users WHERE user_id = :user_id) OR t.servizio_id IN (
                         SELECT servizio_id FROM operatori_servizi WHERE user_id = :user_id
@@ -1957,7 +1958,7 @@ def tickets(r: Request, reparto_id: str = None, servizio_id: str = None, stato: 
         elif user.get("ruolo") == "responsabile":
             base_where = " WHERE t.reparto_id = (SELECT reparto_id FROM users WHERE user_id = :uid)"
             base_params["uid"] = uid
-        elif user.get("ruolo") == "assistenza":
+        elif user.get("ruolo") in ("assistenza", "amministrativo"):
             base_where = " WHERE (t.reparto_id = (SELECT reparto_id FROM users WHERE user_id = :uid) OR t.servizio_id IN (SELECT servizio_id FROM operatori_servizi WHERE user_id = :uid))"
             base_params["uid"] = uid
 
@@ -2054,7 +2055,7 @@ def ticket_detail(r: Request, ticket_id: int):
                 can_view = False
                 if user_reparto and ticket["reparto_id"] == user_reparto:
                     can_view = True
-                if user.get("ruolo") == "assistenza" and ticket["servizio_id"] in op_servizi:
+                if user.get("ruolo") in ("assistenza", "amministrativo") and ticket["servizio_id"] in op_servizi:
                     can_view = True
                 if not can_view:
                     return RedirectResponse(url="/tickets")
@@ -2623,7 +2624,7 @@ def report_copertura(r: Request, mese: int = None, anno: int = None, reparto_id:
     user = current_user(r)
     if not user:
         return RedirectResponse(url="/login")
-    if user.get("ruolo") not in ("assistenza", "responsabile", "admin"):
+    if user.get("ruolo") not in ("assistenza", "responsabile", "admin", "amministrativo"):
         return RedirectResponse(url="/tickets")
         
     import calendar
@@ -3693,6 +3694,7 @@ def admin_operatori(r: Request):
                 for r_nome, r_desc in [
                     ('admin', 'Amministratore (massima visibilità)'),
                     ('responsabile', 'Responsabile del reparto (vede operatori, ticket, report)'),
+                    ('amministrativo', 'Personale amministrativo (visibilità ticket assistenza, gestione contratti e fornitori)'),
                     ('assistenza', 'Operatore di assistenza (gestisce ticket dei propri servizi)'),
                     ('normale', 'Operatore normale (non vede/gestisce ticket)'),
                     ('fleet_manager', 'Fleet Manager (gestisce gli automezzi)'),
@@ -3835,6 +3837,7 @@ def edit_operatore_form(r: Request, user_id: int):
                 for r_nome, r_desc in [
                     ('admin', 'Amministratore (massima visibilità)'),
                     ('responsabile', 'Responsabile del reparto (vede operatori, ticket, report)'),
+                    ('amministrativo', 'Personale amministrativo (visibilità ticket assistenza, gestione contratti e fornitori)'),
                     ('assistenza', 'Operatore di assistenza (gestisce ticket dei propri servizi)'),
                     ('normale', 'Operatore normale (non vede/gestisce ticket)'),
                     ('fleet_manager', 'Fleet Manager (gestisce gli automezzi)'),
@@ -4184,6 +4187,7 @@ def edit_utente_form(r: Request, user_id: int):
                 for r_nome, r_desc in [
                     ('admin', 'Amministratore (massima visibilità)'),
                     ('responsabile', 'Responsabile del reparto (vede operatori, ticket, report)'),
+                    ('amministrativo', 'Personale amministrativo (visibilità ticket assistenza, gestione contratti e fornitori)'),
                     ('assistenza', 'Operatore di assistenza (gestisce ticket dei propri servizi)'),
                     ('normale', 'Operatore normale (non vede/gestisce ticket)'),
                     ('fleet_manager', 'Fleet Manager (gestisce gli automezzi)'),

@@ -56,10 +56,10 @@ def user_has_tag_amministrazione(user: dict) -> bool:
     return user_has_tag(user, "AMMINISTRAZIONE")
 
 def user_can_manage_fornitori(user: dict) -> bool:
-    """Verifica se l'utente ha diritto alla gestione completa dei fornitori (admin, o utente con tag DEC o Amministrazione)"""
+    """Verifica se l'utente ha diritto alla gestione completa dei fornitori (admin, amministrativo, o utente con tag DEC o Amministrazione)"""
     if not user:
         return False
-    if user.get("ruolo") == "admin":
+    if user.get("ruolo") in ("admin", "amministrativo"):
         return True
     return user_has_tag_dec(user) or user_has_tag_amministrazione(user)
 

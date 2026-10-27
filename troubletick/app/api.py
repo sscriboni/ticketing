@@ -450,7 +450,7 @@ def get_dashboard_metrics(user: dict = Depends(get_current_user)):
                     "pending_maintenances": row_maint or 0,
                     "fleet_availability": "94%"
                 }
-            elif user_ruolo == "assistenza":
+            elif user_ruolo in ("assistenza", "amministrativo"):
                 rep_id = user.get("reparto_id")
                 row_my_t = 0
                 try:

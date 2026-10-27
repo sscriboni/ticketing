@@ -183,7 +183,7 @@ def user_magazzini_list(r: Request, magazzino_id: List[str] = Query(None), sede_
         sedi_list = c.execute(text("SELECT sede_id, nome FROM sedi ORDER BY nome")).mappings().all()
 
         count_in_arrivo = 0
-        if user.get("ruolo") in ("assistenza", "responsabile"):
+        if user.get("ruolo") in ("assistenza", "responsabile", "amministrativo"):
             if user_mag_ids:
                 from sqlalchemy import bindparam
                 stmt_arrivo = text("SELECT COUNT(*) FROM trasferimenti WHERE magazzino_dest_id IN :mids AND stato = 'in_consegna'").bindparams(bindparam("mids", expanding=True))
@@ -434,7 +434,7 @@ def dettaglio_giacenza(r: Request, magazzino_id: int, materiale_id: int, error: 
         can_edit = False
         if user.get("ruolo") == "admin":
             can_edit = True
-        elif user.get("ruolo") in ("assistenza", "responsabile"):
+        elif user.get("ruolo") in ("assistenza", "responsabile", "amministrativo"):
             user_mag_ids = c.execute(text("SELECT magazzino_id FROM operatori_magazzini WHERE user_id = :uid"), {"uid": user.get("id")}).scalars().all()
             if magazzino_id in user_mag_ids: can_edit = True
 
@@ -515,7 +515,7 @@ def magazzino_rinomina_posizione(
         can_edit = False
         if user.get("ruolo") == "admin":
             can_edit = True
-        elif user.get("ruolo") in ("assistenza", "responsabile"):
+        elif user.get("ruolo") in ("assistenza", "responsabile", "amministrativo"):
             user_mag_ids = c.execute(text("SELECT magazzino_id FROM operatori_magazzini WHERE user_id = :uid"), {"uid": user.get("id")}).scalars().all()
             if magazzino_id in user_mag_ids: can_edit = True
             
@@ -561,7 +561,7 @@ def magazzino_trasferisci_posizione(
         can_edit = False
         if user.get("ruolo") == "admin":
             can_edit = True
-        elif user.get("ruolo") in ("assistenza", "responsabile"):
+        elif user.get("ruolo") in ("assistenza", "responsabile", "amministrativo"):
             user_mag_ids = c.execute(text("SELECT magazzino_id FROM operatori_magazzini WHERE user_id = :uid"), {"uid": user.get("id")}).scalars().all()
             if magazzino_id in user_mag_ids: can_edit = True
             
@@ -639,7 +639,7 @@ def magazzino_movimento_form(
         can_edit = False
         if user.get("ruolo") == "admin":
             can_edit = True
-        elif user.get("ruolo") in ("assistenza", "responsabile"):
+        elif user.get("ruolo") in ("assistenza", "responsabile", "amministrativo"):
             user_mag_ids = c.execute(text("SELECT magazzino_id FROM operatori_magazzini WHERE user_id = :uid"), {"uid": user.get("id")}).scalars().all()
             if magazzino_id in user_mag_ids: can_edit = True
             
@@ -792,7 +792,7 @@ async def magazzino_movimento_action(
         can_edit = False
         if user.get("ruolo") == "admin":
             can_edit = True
-        elif user.get("ruolo") in ("assistenza", "responsabile"):
+        elif user.get("ruolo") in ("assistenza", "responsabile", "amministrativo"):
             user_mag_ids = c.execute(text("SELECT magazzino_id FROM operatori_magazzini WHERE user_id = :uid"), {"uid": user.get("id")}).scalars().all()
             if magazzino_id in user_mag_ids: can_edit = True
             
@@ -1641,7 +1641,7 @@ def annulla_movimento_action(r: Request, magazzino_id: int, movimento_id: int):
         can_edit = False
         if user.get("ruolo") == "admin":
             can_edit = True
-        elif user.get("ruolo") in ("assistenza", "responsabile"):
+        elif user.get("ruolo") in ("assistenza", "responsabile", "amministrativo"):
             user_mag_ids = c.execute(text("SELECT magazzino_id FROM operatori_magazzini WHERE user_id = :uid"), {"uid": user.get("id")}).scalars().all()
             if magazzino_id in user_mag_ids: can_edit = True
             
@@ -2303,7 +2303,7 @@ def magazzini_report(r: Request, mese: int = None, anno: int = None, magazzino_i
 def report_movimentazione_magazzini(r: Request, mese: int = None, anno: int = None, magazzino_id: str = None, q: str = None):
     if "user" not in r.session: return RedirectResponse(url="/login")
     user = r.session.get("user")
-    if user.get("ruolo") not in ("admin", "responsabile", "assistenza"):
+    if user.get("ruolo") not in ("admin", "responsabile", "assistenza", "amministrativo"):
         return RedirectResponse(url="/tickets")
 
     from datetime import datetime
@@ -2504,7 +2504,7 @@ def report_movimentazione_magazzini(r: Request, mese: int = None, anno: int = No
 def export_report_movimentazione(r: Request, mese: int = None, anno: int = None, magazzino_id: str = None, q: str = None):
     if "user" not in r.session: return RedirectResponse(url="/login")
     user = r.session.get("user")
-    if user.get("ruolo") not in ("admin", "responsabile", "assistenza"):
+    if user.get("ruolo") not in ("admin", "responsabile", "assistenza", "amministrativo"):
         return RedirectResponse(url="/tickets")
 
     from datetime import datetime

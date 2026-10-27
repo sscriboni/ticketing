@@ -11,6 +11,72 @@ from email_utils import send_email_async
 
 router = APIRouter()
 
+ROLE_META = {
+    "admin": {
+        "title": "Amministratore di Sistema",
+        "home_page": "Dashboard Amministrazione",
+        "desc": "Accesso completo a configurazioni, utenti, permessi e audit di sistema.",
+        "icon": "bi-shield-lock-fill",
+        "badge_class": "bg-danger"
+    },
+    "responsabile": {
+        "title": "Responsabile di Reparto",
+        "home_page": "Home Responsabile Reparto",
+        "desc": "Gestione presenze del reparto, monitoraggio ticket ed approvazioni.",
+        "icon": "bi-person-workspace",
+        "badge_class": "bg-primary"
+    },
+    "amministrativo": {
+        "title": "Personale Amministrativo",
+        "home_page": "Dashboard Assistenza & Amministrazione",
+        "desc": "Visibilità ticket di assistenza, gestione contratti forniture e anagrafica fornitori.",
+        "icon": "bi-briefcase-fill",
+        "badge_class": "bg-primary"
+    },
+    "assistenza": {
+        "title": "Operatore Assistenza",
+        "home_page": "Dashboard Assistenza & Ticket",
+        "desc": "Gestione e presa in carico dei ticket di supporto operativo e tecnico.",
+        "icon": "bi-headset",
+        "badge_class": "bg-info text-dark"
+    },
+    "operatore": {
+        "title": "Operatore di Servizio",
+        "home_page": "Dashboard Operatore",
+        "desc": "Gestione ticket nei servizi di competenza ed evasione richieste.",
+        "icon": "bi-tools",
+        "badge_class": "bg-info text-dark"
+    },
+    "fleet_manager": {
+        "title": "Gestore Flotta Reparto",
+        "home_page": "Dashboard Flotta Reparto",
+        "desc": "Gestione parco automezzi del reparto, manutenzioni programmate e viaggi.",
+        "icon": "bi-car-front-fill",
+        "badge_class": "bg-warning text-dark"
+    },
+    "global_fleet_manager": {
+        "title": "Gestore Flotta Globale",
+        "home_page": "Dashboard Flotta Aziendale",
+        "desc": "Gestione globale dell'intero parco auto aziendale e piano manutenzioni.",
+        "icon": "bi-bus-front-fill",
+        "badge_class": "bg-warning text-dark"
+    },
+    "magazziniere": {
+        "title": "Gestore Magazzino",
+        "home_page": "Gestione Magazzino & Giacenze",
+        "desc": "Gestione giacenze, carico/scarico articoli e trasferimenti tra magazzini.",
+        "icon": "bi-box-seam-fill",
+        "badge_class": "bg-secondary"
+    },
+    "normale": {
+        "title": "Utente Standard",
+        "home_page": "Portale Utente",
+        "desc": "Apertura ticket di supporto, richieste di materiale e prenotazione veicoli.",
+        "icon": "bi-person-badge-fill",
+        "badge_class": "bg-success"
+    }
+}
+
 @router.get("/login", response_class=HTMLResponse)
 def login_form(r: Request, reset: str = None, msg: str = None):
     if "pending_login_user" in r.session:
@@ -176,65 +242,6 @@ def select_role_form(r: Request):
     with engine.connect() as c:
         ruoli_rows = c.execute(text("SELECT nome, descrizione FROM ruoli")).mappings().all()
         ruoli_dict = {rr["nome"]: rr["descrizione"] for rr in ruoli_rows}
-
-    ROLE_META = {
-        "admin": {
-            "title": "Amministratore di Sistema",
-            "home_page": "Dashboard Amministrazione",
-            "desc": "Accesso completo a configurazioni, utenti, permessi e audit di sistema.",
-            "icon": "bi-shield-lock-fill",
-            "badge_class": "bg-danger"
-        },
-        "responsabile": {
-            "title": "Responsabile di Reparto",
-            "home_page": "Home Responsabile Reparto",
-            "desc": "Gestione presenze del reparto, monitoraggio ticket ed approvazioni.",
-            "icon": "bi-person-workspace",
-            "badge_class": "bg-primary"
-        },
-        "assistenza": {
-            "title": "Operatore Assistenza",
-            "home_page": "Dashboard Assistenza & Ticket",
-            "desc": "Gestione e presa in carico dei ticket di supporto operativo e tecnico.",
-            "icon": "bi-headset",
-            "badge_class": "bg-info text-dark"
-        },
-        "operatore": {
-            "title": "Operatore di Servizio",
-            "home_page": "Dashboard Operatore",
-            "desc": "Gestione ticket nei servizi di competenza ed evasione richieste.",
-            "icon": "bi-tools",
-            "badge_class": "bg-info text-dark"
-        },
-        "fleet_manager": {
-            "title": "Gestore Flotta Reparto",
-            "home_page": "Dashboard Flotta Reparto",
-            "desc": "Gestione parco automezzi del reparto, manutenzioni programmate e viaggi.",
-            "icon": "bi-car-front-fill",
-            "badge_class": "bg-warning text-dark"
-        },
-        "global_fleet_manager": {
-            "title": "Gestore Flotta Globale",
-            "home_page": "Dashboard Flotta Aziendale",
-            "desc": "Gestione globale dell'intero parco auto aziendale e piano manutenzioni.",
-            "icon": "bi-bus-front-fill",
-            "badge_class": "bg-warning text-dark"
-        },
-        "magazziniere": {
-            "title": "Gestore Magazzino",
-            "home_page": "Gestione Magazzino & Giacenze",
-            "desc": "Gestione giacenze, carico/scarico articoli e trasferimenti tra magazzini.",
-            "icon": "bi-box-seam-fill",
-            "badge_class": "bg-secondary"
-        },
-        "normale": {
-            "title": "Utente Standard",
-            "home_page": "Portale Utente",
-            "desc": "Apertura ticket di supporto, richieste di materiale e prenotazione veicoli.",
-            "icon": "bi-person-badge-fill",
-            "badge_class": "bg-success"
-        }
-    }
 
     roles_data = []
     current_ruolo = user.get("ruolo") if user else None

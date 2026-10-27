@@ -84,14 +84,14 @@ function showLoginError(msg) {
 
 // Commutatore dinamico delle Dashboard in base al Ruolo Utente scelto
 function switchRoleDashboardView(roleName) {
-  const allowedRoles = ['normale', 'fleet_manager', 'global_fleet_manager', 'assistenza', 'responsabile', 'admin'];
+  const allowedRoles = ['normale', 'fleet_manager', 'global_fleet_manager', 'assistenza', 'amministrativo', 'responsabile', 'admin'];
   const targetRole = allowedRoles.includes(roleName) ? roleName : 'normale';
 
   document.querySelectorAll('.role-dashboard-view').forEach(view => {
     view.style.display = 'none';
   });
 
-  const activeDash = document.getElementById(`role-dashboard-${targetRole}`);
+  const activeDash = document.getElementById(`role-dashboard-${targetRole}`) || document.getElementById('role-dashboard-assistenza');
   if (activeDash) {
     activeDash.style.display = 'block';
   }
@@ -138,6 +138,7 @@ function renderRoleSelectionPage(user, userRoles) {
     'fleet_manager': { title: '🚗 Fleet Manager', desc: 'Gestione flotta locale, viaggi e manutenzioni', color: 'btn-outline-warning' },
     'global_fleet_manager': { title: '🌐 Global Fleet Manager', desc: 'Gestione flotta aziendale globale e parco autoveicoli', color: 'btn-outline-warning' },
     'assistenza': { title: '🛠️ Operatore Assistenza', desc: 'Console helpdesk, presa in carico e ricambi', color: 'btn-outline-info' },
+    'amministrativo': { title: '💼 Amministrativo', desc: 'Console helpdesk, gestione contratti e fornitori', color: 'btn-outline-info' },
     'responsabile': { title: '📋 Responsabile Reparto', desc: 'Matrice presenze mensili e piano ferie reparto', color: 'btn-outline-success' },
     'admin': { title: '👑 Amministratore Globale', desc: 'Controllo completo utenti, permessi e sistema', color: 'btn-outline-danger' }
   };
