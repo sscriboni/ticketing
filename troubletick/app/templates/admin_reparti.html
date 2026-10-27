@@ -12,7 +12,7 @@
         <h2>Gestione Reparti</h2>
     </div>
 <div class="row gap-4">
-  <div class="col-12 col-lg-8 bg-white p-4 rounded shadow-sm">
+  <div class="col-12 col-lg-7 bg-white p-4 rounded shadow-sm">
     <h4>Elenco Reparti</h4>
     {% if error == 'in_uso' %}
     <div class="alert alert-danger py-2 mt-2">Impossibile eliminare: il reparto è associato a ticket, servizi o operatori attivi.</div>
@@ -33,7 +33,15 @@
         </td>
         <td>
           {% if reparto.reperibilita_h24 %}
-          <span class="badge bg-warning text-dark"><i class="bi bi-clock-history me-1"></i>Attiva (dalle {{ reparto.reperibilita_orario_inizio or '18:00' }})</span>
+          <div>
+            <span class="badge bg-warning text-dark"><i class="bi bi-clock-history me-1"></i>Attiva</span>
+          </div>
+          <div class="small mt-1 text-muted">
+            <strong>Feriali:</strong> dalle {{ reparto.reperibilita_orario_inizio or '18:00' }}
+            {% if reparto.turni_feriali %} ({{ reparto.turni_feriali|length }} turni){% endif %}<br>
+            <strong>Festivi:</strong> dalle {{ reparto.reperibilita_festivo_inizio or '08:00' }}
+            {% if reparto.turni_festivi %} ({{ reparto.turni_festivi|length }} turni){% endif %}
+          </div>
           {% else %}
           <span class="badge bg-secondary">No</span>
           {% endif %}
@@ -51,7 +59,7 @@
     </table>
   </div>
 
-  <div class="col-12 col-lg-4 bg-white p-4 rounded shadow-sm">
+  <div class="col-12 col-lg-5 bg-white p-4 rounded shadow-sm">
     <h5>Nuovo Reparto</h5>
     <form method="post" action="/admin/reparto" class="mt-3">
       <div class="mb-3"><label class="form-label">Nome</label><input name="nome" class="form-control" required></div>
@@ -64,11 +72,41 @@
         <input type="checkbox" name="reperibilita_h24" value="1" class="form-check-input" id="checkNuovoRep">
         <label class="form-check-label fw-bold" for="checkNuovoRep">Reperibilità h24</label>
       </div>
+      
       <div class="mb-4" id="divOrarioNuovoRep" style="display: none;">
-        <label class="form-label small fw-bold">Orario inizio (giorni feriali)</label>
-        <input type="time" name="reperibilita_orario_inizio" class="form-control" value="18:00">
-        <small class="text-muted d-block mt-1">Orario di inizio della reperibilità nei giorni lavorativi.</small>
+        <!-- Sezione Feriali -->
+        <div class="card p-3 mb-3 bg-light border-0 rounded-3">
+          <h6 class="fw-bold text-dark mb-2"><i class="bi bi-calendar-week me-1"></i>Turni Giorni Feriali</h6>
+          <div class="mb-2">
+            <label class="form-label small fw-bold">Orario inizio giorni feriali</label>
+            <input type="time" name="reperibilita_orario_inizio" id="feriale_inizio" class="form-control form-control-sm" value="18:00">
+            <small class="text-muted d-block mt-1">Orario di partenza del primo turno nei feriali.</small>
+          </div>
+          <label class="form-label small fw-bold mb-1">Turni configurati</label>
+          <div id="feriale_turni_container"></div>
+          <button type="button" class="btn btn-outline-primary btn-sm mt-1" onclick="addTurnoRow('feriale', 6)">
+            <i class="bi bi-plus-circle me-1"></i>Aggiungi Turno Feriale
+          </button>
+          <div id="feriale_summary" class="small text-muted mt-2 fw-semibold"></div>
+        </div>
+
+        <!-- Sezione Festivi -->
+        <div class="card p-3 mb-3 bg-light border-0 rounded-3">
+          <h6 class="fw-bold text-dark mb-2"><i class="bi bi-calendar-event me-1"></i>Turni Giorni Festivi</h6>
+          <div class="mb-2">
+            <label class="form-label small fw-bold">Orario inizio giorni festivi</label>
+            <input type="time" name="reperibilita_festivo_inizio" id="festivo_inizio" class="form-control form-control-sm" value="08:00">
+            <small class="text-muted d-block mt-1">Orario di partenza del primo turno nei festivi.</small>
+          </div>
+          <label class="form-label small fw-bold mb-1">Turni configurati</label>
+          <div id="festivo_turni_container"></div>
+          <button type="button" class="btn btn-outline-primary btn-sm mt-1" onclick="addTurnoRow('festivo', 12)">
+            <i class="bi bi-plus-circle me-1"></i>Aggiungi Turno Festivo
+          </button>
+          <div id="festivo_summary" class="small text-muted mt-2 fw-semibold"></div>
+        </div>
       </div>
+
       <button type="submit" class="btn btn-primary w-100">Salva reparto</button>
     </form>
   </div>
@@ -94,12 +132,105 @@
 
 </div>
 <script>
+  function addTurnoRow(tipo, defaultDurata = 6) {
+    const container = document.getElementById(tipo + '_turni_container');
+    if (!container) return;
+    const row = document.createElement('div');
+    row.className = 'shift-row card p-2 mb-2 bg-white border shadow-xs';
+    row.dataset.tipo = tipo;
+    row.innerHTML = `
+      <div class="d-flex align-items-center justify-content-between gap-2 flex-wrap">
+        <span class="small fw-bold shift-label">Turno:</span>
+        <div class="input-group input-group-sm" style="max-width: 140px;">
+          <input type="number" step="0.5" min="0.5" max="24" name="${tipo}_turni_durata" class="form-control shift-duration" value="${defaultDurata}" required>
+          <span class="input-group-text">ore</span>
+        </div>
+        <span class="badge bg-secondary shift-time-badge">—</span>
+        <button type="button" class="btn btn-outline-danger btn-sm py-0 px-2 btn-remove-shift" title="Rimuovi turno">&times;</button>
+      </div>
+    `;
+    row.querySelector('.shift-duration').addEventListener('input', () => recalcTurni(tipo));
+    row.querySelector('.btn-remove-shift').addEventListener('click', () => {
+      row.remove();
+      recalcTurni(tipo);
+    });
+    container.appendChild(row);
+    recalcTurni(tipo);
+  }
+
+  function recalcTurni(tipo) {
+    const container = document.getElementById(tipo + '_turni_container');
+    const startInput = document.getElementById(tipo + '_inizio');
+    const summaryEl = document.getElementById(tipo + '_summary');
+    if (!container || !startInput) return;
+
+    const rows = container.querySelectorAll('.shift-row');
+    let [startH, startM] = (startInput.value || (tipo === 'festivo' ? '08:00' : '18:00')).split(':').map(Number);
+    if (isNaN(startH)) startH = (tipo === 'festivo' ? 8 : 18);
+    if (isNaN(startM)) startM = 0;
+
+    let currentMinutes = startH * 60 + startM;
+    let totalHours = 0;
+
+    rows.forEach((row, index) => {
+      const label = row.querySelector('.shift-label');
+      const durInput = row.querySelector('.shift-duration');
+      const badge = row.querySelector('.shift-time-badge');
+      const durHours = parseFloat(durInput.value) || 0;
+
+      label.textContent = `Turno ${index + 1}:`;
+
+      const startTotalMin = currentMinutes;
+      const endTotalMin = currentMinutes + Math.round(durHours * 60);
+      totalHours += durHours;
+      currentMinutes = endTotalMin;
+
+      const formatTimeWithDay = (totalMins) => {
+        const dayOffset = Math.floor(totalMins / (24 * 60));
+        const mInDay = totalMins % (24 * 60);
+        const h = Math.floor(mInDay / 60).toString().padStart(2, '0');
+        const m = (mInDay % 60).toString().padStart(2, '0');
+        return `${h}:${m}${dayOffset > 0 ? ` (+${dayOffset}g)` : ''}`;
+      };
+
+      const sFormatted = formatTimeWithDay(startTotalMin);
+      const eFormatted = formatTimeWithDay(endTotalMin);
+      badge.textContent = `${sFormatted} - ${eFormatted}`;
+      badge.className = 'badge bg-warning text-dark border border-warning-subtle';
+    });
+
+    if (summaryEl) {
+      if (rows.length === 0) {
+        summaryEl.textContent = 'Nessun turno definito.';
+      } else {
+        const endOffset = Math.floor(currentMinutes / (24 * 60));
+        const endMins = currentMinutes % (24 * 60);
+        const endH = Math.floor(endMins / 60).toString().padStart(2, '0');
+        const endM = (endMins % 60).toString().padStart(2, '0');
+        const dayText = endOffset > 0 ? ` (+${endOffset} gg)` : '';
+        summaryEl.innerHTML = `Copertura totale: <strong>${totalHours} ore</strong> (fino alle ${endH}:${endM}${dayText})`;
+      }
+    }
+  }
+
   const chkNuovo = document.getElementById('checkNuovoRep');
   const divOraNuovo = document.getElementById('divOrarioNuovoRep');
   if (chkNuovo && divOraNuovo) {
     chkNuovo.addEventListener('change', function() {
       divOraNuovo.style.display = this.checked ? 'block' : 'none';
+      if (this.checked) {
+        // Se i contenitori sono vuoti, aggiungi un turno iniziale di default
+        if (document.querySelectorAll('#feriale_turni_container .shift-row').length === 0) {
+          addTurnoRow('feriale', 6);
+        }
+        if (document.querySelectorAll('#festivo_turni_container .shift-row').length === 0) {
+          addTurnoRow('festivo', 12);
+        }
+      }
     });
   }
+
+  document.getElementById('feriale_inizio')?.addEventListener('change', () => recalcTurni('feriale'));
+  document.getElementById('festivo_inizio')?.addEventListener('change', () => recalcTurni('festivo'));
 </script>
 </body></html>

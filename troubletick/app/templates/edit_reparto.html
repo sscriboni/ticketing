@@ -4,6 +4,7 @@
     <meta charset="utf-8">
     <title>Modifica Reparto — {{ cfg.app_title }}</title>
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css">
 </head>
 <body class="bg-light">
 <div class="container py-4">
@@ -16,7 +17,7 @@
             <a href="/logout" class="btn btn-outline-secondary btn-sm">Logout</a>
         </div>
     </div>
-    <div class="row"><div class="col-12 col-md-8 col-lg-6 mx-auto bg-white p-4 rounded shadow-sm">
+    <div class="row"><div class="col-12 col-md-10 col-lg-8 mx-auto bg-white p-4 rounded shadow-sm">
         <form method="post" action="/admin/reparto/{{ reparto.reparto_id }}/modifica">
             <div class="mb-3"><label class="form-label fw-bold">Nome</label>
             <input type="text" name="nome" class="form-control" value="{{ reparto.nome }}" required></div>
@@ -30,23 +31,173 @@
                 <input type="checkbox" name="reperibilita_h24" value="1" class="form-check-input" id="checkEditRep" {% if reparto.reperibilita_h24 %}checked{% endif %}>
                 <label class="form-check-label fw-bold" for="checkEditRep">Reperibilità h24</label>
             </div>
+            
             <div class="mb-4" id="divOrarioEditRep" style="display: {% if reparto.reperibilita_h24 %}block{% else %}none{% endif %};">
-                <label class="form-label small fw-bold">Orario inizio (giorni feriali)</label>
-                <input type="time" name="reperibilita_orario_inizio" class="form-control" value="{{ reparto.reperibilita_orario_inizio or '18:00' }}">
-                <small class="text-muted d-block mt-1">Orario a partire dal quale nei feriali si attiva il servizio di reperibilità.</small>
+                <!-- Sezione Feriali -->
+                <div class="card p-3 mb-3 bg-light border-0 rounded-3">
+                  <h6 class="fw-bold text-dark mb-2"><i class="bi bi-calendar-week me-1"></i>Turni Giorni Feriali</h6>
+                  <div class="mb-2">
+                    <label class="form-label small fw-bold">Orario inizio giorni feriali</label>
+                    <input type="time" name="reperibilita_orario_inizio" id="feriale_inizio" class="form-control form-control-sm" value="{{ reparto.reperibilita_orario_inizio or '18:00' }}">
+                    <small class="text-muted d-block mt-1">Orario di partenza del primo turno nei feriali.</small>
+                  </div>
+                  <label class="form-label small fw-bold mb-1">Turni configurati</label>
+                  <div id="feriale_turni_container"></div>
+                  <button type="button" class="btn btn-outline-primary btn-sm mt-1" onclick="addTurnoRow('feriale', 6)">
+                    <i class="bi bi-plus-circle me-1"></i>Aggiungi Turno Feriale
+                  </button>
+                  <div id="feriale_summary" class="small text-muted mt-2 fw-semibold"></div>
+                </div>
+
+                <!-- Sezione Festivi -->
+                <div class="card p-3 mb-3 bg-light border-0 rounded-3">
+                  <h6 class="fw-bold text-dark mb-2"><i class="bi bi-calendar-event me-1"></i>Turni Giorni Festivi</h6>
+                  <div class="mb-2">
+                    <label class="form-label small fw-bold">Orario inizio giorni festivi</label>
+                    <input type="time" name="reperibilita_festivo_inizio" id="festivo_inizio" class="form-control form-control-sm" value="{{ reparto.reperibilita_festivo_inizio or '08:00' }}">
+                    <small class="text-muted d-block mt-1">Orario di partenza del primo turno nei festivi.</small>
+                  </div>
+                  <label class="form-label small fw-bold mb-1">Turni configurati</label>
+                  <div id="festivo_turni_container"></div>
+                  <button type="button" class="btn btn-outline-primary btn-sm mt-1" onclick="addTurnoRow('festivo', 12)">
+                    <i class="bi bi-plus-circle me-1"></i>Aggiungi Turno Festivo
+                  </button>
+                  <div id="festivo_summary" class="small text-muted mt-2 fw-semibold"></div>
+                </div>
             </div>
+
             <div class="d-flex gap-2"><button type="submit" class="btn btn-primary">Salva Modifiche</button>
             <a href="/admin/reparti" class="btn btn-outline-secondary">Annulla</a></div>
         </form>
     </div></div>
 </div>
 <script>
+  function addTurnoRow(tipo, defaultDurata = 6) {
+    const container = document.getElementById(tipo + '_turni_container');
+    if (!container) return;
+    const row = document.createElement('div');
+    row.className = 'shift-row card p-2 mb-2 bg-white border shadow-xs';
+    row.dataset.tipo = tipo;
+    row.innerHTML = `
+      <div class="d-flex align-items-center justify-content-between gap-2 flex-wrap">
+        <span class="small fw-bold shift-label">Turno:</span>
+        <div class="input-group input-group-sm" style="max-width: 140px;">
+          <input type="number" step="0.5" min="0.5" max="24" name="${tipo}_turni_durata" class="form-control shift-duration" value="${defaultDurata}" required>
+          <span class="input-group-text">ore</span>
+        </div>
+        <span class="badge bg-secondary shift-time-badge">—</span>
+        <button type="button" class="btn btn-outline-danger btn-sm py-0 px-2 btn-remove-shift" title="Rimuovi turno">&times;</button>
+      </div>
+    `;
+    row.querySelector('.shift-duration').addEventListener('input', () => recalcTurni(tipo));
+    row.querySelector('.btn-remove-shift').addEventListener('click', () => {
+      row.remove();
+      recalcTurni(tipo);
+    });
+    container.appendChild(row);
+    recalcTurni(tipo);
+  }
+
+  function recalcTurni(tipo) {
+    const container = document.getElementById(tipo + '_turni_container');
+    const startInput = document.getElementById(tipo + '_inizio');
+    const summaryEl = document.getElementById(tipo + '_summary');
+    if (!container || !startInput) return;
+
+    const rows = container.querySelectorAll('.shift-row');
+    let [startH, startM] = (startInput.value || (tipo === 'festivo' ? '08:00' : '18:00')).split(':').map(Number);
+    if (isNaN(startH)) startH = (tipo === 'festivo' ? 8 : 18);
+    if (isNaN(startM)) startM = 0;
+
+    let currentMinutes = startH * 60 + startM;
+    let totalHours = 0;
+
+    rows.forEach((row, index) => {
+      const label = row.querySelector('.shift-label');
+      const durInput = row.querySelector('.shift-duration');
+      const badge = row.querySelector('.shift-time-badge');
+      const durHours = parseFloat(durInput.value) || 0;
+
+      label.textContent = `Turno ${index + 1}:`;
+
+      const startTotalMin = currentMinutes;
+      const endTotalMin = currentMinutes + Math.round(durHours * 60);
+      totalHours += durHours;
+      currentMinutes = endTotalMin;
+
+      const formatTimeWithDay = (totalMins) => {
+        const dayOffset = Math.floor(totalMins / (24 * 60));
+        const mInDay = totalMins % (24 * 60);
+        const h = Math.floor(mInDay / 60).toString().padStart(2, '0');
+        const m = (mInDay % 60).toString().padStart(2, '0');
+        return `${h}:${m}${dayOffset > 0 ? ` (+${dayOffset}g)` : ''}`;
+      };
+
+      const sFormatted = formatTimeWithDay(startTotalMin);
+      const eFormatted = formatTimeWithDay(endTotalMin);
+      badge.textContent = `${sFormatted} - ${eFormatted}`;
+      badge.className = 'badge bg-warning text-dark border border-warning-subtle';
+    });
+
+    if (summaryEl) {
+      if (rows.length === 0) {
+        summaryEl.textContent = 'Nessun turno definito.';
+      } else {
+        const endOffset = Math.floor(currentMinutes / (24 * 60));
+        const endMins = currentMinutes % (24 * 60);
+        const endH = Math.floor(endMins / 60).toString().padStart(2, '0');
+        const endM = (endMins % 60).toString().padStart(2, '0');
+        const dayText = endOffset > 0 ? ` (+${endOffset} gg)` : '';
+        summaryEl.innerHTML = `Copertura totale: <strong>${totalHours} ore</strong> (fino alle ${endH}:${endM}${dayText})`;
+      }
+    }
+  }
+
+  // Precaricamento turni esistenti passati dal backend
+  const existingFeriali = [
+    {% for t in turni_feriali %}
+    {{ t.durata_ore }},
+    {% endfor %}
+  ];
+  const existingFestivi = [
+    {% for t in turni_festivi %}
+    {{ t.durata_ore }},
+    {% endfor %}
+  ];
+
+  if (existingFeriali.length > 0) {
+    existingFeriali.forEach(d => addTurnoRow('feriale', d));
+  } else {
+    {% if reparto.reperibilita_h24 %}
+    addTurnoRow('feriale', 6);
+    {% endif %}
+  }
+
+  if (existingFestivi.length > 0) {
+    existingFestivi.forEach(d => addTurnoRow('festivo', d));
+  } else {
+    {% if reparto.reperibilita_h24 %}
+    addTurnoRow('festivo', 12);
+    {% endif %}
+  }
+
   const chkEdit = document.getElementById('checkEditRep');
   const divOraEdit = document.getElementById('divOrarioEditRep');
   if (chkEdit && divOraEdit) {
     chkEdit.addEventListener('change', function() {
       divOraEdit.style.display = this.checked ? 'block' : 'none';
+      if (this.checked) {
+        if (document.querySelectorAll('#feriale_turni_container .shift-row').length === 0) {
+          addTurnoRow('feriale', 6);
+        }
+        if (document.querySelectorAll('#festivo_turni_container .shift-row').length === 0) {
+          addTurnoRow('festivo', 12);
+        }
+      }
     });
   }
+
+  document.getElementById('feriale_inizio')?.addEventListener('change', () => recalcTurni('feriale'));
+  document.getElementById('festivo_inizio')?.addEventListener('change', () => recalcTurni('festivo'));
 </script>
 </body></html>

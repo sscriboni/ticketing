@@ -73,7 +73,16 @@ try:
             nome TEXT NOT NULL,
             descrizione TEXT,
             reperibilita_h24 INTEGER DEFAULT 0,
-            reperibilita_orario_inizio TEXT DEFAULT '18:00'
+            reperibilita_orario_inizio TEXT DEFAULT '18:00',
+            reperibilita_festivo_inizio TEXT DEFAULT '08:00'
+        )"""))
+        c.execute(text(f"""CREATE TABLE IF NOT EXISTS reparti_reperibilita_turni (
+            id {DB_PK},
+            reparto_id INTEGER NOT NULL,
+            tipo_giorno TEXT NOT NULL,
+            ordine_turno INTEGER NOT NULL,
+            durata_ore REAL NOT NULL,
+            FOREIGN KEY(reparto_id) REFERENCES reparti(reparto_id) ON DELETE CASCADE
         )"""))
         c.execute(text(f"""CREATE TABLE IF NOT EXISTS servizi (
             servizio_id {DB_PK},
@@ -459,6 +468,7 @@ try:
             "ALTER TABLE reparti ADD COLUMN messaggio_carpooling TEXT",
             "ALTER TABLE reparti ADD COLUMN reperibilita_h24 INTEGER DEFAULT 0",
             "ALTER TABLE reparti ADD COLUMN reperibilita_orario_inizio TEXT DEFAULT '18:00'",
+            "ALTER TABLE reparti ADD COLUMN reperibilita_festivo_inizio TEXT DEFAULT '08:00'",
             "ALTER TABLE servizi ADD COLUMN reperibilita_h24 INTEGER DEFAULT 0",
             "ALTER TABLE argomenti ADD COLUMN descrizione_lunga TEXT",
             "INSERT OR IGNORE INTO operatori_magazzini (user_id, magazzino_id) SELECT user_id, magazzino_id FROM users WHERE magazzino_id IS NOT NULL"
@@ -1198,24 +1208,27 @@ def get_db_tables_occupancy(conn) -> dict:
 def get_active_reperibilita(conn, current_dt: datetime = None) -> list:
     """
     Restituisce la lista dei reparti con Reperibilità h24 attualmente attiva
-    (nei giorni festivi tutto il giorno, nei feriali dopo l'orario impostato)
+    in base alle fasce dei turni feriali e festivi configurati nel reparto,
     con i relativi servizi coperti (servizi con reperibilita_h24 = 1).
     """
     if current_dt is None:
         current_dt = datetime.now()
 
-    today_str = current_dt.strftime("%Y-%m-%d")
-    current_time_str = current_dt.strftime("%H:%M")
+    today_date = current_dt.date()
+    yesterday_date = today_date - timedelta(days=1)
 
     # Recupera tutte le date festive dal DB
     fest_rows = conn.execute(text("SELECT data FROM festivita")).mappings().all()
     festivita_dates = {r["data"] for r in fest_rows}
 
-    # Sabato (5), Domenica (6) o presente nella tabella festivita
-    is_festivo = (current_dt.weekday() in (5, 6)) or (today_str in festivita_dates)
+    def is_date_festivo(d):
+        return (d.weekday() in (5, 6)) or (d.strftime("%Y-%m-%d") in festivita_dates)
+
+    today_is_festivo = is_date_festivo(today_date)
+    yesterday_is_festivo = is_date_festivo(yesterday_date)
 
     reparti_rep = conn.execute(text("""
-        SELECT reparto_id, nome, reperibilita_orario_inizio 
+        SELECT reparto_id, nome, reperibilita_orario_inizio, reperibilita_festivo_inizio 
         FROM reparti 
         WHERE reperibilita_h24 = 1 
         ORDER BY nome
@@ -1223,13 +1236,56 @@ def get_active_reperibilita(conn, current_dt: datetime = None) -> list:
 
     active_reparti = []
     for r in reparti_rep:
-        orario_inizio = (r["reperibilita_orario_inizio"] or "18:00").strip()
+        rid = r["reparto_id"]
+        # Carica turni per questo reparto
+        turni_rows = conn.execute(text("""
+            SELECT tipo_giorno, ordine_turno, durata_ore 
+            FROM reparti_reperibilita_turni 
+            WHERE reparto_id = :rid 
+            ORDER BY tipo_giorno, ordine_turno
+        """), {"rid": rid}).mappings().all()
+
+        feriali_turni = [t for t in turni_rows if t["tipo_giorno"] == "feriale"]
+        festivi_turni = [t for t in turni_rows if t["tipo_giorno"] == "festivo"]
+
         is_active = False
-        if is_festivo:
-            is_active = True
-        else:
-            if current_time_str >= orario_inizio:
+
+        # Verifica Finestra 1: Turni partiti OGGI
+        start_time_str = (r["reperibilita_festivo_inizio"] or "08:00") if today_is_festivo else (r["reperibilita_orario_inizio"] or "18:00")
+        active_turni = festivi_turni if today_is_festivo else feriali_turni
+
+        try:
+            h_part, m_part = map(int, (start_time_str or "18:00").split(":")[:2])
+        except Exception:
+            h_part, m_part = (8, 0) if today_is_festivo else (18, 0)
+        start_dt = datetime(today_date.year, today_date.month, today_date.day, h_part, m_part)
+
+        if active_turni:
+            total_durata = sum(float(t["durata_ore"]) for t in active_turni if t["durata_ore"] is not None)
+            end_dt = start_dt + timedelta(hours=total_durata)
+            if start_dt <= current_dt < end_dt:
                 is_active = True
+        else:
+            # Fallback se nessun turno è ancora configurato
+            if today_is_festivo:
+                is_active = True
+            elif current_dt >= start_dt:
+                is_active = True
+
+        # Verifica Finestra 2: Turni partiti IERI (che possono coprire dopo la mezzanotte fino a stamattina)
+        if not is_active:
+            y_start_time_str = (r["reperibilita_festivo_inizio"] or "08:00") if yesterday_is_festivo else (r["reperibilita_orario_inizio"] or "18:00")
+            y_active_turni = festivi_turni if yesterday_is_festivo else feriali_turni
+            if y_active_turni:
+                try:
+                    yh, ym = map(int, (y_start_time_str or "18:00").split(":")[:2])
+                except Exception:
+                    yh, ym = (8, 0) if yesterday_is_festivo else (18, 0)
+                y_start_dt = datetime(yesterday_date.year, yesterday_date.month, yesterday_date.day, yh, ym)
+                y_total_durata = sum(float(t["durata_ore"]) for t in y_active_turni if t["durata_ore"] is not None)
+                y_end_dt = y_start_dt + timedelta(hours=y_total_durata)
+                if y_start_dt <= current_dt < y_end_dt:
+                    is_active = True
 
         if is_active:
             servizi_rep = conn.execute(text("""
@@ -1237,13 +1293,13 @@ def get_active_reperibilita(conn, current_dt: datetime = None) -> list:
                 FROM servizi 
                 WHERE reparto_id = :rid AND reperibilita_h24 = 1 
                 ORDER BY descrizione
-            """), {"rid": r["reparto_id"]}).mappings().all()
+            """), {"rid": rid}).mappings().all()
 
             active_reparti.append({
-                "reparto_id": r["reparto_id"],
+                "reparto_id": rid,
                 "reparto_nome": r["nome"],
-                "orario_inizio": orario_inizio,
-                "is_festivo": is_festivo,
+                "orario_inizio": start_time_str,
+                "is_festivo": today_is_festivo,
                 "servizi": [dict(s) for s in servizi_rep]
             })
 
@@ -2898,7 +2954,15 @@ def admin_reparti(r: Request, error: str = None):
     if isinstance(user, RedirectResponse):
         return user
     with engine.connect() as c:
-        reparti = c.execute(text("SELECT reparto_id, nome, descrizione, accetta_ticket, reperibilita_h24, reperibilita_orario_inizio FROM reparti ORDER BY nome")).mappings().all()
+        reparti_raw = c.execute(text("SELECT reparto_id, nome, descrizione, accetta_ticket, reperibilita_h24, reperibilita_orario_inizio, reperibilita_festivo_inizio FROM reparti ORDER BY nome")).mappings().all()
+        reparti = []
+        for rep in reparti_raw:
+            r_dict = dict(rep)
+            rid = rep["reparto_id"]
+            turni = c.execute(text("SELECT tipo_giorno, ordine_turno, durata_ore FROM reparti_reperibilita_turni WHERE reparto_id = :rid ORDER BY ordine_turno"), {"rid": rid}).mappings().all()
+            r_dict["turni_feriali"] = [dict(t) for t in turni if t["tipo_giorno"] == "feriale"]
+            r_dict["turni_festivi"] = [dict(t) for t in turni if t["tipo_giorno"] == "festivo"]
+            reparti.append(r_dict)
     return templates.TemplateResponse(r, "admin_reparti.html", {"request": r, "cfg": CFG, "user": user, "reparti": reparti, "error": error})
 
 @app.get("/admin/servizi", response_class=HTMLResponse)
@@ -2935,30 +2999,64 @@ def admin_servizi(r: Request, error: str = None):
     return templates.TemplateResponse(r, "admin_servizi.html", {"request": r, "cfg": CFG, "user": user, "servizi": servizi, "reparti": reparti, "argomenti": argomenti, "error": error})
 
 @app.post("/admin/reparto")
-def add_reparto(
+async def add_reparto(
     r: Request,
     nome: str = Form(...),
     descrizione: str = Form(""),
     accetta_ticket: int = Form(0),
     reperibilita_h24: int = Form(0),
-    reperibilita_orario_inizio: str = Form("18:00")
+    reperibilita_orario_inizio: str = Form("18:00"),
+    reperibilita_festivo_inizio: str = Form("08:00")
 ):
     user = require_superuser(r)
     if isinstance(user, RedirectResponse):
         return user
     rep_h24 = 1 if reperibilita_h24 else 0
     rep_ora = (reperibilita_orario_inizio or "18:00").strip()
+    rep_fest_ora = (reperibilita_festivo_inizio or "08:00").strip()
+    
+    form_data = await r.form()
+    feriali_durate = form_data.getlist("feriale_turni_durata")
+    festivi_durate = form_data.getlist("festivo_turni_durata")
+
     with engine.begin() as c:
-        c.execute(text("""
-            INSERT INTO reparti (nome, descrizione, accetta_ticket, reperibilita_h24, reperibilita_orario_inizio) 
-            VALUES (:nome, :descrizione, :at, :rep_h24, :rep_ora)
+        cursor = c.execute(text("""
+            INSERT INTO reparti (nome, descrizione, accetta_ticket, reperibilita_h24, reperibilita_orario_inizio, reperibilita_festivo_inizio) 
+            VALUES (:nome, :descrizione, :at, :rep_h24, :rep_ora, :rep_fest_ora)
         """), {
             "nome": nome,
             "descrizione": descrizione,
             "at": accetta_ticket,
             "rep_h24": rep_h24,
-            "rep_ora": rep_ora
+            "rep_ora": rep_ora,
+            "rep_fest_ora": rep_fest_ora
         })
+        reparto_id = cursor.lastrowid
+        if not reparto_id:
+            reparto_id = c.execute(text("SELECT reparto_id FROM reparti WHERE nome = :nome ORDER BY reparto_id DESC LIMIT 1"), {"nome": nome}).scalar()
+
+        if rep_h24 and reparto_id:
+            for idx, d_str in enumerate(feriali_durate, start=1):
+                try:
+                    d_val = float(d_str)
+                    if d_val > 0:
+                        c.execute(text("""
+                            INSERT INTO reparti_reperibilita_turni (reparto_id, tipo_giorno, ordine_turno, durata_ore)
+                            VALUES (:rid, 'feriale', :ord, :dur)
+                        """), {"rid": reparto_id, "ord": idx, "dur": d_val})
+                except (ValueError, TypeError):
+                    pass
+            for idx, d_str in enumerate(festivi_durate, start=1):
+                try:
+                    d_val = float(d_str)
+                    if d_val > 0:
+                        c.execute(text("""
+                            INSERT INTO reparti_reperibilita_turni (reparto_id, tipo_giorno, ordine_turno, durata_ore)
+                            VALUES (:rid, 'festivo', :ord, :dur)
+                        """), {"rid": reparto_id, "ord": idx, "dur": d_val})
+                except (ValueError, TypeError):
+                    pass
+
     return RedirectResponse(url="/admin/reparti", status_code=303)
 
 @app.get("/admin/reparto/{reparto_id}/modifica", response_class=HTMLResponse)
@@ -2968,34 +3066,74 @@ def edit_reparto_form(r: Request, reparto_id: int):
     with engine.connect() as c:
         reparto = c.execute(text("SELECT * FROM reparti WHERE reparto_id = :id"), {"id": reparto_id}).mappings().first()
         if not reparto: return RedirectResponse(url="/admin/reparti")
-    return templates.TemplateResponse(r, "edit_reparto.html", {"request": r, "cfg": CFG, "user": user, "reparto": reparto})
+        turni_feriali = c.execute(text("SELECT * FROM reparti_reperibilita_turni WHERE reparto_id = :id AND tipo_giorno = 'feriale' ORDER BY ordine_turno"), {"id": reparto_id}).mappings().all()
+        turni_festivi = c.execute(text("SELECT * FROM reparti_reperibilita_turni WHERE reparto_id = :id AND tipo_giorno = 'festivo' ORDER BY ordine_turno"), {"id": reparto_id}).mappings().all()
+    return templates.TemplateResponse(r, "edit_reparto.html", {
+        "request": r, "cfg": CFG, "user": user, "reparto": reparto,
+        "turni_feriali": [dict(t) for t in turni_feriali],
+        "turni_festivi": [dict(t) for t in turni_festivi]
+    })
 
 @app.post("/admin/reparto/{reparto_id}/modifica")
-def edit_reparto_action(
+async def edit_reparto_action(
     r: Request,
     reparto_id: int,
     nome: str = Form(...),
     descrizione: str = Form(""),
     accetta_ticket: int = Form(0),
     reperibilita_h24: int = Form(0),
-    reperibilita_orario_inizio: str = Form("18:00")
+    reperibilita_orario_inizio: str = Form("18:00"),
+    reperibilita_festivo_inizio: str = Form("08:00")
 ):
     user = require_superuser(r)
     if isinstance(user, RedirectResponse): return user
     rep_h24 = 1 if reperibilita_h24 else 0
     rep_ora = (reperibilita_orario_inizio or "18:00").strip()
+    rep_fest_ora = (reperibilita_festivo_inizio or "08:00").strip()
+    
+    form_data = await r.form()
+    feriali_durate = form_data.getlist("feriale_turni_durata")
+    festivi_durate = form_data.getlist("festivo_turni_durata")
+
     with engine.begin() as c:
         c.execute(text("""
             UPDATE reparti 
             SET nome = :nome, descrizione = :desc, accetta_ticket = :at,
-                reperibilita_h24 = :rep_h24, reperibilita_orario_inizio = :rep_ora 
+                reperibilita_h24 = :rep_h24, reperibilita_orario_inizio = :rep_ora,
+                reperibilita_festivo_inizio = :rep_fest_ora 
             WHERE reparto_id = :id
         """), {
             "nome": nome, "desc": descrizione, "at": accetta_ticket,
-            "rep_h24": rep_h24, "rep_ora": rep_ora, "id": reparto_id
+            "rep_h24": rep_h24, "rep_ora": rep_ora, "rep_fest_ora": rep_fest_ora,
+            "id": reparto_id
         })
-        if rep_h24 == 0:
+        
+        # Sostituisci turni
+        c.execute(text("DELETE FROM reparti_reperibilita_turni WHERE reparto_id = :id"), {"id": reparto_id})
+        if rep_h24:
+            for idx, d_str in enumerate(feriali_durate, start=1):
+                try:
+                    d_val = float(d_str)
+                    if d_val > 0:
+                        c.execute(text("""
+                            INSERT INTO reparti_reperibilita_turni (reparto_id, tipo_giorno, ordine_turno, durata_ore)
+                            VALUES (:rid, 'feriale', :ord, :dur)
+                        """), {"rid": reparto_id, "ord": idx, "dur": d_val})
+                except (ValueError, TypeError):
+                    pass
+            for idx, d_str in enumerate(festivi_durate, start=1):
+                try:
+                    d_val = float(d_str)
+                    if d_val > 0:
+                        c.execute(text("""
+                            INSERT INTO reparti_reperibilita_turni (reparto_id, tipo_giorno, ordine_turno, durata_ore)
+                            VALUES (:rid, 'festivo', :ord, :dur)
+                        """), {"rid": reparto_id, "ord": idx, "dur": d_val})
+                except (ValueError, TypeError):
+                    pass
+        else:
             c.execute(text("UPDATE servizi SET reperibilita_h24 = 0 WHERE reparto_id = :id"), {"id": reparto_id})
+
     return RedirectResponse(url="/admin/reparti", status_code=303)
 
 @app.post("/admin/reparto/delete")
