@@ -83,8 +83,12 @@
                         Non designato
                         {% endif %}
                     </td>
+                    <th class="table-light">Aliquota IVA Applicata</th>
+                    <td><strong>{{ contratto.aliquota_iva|default(22)|round|int }}%</strong></td>
+                </tr>
+                <tr>
                     <th class="table-light">Reparto di Competenza</th>
-                    <td>{{ contratto.reparto_nome or 'Tutti i reparti' }}</td>
+                    <td colspan="3">{{ contratto.reparto_nome or 'Tutti i reparti' }}</td>
                 </tr>
             </tbody>
         </table>
@@ -120,16 +124,17 @@
         {% endif %}
 
         <!-- Modules Breakdown -->
-        <div class="section-title">{% if contratto.descrizione %}4{% else %}3{% endif %}. Quadro Economico e Moduli di Servizio (Importi IVA esclusa)</div>
+        <div class="section-title">{% if contratto.descrizione %}4{% else %}3{% endif %}. Quadro Economico e Moduli di Servizio</div>
         <table class="table table-sm table-bordered align-middle mb-4">
             <thead class="table-light text-center">
                 <tr>
                     <th style="width: 5%;">#</th>
-                    <th style="width: 45%;" class="text-start">Descrizione Modulo / Servizio</th>
-                    <th style="width: 20%;" class="text-start">Servizio Collegato</th>
-                    <th style="width: 10%;">Giornate</th>
-                    <th style="width: 10%;" class="text-end">Costo GG (IVA escl.)</th>
-                    <th style="width: 10%;" class="text-end">Totale Voce (IVA escl.)</th>
+                    <th style="width: 35%;" class="text-start">Descrizione Modulo / Servizio</th>
+                    <th style="width: 18%;" class="text-start">Servizio Collegato</th>
+                    <th style="width: 8%;">Giornate</th>
+                    <th style="width: 11%;" class="text-end">Costo GG (IVA escl.)</th>
+                    <th style="width: 11%;" class="text-end">Importo (IVA escl.)</th>
+                    <th style="width: 12%;" class="text-end">Importo + IVA ({{ contratto.aliquota_iva|default(22)|round|int }}%)</th>
                 </tr>
             </thead>
             <tbody>
@@ -146,19 +151,21 @@
                     <td class="text-center">{% if m.giornate %}{{ "%.1f"|format(m.giornate) }} gg{% else %}—{% endif %}</td>
                     <td class="text-end">{% if m.costo_giornaliero %}€ {{ "%.2f"|format(m.costo_giornaliero) }}{% else %}—{% endif %}</td>
                     <td class="text-end fw-bold">€ {{ "%.2f"|format(m.costo) }}</td>
+                    <td class="text-end fw-bold text-success">€ {{ "%.2f"|format(m.costo_iva or 0) }}</td>
                 </tr>
                 {% else %}
                 <tr>
-                    <td colspan="6" class="text-center py-3 text-muted">Nessun modulo specificato.</td>
+                    <td colspan="7" class="text-center py-3 text-muted">Nessun modulo specificato.</td>
                 </tr>
                 {% endfor %}
             </tbody>
             <tfoot class="table-light fw-bold">
                 <tr>
-                    <td colspan="3" class="text-end">TOTALE COMPLESSIVO FORNITURA (IVA ESCLUSA):</td>
+                    <td colspan="3" class="text-end">TOTALE COMPLESSIVO FORNITURA:</td>
                     <td class="text-center">{% if totale_giornate > 0 %}{{ "%.1f"|format(totale_giornate) }} gg{% endif %}</td>
                     <td></td>
                     <td class="text-end text-primary fs-6">€ {{ "%.2f"|format(totale_costo) }}</td>
+                    <td class="text-end text-success fs-6">€ {{ "%.2f"|format(totale_costo_iva or 0) }}</td>
                 </tr>
             </tfoot>
         </table>

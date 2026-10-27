@@ -60,7 +60,7 @@
                         <input type="number" name="anno" class="form-control" value="{{ contratto.anno if contratto else current_year }}" min="2000" max="2100" required>
                     </div>
 
-                    <div class="col-12 col-md-6">
+                    <div class="col-12 col-md-5">
                         <label class="form-label small fw-bold">Azienda Fornitrice <span class="text-danger">*</span></label>
                         <select name="fornitore_id" class="form-select" required>
                             <option value="">-- Seleziona Fornitore --</option>
@@ -78,7 +78,19 @@
                         </div>
                     </div>
 
-                    <div class="col-12 col-md-6">
+                    <div class="col-6 col-md-3">
+                        <label class="form-label small fw-bold">Aliquota IVA (%) <span class="text-danger">*</span></label>
+                        <select name="aliquota_iva" id="form_aliquota_iva" class="form-select" onchange="calcInitCosto()">
+                            <option value="22" {% if not contratto or (contratto.aliquota_iva is none or contratto.aliquota_iva == 22 or contratto.aliquota_iva is not defined) %}selected{% endif %}>22% (Ordinaria)</option>
+                            <option value="10" {% if contratto and contratto.aliquota_iva == 10 %}selected{% endif %}>10% (Ridotta)</option>
+                            <option value="5" {% if contratto and contratto.aliquota_iva == 5 %}selected{% endif %}>5% (Ridotta)</option>
+                            <option value="4" {% if contratto and contratto.aliquota_iva == 4 %}selected{% endif %}>4% (Minima)</option>
+                            <option value="0" {% if contratto and (contratto.aliquota_iva == 0 or contratto.aliquota_iva == 0.0) %}selected{% endif %}>0% (Esente / Non Imp.)</option>
+                        </select>
+                        <div class="form-text small">Default 22%.</div>
+                    </div>
+
+                    <div class="col-6 col-md-4">
                         <label class="form-label small fw-bold">Stato Contratto</label>
                         <select name="stato" class="form-select">
                             <option value="attivo" {% if not contratto or contratto.stato == 'attivo' %}selected{% endif %}>Attivo</option>
@@ -182,19 +194,24 @@
                         </select>
                     </div>
 
-                    <div class="col-6 col-md-4">
+                    <div class="col-6 col-md-3">
                         <label class="form-label small fw-bold">N. Giornate Previste</label>
                         <input type="number" step="0.5" id="init_giornate" name="modulo_giornate" class="form-control form-control-sm" placeholder="Es. 20" oninput="calcInitCosto()">
                     </div>
 
-                    <div class="col-6 col-md-4">
+                    <div class="col-6 col-md-3">
                         <label class="form-label small fw-bold">Costo Giornaliero (€ - IVA escl.)</label>
                         <input type="number" step="0.01" id="init_costo_gg" name="modulo_costo_giornaliero" class="form-control form-control-sm" placeholder="Es. 350.00" oninput="calcInitCosto()">
                     </div>
 
-                    <div class="col-12 col-md-4">
+                    <div class="col-6 col-md-3">
                         <label class="form-label small fw-bold">Costo Totale (€ - IVA escl.)</label>
-                        <input type="number" step="0.01" id="init_costo_tot" name="modulo_costo" class="form-control form-control-sm" placeholder="Es. 7000.00">
+                        <input type="number" step="0.01" id="init_costo_tot" name="modulo_costo" class="form-control form-control-sm" placeholder="Es. 7000.00" oninput="calcInitCostoFromTot()">
+                    </div>
+
+                    <div class="col-6 col-md-3">
+                        <label class="form-label small fw-bold text-muted">Totale + IVA (€ - Calcolato)</label>
+                        <input type="text" id="init_costo_con_iva" class="form-control form-control-sm bg-light text-muted fw-bold" readonly placeholder="0,00 €">
                     </div>
                 </div>
                 {% endif %}
@@ -213,13 +230,40 @@
 </div>
 
 <script>
+function getSelectedAliquota() {
+    const sel = document.getElementById('form_aliquota_iva');
+    const val = parseFloat(sel?.value);
+    return isNaN(val) ? 22.0 : val;
+}
+
+function updateInitCostoConIva(totVal) {
+    const conIvaField = document.getElementById('init_costo_con_iva');
+    if (!conIvaField) return;
+    if (isNaN(totVal) || totVal === null || totVal <= 0) {
+        conIvaField.value = '0,00 €';
+        return;
+    }
+    const aliq = getSelectedAliquota();
+    const conIva = totVal * (1.0 + aliq / 100.0);
+    conIvaField.value = conIva.toLocaleString('it-IT', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) + ' €';
+}
+
 function calcInitCosto() {
     const gg = parseFloat(document.getElementById('init_giornate')?.value);
     const cgg = parseFloat(document.getElementById('init_costo_gg')?.value);
     const totField = document.getElementById('init_costo_tot');
     if (totField && !isNaN(gg) && !isNaN(cgg)) {
         totField.value = (gg * cgg).toFixed(2);
+        updateInitCostoConIva(gg * cgg);
+    } else if (totField && totField.value) {
+        updateInitCostoConIva(parseFloat(totField.value));
     }
+}
+
+function calcInitCostoFromTot() {
+    const totField = document.getElementById('init_costo_tot');
+    const totVal = parseFloat(totField?.value);
+    updateInitCostoConIva(totVal);
 }
 </script>
 <!-- Modal Rapido Nuovo Fornitore Anagrafica -->

@@ -6,6 +6,9 @@ from typing import Optional, List
 from fastapi import APIRouter, Request, Form, Query
 from fastapi.responses import HTMLResponse, RedirectResponse, Response
 from sqlalchemy import text
+import openpyxl
+from openpyxl.styles import Font, PatternFill, Alignment, Border, Side
+from openpyxl.utils import get_column_letter
 
 from core import engine, CFG, templates, DB_PK, DB_DRIVER
 from utils import current_user, user_has_tag_dec, user_can_manage_fornitori, safe_int, safe_float
@@ -28,6 +31,7 @@ def init_contratti_db():
             data_inizio TEXT,
             data_fine TEXT,
             stato TEXT DEFAULT 'attivo',
+            aliquota_iva REAL DEFAULT 22.0,
             dec_user_id INTEGER,
             reparto_id INTEGER,
             descrizione TEXT,
@@ -59,6 +63,16 @@ def init_contratti_db():
         # Colonna opzionale importo su contratti se non ancora presente
         try:
             c.execute(text("ALTER TABLE contratti ADD COLUMN importo REAL DEFAULT 0.0"))
+        except Exception:
+            pass
+
+        # Colonna aliquota_iva su contratti se non ancora presente
+        try:
+            c.execute(text("ALTER TABLE contratti ADD COLUMN aliquota_iva REAL DEFAULT 22.0"))
+        except Exception:
+            pass
+        try:
+            c.execute(text("UPDATE contratti SET aliquota_iva = 22.0 WHERE aliquota_iva IS NULL"))
         except Exception:
             pass
 
@@ -261,8 +275,9 @@ def get_contratto_financials(conn, contratto_id: int):
     - is_allineato: True se l'importo degli ordini coincide esattamente (entro 1 centesimo) con l'importo contrattuale
     - perc_ordinata: percentuale di capienza contrattuale impegnata da ordini
     """
-    row_c = conn.execute(text("SELECT importo FROM contratti WHERE contratto_id = :cid"), {"cid": contratto_id}).mappings().first()
+    row_c = conn.execute(text("SELECT importo, aliquota_iva FROM contratti WHERE contratto_id = :cid"), {"cid": contratto_id}).mappings().first()
     importo_esplicito = (row_c["importo"] or 0.0) if row_c else 0.0
+    aliquota_iva = (row_c["aliquota_iva"] if (row_c and row_c["aliquota_iva"] is not None) else 22.0)
 
     tot_moduli = conn.execute(text("SELECT COALESCE(SUM(costo), 0.0) FROM contratti_moduli WHERE contratto_id = :cid"), {"cid": contratto_id}).scalar() or 0.0
 
@@ -287,12 +302,21 @@ def get_contratto_financials(conn, contratto_id: int):
     is_allineato = (importo_contratto > 0 and abs(residuo_ordinabile) < 0.01)
     perc_ordinata = round((tot_ordini / importo_contratto * 100.0), 1) if importo_contratto > 0 else 0.0
 
+    iva_molt = 1.0 + (aliquota_iva / 100.0)
+    importo_contratto_iva = round(importo_contratto * iva_molt, 2)
+    tot_ordini_iva = round(tot_ordini * iva_molt, 2)
+    residuo_ordinabile_iva = round(residuo_ordinabile * iva_molt, 2)
+
     return {
         "importo_contratto": importo_contratto,
+        "importo_contratto_iva": importo_contratto_iva,
+        "aliquota_iva": aliquota_iva,
         "tot_moduli": tot_moduli,
         "tot_ordini": tot_ordini,
+        "tot_ordini_iva": tot_ordini_iva,
         "tot_giornate_ordini": tot_giornate_ordini,
         "residuo_ordinabile": residuo_ordinabile,
+        "residuo_ordinabile_iva": residuo_ordinabile_iva,
         "is_allineato": is_allineato,
         "perc_ordinata": perc_ordinata
     }
@@ -521,10 +545,15 @@ def contratti_list(
         for c_item in contratti:
             c_dict = dict(c_item)
             c_dict["can_edit"] = True if (user.get("ruolo") in ("admin", "amministrativo") or (editable_ids_set is not None and c_dict["contratto_id"] in editable_ids_set)) else False
+            aliquota = float(c_dict.get("aliquota_iva") if c_dict.get("aliquota_iva") is not None else 22.0)
+            c_costo = float(c_dict.get("totale_costo") or 0.0)
+            c_dict["aliquota_iva"] = aliquota
+            c_dict["totale_costo_iva"] = round(c_costo * (1.0 + aliquota / 100.0), 2)
             contratti_augmented.append(c_dict)
 
         # Calcolo KPI per la selezione
         totale_spesa = sum(c["totale_costo"] for c in contratti)
+        totale_spesa_iva = sum(c["totale_costo_iva"] for c in contratti_augmented)
         totale_attivi = sum(1 for c in contratti if c["stato"] == "attivo")
         totale_giornate = sum(c["totale_giornate"] for c in contratti)
 
@@ -547,6 +576,7 @@ def contratti_list(
         "operatore_selezionato": operatore_id_val,
         "q": q or "",
         "totale_spesa": totale_spesa,
+        "totale_spesa_iva": totale_spesa_iva,
         "totale_attivi": totale_attivi,
         "totale_giornate": totale_giornate,
         "sort_by": effective_sort_by,
@@ -671,6 +701,9 @@ def contratti_export_csv(
         "N. Moduli / Voci",
         "Totale Giornate",
         "Totale Importo [IVA escl.] (€)",
+        "Aliquota IVA (%)",
+        "Totale IVA (€)",
+        "Totale Importo [IVA incl.] (€)",
         "Descrizione",
         "Data Creazione"
     ])
@@ -678,7 +711,15 @@ def contratti_export_csv(
     for c in contratti:
         dec_full = f"{c['dec_cognome'] or ''} {c['dec_nome'] or ''}".strip()
         creatore_full = f"{c['creatore_cognome'] or ''} {c['creatore_nome'] or ''}".strip()
-        costo_val = f"{c['totale_costo']:.2f}".replace('.', ',')
+        costo_float = float(c['totale_costo'] or 0.0)
+        aliquota = float(c['aliquota_iva'] if (c.get('aliquota_iva') is not None) else 22.0)
+        tot_iva = round(costo_float * (aliquota / 100.0), 2)
+        tot_costo_iva = round(costo_float + tot_iva, 2)
+
+        costo_val = f"{costo_float:.2f}".replace('.', ',')
+        aliquota_str = f"{aliquota:.1f}".replace('.', ',') if (aliquota % 1 != 0) else f"{int(aliquota)}"
+        iva_val = f"{tot_iva:.2f}".replace('.', ',')
+        costo_iva_val = f"{tot_costo_iva:.2f}".replace('.', ',')
         giornate_val = f"{c['totale_giornate']:.1f}".replace('.', ',') if c['totale_giornate'] else "0"
 
         writer.writerow([
@@ -702,6 +743,9 @@ def contratti_export_csv(
             c["cnt_moduli"] or 0,
             giornate_val,
             costo_val,
+            aliquota_str,
+            iva_val,
+            costo_iva_val,
             (c["descrizione"] or "").replace("\r\n", " ").replace("\n", " "),
             c["creato_il"] or ""
         ])
@@ -711,6 +755,278 @@ def contratti_export_csv(
     return Response(
         content=output.getvalue(),
         media_type="text/csv; charset=utf-8",
+        headers={"Content-Disposition": f'attachment; filename="{filename}"'}
+    )
+
+
+@router.get("/contratti/export/excel")
+@router.get("/contratto/export/excel")
+@router.get("/contratti/excel")
+def contratti_export_excel(
+    r: Request,
+    anno: Optional[str] = None,
+    fornitore_id: Optional[str] = None,
+    stato: Optional[str] = None,
+    reparto_id: Optional[str] = None,
+    operatore_id: Optional[str] = None,
+    q: Optional[str] = None,
+    sort_by: Optional[str] = None,
+    sort_dir: Optional[str] = None
+):
+    user = check_contratti_access(r)
+    if isinstance(user, RedirectResponse):
+        return user
+
+    anno_val = safe_int(anno)
+    fornitore_id_val = safe_int(fornitore_id)
+    reparto_id_val = safe_int(reparto_id)
+    operatore_id_val = safe_int(operatore_id)
+
+    scope_sql, scope_params = get_contratto_scope_filter(user)
+    where_clauses = [scope_sql]
+    params = dict(scope_params)
+
+    if anno_val:
+        where_clauses.append("c.anno = :anno")
+        params["anno"] = anno_val
+
+    if fornitore_id_val:
+        where_clauses.append("c.fornitore_id = :fornitore_id")
+        params["fornitore_id"] = fornitore_id_val
+
+    if stato and stato.strip():
+        where_clauses.append("c.stato = :stato")
+        params["stato"] = stato.strip()
+
+    if reparto_id_val:
+        where_clauses.append("c.reparto_id = :reparto_id")
+        params["reparto_id"] = reparto_id_val
+
+    if operatore_id_val:
+        where_clauses.append("(c.dec_user_id = :operatore_id OR c.creato_da_id = :operatore_id)")
+        params["operatore_id"] = operatore_id_val
+
+    if q and q.strip():
+        where_clauses.append("""(
+            c.titolo LIKE :q 
+            OR c.codice_contratto LIKE :q 
+            OR c.cig LIKE :q 
+            OR c.cup LIKE :q 
+            OR f.ragione_sociale LIKE :q
+            OR u_dec.nome LIKE :q
+            OR u_dec.cognome LIKE :q
+            OR u_creatore.nome LIKE :q
+            OR u_creatore.cognome LIKE :q
+        )""")
+        params["q"] = f"%{q.strip()}%"
+
+    where_sql = " AND ".join(where_clauses)
+    order_by_sql, _, _ = get_contratti_order_by(sort_by, sort_dir)
+
+    with engine.connect() as conn:
+        contratti = conn.execute(text(f"""
+            SELECT c.*,
+                   f.ragione_sociale AS fornitore_nome,
+                   f.partita_iva AS fornitore_piva,
+                   f.email_generale AS fornitore_email,
+                   f.telefono_generale AS fornitore_telefono,
+                   rep.nome AS reparto_nome,
+                   u_dec.nome AS dec_nome,
+                   u_dec.cognome AS dec_cognome,
+                   u_dec.email AS dec_email,
+                   u_creatore.nome AS creatore_nome,
+                   u_creatore.cognome AS creatore_cognome,
+                   (SELECT COUNT(*) FROM contratti_moduli cm WHERE cm.contratto_id = c.contratto_id) AS cnt_moduli,
+                   COALESCE((SELECT SUM(cm.costo) FROM contratti_moduli cm WHERE cm.contratto_id = c.contratto_id), 0.0) AS totale_costo,
+                   COALESCE((SELECT SUM(cm.giornate) FROM contratti_moduli cm WHERE cm.contratto_id = c.contratto_id), 0.0) AS totale_giornate
+            FROM contratti c
+            JOIN fornitori f ON c.fornitore_id = f.fornitore_id
+            LEFT JOIN reparti rep ON c.reparto_id = rep.reparto_id
+            LEFT JOIN users u_dec ON c.dec_user_id = u_dec.user_id
+            LEFT JOIN users u_creatore ON c.creato_da_id = u_creatore.user_id
+            WHERE {where_sql}
+            ORDER BY {order_by_sql}
+        """), params).mappings().all()
+
+    # Creazione file Excel professionale (.xlsx) con openpyxl
+    wb = openpyxl.Workbook()
+    ws = wb.active
+    ws.title = "Contratti Fornitura"
+    ws.views.sheetView[0].showGridLines = True
+
+    header_fill = PatternFill(start_color="1F4E78", end_color="1F4E78", fill_type="solid")
+    header_font = Font(name="Calibri", size=11, bold=True, color="FFFFFF")
+    header_alignment = Alignment(horizontal="center", vertical="center", wrap_text=True)
+
+    thin_side = Side(border_style="thin", color="D9D9D9")
+    border_thin = Border(left=thin_side, right=thin_side, top=thin_side, bottom=thin_side)
+    zebra_fill = PatternFill(start_color="F9FAFB", end_color="F9FAFB", fill_type="solid")
+
+    font_regular = Font(name="Calibri", size=10)
+    font_bold = Font(name="Calibri", size=10, bold=True)
+
+    align_center = Alignment(horizontal="center", vertical="center")
+    align_left = Alignment(horizontal="left", vertical="center")
+    align_right = Alignment(horizontal="right", vertical="center")
+
+    headers_def = [
+        ("ID", 8, align_center),
+        ("Anno", 8, align_center),
+        ("Titolo Contratto", 35, align_left),
+        ("Codice Contratto", 18, align_center),
+        ("CIG", 14, align_center),
+        ("CUP", 14, align_center),
+        ("Fornitore", 30, align_left),
+        ("P.IVA Fornitore", 16, align_center),
+        ("Email Fornitore", 25, align_left),
+        ("Telefono Fornitore", 18, align_left),
+        ("Reparto", 20, align_left),
+        ("DEC (Direttore Esecuzione)", 25, align_left),
+        ("Email DEC", 25, align_left),
+        ("Inserito Da", 22, align_left),
+        ("Data Inizio", 12, align_center),
+        ("Data Fine", 12, align_center),
+        ("Stato", 14, align_center),
+        ("N. Moduli / Voci", 14, align_center),
+        ("Totale Giornate", 15, align_right),
+        ("Totale Importo [IVA escl.] (€)", 24, align_right),
+        ("Aliquota IVA (%)", 15, align_center),
+        ("Totale IVA (€)", 16, align_right),
+        ("Totale Importo [IVA incl.] (€)", 24, align_right),
+        ("Descrizione", 40, align_left),
+        ("Data Creazione", 18, align_center),
+    ]
+
+    ws.row_dimensions[1].height = 28
+    for col_idx, (h_title, min_w, _) in enumerate(headers_def, start=1):
+        cell = ws.cell(row=1, column=col_idx, value=h_title)
+        cell.fill = header_fill
+        cell.font = header_font
+        cell.alignment = header_alignment
+        cell.border = border_thin
+
+    row_idx = 2
+    tot_moduli_sum = 0
+    tot_giornate_sum = 0.0
+    tot_costo_sum = 0.0
+    tot_iva_sum = 0.0
+    tot_costo_iva_sum = 0.0
+
+    for c in contratti:
+        dec_full = f"{c['dec_cognome'] or ''} {c['dec_nome'] or ''}".strip()
+        creatore_full = f"{c['creatore_cognome'] or ''} {c['creatore_nome'] or ''}".strip()
+        costo = float(c['totale_costo'] or 0.0)
+        giornate = float(c['totale_giornate'] or 0.0)
+        moduli_cnt = int(c['cnt_moduli'] or 0)
+        aliquota = float(c['aliquota_iva'] if (c.get('aliquota_iva') is not None) else 22.0)
+        iva_val = round(costo * (aliquota / 100.0), 2)
+        costo_iva = round(costo + iva_val, 2)
+
+        tot_moduli_sum += moduli_cnt
+        tot_giornate_sum += giornate
+        tot_costo_sum += costo
+        tot_iva_sum += iva_val
+        tot_costo_iva_sum += costo_iva
+
+        row_vals = [
+            c["contratto_id"],
+            c["anno"],
+            c["titolo"] or "",
+            c["codice_contratto"] or "",
+            c["cig"] or "",
+            c["cup"] or "",
+            c["fornitore_nome"] or "",
+            c["fornitore_piva"] or "",
+            c["fornitore_email"] or "",
+            c["fornitore_telefono"] or "",
+            c["reparto_nome"] or "",
+            dec_full,
+            c["dec_email"] or "",
+            creatore_full,
+            c["data_inizio"] or "",
+            c["data_fine"] or "",
+            (c["stato"] or "").upper(),
+            moduli_cnt,
+            giornate,
+            costo,
+            aliquota,
+            iva_val,
+            costo_iva,
+            (c["descrizione"] or "").replace("\r\n", " ").replace("\n", " "),
+            c["creato_il"] or ""
+        ]
+
+        ws.row_dimensions[row_idx].height = 20
+        is_even = (row_idx % 2 == 0)
+
+        for col_idx, val in enumerate(row_vals, start=1):
+            cell = ws.cell(row=row_idx, column=col_idx, value=val)
+            cell.font = font_regular
+            cell.border = border_thin
+            cell.alignment = headers_def[col_idx - 1][2]
+            if is_even:
+                cell.fill = zebra_fill
+
+            if col_idx in (19,):
+                cell.number_format = '#,##0.0'
+            elif col_idx in (20, 22, 23):
+                cell.number_format = '#,##0.00 €'
+            elif col_idx in (21,):
+                cell.number_format = '0"%"'
+            elif col_idx in (1, 2, 18):
+                cell.number_format = '#,##0'
+
+        row_idx += 1
+
+    # Riga totali riepilogativa
+    ws.row_dimensions[row_idx].height = 24
+    double_bottom = Border(
+        left=thin_side, right=thin_side,
+        top=Side(border_style="thin", color="000000"),
+        bottom=Side(border_style="double", color="000000")
+    )
+    summary_fill = PatternFill(start_color="F2F2F2", end_color="F2F2F2", fill_type="solid")
+
+    for col_idx in range(1, len(headers_def) + 1):
+        cell = ws.cell(row=row_idx, column=col_idx)
+        cell.font = font_bold
+        cell.border = double_bottom
+        cell.fill = summary_fill
+
+    ws.cell(row=row_idx, column=3, value="TOTALE COMPLESSIVO").alignment = align_left
+    cell_mod = ws.cell(row=row_idx, column=18, value=tot_moduli_sum)
+    cell_mod.alignment = align_center
+    cell_mod.number_format = '#,##0'
+
+    cell_gg = ws.cell(row=row_idx, column=19, value=tot_giornate_sum)
+    cell_gg.alignment = align_right
+    cell_gg.number_format = '#,##0.0'
+
+    cell_c = ws.cell(row=row_idx, column=20, value=tot_costo_sum)
+    cell_c.alignment = align_right
+    cell_c.number_format = '#,##0.00 €'
+
+    cell_iva = ws.cell(row=row_idx, column=22, value=tot_iva_sum)
+    cell_iva.alignment = align_right
+    cell_iva.number_format = '#,##0.00 €'
+
+    cell_c_iva = ws.cell(row=row_idx, column=23, value=tot_costo_iva_sum)
+    cell_c_iva.alignment = align_right
+    cell_c_iva.number_format = '#,##0.00 €'
+
+    for col_idx, (_, min_w, _) in enumerate(headers_def, start=1):
+        col_letter = get_column_letter(col_idx)
+        ws.column_dimensions[col_letter].width = min_w
+
+    output = io.BytesIO()
+    wb.save(output)
+    output.seek(0)
+
+    today_str = datetime.now().strftime("%Y%m%d_%H%M")
+    filename = f"contratti_fornitura_{today_str}.xlsx"
+    return Response(
+        content=output.getvalue(),
+        media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
         headers={"Content-Disposition": f'attachment; filename="{filename}"'}
     )
 
@@ -834,9 +1150,14 @@ def contratti_riepilogo_economico(
             mods = moduli_per_contratto.get(cid, [])
             c_costo = sum(float(m.get("costo") or 0.0) for m in mods)
             c_giornate = sum(float(m.get("giornate") or 0.0) for m in mods)
+            aliquota = float(c_dict.get("aliquota_iva") if c_dict.get("aliquota_iva") is not None else 22.0)
+            for m in mods:
+                m["costo_iva"] = round(float(m.get("costo") or 0.0) * (1.0 + aliquota / 100.0), 2)
             
             c_dict["moduli"] = mods
+            c_dict["aliquota_iva"] = aliquota
             c_dict["totale_costo"] = c_costo
+            c_dict["totale_costo_iva"] = round(c_costo * (1.0 + aliquota / 100.0), 2)
             c_dict["totale_giornate"] = c_giornate
             c_dict["cnt_moduli"] = len(mods)
             contratti_list.append(c_dict)
@@ -1038,6 +1359,7 @@ def contratto_nuovo_save(
     codice_contratto: Optional[str] = Form(None),
     cig: Optional[str] = Form(None),
     cup: Optional[str] = Form(None),
+    aliquota_iva: Optional[str] = Form("22.0"),
     data_inizio: Optional[str] = Form(None),
     data_fine: Optional[str] = Form(None),
     stato: str = Form("attivo"),
@@ -1065,6 +1387,9 @@ def contratto_nuovo_save(
     modulo_costo_val = safe_float(modulo_costo)
     modulo_giornate_val = safe_float(modulo_giornate)
     modulo_costo_giornaliero_val = safe_float(modulo_costo_giornaliero)
+    aliquota_iva_val = safe_float(aliquota_iva)
+    if aliquota_iva_val is None:
+        aliquota_iva_val = 22.0
 
     # Se l'utente è operatore DEC e non ha specificato il DEC, assegniamo lui stesso
     if not dec_user_id_val and user_has_tag_dec(user):
@@ -1078,11 +1403,11 @@ def contratto_nuovo_save(
         result = conn.execute(text("""
             INSERT INTO contratti (
                 titolo, codice_contratto, cig, cup, fornitore_id, anno,
-                data_inizio, data_fine, stato, dec_user_id, reparto_id,
+                aliquota_iva, data_inizio, data_fine, stato, dec_user_id, reparto_id,
                 descrizione, creato_da_id, creato_il
             ) VALUES (
                 :titolo, :codice, :cig, :cup, :fornitore_id, :anno,
-                :data_inizio, :data_fine, :stato, :dec_user_id, :reparto_id,
+                :aliquota_iva, :data_inizio, :data_fine, :stato, :dec_user_id, :reparto_id,
                 :descrizione, :creato_da_id, :creato_il
             )
         """), {
@@ -1092,6 +1417,7 @@ def contratto_nuovo_save(
             "cup": cup.strip() if cup else None,
             "fornitore_id": fornitore_id,
             "anno": anno,
+            "aliquota_iva": aliquota_iva_val,
             "data_inizio": data_inizio.strip() if data_inizio else None,
             "data_fine": data_fine.strip() if data_fine else None,
             "stato": stato,
@@ -1217,7 +1543,19 @@ def contratto_detail(
             od["is_esaurito"] = (od["residuo_costo"] <= 0.009 and imp > 0)
             ordini.append(od)
 
+    aliquota_iva = float(contratto["aliquota_iva"] if (contratto and contratto.get("aliquota_iva") is not None) else 22.0)
+    iva_molt = 1.0 + (aliquota_iva / 100.0)
+
+    moduli_enriched = []
+    for m in moduli:
+        md = dict(m)
+        c_val = float(md.get("costo") or 0.0)
+        md["costo_iva"] = round(c_val * iva_molt, 2)
+        moduli_enriched.append(md)
+    moduli = moduli_enriched
+
     totale_costo = sum(m["costo"] for m in moduli)
+    totale_costo_iva = round(totale_costo * iva_molt, 2)
     totale_giornate = sum((m["giornate"] or 0.0) for m in moduli)
     is_dec = user_has_tag_dec(user)
 
@@ -1234,6 +1572,8 @@ def contratto_detail(
         "servizi": servizi,
         "contatti_fornitore": contatti_fornitore,
         "totale_costo": totale_costo,
+        "totale_costo_iva": totale_costo_iva,
+        "aliquota_iva": aliquota_iva,
         "totale_giornate": totale_giornate,
         "error": error,
         "success": success
@@ -1307,6 +1647,7 @@ def contratto_edit_save(
     codice_contratto: Optional[str] = Form(None),
     cig: Optional[str] = Form(None),
     cup: Optional[str] = Form(None),
+    aliquota_iva: Optional[str] = Form("22.0"),
     data_inizio: Optional[str] = Form(None),
     data_fine: Optional[str] = Form(None),
     stato: str = Form("attivo"),
@@ -1324,6 +1665,9 @@ def contratto_edit_save(
 
     dec_user_id_val = safe_int(dec_user_id)
     reparto_id_val = safe_int(reparto_id)
+    aliquota_iva_val = safe_float(aliquota_iva)
+    if aliquota_iva_val is None:
+        aliquota_iva_val = 22.0
 
     with engine.begin() as conn:
         contratto = conn.execute(text("SELECT * FROM contratti WHERE contratto_id = :cid"), {"cid": contratto_id}).mappings().first()
@@ -1341,6 +1685,7 @@ def contratto_edit_save(
                 codice_contratto = :codice,
                 cig = :cig,
                 cup = :cup,
+                aliquota_iva = :aliquota_iva,
                 data_inizio = :data_inizio,
                 data_fine = :data_fine,
                 stato = :stato,
@@ -1356,6 +1701,7 @@ def contratto_edit_save(
             "codice": codice_contratto.strip() if codice_contratto else None,
             "cig": cig.strip() if cig else None,
             "cup": cup.strip() if cup else None,
+            "aliquota_iva": aliquota_iva_val,
             "data_inizio": data_inizio.strip() if data_inizio else None,
             "data_fine": data_fine.strip() if data_fine else None,
             "stato": stato,
@@ -1433,15 +1779,16 @@ def contratto_duplica(
                 target_titolo = f"{old_titolo} ({target_anno})"
 
         now = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+        aliquota_orig = float(contratto["aliquota_iva"] if (contratto.get("aliquota_iva") is not None) else 22.0)
 
         conn.execute(text("""
             INSERT INTO contratti (
                 titolo, codice_contratto, cig, cup, fornitore_id, anno,
-                data_inizio, data_fine, stato, dec_user_id, reparto_id,
+                aliquota_iva, data_inizio, data_fine, stato, dec_user_id, reparto_id,
                 descrizione, creato_da_id, creato_il
             ) VALUES (
                 :titolo, :codice, :cig, :cup, :fornitore_id, :anno,
-                NULL, NULL, :stato, :dec_user_id, :reparto_id,
+                :aliquota_iva, NULL, NULL, :stato, :dec_user_id, :reparto_id,
                 :descrizione, :creato_da_id, :creato_il
             )
         """), {
@@ -1451,6 +1798,7 @@ def contratto_duplica(
             "cup": contratto["cup"],
             "fornitore_id": contratto["fornitore_id"],
             "anno": target_anno,
+            "aliquota_iva": aliquota_orig,
             "stato": stato,
             "dec_user_id": contratto["dec_user_id"],
             "reparto_id": contratto["reparto_id"],
@@ -2218,7 +2566,19 @@ def contratto_stampa(r: Request, contratto_id: int):
 
         financials = get_contratto_financials(conn, contratto_id)
 
+    aliquota_iva = float(contratto["aliquota_iva"] if (contratto and contratto.get("aliquota_iva") is not None) else 22.0)
+    iva_molt = 1.0 + (aliquota_iva / 100.0)
+
+    moduli_enriched = []
+    for m in moduli:
+        md = dict(m)
+        c_val = float(md.get("costo") or 0.0)
+        md["costo_iva"] = round(c_val * iva_molt, 2)
+        moduli_enriched.append(md)
+    moduli = moduli_enriched
+
     totale_costo = sum(m["costo"] for m in moduli)
+    totale_costo_iva = round(totale_costo * iva_molt, 2)
     totale_giornate = sum((m["giornate"] or 0.0) for m in moduli)
 
     return templates.TemplateResponse(r, "contratto_stampa.html", {
@@ -2230,6 +2590,8 @@ def contratto_stampa(r: Request, contratto_id: int):
         "ordini": ordini,
         "financials": financials,
         "totale_costo": totale_costo,
+        "totale_costo_iva": totale_costo_iva,
+        "aliquota_iva": aliquota_iva,
         "totale_giornate": totale_giornate,
         "data_stampa": datetime.now().strftime("%d/%m/%Y %H:%M")
     })

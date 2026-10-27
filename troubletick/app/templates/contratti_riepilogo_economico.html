@@ -48,6 +48,9 @@
             </p>
         </div>
         <div class="d-flex gap-2 no-print flex-wrap">
+            <a href="/contratti/export/excel{% if request.query_params %}?{{ request.query_params }}{% endif %}" class="btn btn-success btn-sm" title="Esporta in Excel (.xlsx) i contratti con i filtri attuali">
+                <i class="bi bi-file-earmark-excel me-1"></i>Esporta Excel
+            </a>
             <a href="/contratti/export/csv{% if request.query_params %}?{{ request.query_params }}{% endif %}" class="btn btn-outline-success btn-sm" title="Esporta in CSV i contratti con i filtri attuali">
                 <i class="bi bi-file-earmark-spreadsheet me-1"></i>Esporta CSV
             </a>
@@ -144,7 +147,10 @@
                     <button type="submit" class="btn btn-primary btn-sm flex-grow-1">
                         <i class="bi bi-filter me-1"></i>Filtra
                     </button>
-                    <button type="submit" formaction="/contratti/export/csv" class="btn btn-sm btn-success" title="Esporta in CSV i contratti con i filtri attuali">
+                    <button type="submit" formaction="/contratti/export/excel" class="btn btn-sm btn-success" title="Esporta in Excel (.xlsx) i contratti con i filtri attuali">
+                        <i class="bi bi-file-earmark-excel"></i>
+                    </button>
+                    <button type="submit" formaction="/contratti/export/csv" class="btn btn-sm btn-outline-success" title="Esporta in CSV i contratti con i filtri attuali">
                         <i class="bi bi-file-earmark-spreadsheet"></i>
                     </button>
                     <a href="/contratti/riepilogo-economico" class="btn btn-outline-secondary btn-sm" title="Reimposta filtri">

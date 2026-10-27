@@ -155,6 +155,9 @@
                         <div class="text-lg-end bg-light p-3 rounded border">
                             <div class="info-label">Valore Economico Totale (IVA escl.)</div>
                             <div class="h3 fw-bold text-primary mb-0">€ {{ "{:,.2f}".format(totale_costo or 0).replace(",", "X").replace(".", ",").replace("X", ".") }}</div>
+                            <div class="small fw-bold text-success mt-1">
+                                <i class="bi bi-calculator me-1"></i>Totale + IVA ({{ contratto.aliquota_iva|default(22)|round|int }}%): € {{ "{:,.2f}".format(totale_costo_iva or 0).replace(",", "X").replace(".", ",").replace("X", ".") }}
+                            </div>
                             {% if totale_giornate and totale_giornate > 0 %}
                             <div class="small text-muted fw-semibold mt-1">
                                 <i class="bi bi-calendar-event me-1"></i>{{ "{:,.1f}".format(totale_giornate).replace(",", "X").replace(".", ",").replace("X", ".") }} giornate
@@ -166,17 +169,25 @@
                     <hr class="text-muted">
 
                     <div class="row g-3">
-                        <div class="col-12 col-md-4">
+                        <div class="col-6 col-md-3">
                             <div class="info-label">Codice Contratto</div>
                             <div class="fw-semibold text-dark">{{ contratto.codice_contratto or '—' }}</div>
                         </div>
-                        <div class="col-6 col-md-4">
+                        <div class="col-6 col-md-3">
                             <div class="info-label">Codice CIG</div>
                             <div class="fw-semibold text-dark">{{ contratto.cig or '—' }}</div>
                         </div>
-                        <div class="col-6 col-md-4">
+                        <div class="col-6 col-md-3">
                             <div class="info-label">Codice CUP</div>
                             <div class="fw-semibold text-dark">{{ contratto.cup or '—' }}</div>
+                        </div>
+                        <div class="col-6 col-md-3">
+                            <div class="info-label">Aliquota IVA</div>
+                            <div class="fw-bold text-primary">
+                                <span class="badge bg-primary bg-opacity-10 text-primary border border-primary-subtle px-2 py-1 fs-6">
+                                    {{ contratto.aliquota_iva|default(22)|round|int }}%
+                                </span>
+                            </div>
                         </div>
 
                         <div class="col-12 col-md-6">
@@ -235,11 +246,12 @@
                         <table class="table table-hover align-middle mb-0">
                             <thead class="table-light">
                                 <tr>
-                                    <th class="ps-3" style="width: {% if can_edit %}35%{% else %}40%{% endif %};">Descrizione Modulo / Servizio</th>
-                                    <th style="width: {% if can_edit %}20%{% else %}24%{% endif %};">Servizio Collegato</th>
-                                    <th style="width: 12%;" class="text-center">Giornate</th>
-                                    <th style="width: 13%;" class="text-end">Costo GG (IVA escl.)</th>
-                                    <th style="width: {% if can_edit %}12%{% else %}15%{% endif %};" class="text-end">Importo (IVA escl.)</th>
+                                    <th class="ps-3" style="width: {% if can_edit %}30%{% else %}34%{% endif %};">Descrizione Modulo / Servizio</th>
+                                    <th style="width: {% if can_edit %}18%{% else %}20%{% endif %};">Servizio Collegato</th>
+                                    <th style="width: 10%;" class="text-center">Giornate</th>
+                                    <th style="width: 12%;" class="text-end">Costo GG (IVA escl.)</th>
+                                    <th style="width: 12%;" class="text-end">Importo (IVA escl.)</th>
+                                    <th style="width: 15%;" class="text-end">Importo + IVA ({{ contratto.aliquota_iva|default(22)|round|int }}%)</th>
                                     {% if can_edit %}
                                     <th style="width: 8%;" class="text-end pe-3">Azioni</th>
                                     {% endif %}
@@ -280,6 +292,9 @@
                                     <td class="text-end fw-bold text-dark">
                                         € {{ "{:,.2f}".format(m.costo or 0).replace(",", "X").replace(".", ",").replace("X", ".") }}
                                     </td>
+                                    <td class="text-end fw-bold text-success">
+                                        € {{ "{:,.2f}".format(m.costo_iva or 0).replace(",", "X").replace(".", ",").replace("X", ".") }}
+                                    </td>
                                     {% if can_edit %}
                                     <td class="text-end pe-3">
                                         <script type="application/json" id="modulo-data-{{ m.modulo_id }}">
@@ -288,6 +303,7 @@
                                             "descrizione": {{ m.descrizione|tojson }},
                                             "servizio_id": {{ (m.servizio_id or '')|tojson }},
                                             "costo": {{ m.costo|tojson }},
+                                            "costo_iva": {{ (m.costo_iva or 0)|tojson }},
                                             "giornate": {{ (m.giornate or '')|tojson }},
                                             "costo_giornaliero": {{ (m.costo_giornaliero or '')|tojson }},
                                             "note": {{ (m.note or '')|tojson }},
@@ -310,7 +326,7 @@
                                 </tr>
                                 {% else %}
                                 <tr>
-                                    <td colspan="{% if can_edit %}6{% else %}5{% endif %}" class="text-center py-4 text-muted">
+                                    <td colspan="{% if can_edit %}7{% else %}6{% endif %}" class="text-center py-4 text-muted">
                                         <i class="bi bi-boxes fs-2 d-block mb-1 text-secondary opacity-50"></i>
                                         Nessun modulo o servizio di fornitura inserito in questo contratto.
                                         {% if can_edit %}
@@ -327,12 +343,13 @@
                             {% if moduli %}
                             <tfoot class="table-light fw-bold border-top">
                                 <tr>
-                                    <td class="ps-3" colspan="2">Totale Quadro Economico Fornitura (IVA esclusa)</td>
+                                    <td class="ps-3" colspan="2">Totale Quadro Economico Fornitura</td>
                                     <td class="text-center">
                                         {% if totale_giornate > 0 %}{{ "{:,.1f}".format(totale_giornate).replace(",", "X").replace(".", ",").replace("X", ".") }} gg{% endif %}
                                     </td>
                                     <td></td>
                                     <td class="text-end text-primary fs-6">€ {{ "{:,.2f}".format(totale_costo or 0).replace(",", "X").replace(".", ",").replace("X", ".") }}</td>
+                                    <td class="text-end text-success fs-6">€ {{ "{:,.2f}".format(totale_costo_iva or 0).replace(",", "X").replace(".", ",").replace("X", ".") }}</td>
                                     {% if can_edit %}<td></td>{% endif %}
                                 </tr>
                             </tfoot>
@@ -627,19 +644,24 @@
                             </select>
                         </div>
 
-                        <div class="col-6 col-md-4">
-                            <label class="form-label small fw-bold">N. Giornate Previste (Opzionale)</label>
+                        <div class="col-6 col-md-3">
+                            <label class="form-label small fw-bold">N. Giornate (Opzionale)</label>
                             <input type="number" step="0.5" id="add_giornate" name="giornate" class="form-control" placeholder="Es. 15" oninput="calcAddCosto()">
                         </div>
 
-                        <div class="col-6 col-md-4">
-                            <label class="form-label small fw-bold">Costo Giornaliero (€ - IVA escl.)</label>
+                        <div class="col-6 col-md-3">
+                            <label class="form-label small fw-bold">Costo GG (€ - IVA escl.)</label>
                             <input type="number" step="0.01" id="add_costo_gg" name="costo_giornaliero" class="form-control" placeholder="Es. 400.00" oninput="calcAddCosto()">
                         </div>
 
-                        <div class="col-12 col-md-4">
+                        <div class="col-6 col-md-3">
                             <label class="form-label small fw-bold">Costo Totale (€ - IVA escl.) <span class="text-danger">*</span></label>
-                            <input type="number" step="0.01" id="add_costo_tot" name="costo" class="form-control" placeholder="Es. 6000.00" required>
+                            <input type="number" step="0.01" id="add_costo_tot" name="costo" class="form-control" placeholder="Es. 6000.00" oninput="updateAddCostoConIva()" required>
+                        </div>
+
+                        <div class="col-6 col-md-3">
+                            <label class="form-label small fw-bold">Importo + IVA (€ - Calcolato)</label>
+                            <input type="text" id="add_costo_con_iva" class="form-control bg-light text-success fw-bold" readonly placeholder="0.00">
                         </div>
 
                         <div class="col-12">
@@ -683,19 +705,24 @@
                             </select>
                         </div>
 
-                        <div class="col-6 col-md-4">
+                        <div class="col-6 col-md-3">
                             <label class="form-label small fw-bold">N. Giornate</label>
                             <input type="number" step="0.5" id="edit_giornate" name="giornate" class="form-control" oninput="calcEditCosto()">
                         </div>
 
-                        <div class="col-6 col-md-4">
-                            <label class="form-label small fw-bold">Costo Giornaliero (€ - IVA escl.)</label>
+                        <div class="col-6 col-md-3">
+                            <label class="form-label small fw-bold">Costo GG (€ - IVA escl.)</label>
                             <input type="number" step="0.01" id="edit_costo_gg" name="costo_giornaliero" class="form-control" oninput="calcEditCosto()">
                         </div>
 
-                        <div class="col-12 col-md-4">
+                        <div class="col-6 col-md-3">
                             <label class="form-label small fw-bold">Costo Totale (€ - IVA escl.) <span class="text-danger">*</span></label>
-                            <input type="number" step="0.01" id="edit_costo_tot" name="costo" class="form-control" required>
+                            <input type="number" step="0.01" id="edit_costo_tot" name="costo" class="form-control" oninput="updateEditCostoConIva()" required>
+                        </div>
+
+                        <div class="col-6 col-md-3">
+                            <label class="form-label small fw-bold">Importo + IVA (€ - Calcolato)</label>
+                            <input type="text" id="edit_costo_con_iva" class="form-control bg-light text-success fw-bold" readonly placeholder="0.00">
                         </div>
 
                         <div class="col-12">
@@ -930,12 +957,37 @@
 {% endif %}
 
 <script>
+const ALIQUOTA_CONTRATTO = {{ (contratto.aliquota_iva if (contratto and contratto.aliquota_iva is not none) else 22.0) }};
+
+function updateAddCostoConIva() {
+    const tot = parseFloat(document.getElementById('add_costo_tot').value);
+    const conIvaField = document.getElementById('add_costo_con_iva');
+    if (!isNaN(tot) && tot >= 0) {
+        const conIva = tot * (1 + (ALIQUOTA_CONTRATTO / 100));
+        conIvaField.value = conIva.toFixed(2);
+    } else {
+        conIvaField.value = '';
+    }
+}
+
 function calcAddCosto() {
     const gg = parseFloat(document.getElementById('add_giornate').value);
     const cgg = parseFloat(document.getElementById('add_costo_gg').value);
     const totField = document.getElementById('add_costo_tot');
     if (!isNaN(gg) && !isNaN(cgg)) {
         totField.value = (gg * cgg).toFixed(2);
+    }
+    updateAddCostoConIva();
+}
+
+function updateEditCostoConIva() {
+    const tot = parseFloat(document.getElementById('edit_costo_tot').value);
+    const conIvaField = document.getElementById('edit_costo_con_iva');
+    if (!isNaN(tot) && tot >= 0) {
+        const conIva = tot * (1 + (ALIQUOTA_CONTRATTO / 100));
+        conIvaField.value = conIva.toFixed(2);
+    } else {
+        conIvaField.value = '';
     }
 }
 
@@ -946,6 +998,7 @@ function calcEditCosto() {
     if (!isNaN(gg) && !isNaN(cgg)) {
         totField.value = (gg * cgg).toFixed(2);
     }
+    updateEditCostoConIva();
 }
 
 function calcNewOrdCosto() {
@@ -979,6 +1032,7 @@ function openEditModuloModal(moduloId) {
         document.getElementById('edit_costo_gg').value = (data.costo_giornaliero !== null && data.costo_giornaliero !== undefined) ? data.costo_giornaliero : '';
         document.getElementById('edit_modulo_note').value = data.note || '';
         document.getElementById('edit_modulo_ordine').value = (data.ordine !== null && data.ordine !== undefined) ? data.ordine : 0;
+        updateEditCostoConIva();
         
         const modal = new bootstrap.Modal(document.getElementById('modalModificaModulo'));
         modal.show();

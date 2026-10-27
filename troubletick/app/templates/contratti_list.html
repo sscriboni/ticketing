@@ -33,6 +33,9 @@
             </p>
         </div>
         <div class="d-flex gap-2 flex-wrap">
+            <a id="btnExportExcel" href="/contratti/export/excel{% if request.query_params %}?{{ request.query_params }}{% endif %}" class="btn btn-success btn-sm" title="Esporta in Excel (.xlsx) l'elenco visibile con i filtri attuali">
+                <i class="bi bi-file-earmark-excel me-1"></i>Esporta Excel
+            </a>
             <a id="btnExportCsv" href="/contratti/export/csv{% if request.query_params %}?{{ request.query_params }}{% endif %}" class="btn btn-outline-success btn-sm" title="Esporta in CSV l'elenco visibile con i filtri attuali">
                 <i class="bi bi-file-earmark-spreadsheet me-1"></i>Esporta CSV
             </a>
@@ -119,6 +122,7 @@
                     <div>
                         <div class="text-muted small text-uppercase fw-semibold">Totale Budget Annuale <span class="fw-normal text-lowercase">(IVA escl.)</span></div>
                         <div class="h3 fw-bold mb-0 text-primary">€ {{ "{:,.2f}".format(totale_spesa or 0).replace(",", "X").replace(".", ",").replace("X", ".") }}</div>
+                        <div class="small text-muted fw-semibold mt-1">Con IVA: <strong>€ {{ "{:,.2f}".format(totale_spesa_iva or 0).replace(",", "X").replace(".", ",").replace("X", ".") }}</strong></div>
                     </div>
                     <div class="p-3 bg-info bg-opacity-10 text-info rounded-circle">
                         <i class="bi bi-cash-stack fs-4"></i>
@@ -207,6 +211,7 @@
                 {% endif %}
                 <div class="col-12 col-lg-1 col-md-2 d-flex gap-1">
                     <button type="submit" class="btn btn-sm btn-primary flex-grow-1" title="Applica filtri"><i class="bi bi-funnel"></i></button>
+                    <button type="submit" formaction="/contratti/export/excel" class="btn btn-sm btn-success" title="Esporta elenco visibile in Excel (.xlsx)"><i class="bi bi-file-earmark-excel"></i></button>
                     <button type="submit" formaction="/contratti/export/csv" class="btn btn-sm btn-outline-success" title="Esporta elenco visibile in CSV"><i class="bi bi-file-earmark-spreadsheet"></i></button>
                     <a href="/contratti" class="btn btn-sm btn-outline-secondary" title="Reimposta filtri"><i class="bi bi-arrow-counterclockwise"></i></a>
                 </div>
@@ -315,6 +320,9 @@
                             </td>
                             <td class="text-end fw-bold text-dark" data-sort="{{ c.totale_costo or 0 }}">
                                 € {{ "{:,.2f}".format(c.totale_costo or 0).replace(",", "X").replace(".", ",").replace("X", ".") }}
+                                <div class="small text-muted fw-normal" title="Importo calcolato comprensivo di IVA ({{ (c.aliquota_iva if c.aliquota_iva is not none else 22)|round|int if ((c.aliquota_iva if c.aliquota_iva is not none else 22) % 1 == 0) else (c.aliquota_iva if c.aliquota_iva is not none else 22) }}%)">
+                                    + IVA: € {{ "{:,.2f}".format(c.totale_costo_iva or 0).replace(",", "X").replace(".", ",").replace("X", ".") }}
+                                </div>
                             </td>
                             <td class="text-center" data-sort="{{ c.stato }}">
                                 {% if c.stato == 'attivo' %}
