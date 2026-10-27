@@ -96,6 +96,18 @@ try:
             FOREIGN KEY(reparto_id) REFERENCES reparti(reparto_id) ON DELETE CASCADE,
             FOREIGN KEY(user_id) REFERENCES users(user_id) ON DELETE CASCADE
         )"""))
+        c.execute(text(f"""CREATE TABLE IF NOT EXISTS reperibilita_mesi_lock (
+            id {DB_PK},
+            reparto_id INTEGER NOT NULL,
+            anno INTEGER NOT NULL,
+            mese INTEGER NOT NULL,
+            sbloccato INTEGER DEFAULT 0,
+            modificato_da INTEGER,
+            aggiornato_il TEXT DEFAULT CURRENT_TIMESTAMP,
+            FOREIGN KEY(reparto_id) REFERENCES reparti(reparto_id) ON DELETE CASCADE,
+            FOREIGN KEY(modificato_da) REFERENCES users(user_id) ON DELETE SET NULL,
+            UNIQUE(reparto_id, anno, mese)
+        )"""))
         c.execute(text(f"""CREATE TABLE IF NOT EXISTS servizi (
             servizio_id {DB_PK},
             descrizione TEXT NOT NULL,
@@ -426,7 +438,8 @@ try:
                 ("Full-Time", "#0dcaf0", "Operatore con contratto a tempo pieno"),
                 ("Coordinatore", "#6f42c1", "Coordinatore o referente di servizio"),
                 ("Tecnico Hardware", "#fd7e14", "Specializzato in supporto e manutenzione hardware"),
-                ("Amministrazione", "#0d6efd", "Personale Amministrazione abilitato alla gestione schede fornitori")
+                ("Amministrazione", "#0d6efd", "Personale Amministrazione abilitato alla gestione schede fornitori"),
+                ("Rep_Admin", "#dc3545", "Amministratore gestione turni reperibilità")
             ]
             for t_nome, t_col, t_desc in default_op_tags:
                 try:
@@ -436,6 +449,17 @@ try:
                     """), {"nome": t_nome, "colore": t_col, "desc": t_desc})
                 except Exception:
                     pass
+
+        # Assicura la presenza del tag Rep_Admin anche su database esistenti
+        try:
+            has_rep_admin = c.execute(text("SELECT 1 FROM tag_operatori WHERE UPPER(nome) = 'REP_ADMIN'")).scalar()
+            if not has_rep_admin:
+                c.execute(text("""
+                    INSERT INTO tag_operatori (nome, colore, descrizione)
+                    VALUES ('Rep_Admin', '#dc3545', 'Amministratore gestione turni reperibilità')
+                """))
+        except Exception:
+            pass
     
         for stmt in [
             "ALTER TABLE tickets ADD COLUMN argomento_id INTEGER",
@@ -646,7 +670,8 @@ try:
             ("idx_op_tag_user_tag", "operatori_tag", "(user_id, tag_id)"),
             ("idx_avvisi_attivo_date", "avvisi", "(attivo, data_inizio, data_fine)"),
             ("idx_rep_ass_data", "reperibilita_assegnazioni", "(data)"),
-            ("idx_rep_ass_rep_user", "reperibilita_assegnazioni", "(reparto_id, user_id)")
+            ("idx_rep_ass_rep_user", "reperibilita_assegnazioni", "(reparto_id, user_id)"),
+            ("idx_rep_lock_rep_ym", "reperibilita_mesi_lock", "(reparto_id, anno, mese)")
         ]
 
         for idx_name, table_name, cols in indexes_to_create:

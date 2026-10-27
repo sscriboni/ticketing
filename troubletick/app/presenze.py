@@ -979,7 +979,20 @@ def reperibilita_calendario(
             JOIN tag_operatori t ON ot.tag_id = t.tag_id
             WHERE ot.user_id = :uid AND LOWER(t.nome) = 'reperibile'
         """), {"uid": uid}).scalar())
-        can_manage = user.get("ruolo") in ("admin", "responsabile")
+        
+        is_rep_admin = bool(c.execute(text("""
+            SELECT 1 FROM operatori_tag ot
+            JOIN tag_operatori t ON ot.tag_id = t.tag_id
+            WHERE ot.user_id = :uid AND UPPER(t.nome) = 'REP_ADMIN'
+        """), {"uid": uid}).scalar()) or (user.get("ruolo") == "admin")
+
+        # Verifica stato lock del mese per il reparto
+        # Di default, i mesi sono in sola lettura (locked) finché un Rep_Admin o Admin li sblocca
+        lock_row = c.execute(text("""
+            SELECT sbloccato, modificato_da, aggiornato_il FROM reperibilita_mesi_lock
+            WHERE reparto_id = :rid AND anno = :anno AND mese = :mese
+        """), {"rid": sel_reparto_id, "anno": anno, "mese": mese}).mappings().first()
+        is_month_locked = not bool(lock_row and lock_row["sbloccato"] == 1)
 
         # Assenze registrate nel mese (per verificare chi è presente nei giorni)
         assenze_rows = c.execute(text("""
@@ -1137,13 +1150,67 @@ def reperibilita_calendario(
             "prev_mese": prev_mese, "prev_anno": prev_anno,
             "next_mese": next_mese, "next_anno": next_anno,
             "user_is_reperibile": user_is_reperibile,
-            "can_manage": can_manage,
+            "is_rep_admin": is_rep_admin,
+            "is_month_locked": is_month_locked,
             "tot_feriali": tot_feriali,
             "tot_festivi": tot_festivi,
             "tot_turni": tot_turni,
             "tot_ore": tot_ore,
             "msg": msg, "error": error
         })
+
+@router.post("/reperibilita/toggle-lock")
+def reperibilita_toggle_lock(
+    r: Request,
+    reparto_id: int = Form(...),
+    anno: int = Form(...),
+    mese: int = Form(...)
+):
+    if "user" not in r.session: return RedirectResponse(url="/login")
+    current_u = r.session.get("user")
+    cid = current_u.get("id")
+
+    with engine.begin() as c:
+        is_rep_admin = bool(c.execute(text("""
+            SELECT 1 FROM operatori_tag ot
+            JOIN tag_operatori t ON ot.tag_id = t.tag_id
+            WHERE ot.user_id = :uid AND UPPER(t.nome) = 'REP_ADMIN'
+        """), {"uid": cid}).scalar()) or (current_u.get("ruolo") == "admin")
+
+        if not is_rep_admin:
+            err = "Solo un utente Rep_Admin o un amministratore può sbloccare o bloccare le modifiche del mese."
+            params = urllib.parse.urlencode({"anno": anno, "mese": mese, "reparto_id": reparto_id, "error": err})
+            return RedirectResponse(url=f"/reperibilita?{params}", status_code=303)
+
+        lock_row = c.execute(text("""
+            SELECT id, sbloccato FROM reperibilita_mesi_lock
+            WHERE reparto_id = :rid AND anno = :anno AND mese = :mese
+        """), {"rid": reparto_id, "anno": anno, "mese": mese}).mappings().first()
+
+        now_str = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+        if lock_row:
+            current_sbloccato = lock_row["sbloccato"] or 0
+            new_sbloccato = 0 if current_sbloccato == 1 else 1
+            c.execute(text("""
+                UPDATE reperibilita_mesi_lock
+                SET sbloccato = :s, modificato_da = :uid, aggiornato_il = :now
+                WHERE id = :id
+            """), {"s": new_sbloccato, "uid": cid, "now": now_str, "id": lock_row["id"]})
+        else:
+            # Default era locked (0), quindi al toggle viene sbloccato (1)
+            new_sbloccato = 1
+            c.execute(text("""
+                INSERT INTO reperibilita_mesi_lock (reparto_id, anno, mese, sbloccato, modificato_da, aggiornato_il)
+                VALUES (:rid, :anno, :mese, :s, :uid, :now)
+            """), {"rid": reparto_id, "anno": anno, "mese": mese, "s": new_sbloccato, "uid": cid, "now": now_str})
+
+    if new_sbloccato == 1:
+        msg = "Mese sbloccato: gli operatori reperibili possono ora gestire i propri turni."
+    else:
+        msg = "Mese bloccato in sola lettura: solo gli utenti Rep_Admin possono modificare i turni."
+
+    params = urllib.parse.urlencode({"anno": anno, "mese": mese, "reparto_id": reparto_id, "msg": msg})
+    return RedirectResponse(url=f"/reperibilita?{params}", status_code=303)
 
 @router.post("/reperibilita/assegna")
 def reperibilita_assegna(
@@ -1160,15 +1227,41 @@ def reperibilita_assegna(
     if "user" not in r.session: return RedirectResponse(url="/login")
     current_u = r.session.get("user")
     cid = current_u.get("id")
-    is_mgr = current_u.get("ruolo") in ("admin", "responsabile")
-
-    if user_id != cid and not is_mgr:
-        err = "Non hai i permessi per assegnare altri operatori."
-        params = urllib.parse.urlencode({"anno": redirect_anno, "mese": redirect_mese, "reparto_id": reparto_id, "error": err})
-        return RedirectResponse(url=f"/reperibilita?{params}", status_code=303)
 
     with engine.begin() as c:
-        # Verifica che l'utente abbia il tag 'Reperibile'
+        is_rep_admin = bool(c.execute(text("""
+            SELECT 1 FROM operatori_tag ot
+            JOIN tag_operatori t ON ot.tag_id = t.tag_id
+            WHERE ot.user_id = :uid AND UPPER(t.nome) = 'REP_ADMIN'
+        """), {"uid": cid}).scalar()) or (current_u.get("ruolo") == "admin")
+
+        # Verifica stato lock del mese: se locked, solo Rep_Admin o Admin possono assegnare turni
+        try:
+            d_obj = datetime.strptime(data, "%Y-%m-%d").date()
+            d_year = d_obj.year
+            d_month = d_obj.month
+        except Exception:
+            d_year = redirect_anno
+            d_month = redirect_mese
+
+        lock_row = c.execute(text("""
+            SELECT sbloccato FROM reperibilita_mesi_lock
+            WHERE reparto_id = :rid AND anno = :a AND mese = :m
+        """), {"rid": reparto_id, "a": d_year, "m": d_month}).mappings().first()
+        is_month_locked = not bool(lock_row and lock_row["sbloccato"] == 1)
+
+        if is_month_locked and not is_rep_admin:
+            err = "Il mese selezionato è in sola lettura. Solo un utente Rep_Admin o un amministratore può assegnare o modificare i turni."
+            params = urllib.parse.urlencode({"anno": redirect_anno, "mese": redirect_mese, "reparto_id": reparto_id, "error": err})
+            return RedirectResponse(url=f"/reperibilita?{params}", status_code=303)
+
+        # Solo chi ha il tag Rep_Admin o admin può assegnare altri operatori
+        if user_id != cid and not is_rep_admin:
+            err = "Solo l'utente con il tag Rep_Admin può assegnare turni ad altri reperibili."
+            params = urllib.parse.urlencode({"anno": redirect_anno, "mese": redirect_mese, "reparto_id": reparto_id, "error": err})
+            return RedirectResponse(url=f"/reperibilita?{params}", status_code=303)
+
+        # Verifica che l'utente assegnato abbia il tag 'Reperibile'
         is_rep_tag = c.execute(text("""
             SELECT 1 FROM operatori_tag ot
             JOIN tag_operatori t ON ot.tag_id = t.tag_id
@@ -1227,7 +1320,6 @@ def reperibilita_rimuovi(
     if "user" not in r.session: return RedirectResponse(url="/login")
     current_u = r.session.get("user")
     cid = current_u.get("id")
-    is_mgr = current_u.get("ruolo") in ("admin", "responsabile")
 
     with engine.begin() as c:
         ass_row = c.execute(text("SELECT * FROM reperibilita_assegnazioni WHERE id = :id"), {"id": assegnazione_id}).mappings().first()
@@ -1236,8 +1328,35 @@ def reperibilita_rimuovi(
             params = urllib.parse.urlencode({"anno": redirect_anno, "mese": redirect_mese, "reparto_id": reparto_id, "error": err})
             return RedirectResponse(url=f"/reperibilita?{params}", status_code=303)
 
-        if ass_row["user_id"] != cid and not is_mgr:
-            err = "Non hai i permessi per rimuovere questa assegnazione."
+        is_rep_admin = bool(c.execute(text("""
+            SELECT 1 FROM operatori_tag ot
+            JOIN tag_operatori t ON ot.tag_id = t.tag_id
+            WHERE ot.user_id = :uid AND UPPER(t.nome) = 'REP_ADMIN'
+        """), {"uid": cid}).scalar()) or (current_u.get("ruolo") == "admin")
+
+        # Verifica stato lock del mese: se locked, solo Rep_Admin o Admin possono rimuovere turni
+        try:
+            d_obj = datetime.strptime(ass_row["data"], "%Y-%m-%d").date()
+            d_year = d_obj.year
+            d_month = d_obj.month
+        except Exception:
+            d_year = redirect_anno
+            d_month = redirect_mese
+
+        lock_row = c.execute(text("""
+            SELECT sbloccato FROM reperibilita_mesi_lock
+            WHERE reparto_id = :rid AND anno = :a AND mese = :m
+        """), {"rid": reparto_id, "a": d_year, "m": d_month}).mappings().first()
+        is_month_locked = not bool(lock_row and lock_row["sbloccato"] == 1)
+
+        if is_month_locked and not is_rep_admin:
+            err = "Il mese selezionato è in sola lettura. Solo un utente Rep_Admin o un amministratore può modificare o rimuovere i turni."
+            params = urllib.parse.urlencode({"anno": redirect_anno, "mese": redirect_mese, "reparto_id": reparto_id, "error": err})
+            return RedirectResponse(url=f"/reperibilita?{params}", status_code=303)
+
+        # Solo l'utente stesso (togliersi dal turno) o chi ha Rep_Admin / admin può rimuovere l'assegnazione
+        if ass_row["user_id"] != cid and not is_rep_admin:
+            err = "Solo l'utente con il tag Rep_Admin può rimuovere le assegnazioni di altri operatori."
             params = urllib.parse.urlencode({"anno": redirect_anno, "mese": redirect_mese, "reparto_id": reparto_id, "error": err})
             return RedirectResponse(url=f"/reperibilita?{params}", status_code=303)
 
@@ -1246,4 +1365,5 @@ def reperibilita_rimuovi(
     msg = "Turno di reperibilità rimosso con successo."
     params = urllib.parse.urlencode({"anno": redirect_anno, "mese": redirect_mese, "reparto_id": reparto_id, "msg": msg})
     return RedirectResponse(url=f"/reperibilita?{params}", status_code=303)
+
 
