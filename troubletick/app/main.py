@@ -1321,9 +1321,8 @@ def home(r: Request):
               a.creato_il DESC
         """), {"now": now}).mappings().all()
         
-        reperibilita_attiva = get_active_reperibilita(c)
-
         if not user:
+            reperibilita_attiva = get_active_reperibilita(c)
             return templates.TemplateResponse(r, "home.html", {
                 "request": r, "cfg": CFG, "avvisi": avvisi, "user": user,
                 "reperibilita_attiva": reperibilita_attiva
@@ -1358,8 +1357,7 @@ def home(r: Request):
                 "avvisi": avvisi, 
                 "user": user, 
                 "stats": stats,
-                "db_occupancy": db_occupancy,
-                "reperibilita_attiva": reperibilita_attiva
+                "db_occupancy": db_occupancy
             })
             
         elif ruolo == "magazziniere":
@@ -1386,8 +1384,7 @@ def home(r: Request):
                 "reparto_services": reparto_services
             }
             return templates.TemplateResponse(r, "home_responsabile.html", {
-                "request": r, "cfg": CFG, "avvisi": avvisi, "user": user, "stats": stats,
-                "reperibilita_attiva": reperibilita_attiva
+                "request": r, "cfg": CFG, "avvisi": avvisi, "user": user, "stats": stats
             })
             
         elif ruolo in ("assistenza", "amministrativo"):
@@ -1451,8 +1448,7 @@ def home(r: Request):
             stats["all_sedi"] = all_sedi
 
             return templates.TemplateResponse(r, "home_assistenza.html", {
-                "request": r, "cfg": CFG, "avvisi": avvisi, "user": user, "stats": stats,
-                "reperibilita_attiva": reperibilita_attiva
+                "request": r, "cfg": CFG, "avvisi": avvisi, "user": user, "stats": stats
             })
             
         elif ruolo in ("fleet_manager", "global_fleet_manager"):
@@ -1761,8 +1757,7 @@ def home(r: Request):
                 "carpooling_warning": carpooling_warning
             }
             return templates.TemplateResponse(r, "home_fleet_manager.html", {
-                "request": r, "cfg": CFG, "avvisi": avvisi, "user": user, "stats": stats,
-                "reperibilita_attiva": reperibilita_attiva
+                "request": r, "cfg": CFG, "avvisi": avvisi, "user": user, "stats": stats
             })
             
         else: # normale
@@ -1816,8 +1811,7 @@ def home(r: Request):
                 "all_sedi": all_sedi
             }
             return templates.TemplateResponse(r, "home_normale.html", {
-                "request": r, "cfg": CFG, "avvisi": avvisi, "user": user, "stats": stats,
-                "reperibilita_attiva": reperibilita_attiva
+                "request": r, "cfg": CFG, "avvisi": avvisi, "user": user, "stats": stats
             })
 
 @app.get("/new", response_class=HTMLResponse)
