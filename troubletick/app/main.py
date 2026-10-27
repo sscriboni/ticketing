@@ -84,6 +84,18 @@ try:
             durata_ore REAL NOT NULL,
             FOREIGN KEY(reparto_id) REFERENCES reparti(reparto_id) ON DELETE CASCADE
         )"""))
+        c.execute(text(f"""CREATE TABLE IF NOT EXISTS reperibilita_assegnazioni (
+            id {DB_PK},
+            reparto_id INTEGER NOT NULL,
+            data TEXT NOT NULL,
+            tipo_giorno TEXT NOT NULL,
+            ordine_turno INTEGER NOT NULL,
+            durata_ore REAL DEFAULT 0,
+            user_id INTEGER NOT NULL,
+            creato_il TEXT DEFAULT CURRENT_TIMESTAMP,
+            FOREIGN KEY(reparto_id) REFERENCES reparti(reparto_id) ON DELETE CASCADE,
+            FOREIGN KEY(user_id) REFERENCES users(user_id) ON DELETE CASCADE
+        )"""))
         c.execute(text(f"""CREATE TABLE IF NOT EXISTS servizi (
             servizio_id {DB_PK},
             descrizione TEXT NOT NULL,
@@ -632,7 +644,9 @@ try:
             ("idx_op_serv_servizio", "operatori_servizi", "(servizio_id)"),
             ("idx_op_mag_user_mag", "operatori_magazzini", "(user_id, magazzino_id)"),
             ("idx_op_tag_user_tag", "operatori_tag", "(user_id, tag_id)"),
-            ("idx_avvisi_attivo_date", "avvisi", "(attivo, data_inizio, data_fine)")
+            ("idx_avvisi_attivo_date", "avvisi", "(attivo, data_inizio, data_fine)"),
+            ("idx_rep_ass_data", "reperibilita_assegnazioni", "(data)"),
+            ("idx_rep_ass_rep_user", "reperibilita_assegnazioni", "(reparto_id, user_id)")
         ]
 
         for idx_name, table_name, cols in indexes_to_create:

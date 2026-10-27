@@ -806,3 +806,444 @@ def servizi_assegnati(r: Request):
         "servizi": services_list,
         "reparto_nome": reparto_nome
     })
+
+# =========================================================================
+# GESTIONE REPERIBILITÀ H24 (CALENDARIO & ASSEGNAZIONE TURNI)
+# =========================================================================
+
+def format_time_add(start_str: str, duration_hours: float):
+    try:
+        parts = (start_str or "18:00").split(":")
+        h = int(parts[0])
+        m = int(parts[1]) if len(parts) > 1 else 0
+    except Exception:
+        h, m = 18, 0
+    total_start_min = h * 60 + m
+    dur_min = int(round(float(duration_hours or 0) * 60))
+    total_end_min = total_start_min + dur_min
+
+    end_days = total_end_min // 1440
+    rem_min = total_end_min % 1440
+    end_h = rem_min // 60
+    end_m = rem_min % 60
+
+    start_disp = f"{h:02d}:{m:02d}"
+    end_disp = f"{end_h:02d}:{end_m:02d}"
+    if end_days > 0:
+        end_disp += f" (+{end_days}g)"
+    return start_disp, end_disp
+
+def calc_turni_slots(start_time_str, turni_raw, default_durata=6.0):
+    slots = []
+    if not turni_raw:
+        s_disp, e_disp = format_time_add(start_time_str or "18:00", default_durata)
+        slots.append({
+            "ordine_turno": 1,
+            "durata_ore": default_durata,
+            "badge_orario": f"{s_disp} - {e_disp}",
+            "label": f"Turno 1 ({s_disp} - {e_disp})"
+        })
+        return slots
+
+    curr_start = start_time_str or "18:00"
+    for t in turni_raw:
+        dur = float(t["durata_ore"] if t["durata_ore"] is not None else default_durata)
+        s_disp, e_disp = format_time_add(curr_start, dur)
+        slots.append({
+            "ordine_turno": t["ordine_turno"],
+            "durata_ore": dur,
+            "badge_orario": f"{s_disp} - {e_disp}",
+            "label": f"Turno {t['ordine_turno']} ({s_disp} - {e_disp})"
+        })
+        curr_start = e_disp.split(" ")[0]
+    return slots
+
+@router.get("/reperibilita", response_class=HTMLResponse)
+def reperibilita_calendario(
+    r: Request, 
+    mese: int = None, 
+    anno: int = None, 
+    reparto_id: int = None,
+    msg: str = None,
+    error: str = None
+):
+    if not CFG.get('modulo_presenze', True):
+        return RedirectResponse(url="/")
+    if "user" not in r.session:
+        return RedirectResponse(url="/login")
+    user = r.session.get("user")
+    uid = user.get("id")
+
+    today = date.today()
+    if mese is None:
+        mese = today.month
+    if anno is None:
+        anno = today.year
+    if mese < 1: mese = 1
+    elif mese > 12: mese = 12
+    if anno < 2000 or anno > 2100: anno = today.year
+
+    _, num_days = calendar.monthrange(anno, mese)
+    first_day_of_month = date(anno, mese, 1)
+    last_day_of_month = date(anno, mese, num_days)
+
+    if mese == 1:
+        prev_mese, prev_anno = 12, anno - 1
+    else:
+        prev_mese, prev_anno = mese - 1, anno
+
+    if mese == 12:
+        next_mese, next_anno = 1, anno + 1
+    else:
+        next_mese, next_anno = mese + 1, anno
+
+    months_it = {
+        1: "Gennaio", 2: "Febbraio", 3: "Marzo", 4: "Aprile",
+        5: "Maggio", 6: "Giugno", 7: "Luglio", 8: "Agosto",
+        9: "Settembre", 10: "Ottobre", 11: "Novembre", 12: "Dicembre"
+    }
+    nome_mese = months_it.get(mese, "")
+
+    with engine.connect() as c:
+        # Reparti con reperibilita_h24 = 1
+        reparti_rep = c.execute(text("""
+            SELECT reparto_id, nome, reperibilita_orario_inizio, reperibilita_festivo_inizio
+            FROM reparti
+            WHERE reperibilita_h24 = 1
+            ORDER BY nome
+        """)).mappings().all()
+
+        if not reparti_rep:
+            return templates.TemplateResponse(r, "reperibilita.html", {
+                "request": r, "cfg": CFG, "user": user,
+                "reparti_rep": [], "sel_reparto": None,
+                "weeks": [], "summary_list": [],
+                "mese": mese, "anno": anno, "nome_mese": nome_mese,
+                "prev_mese": prev_mese, "prev_anno": prev_anno,
+                "next_mese": next_mese, "next_anno": next_anno,
+                "user_is_reperibile": False, "can_manage": False,
+                "tot_feriali": 0, "tot_festivi": 0, "tot_turni": 0, "tot_ore": 0,
+                "msg": msg, "error": "Nessun reparto ha attualmente la Reperibilità h24 abilitata. È possibile abilitarla nell'Anagrafica Reparti."
+            })
+
+        rep_ids = [rp["reparto_id"] for rp in reparti_rep]
+        if reparto_id and reparto_id in rep_ids:
+            sel_reparto_id = reparto_id
+        elif user.get("reparto_id") in rep_ids:
+            sel_reparto_id = user.get("reparto_id")
+        else:
+            sel_reparto_id = rep_ids[0]
+
+        sel_reparto = next(rp for rp in reparti_rep if rp["reparto_id"] == sel_reparto_id)
+
+        # Turni definiti per il reparto selezionato
+        turni_feriali_raw = c.execute(text("""
+            SELECT * FROM reparti_reperibilita_turni
+            WHERE reparto_id = :rid AND tipo_giorno = 'feriale'
+            ORDER BY ordine_turno
+        """), {"rid": sel_reparto_id}).mappings().all()
+
+        turni_festivi_raw = c.execute(text("""
+            SELECT * FROM reparti_reperibilita_turni
+            WHERE reparto_id = :rid AND tipo_giorno = 'festivo'
+            ORDER BY ordine_turno
+        """), {"rid": sel_reparto_id}).mappings().all()
+
+        slots_feriali = calc_turni_slots(sel_reparto["reperibilita_orario_inizio"] or "18:00", turni_feriali_raw, default_durata=6.0)
+        slots_festivi = calc_turni_slots(sel_reparto["reperibilita_festivo_inizio"] or "08:00", turni_festivi_raw, default_durata=12.0)
+
+        # Festività del mese
+        festivita_rows = c.execute(text("""
+            SELECT data, descrizione, comune_id FROM festivita
+            WHERE data >= :start AND data <= :end
+        """), {"start": first_day_of_month.isoformat(), "end": last_day_of_month.isoformat()}).mappings().all()
+        festivita_map = {f["data"]: f["descrizione"] for f in festivita_rows}
+
+        # Operatori attivi con tag 'Reperibile'
+        reperibili_raw = c.execute(text("""
+            SELECT DISTINCT u.user_id, u.nome, u.cognome, u.username, u.email, u.reparto_id, r.nome as reparto_nome
+            FROM users u
+            JOIN operatori_tag ot ON u.user_id = ot.user_id
+            JOIN tag_operatori t ON ot.tag_id = t.tag_id
+            LEFT JOIN reparti r ON u.reparto_id = r.reparto_id
+            WHERE LOWER(t.nome) = 'reperibile' AND u.attivo = 1
+              AND (u.reparto_id = :rid OR :is_admin = 1)
+            ORDER BY u.cognome, u.nome
+        """), {"rid": sel_reparto_id, "is_admin": 1 if user.get("ruolo") == "admin" else 0}).mappings().all()
+
+        reperibili_list = [dict(r_op) for r_op in reperibili_raw]
+        rep_uids = {r_op["user_id"] for r_op in reperibili_list}
+
+        user_is_reperibile = (uid in rep_uids) or bool(c.execute(text("""
+            SELECT 1 FROM operatori_tag ot
+            JOIN tag_operatori t ON ot.tag_id = t.tag_id
+            WHERE ot.user_id = :uid AND LOWER(t.nome) = 'reperibile'
+        """), {"uid": uid}).scalar())
+        can_manage = user.get("ruolo") in ("admin", "responsabile")
+
+        # Assenze registrate nel mese (per verificare chi è presente nei giorni)
+        assenze_rows = c.execute(text("""
+            SELECT user_id, data_inizio, data_fine, motivo
+            FROM assenze
+            WHERE data_inizio <= :end AND data_fine >= :start
+        """), {"start": first_day_of_month.isoformat(), "end": last_day_of_month.isoformat()}).mappings().all()
+
+        absent_map = {}
+        for a in assenze_rows:
+            auid = a["user_id"]
+            try:
+                a_start = datetime.strptime(a["data_inizio"], "%Y-%m-%d").date()
+                a_end = datetime.strptime(a["data_fine"], "%Y-%m-%d").date()
+            except Exception:
+                continue
+            cur = max(first_day_of_month, a_start)
+            end_limit = min(last_day_of_month, a_end)
+            while cur <= end_limit:
+                absent_map[(auid, cur.isoformat())] = a["motivo"] or "Assenza"
+                cur += timedelta(days=1)
+
+        # Assegnazioni esistenti per il reparto nel mese
+        assegnazioni_raw = c.execute(text("""
+            SELECT ra.*, u.nome, u.cognome, u.username
+            FROM reperibilita_assegnazioni ra
+            JOIN users u ON ra.user_id = u.user_id
+            WHERE ra.reparto_id = :rid AND ra.data >= :start AND ra.data <= :end
+            ORDER BY ra.data, ra.ordine_turno, u.cognome, u.nome
+        """), {"rid": sel_reparto_id, "start": first_day_of_month.isoformat(), "end": last_day_of_month.isoformat()}).mappings().all()
+
+        assignments_by_day_turno = {}
+        for ass in assegnazioni_raw:
+            key = (ass["data"], ass["ordine_turno"])
+            if key not in assignments_by_day_turno:
+                assignments_by_day_turno[key] = []
+            assignments_by_day_turno[key].append(dict(ass))
+
+        # Strutturazione settimane e giorni
+        cal = calendar.Calendar(firstweekday=0)
+        weeks_dates = cal.monthdatescalendar(anno, mese)
+        weeks = []
+
+        for w in weeks_dates:
+            week_days = []
+            for d in w:
+                d_str = d.isoformat()
+                is_curr_m = (d.month == mese)
+                is_today = (d == today)
+                is_weekend = d.weekday() in (5, 6)
+                holiday_desc = festivita_map.get(d_str)
+                is_festivo = is_weekend or bool(holiday_desc)
+                tipo_giorno = "festivo" if is_festivo else "feriale"
+
+                day_slots = slots_festivi if is_festivo else slots_feriali
+                turni_day = []
+
+                for sl in day_slots:
+                    ord_t = sl["ordine_turno"]
+                    assigned_users = assignments_by_day_turno.get((d_str, ord_t), [])
+
+                    curr_user_assigned = any(au["user_id"] == uid for au in assigned_users)
+                    curr_user_assigned_id = next((au["id"] for au in assigned_users if au["user_id"] == uid), None)
+                    curr_user_absent_reason = absent_map.get((uid, d_str))
+
+                    # Operatori disponibili (con tag 'Reperibile' e non assenti in questa data)
+                    available_ops = []
+                    for op in reperibili_list:
+                        op_uid = op["user_id"]
+                        is_already = any(au["user_id"] == op_uid for au in assigned_users)
+                        if not is_already:
+                            abs_reason = absent_map.get((op_uid, d_str))
+                            if not abs_reason:
+                                available_ops.append(op)
+
+                    turni_day.append({
+                        "ordine_turno": ord_t,
+                        "durata_ore": sl["durata_ore"],
+                        "badge_orario": sl["badge_orario"],
+                        "label": sl["label"],
+                        "assegnati": assigned_users,
+                        "curr_user_assigned": curr_user_assigned,
+                        "curr_user_assigned_id": curr_user_assigned_id,
+                        "curr_user_absent": bool(curr_user_absent_reason),
+                        "curr_user_absent_reason": curr_user_absent_reason,
+                        "available_ops": available_ops
+                    })
+
+                week_days.append({
+                    "date": d,
+                    "date_str": d_str,
+                    "day_num": d.day,
+                    "is_current_month": is_curr_m,
+                    "is_today": is_today,
+                    "is_weekend": is_weekend,
+                    "is_festivo": is_festivo,
+                    "holiday_desc": holiday_desc,
+                    "tipo_giorno": tipo_giorno,
+                    "turni": turni_day
+                })
+            weeks.append(week_days)
+
+        # Riepilogo mensile dei reperibili a fondo pagina
+        user_counts = {}
+        for ass in assegnazioni_raw:
+            auid = ass["user_id"]
+            if auid not in user_counts:
+                user_counts[auid] = {
+                    "user_id": auid,
+                    "nome_completo": f"{ass['nome']} {ass['cognome']}".strip() or ass['username'],
+                    "username": ass["username"],
+                    "feriali": 0,
+                    "festivi": 0,
+                    "ore": 0.0
+                }
+            if ass["tipo_giorno"] == "festivo":
+                user_counts[auid]["festivi"] += 1
+            else:
+                user_counts[auid]["feriali"] += 1
+            user_counts[auid]["ore"] += float(ass.get("durata_ore") or 0.0)
+
+        summary_list = []
+        for op in reperibili_list:
+            op_uid = op["user_id"]
+            if op_uid in user_counts:
+                summary_list.append(user_counts[op_uid])
+            else:
+                summary_list.append({
+                    "user_id": op_uid,
+                    "nome_completo": f"{op['nome']} {op['cognome']}".strip() or op['username'],
+                    "username": op["username"],
+                    "feriali": 0,
+                    "festivi": 0,
+                    "ore": 0.0
+                })
+
+        for auid, data_u in user_counts.items():
+            if not any(s["user_id"] == auid for s in summary_list):
+                summary_list.append(data_u)
+
+        summary_list.sort(key=lambda x: x["nome_completo"].lower())
+
+        tot_feriali = sum(s["feriali"] for s in summary_list)
+        tot_festivi = sum(s["festivi"] for s in summary_list)
+        tot_turni = tot_feriali + tot_festivi
+        tot_ore = sum(s["ore"] for s in summary_list)
+
+        return templates.TemplateResponse(r, "reperibilita.html", {
+            "request": r, "cfg": CFG, "user": user,
+            "reparti_rep": reparti_rep,
+            "sel_reparto": sel_reparto,
+            "weeks": weeks,
+            "summary_list": summary_list,
+            "mese": mese, "anno": anno, "nome_mese": nome_mese,
+            "prev_mese": prev_mese, "prev_anno": prev_anno,
+            "next_mese": next_mese, "next_anno": next_anno,
+            "user_is_reperibile": user_is_reperibile,
+            "can_manage": can_manage,
+            "tot_feriali": tot_feriali,
+            "tot_festivi": tot_festivi,
+            "tot_turni": tot_turni,
+            "tot_ore": tot_ore,
+            "msg": msg, "error": error
+        })
+
+@router.post("/reperibilita/assegna")
+def reperibilita_assegna(
+    r: Request,
+    reparto_id: int = Form(...),
+    data: str = Form(...),
+    tipo_giorno: str = Form(...),
+    ordine_turno: int = Form(...),
+    durata_ore: float = Form(0.0),
+    user_id: int = Form(...),
+    redirect_mese: int = Form(...),
+    redirect_anno: int = Form(...)
+):
+    if "user" not in r.session: return RedirectResponse(url="/login")
+    current_u = r.session.get("user")
+    cid = current_u.get("id")
+    is_mgr = current_u.get("ruolo") in ("admin", "responsabile")
+
+    if user_id != cid and not is_mgr:
+        err = "Non hai i permessi per assegnare altri operatori."
+        params = urllib.parse.urlencode({"anno": redirect_anno, "mese": redirect_mese, "reparto_id": reparto_id, "error": err})
+        return RedirectResponse(url=f"/reperibilita?{params}", status_code=303)
+
+    with engine.begin() as c:
+        # Verifica che l'utente abbia il tag 'Reperibile'
+        is_rep_tag = c.execute(text("""
+            SELECT 1 FROM operatori_tag ot
+            JOIN tag_operatori t ON ot.tag_id = t.tag_id
+            WHERE ot.user_id = :uid AND LOWER(t.nome) = 'reperibile'
+        """), {"uid": user_id}).scalar()
+        if not is_rep_tag:
+            err = "L'operatore selezionato non possiede il tag 'Reperibile'."
+            params = urllib.parse.urlencode({"anno": redirect_anno, "mese": redirect_mese, "reparto_id": reparto_id, "error": err})
+            return RedirectResponse(url=f"/reperibilita?{params}", status_code=303)
+
+        # Verifica presenza: l'operatore non deve avere assenze registrate in tale data
+        absent_motivo = c.execute(text("""
+            SELECT motivo FROM assenze
+            WHERE user_id = :uid AND data_inizio <= :d AND data_fine >= :d
+            LIMIT 1
+        """), {"uid": user_id, "d": data}).scalar()
+        if absent_motivo:
+            err = f"L'operatore risulta assente in data {data} ({absent_motivo}). I turni possono essere selezionati solo nei giorni di presenza."
+            params = urllib.parse.urlencode({"anno": redirect_anno, "mese": redirect_mese, "reparto_id": reparto_id, "error": err})
+            return RedirectResponse(url=f"/reperibilita?{params}", status_code=303)
+
+        # Verifica se già assegnato allo stesso turno
+        already = c.execute(text("""
+            SELECT id FROM reperibilita_assegnazioni
+            WHERE reparto_id = :rid AND data = :d AND ordine_turno = :ord AND user_id = :uid
+        """), {"rid": reparto_id, "d": data, "ord": ordine_turno, "uid": user_id}).scalar()
+        if already:
+            err = "L'operatore è già assegnato a questo turno."
+            params = urllib.parse.urlencode({"anno": redirect_anno, "mese": redirect_mese, "reparto_id": reparto_id, "error": err})
+            return RedirectResponse(url=f"/reperibilita?{params}", status_code=303)
+
+        c.execute(text("""
+            INSERT INTO reperibilita_assegnazioni (reparto_id, data, tipo_giorno, ordine_turno, durata_ore, user_id)
+            VALUES (:rid, :d, :tipo, :ord, :dur, :uid)
+        """), {
+            "rid": reparto_id,
+            "d": data,
+            "tipo": tipo_giorno,
+            "ord": ordine_turno,
+            "dur": durata_ore,
+            "uid": user_id
+        })
+
+    msg = "Turno di reperibilità assegnato con successo."
+    params = urllib.parse.urlencode({"anno": redirect_anno, "mese": redirect_mese, "reparto_id": reparto_id, "msg": msg})
+    return RedirectResponse(url=f"/reperibilita?{params}", status_code=303)
+
+@router.post("/reperibilita/rimuovi")
+def reperibilita_rimuovi(
+    r: Request,
+    assegnazione_id: int = Form(...),
+    reparto_id: int = Form(...),
+    redirect_mese: int = Form(...),
+    redirect_anno: int = Form(...)
+):
+    if "user" not in r.session: return RedirectResponse(url="/login")
+    current_u = r.session.get("user")
+    cid = current_u.get("id")
+    is_mgr = current_u.get("ruolo") in ("admin", "responsabile")
+
+    with engine.begin() as c:
+        ass_row = c.execute(text("SELECT * FROM reperibilita_assegnazioni WHERE id = :id"), {"id": assegnazione_id}).mappings().first()
+        if not ass_row:
+            err = "Assegnazione non trovata."
+            params = urllib.parse.urlencode({"anno": redirect_anno, "mese": redirect_mese, "reparto_id": reparto_id, "error": err})
+            return RedirectResponse(url=f"/reperibilita?{params}", status_code=303)
+
+        if ass_row["user_id"] != cid and not is_mgr:
+            err = "Non hai i permessi per rimuovere questa assegnazione."
+            params = urllib.parse.urlencode({"anno": redirect_anno, "mese": redirect_mese, "reparto_id": reparto_id, "error": err})
+            return RedirectResponse(url=f"/reperibilita?{params}", status_code=303)
+
+        c.execute(text("DELETE FROM reperibilita_assegnazioni WHERE id = :id"), {"id": assegnazione_id})
+
+    msg = "Turno di reperibilità rimosso con successo."
+    params = urllib.parse.urlencode({"anno": redirect_anno, "mese": redirect_mese, "reparto_id": reparto_id, "msg": msg})
+    return RedirectResponse(url=f"/reperibilita?{params}", status_code=303)
+
