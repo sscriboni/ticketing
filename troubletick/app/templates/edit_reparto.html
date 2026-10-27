@@ -75,12 +75,13 @@
   function addTurnoRow(tipo, defaultDurata = 6) {
     const container = document.getElementById(tipo + '_turni_container');
     if (!container) return;
+    const currentCount = container.querySelectorAll('.shift-row').length;
     const row = document.createElement('div');
     row.className = 'shift-row card p-2 mb-2 bg-white border shadow-xs';
     row.dataset.tipo = tipo;
     row.innerHTML = `
       <div class="d-flex align-items-center justify-content-between gap-2 flex-wrap">
-        <span class="small fw-bold shift-label">Turno:</span>
+        <span class="small fw-bold shift-label">Turno ${currentCount + 1}:</span>
         <div class="input-group input-group-sm" style="max-width: 140px;">
           <input type="number" step="0.5" min="0.5" max="24" name="${tipo}_turni_durata" class="form-control shift-duration" value="${defaultDurata}" required>
           <span class="input-group-text">ore</span>
@@ -89,7 +90,10 @@
         <button type="button" class="btn btn-outline-danger btn-sm py-0 px-2 btn-remove-shift" title="Rimuovi turno">&times;</button>
       </div>
     `;
-    row.querySelector('.shift-duration').addEventListener('input', () => recalcTurni(tipo));
+    const durInput = row.querySelector('.shift-duration');
+    durInput.addEventListener('input', () => recalcTurni(tipo));
+    durInput.addEventListener('change', () => recalcTurni(tipo));
+
     row.querySelector('.btn-remove-shift').addEventListener('click', () => {
       row.remove();
       recalcTurni(tipo);
@@ -116,9 +120,14 @@
       const label = row.querySelector('.shift-label');
       const durInput = row.querySelector('.shift-duration');
       const badge = row.querySelector('.shift-time-badge');
-      const durHours = parseFloat(durInput.value) || 0;
+      if (!durInput) return;
 
-      label.textContent = `Turno ${index + 1}:`;
+      const durValStr = (durInput.value || '').toString().replace(',', '.');
+      const durHours = parseFloat(durValStr) || 0;
+
+      if (label) {
+        label.textContent = `Turno ${index + 1}:`;
+      }
 
       const startTotalMin = currentMinutes;
       const endTotalMin = currentMinutes + Math.round(durHours * 60);
@@ -135,8 +144,10 @@
 
       const sFormatted = formatTimeWithDay(startTotalMin);
       const eFormatted = formatTimeWithDay(endTotalMin);
-      badge.textContent = `${sFormatted} - ${eFormatted}`;
-      badge.className = 'badge bg-warning text-dark border border-warning-subtle';
+      if (badge) {
+        badge.textContent = `${sFormatted} - ${eFormatted}`;
+        badge.className = 'badge bg-warning text-dark border border-warning-subtle shift-time-badge';
+      }
     });
 
     if (summaryEl) {
@@ -197,7 +208,15 @@
     });
   }
 
-  document.getElementById('feriale_inizio')?.addEventListener('change', () => recalcTurni('feriale'));
-  document.getElementById('festivo_inizio')?.addEventListener('change', () => recalcTurni('festivo'));
+  const ferialeInizioEl = document.getElementById('feriale_inizio');
+  if (ferialeInizioEl) {
+    ferialeInizioEl.addEventListener('input', () => recalcTurni('feriale'));
+    ferialeInizioEl.addEventListener('change', () => recalcTurni('feriale'));
+  }
+  const festivoInizioEl = document.getElementById('festivo_inizio');
+  if (festivoInizioEl) {
+    festivoInizioEl.addEventListener('input', () => recalcTurni('festivo'));
+    festivoInizioEl.addEventListener('change', () => recalcTurni('festivo'));
+  }
 </script>
 </body></html>
