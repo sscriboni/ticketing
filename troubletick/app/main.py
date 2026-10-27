@@ -1248,7 +1248,7 @@ def get_active_reperibilita(conn, current_dt: datetime = None) -> list:
     """
     Restituisce la lista dei reparti con Reperibilità h24 attualmente attiva
     in base alle fasce dei turni feriali e festivi configurati nel reparto,
-    con i relativi servizi coperti (servizi con reperibilita_h24 = 1).
+    con i relativi servizi coperti e i reperibili di turno (nome, telefono, fascia oraria).
     """
     if current_dt is None:
         current_dt = datetime.now()
@@ -1288,6 +1288,11 @@ def get_active_reperibilita(conn, current_dt: datetime = None) -> list:
         festivi_turni = [t for t in turni_rows if t["tipo_giorno"] == "festivo"]
 
         is_active = False
+        active_session_date = today_date
+        active_session_start_dt = None
+        active_session_is_festivo = today_is_festivo
+        active_session_turni = []
+        active_session_start_str = ""
 
         # Verifica Finestra 1: Turni partiti OGGI
         start_time_str = (r["reperibilita_festivo_inizio"] or "08:00") if today_is_festivo else (r["reperibilita_orario_inizio"] or "18:00")
@@ -1304,27 +1309,58 @@ def get_active_reperibilita(conn, current_dt: datetime = None) -> list:
             end_dt = start_dt + timedelta(hours=total_durata)
             if start_dt <= current_dt < end_dt:
                 is_active = True
+                active_session_date = today_date
+                active_session_start_dt = start_dt
+                active_session_is_festivo = today_is_festivo
+                active_session_turni = active_turni
+                active_session_start_str = start_time_str
         else:
             # Fallback se nessun turno è ancora configurato
             if today_is_festivo:
                 is_active = True
+                active_session_date = today_date
+                active_session_start_dt = start_dt
+                active_session_is_festivo = today_is_festivo
+                active_session_turni = []
+                active_session_start_str = start_time_str
             elif current_dt >= start_dt:
                 is_active = True
+                active_session_date = today_date
+                active_session_start_dt = start_dt
+                active_session_is_festivo = today_is_festivo
+                active_session_turni = []
+                active_session_start_str = start_time_str
 
         # Verifica Finestra 2: Turni partiti IERI (che possono coprire dopo la mezzanotte fino a stamattina)
         if not is_active:
             y_start_time_str = (r["reperibilita_festivo_inizio"] or "08:00") if yesterday_is_festivo else (r["reperibilita_orario_inizio"] or "18:00")
             y_active_turni = festivi_turni if yesterday_is_festivo else feriali_turni
+            try:
+                yh, ym = map(int, (y_start_time_str or "18:00").split(":")[:2])
+            except Exception:
+                yh, ym = (8, 0) if yesterday_is_festivo else (18, 0)
+            y_start_dt = datetime(yesterday_date.year, yesterday_date.month, yesterday_date.day, yh, ym)
+
             if y_active_turni:
-                try:
-                    yh, ym = map(int, (y_start_time_str or "18:00").split(":")[:2])
-                except Exception:
-                    yh, ym = (8, 0) if yesterday_is_festivo else (18, 0)
-                y_start_dt = datetime(yesterday_date.year, yesterday_date.month, yesterday_date.day, yh, ym)
                 y_total_durata = sum(float(t["durata_ore"]) for t in y_active_turni if t["durata_ore"] is not None)
                 y_end_dt = y_start_dt + timedelta(hours=y_total_durata)
                 if y_start_dt <= current_dt < y_end_dt:
                     is_active = True
+                    active_session_date = yesterday_date
+                    active_session_start_dt = y_start_dt
+                    active_session_is_festivo = yesterday_is_festivo
+                    active_session_turni = y_active_turni
+                    active_session_start_str = y_start_time_str
+            else:
+                y_dur = 24.0 if yesterday_is_festivo else 14.0
+                y_end_dt = y_start_dt + timedelta(hours=y_dur)
+                if y_start_dt <= current_dt < y_end_dt:
+                    is_active = True
+                    active_session_date = yesterday_date
+                    active_session_start_dt = y_start_dt
+                    active_session_is_festivo = yesterday_is_festivo
+                    active_session_turni = []
+                    active_session_start_str = y_start_time_str
 
         if is_active:
             servizi_rep = conn.execute(text("""
@@ -1334,15 +1370,105 @@ def get_active_reperibilita(conn, current_dt: datetime = None) -> list:
                 ORDER BY descrizione
             """), {"rid": rid}).mappings().all()
 
+            turni_dettaglio = []
+            reperibili_in_servizio = []
+
+            if active_session_turni:
+                cur_t_start = active_session_start_dt
+                for t_cfg in active_session_turni:
+                    ord_t = t_cfg["ordine_turno"]
+                    dur = float(t_cfg["durata_ore"] or 6.0)
+                    t_end = cur_t_start + timedelta(hours=dur)
+                    is_current_shift = (cur_t_start <= current_dt < t_end)
+
+                    s_str = cur_t_start.strftime("%H:%M")
+                    e_str = t_end.strftime("%H:%M")
+                    days_diff = (t_end.date() - cur_t_start.date()).days
+                    fascia_disp = f"{s_str} - {e_str}" if days_diff == 0 else f"{s_str} - {e_str} (+{days_diff}g)"
+
+                    # Recupera operatori assegnati a questo turno
+                    ops_raw = conn.execute(text("""
+                        SELECT u.user_id, u.nome, u.cognome, u.telefono, u.email, u.username
+                        FROM reperibilita_assegnazioni ra
+                        JOIN users u ON ra.user_id = u.user_id
+                        WHERE ra.reparto_id = :rid 
+                          AND ra.data = :d 
+                          AND ra.ordine_turno = :ord
+                        ORDER BY u.cognome, u.nome
+                    """), {"rid": rid, "d": active_session_date.isoformat(), "ord": ord_t}).mappings().all()
+
+                    ops_list = []
+                    for op in ops_raw:
+                        op_dict = {
+                            "user_id": op["user_id"],
+                            "nome": op["nome"],
+                            "cognome": op["cognome"],
+                            "nome_completo": f"{op['nome'] or ''} {op['cognome'] or ''}".strip() or op["username"],
+                            "telefono": (op["telefono"] or "").strip(),
+                            "email": (op["email"] or "").strip(),
+                            "fascia_oraria": fascia_disp,
+                            "ordine_turno": ord_t,
+                            "is_in_servizio_adesso": is_current_shift
+                        }
+                        ops_list.append(op_dict)
+                        if is_current_shift:
+                            reperibili_in_servizio.append(op_dict)
+
+                    turni_dettaglio.append({
+                        "ordine_turno": ord_t,
+                        "durata_ore": dur,
+                        "fascia_oraria": fascia_disp,
+                        "is_current_shift": is_current_shift,
+                        "operatori": ops_list
+                    })
+                    cur_t_start = t_end
+            else:
+                ops_raw = conn.execute(text("""
+                    SELECT u.user_id, u.nome, u.cognome, u.telefono, u.email, u.username, ra.ordine_turno
+                    FROM reperibilita_assegnazioni ra
+                    JOIN users u ON ra.user_id = u.user_id
+                    WHERE ra.reparto_id = :rid AND ra.data = :d
+                    ORDER BY ra.ordine_turno, u.cognome, u.nome
+                """), {"rid": rid, "d": active_session_date.isoformat()}).mappings().all()
+
+                fascia_disp = f"dalle {active_session_start_str or '18:00'}"
+                ops_list = []
+                for op in ops_raw:
+                    op_dict = {
+                        "user_id": op["user_id"],
+                        "nome": op["nome"],
+                        "cognome": op["cognome"],
+                        "nome_completo": f"{op['nome'] or ''} {op['cognome'] or ''}".strip() or op["username"],
+                        "telefono": (op["telefono"] or "").strip(),
+                        "email": (op["email"] or "").strip(),
+                        "fascia_oraria": fascia_disp,
+                        "ordine_turno": op.get("ordine_turno") or 1,
+                        "is_in_servizio_adesso": True
+                    }
+                    ops_list.append(op_dict)
+                    reperibili_in_servizio.append(op_dict)
+
+                turni_dettaglio.append({
+                    "ordine_turno": 1,
+                    "durata_ore": 12.0,
+                    "fascia_oraria": fascia_disp,
+                    "is_current_shift": True,
+                    "operatori": ops_list
+                })
+
             active_reparti.append({
                 "reparto_id": rid,
                 "reparto_nome": r["nome"],
-                "orario_inizio": start_time_str,
-                "is_festivo": today_is_festivo,
-                "servizi": [dict(s) for s in servizi_rep]
+                "orario_inizio": active_session_start_str,
+                "is_festivo": active_session_is_festivo,
+                "data_sessione": active_session_date.strftime("%d/%m/%Y"),
+                "servizi": [dict(s) for s in servizi_rep],
+                "turni": turni_dettaglio,
+                "reperibili_in_servizio": reperibili_in_servizio
             })
 
     return active_reparti
+
 
 @app.get("/", response_class=HTMLResponse)
 def home(r: Request):
