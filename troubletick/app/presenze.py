@@ -172,6 +172,42 @@ def nuova_assenza(r: Request, data_inizio: str = Form(...), data_fine: str = For
         error_msg = "Non è possibile inserire assenze nel passato."
         return RedirectResponse(url=f"/calendario?error={urllib.parse.quote(error_msg)}", status_code=303)
         
+    if data_fine < data_inizio:
+        error_msg = "La data di fine non può essere precedente alla data di inizio."
+        return RedirectResponse(url=f"/calendario?error={urllib.parse.quote(error_msg)}", status_code=303)
+
+    # Controllo turni reperibilità: blocca l'inserimento se l'operatore ha turni di reperibilità assegnati
+    with engine.connect() as c_check:
+        rep_turni = c_check.execute(text("""
+            SELECT ra.data, ra.ordine_turno, r.nome AS reparto_nome
+            FROM reperibilita_assegnazioni ra
+            LEFT JOIN reparti r ON ra.reparto_id = r.reparto_id
+            WHERE ra.user_id = :uid 
+              AND ra.data >= :di 
+              AND ra.data <= :df
+            ORDER BY ra.data, ra.ordine_turno
+        """), {"uid": user.get("id"), "di": data_inizio, "df": data_fine}).mappings().all()
+
+    if rep_turni:
+        giorni_conflitto = []
+        for t in rep_turni:
+            try:
+                d_fmt = datetime.strptime(t["data"], "%Y-%m-%d").strftime("%d/%m/%Y")
+            except Exception:
+                d_fmt = t["data"]
+            rep_info = f" ({t['reparto_nome']})" if t.get("reparto_nome") else ""
+            item = f"{d_fmt}{rep_info}"
+            if item not in giorni_conflitto:
+                giorni_conflitto.append(item)
+        
+        giorni_str = ", ".join(giorni_conflitto)
+        if len(giorni_conflitto) == 1:
+            error_msg = f"Impossibile inserire l'assenza: risulti assegnato a un turno di reperibilità il {giorni_str}. Riassegna o cancella prima il turno di reperibilità."
+        else:
+            error_msg = f"Impossibile inserire l'assenza: risulti assegnato a turni di reperibilità nelle seguenti date: {giorni_str}. Riassegna o cancella prima i turni di reperibilità."
+            
+        return RedirectResponse(url=f"/calendario?error={urllib.parse.quote(error_msg)}", status_code=303)
+        
     with engine.begin() as c:
         c.execute(text("""INSERT INTO assenze (user_id, data_inizio, data_fine, motivo)
                           VALUES (:uid, :di, :df, :m)"""), 
@@ -1138,8 +1174,6 @@ def reperibilita_calendario(
                 label_turno = sl.get("label") or f"Turno {ord_t}"
                 
                 fascia_label = badge_orario
-                if len(day_slots) > 1 and label_turno:
-                    fascia_label = f"{badge_orario} ({label_turno})"
 
                 if assigned_users:
                     for au in assigned_users:
