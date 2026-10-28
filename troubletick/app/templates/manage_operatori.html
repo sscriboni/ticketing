@@ -35,7 +35,7 @@
                         <div class="row g-2">
                             <div class="col-md-3">
                                 <label class="form-label small fw-bold text-muted mb-1"><i class="bi bi-search me-1"></i> Ricerca Testuale</label>
-                                <input type="text" id="filterText" class="form-control form-control-sm" placeholder="Cerca Nome, Email, Tel...">
+                                <input type="text" id="filterText" class="form-control form-control-sm" placeholder="Cerca Cognome, Nome, Email, Tel...">
                             </div>
                             <div class="col-md-3">
                                 <label class="form-label small fw-bold text-muted mb-1"><i class="bi bi-person-badge me-1"></i> Ruolo</label>
@@ -95,7 +95,7 @@
                     <table class="table table-hover table-sm">
                         <thead class="table-light">
                             <tr>
-                                <th>Nome</th>
+                                <th>Cognome e Nome</th>
                                 <th>Email / Telefono/Cell</th>
                                 <th>Ruolo / Tag</th>
                                 <th>Reparto / Sede / Magazzino</th>
@@ -107,7 +107,7 @@
                         <tbody>
                         {% for op in operatori %}
                             <tr class="align-middle operator-row" 
-                                data-nome="{{ op.nome }} {{ op.cognome }} {{ op.username }}" 
+                                data-nome="{{ op.cognome }} {{ op.nome }} {{ op.username }}" 
                                 data-email="{{ op.email }} {{ op.telefono or '' }}" 
                                 data-ruoli="{% for r in op.ruoli %}{{ r.ruolo }} {% endfor %}"
                                 data-tags="{% for t in op.tags %}{{ t.nome|lower }} {% endfor %}"
@@ -115,7 +115,7 @@
                                 data-sede="{{ op.sede_nome or '' }}"
                                 data-stato="{% if op.attivo %}attivo{% else %}inattivo{% endif %}">
                                 <td>
-                                    <strong>{{ op.nome }} {{ op.cognome }}</strong>
+                                    <strong>{{ op.cognome or '' }} {{ op.nome or '' }}</strong>
                                     {% if op.username %}
                                     <br><small class="text-muted">@{{ op.username }}</small>
                                     {% endif %}

@@ -375,10 +375,10 @@
                   <div class="mb-1">
                     {% if t.assegnati|length > 0 %}
                       {% for ass in t.assegnati %}
-                      <span class="operator-chip {% if ass.user_id == user.id %}is-me{% endif %}" title="{{ ass.nome }} {{ ass.cognome }}">
-                        <i class="bi bi-person-fill me-1"></i>{{ ass.nome }} {{ ass.cognome }}
+                      <span class="operator-chip {% if ass.user_id == user.id %}is-me{% endif %}" title="{{ ass.cognome }} {{ ass.nome }}">
+                        <i class="bi bi-person-fill me-1"></i>{{ ass.cognome }} {{ ass.nome }}
                         {% if is_rep_admin or (ass.user_id == user.id and not is_month_locked) %}
-                        <form method="post" action="/reperibilita/rimuovi" class="d-inline" onsubmit="return confirm('Rimuovere {{ ass.nome }} {{ ass.cognome }} da questo turno?')">
+                        <form method="post" action="/reperibilita/rimuovi" class="d-inline" onsubmit="return confirm('Rimuovere {{ ass.cognome }} {{ ass.nome }} da questo turno?')">
                           <input type="hidden" name="assegnazione_id" value="{{ ass.id }}">
                           <input type="hidden" name="reparto_id" value="{{ sel_reparto.reparto_id }}">
                           <input type="hidden" name="redirect_mese" value="{{ mese }}">
@@ -449,7 +449,7 @@
                             <input type="hidden" name="redirect_mese" value="{{ mese }}">
                             <input type="hidden" name="redirect_anno" value="{{ anno }}">
                             <button type="submit" class="dropdown-item py-1">
-                              <i class="bi bi-person-check text-success me-1"></i>{{ op.nome }} {{ op.cognome }}
+                              <i class="bi bi-person-check text-success me-1"></i>{{ op.cognome }} {{ op.nome }}
                             </button>
                           </form>
                         </li>

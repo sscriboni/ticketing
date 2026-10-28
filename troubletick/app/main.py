@@ -2061,16 +2061,25 @@ def create_ticket(r: Request,
                 matching_rep = next((ar for ar in active_reps if ar["reparto_id"] == reparto_id), None)
                 if matching_rep:
                     is_in_reperibilita = True
-                    # 1. Tutti gli operatori del reparto con il tag 'Reperibile'
+                    # 1. Tutti gli operatori del reparto con il tag 'Reperibile' o 'Rep_Admin'
                     tag_ops = c.execute(text("""
                         SELECT DISTINCT u.email
                         FROM users u
                         JOIN operatori_tag ot ON u.user_id = ot.user_id
                         JOIN tag_operatori t ON ot.tag_id = t.tag_id
-                        WHERE LOWER(t.nome) = 'reperibile'
+                        WHERE LOWER(TRIM(t.nome)) IN ('reperibile', 'rep_admin', 'reperibili', 'reperibilità', 'reperibilita')
                           AND u.attivo = 1
                           AND u.email IS NOT NULL AND TRIM(u.email) != ''
-                          AND u.reparto_id = :rid
+                          AND (
+                              u.reparto_id = :rid
+                              OR u.reparto_id IS NULL
+                              OR u.user_id IN (
+                                  SELECT os.user_id FROM operatori_servizi os
+                                  JOIN servizi s ON os.servizio_id = s.servizio_id
+                                  WHERE s.reparto_id = :rid
+                              )
+                              OR (SELECT COUNT(*) FROM reparti WHERE reperibilita_h24 = 1) <= 1
+                          )
                     """), {"rid": reparto_id}).scalars().all()
                     for em in tag_ops:
                         if em and em.strip():
@@ -4240,7 +4249,7 @@ def admin_operatori(r: Request):
               LEFT JOIN magazzini m ON om.magazzino_id = m.magazzino_id
              WHERE u.user_id != 1 AND u.user_id IN (SELECT DISTINCT user_id FROM user_roles WHERE ruolo != 'normale')
              GROUP BY u.user_id, u.username, u.nome, u.cognome, u.email, u.telefono, u.reparto_id, u.attivo, u.is_test, u.ultimo_accesso, u.ultimo_ip, r.nome, sd.nome
-             ORDER BY u.nome
+             ORDER BY u.cognome, u.nome
         """)).mappings().all()
 
         all_tags = c.execute(text("SELECT tag_id, nome, colore, descrizione FROM tag_operatori ORDER BY nome")).mappings().all()

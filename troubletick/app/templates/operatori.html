@@ -21,11 +21,11 @@
 
 <div class="table-responsive bg-white rounded shadow-sm p-3">
 <table class="table table-striped align-middle mb-0" id="opTable">
-<thead><tr><th>Nome</th><th>Email</th><th>Ruolo</th><th>Sede / Magazzino</th><th>Servizi</th></tr></thead>
+<thead><tr><th>Cognome e Nome</th><th>Email</th><th>Ruolo</th><th>Sede / Magazzino</th><th>Servizi</th></tr></thead>
 <tbody>
 {% for op in operatori %}
-<tr class="operator-row" data-search="{{ op.nome }} {{ op.cognome }} {{ op.username }} {{ op.email }} {{ op.ruolo }} {{ op.sede_nome or '' }} {{ op.magazzino_nome or '' }} {{ op.servizi or '' }}">
-  <td><strong>{{ op.nome }} {{ op.cognome }}</strong>{% if op.is_test %} <span class="badge bg-secondary" style="font-size: 0.6em;">TEST</span>{% endif %}<br><small class="text-muted">@{{ op.username }}</small></td>
+<tr class="operator-row" data-search="{{ op.cognome or '' }} {{ op.nome or '' }} {{ op.username }} {{ op.email }} {{ op.ruolo }} {{ op.sede_nome or '' }} {{ op.magazzino_nome or '' }} {{ op.servizi or '' }}">
+  <td><strong>{{ op.cognome or '' }} {{ op.nome or '' }}</strong>{% if op.is_test %} <span class="badge bg-secondary" style="font-size: 0.6em;">TEST</span>{% endif %}<br><small class="text-muted">@{{ op.username }}</small></td>
   <td>{{ op.email }}</td>
   <td><span class="badge bg-secondary">{{ op.ruolo|capitalize }}</span></td>
   <td>{{ op.sede_nome or 'Nessuna sede' }}<br><small class="text-muted">{{ op.magazzino_nome or 'Nessun magazzino' }}</small></td>

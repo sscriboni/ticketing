@@ -959,17 +959,42 @@ def reperibilita_calendario(
         """), {"start": first_day_of_month.isoformat(), "end": last_day_of_month.isoformat()}).mappings().all()
         festivita_map = {f["data"]: f["descrizione"] for f in festivita_rows}
 
-        # Operatori attivi con tag 'Reperibile'
+        is_rep_admin = bool(c.execute(text("""
+            SELECT 1 FROM operatori_tag ot
+            JOIN tag_operatori t ON ot.tag_id = t.tag_id
+            WHERE ot.user_id = :uid AND UPPER(TRIM(t.nome)) = 'REP_ADMIN'
+        """), {"uid": uid}).scalar()) or (user.get("ruolo") == "admin")
+
+        is_admin_flag = 1 if (user.get("ruolo") == "admin" or is_rep_admin) else 0
+
+        # Operatori attivi con tag 'Reperibile' o 'Rep_Admin'
         reperibili_raw = c.execute(text("""
             SELECT DISTINCT u.user_id, u.nome, u.cognome, u.username, u.email, u.reparto_id, r.nome as reparto_nome
             FROM users u
             JOIN operatori_tag ot ON u.user_id = ot.user_id
             JOIN tag_operatori t ON ot.tag_id = t.tag_id
             LEFT JOIN reparti r ON u.reparto_id = r.reparto_id
-            WHERE LOWER(t.nome) = 'reperibile' AND u.attivo = 1
-              AND (u.reparto_id = :rid OR :is_admin = 1)
+            WHERE LOWER(TRIM(t.nome)) IN ('reperibile', 'rep_admin', 'reperibili', 'reperibilità', 'reperibilita') 
+              AND u.attivo = 1
+              AND (
+                  u.reparto_id = :rid 
+                  OR u.reparto_id IS NULL
+                  OR u.user_id IN (
+                      SELECT os.user_id 
+                      FROM operatori_servizi os 
+                      JOIN servizi s ON os.servizio_id = s.servizio_id 
+                      WHERE s.reparto_id = :rid
+                  )
+                  OR u.user_id IN (
+                      SELECT ra.user_id 
+                      FROM reperibilita_assegnazioni ra 
+                      WHERE ra.reparto_id = :rid
+                  )
+                  OR :is_admin = 1
+                  OR (SELECT COUNT(*) FROM reparti WHERE reperibilita_h24 = 1) <= 1
+              )
             ORDER BY u.cognome, u.nome
-        """), {"rid": sel_reparto_id, "is_admin": 1 if user.get("ruolo") == "admin" else 0}).mappings().all()
+        """), {"rid": sel_reparto_id, "is_admin": is_admin_flag}).mappings().all()
 
         reperibili_list = [dict(r_op) for r_op in reperibili_raw]
         rep_uids = {r_op["user_id"] for r_op in reperibili_list}
@@ -977,14 +1002,8 @@ def reperibilita_calendario(
         user_is_reperibile = (uid in rep_uids) or bool(c.execute(text("""
             SELECT 1 FROM operatori_tag ot
             JOIN tag_operatori t ON ot.tag_id = t.tag_id
-            WHERE ot.user_id = :uid AND LOWER(t.nome) = 'reperibile'
+            WHERE ot.user_id = :uid AND LOWER(TRIM(t.nome)) IN ('reperibile', 'rep_admin', 'reperibili', 'reperibilità', 'reperibilita')
         """), {"uid": uid}).scalar())
-        
-        is_rep_admin = bool(c.execute(text("""
-            SELECT 1 FROM operatori_tag ot
-            JOIN tag_operatori t ON ot.tag_id = t.tag_id
-            WHERE ot.user_id = :uid AND UPPER(t.nome) = 'REP_ADMIN'
-        """), {"uid": uid}).scalar()) or (user.get("ruolo") == "admin")
 
         # Verifica stato lock del mese per il reparto
         # Di default, i mesi sono in sola lettura (locked) finché un Rep_Admin o Admin li sblocca
@@ -1102,7 +1121,7 @@ def reperibilita_calendario(
             if auid not in user_counts:
                 user_counts[auid] = {
                     "user_id": auid,
-                    "nome_completo": f"{ass['nome']} {ass['cognome']}".strip() or ass['username'],
+                    "nome_completo": f"{ass['cognome'] or ''} {ass['nome'] or ''}".strip() or ass['username'],
                     "username": ass["username"],
                     "feriali": 0,
                     "festivi": 0,
@@ -1122,7 +1141,7 @@ def reperibilita_calendario(
             else:
                 summary_list.append({
                     "user_id": op_uid,
-                    "nome_completo": f"{op['nome']} {op['cognome']}".strip() or op['username'],
+                    "nome_completo": f"{op['cognome'] or ''} {op['nome'] or ''}".strip() or op['username'],
                     "username": op["username"],
                     "feriali": 0,
                     "festivi": 0,
@@ -1261,11 +1280,11 @@ def reperibilita_assegna(
             params = urllib.parse.urlencode({"anno": redirect_anno, "mese": redirect_mese, "reparto_id": reparto_id, "error": err})
             return RedirectResponse(url=f"/reperibilita?{params}", status_code=303)
 
-        # Verifica che l'utente assegnato abbia il tag 'Reperibile'
+        # Verifica che l'utente assegnato abbia il tag 'Reperibile' o 'Rep_Admin'
         is_rep_tag = c.execute(text("""
             SELECT 1 FROM operatori_tag ot
             JOIN tag_operatori t ON ot.tag_id = t.tag_id
-            WHERE ot.user_id = :uid AND LOWER(t.nome) = 'reperibile'
+            WHERE ot.user_id = :uid AND LOWER(TRIM(t.nome)) IN ('reperibile', 'rep_admin', 'reperibili', 'reperibilità', 'reperibilita')
         """), {"uid": user_id}).scalar()
         if not is_rep_tag:
             err = "L'operatore selezionato non possiede il tag 'Reperibile'."
