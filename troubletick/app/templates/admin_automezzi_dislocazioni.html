@@ -243,7 +243,7 @@
                                                 data-proprieta="{{ v.proprieta or '' }}"
                                                 data-canone="{{ v.canone_noleggio or 0 }}"
                                                 data-inizio-noleggio="{{ v.data_inizio_noleggio or '' }}"
-                                                data-durata-noleggio="{{ v.durata_noleggio_anni or 0 }}"
+                                                data-durata-noleggio="{{ v.durata_noleggio_anni or '' }}"
                                                 data-km="{{ v.km_attuali or 0 }}"
                                                 data-stato="{{ v.stato }}"
                                                 data-sede-ass-id="{{ v.sede_assegnata_id or '' }}"
@@ -377,7 +377,7 @@
                                                 data-proprieta="{{ v.proprieta or '' }}"
                                                 data-canone="{{ v.canone_noleggio or 0 }}"
                                                 data-inizio-noleggio="{{ v.data_inizio_noleggio or '' }}"
-                                                data-durata-noleggio="{{ v.durata_noleggio_anni or 0 }}"
+                                                data-durata-noleggio="{{ v.durata_noleggio_anni or '' }}"
                                                 data-km="{{ v.km_attuali or 0 }}"
                                                 data-stato="{{ v.stato }}"
                                                 data-sede-ass-id="{{ v.sede_assegnata_id or '' }}"
@@ -580,7 +580,7 @@
                                             data-proprieta="{{ v.proprieta or '' }}"
                                             data-canone="{{ v.canone_noleggio or 0 }}"
                                             data-inizio-noleggio="{{ v.data_inizio_noleggio or '' }}"
-                                            data-durata-noleggio="{{ v.durata_noleggio_anni or 0 }}"
+                                            data-durata-noleggio="{{ v.durata_noleggio_anni or '' }}"
                                             data-km="{{ v.km_attuali or 0 }}"
                                             data-stato="{{ v.stato }}"
                                             data-sede-ass-id="{{ v.sede_assegnata_id or '' }}"
@@ -886,7 +886,7 @@
                                             data-proprieta="{{ v.proprieta or '' }}"
                                             data-canone="{{ v.canone_noleggio or 0 }}"
                                             data-inizio-noleggio="{{ v.data_inizio_noleggio or '' }}"
-                                            data-durata-noleggio="{{ v.durata_noleggio_anni or 0 }}"
+                                            data-durata-noleggio="{{ v.durata_noleggio_anni or '' }}"
                                             data-km="{{ v.km_attuali or 0 }}"
                                             data-stato="{{ v.stato }}"
                                             data-sede-ass-id="{{ v.sede_assegnata_id or '' }}"
@@ -1829,7 +1829,8 @@
         document.getElementById('editProprieta').value = btn.getAttribute('data-proprieta') || 'Proprietà';
         document.getElementById('editCanoneNoleggio').value = btn.getAttribute('data-canone') || '0';
         document.getElementById('editDataInizioNoleggio').value = btn.getAttribute('data-inizio-noleggio') || '';
-        document.getElementById('editDurataNoleggioAnni').value = btn.getAttribute('data-durata-noleggio') || '';
+        const durAttr = btn.getAttribute('data-durata-noleggio');
+        document.getElementById('editDurataNoleggioAnni').value = (durAttr && parseInt(durAttr) > 0) ? durAttr : '';
         document.getElementById('editKmAttuali').value = btn.getAttribute('data-km') || '0';
         document.getElementById('editStato').value = btn.getAttribute('data-stato') || 'Disponibile';
         
@@ -1875,8 +1876,22 @@
     function toggleEditNoleggio() {
         const propEl = document.getElementById('editProprieta');
         const div = document.getElementById('editNoleggioDiv');
-        if (propEl && div) {
-            div.style.display = (propEl.value === 'Noleggio') ? 'block' : 'none';
+        const isNoleggio = (propEl && propEl.value === 'Noleggio');
+        if (div) {
+            div.style.display = isNoleggio ? 'block' : 'none';
+        }
+        const durataInput = document.getElementById('editDurataNoleggioAnni');
+        const canoneInput = document.getElementById('editCanoneNoleggio');
+        const dataIniInput = document.getElementById('editDataInizioNoleggio');
+        if (durataInput) {
+            durataInput.disabled = !isNoleggio;
+            if (!isNoleggio) durataInput.value = '';
+        }
+        if (canoneInput) {
+            canoneInput.disabled = !isNoleggio;
+        }
+        if (dataIniInput) {
+            dataIniInput.disabled = !isNoleggio;
         }
     }
 
@@ -1909,10 +1924,28 @@
     function toggleAddNoleggio() {
         const propEl = document.getElementById('addProprieta');
         const div = document.getElementById('addNoleggioDiv');
-        if (propEl && div) {
-            div.style.display = (propEl.value === 'Noleggio') ? 'block' : 'none';
+        const isNoleggio = (propEl && propEl.value === 'Noleggio');
+        if (div) {
+            div.style.display = isNoleggio ? 'block' : 'none';
+        }
+        const durataInput = document.getElementById('addDurataNoleggioAnni');
+        const canoneInput = document.getElementById('addCanoneNoleggio');
+        const dataIniInput = document.getElementById('addDataInizioNoleggio');
+        if (durataInput) {
+            durataInput.disabled = !isNoleggio;
+            if (!isNoleggio) durataInput.value = '';
+        }
+        if (canoneInput) {
+            canoneInput.disabled = !isNoleggio;
+        }
+        if (dataIniInput) {
+            dataIniInput.disabled = !isNoleggio;
         }
     }
+
+    document.addEventListener('DOMContentLoaded', function() {
+        toggleAddNoleggio();
+    });
 
     function updateAddScadenzaPreview() {
         const dIniStr = document.getElementById('addDataInizioNoleggio').value;
