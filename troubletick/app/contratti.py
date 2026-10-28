@@ -554,7 +554,7 @@ def contratti_list(
         # Calcolo KPI per la selezione
         totale_spesa = sum(c["totale_costo"] for c in contratti)
         totale_spesa_iva = sum(c["totale_costo_iva"] for c in contratti_augmented)
-        totale_attivi = sum(1 for c in contratti if c["stato"] == "attivo")
+        totale_attivi = sum(1 for c in contratti if c["stato"] in ("attivo", "perfezionato"))
         totale_giornate = sum(c["totale_giornate"] for c in contratti)
 
     is_dec = user_has_tag_dec(user)
@@ -1138,6 +1138,7 @@ def contratti_riepilogo_economico(
         agg_reparti = {}
         agg_stati = {
             "attivo": {"count": 0, "totale": 0.0},
+            "perfezionato": {"count": 0, "totale": 0.0},
             "in_trattativa": {"count": 0, "totale": 0.0},
             "in_definizione": {"count": 0, "totale": 0.0},
             "scaduto": {"count": 0, "totale": 0.0},

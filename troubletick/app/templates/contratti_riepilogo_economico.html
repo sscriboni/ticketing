@@ -9,6 +9,7 @@
         .kpi-card { border-radius: 12px; transition: transform 0.15s ease-in-out; }
         .kpi-card:hover { transform: translateY(-2px); }
         .badge-stato-attivo { background-color: #198754; color: white; }
+        .badge-stato-perfezionato { background-color: #198754; color: white; }
         .badge-stato-in_trattativa { background-color: #fd7e14; color: white; }
         .badge-stato-in_definizione { background-color: #ffc107; color: #212529; }
         .badge-stato-scaduto { background-color: #dc3545; color: white; }
@@ -136,6 +137,7 @@
                     <select name="stato" class="form-select form-select-sm" onchange="this.form.submit()">
                         <option value="">-- Tutti gli Stati --</option>
                         <option value="attivo" {% if stato_selezionato == 'attivo' %}selected{% endif %}>Attivo</option>
+                        <option value="perfezionato" {% if stato_selezionato == 'perfezionato' %}selected{% endif %}>Perfezionato</option>
                         <option value="in_trattativa" {% if stato_selezionato == 'in_trattativa' %}selected{% endif %}>In Trattativa</option>
                         <option value="in_definizione" {% if stato_selezionato == 'in_definizione' %}selected{% endif %}>In Definizione</option>
                         <option value="scaduto" {% if stato_selezionato == 'scaduto' %}selected{% endif %}>Scaduto</option>
@@ -204,6 +206,9 @@
                         <div class="h3 fw-bold mb-0 text-primary">{{ totale_contratti }}</div>
                         <div class="small text-muted mt-1">
                             <span class="badge bg-success bg-opacity-10 text-success">{{ stati_agg.attivo.count }} attivi</span>
+                            {% if stati_agg.perfezionato and stati_agg.perfezionato.count > 0 %}
+                            <span class="badge bg-success bg-opacity-10 text-success">{{ stati_agg.perfezionato.count }} perfez.</span>
+                            {% endif %}
                             {% if stati_agg.in_trattativa and stati_agg.in_trattativa.count > 0 %}
                             <span class="badge bg-warning bg-opacity-25 text-dark">{{ stati_agg.in_trattativa.count }} in tratt.</span>
                             {% endif %}
@@ -386,6 +391,8 @@
                                 </a>
                                 {% if c.stato == 'attivo' %}
                                 <span class="badge badge-stato-attivo">Attivo</span>
+                                {% elif c.stato == 'perfezionato' %}
+                                <span class="badge badge-stato-perfezionato">Perfezionato</span>
                                 {% elif c.stato == 'in_trattativa' %}
                                 <span class="badge badge-stato-in_trattativa">In Trattativa</span>
                                 {% elif c.stato == 'in_definizione' %}

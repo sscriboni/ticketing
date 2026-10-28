@@ -12,6 +12,7 @@
         .kpi-card { border-radius: 10px; transition: transform 0.15s ease-in-out; }
         .kpi-card:hover { transform: translateY(-2px); }
         .badge-stato-attivo { background-color: #198754; color: white; }
+        .badge-stato-perfezionato { background-color: #198754; color: white; }
         .badge-stato-in_trattativa { background-color: #fd7e14; color: white; }
         .badge-stato-in_definizione { background-color: #ffc107; color: #212529; }
         .badge-stato-scaduto { background-color: #dc3545; color: white; }
@@ -172,6 +173,7 @@
                     <select name="stato" class="form-select form-select-sm">
                         <option value="">Tutti</option>
                         <option value="attivo" {% if stato_selezionato == 'attivo' %}selected{% endif %}>Attivo</option>
+                        <option value="perfezionato" {% if stato_selezionato == 'perfezionato' %}selected{% endif %}>Perfezionato</option>
                         <option value="in_trattativa" {% if stato_selezionato == 'in_trattativa' %}selected{% endif %}>In Trattativa</option>
                         <option value="in_definizione" {% if stato_selezionato == 'in_definizione' %}selected{% endif %}>In Definizione</option>
                         <option value="scaduto" {% if stato_selezionato == 'scaduto' %}selected{% endif %}>Scaduto</option>
@@ -327,6 +329,8 @@
                             <td class="text-center" data-sort="{{ c.stato }}">
                                 {% if c.stato == 'attivo' %}
                                 <span class="badge badge-stato-attivo">Attivo</span>
+                                {% elif c.stato == 'perfezionato' %}
+                                <span class="badge badge-stato-perfezionato">Perfezionato</span>
                                 {% elif c.stato == 'in_trattativa' %}
                                 <span class="badge badge-stato-in_trattativa">In Trattativa</span>
                                 {% elif c.stato == 'in_definizione' %}
@@ -407,6 +411,7 @@
                         <select name="stato" class="form-select">
                             <option value="in_definizione" selected>In Definizione</option>
                             <option value="in_trattativa">In Trattativa</option>
+                            <option value="perfezionato">Perfezionato</option>
                             <option value="attivo">Attivo</option>
                         </select>
                     </div>

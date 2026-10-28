@@ -8,6 +8,7 @@
     <style>
         .table th { background-color: #f8f9fa; font-size: 0.85rem; }
         .badge-stato-attivo { background-color: #198754; color: white; }
+        .badge-stato-perfezionato { background-color: #198754; color: white; }
         .badge-stato-in_trattativa { background-color: #fd7e14; color: white; }
         .badge-stato-in_definizione { background-color: #ffc107; color: #212529; }
         .badge-stato-scaduto { background-color: #dc3545; color: white; }
@@ -134,6 +135,8 @@
                                 <span class="badge bg-primary fs-6">{{ contratto.anno }}</span>
                                 {% if contratto.stato == 'attivo' %}
                                 <span class="badge badge-stato-attivo fs-6">Attivo</span>
+                                {% elif contratto.stato == 'perfezionato' %}
+                                <span class="badge badge-stato-perfezionato fs-6">Perfezionato</span>
                                 {% elif contratto.stato == 'in_trattativa' %}
                                 <span class="badge badge-stato-in_trattativa fs-6">In Trattativa</span>
                                 {% elif contratto.stato == 'in_definizione' %}
@@ -788,6 +791,7 @@
                         <select name="stato" class="form-select">
                             <option value="in_definizione" selected>In Definizione</option>
                             <option value="in_trattativa">In Trattativa</option>
+                            <option value="perfezionato">Perfezionato</option>
                             <option value="attivo">Attivo</option>
                         </select>
                     </div>
