@@ -105,8 +105,10 @@
             </a>
             <ul class="dropdown-menu shadow" aria-labelledby="presenzeDropdown">
               <li><a class="dropdown-item" href="/calendario"><i class="bi bi-calendar3 me-2"></i>Calendario Assenze</a></li>
-              <li><a class="dropdown-item" href="/calendario-presenze"><i class="bi bi-calendar-event me-2"></i>Calendario Presenze</a></li>
               <li><a class="dropdown-item" href="/reperibilita"><i class="bi bi-clock-history me-2 text-warning"></i>Reperibilità</a></li>
+              {% if user.ruolo == 'admin' or user_has_tag_rep_admin(user) %}
+              <li><a class="dropdown-item" href="/admin/reperibilita/impostazioni"><i class="bi bi-sliders me-2 text-warning"></i>Impostazioni Reperibilità</a></li>
+              {% endif %}
               <li><a class="dropdown-item" href="/copertura-servizi"><i class="bi bi-calendar-check me-2"></i>Verifica copertura Servizi</a></li>
               <li><a class="dropdown-item" href="/admin/report-copertura"><i class="bi bi-grid-3x3-gap me-2"></i>Report Copertura Personale</a></li>
               <li><a class="dropdown-item" href="/assenze-mese"><i class="bi bi-calendar-range me-2"></i>Calendario di Reparto</a></li>
@@ -235,6 +237,7 @@
               <li><a class="dropdown-item" href="/admin/automezzi/tag">Gestione Tag Automezzi</a></li>
               {% endif %}
               <li><hr class="dropdown-divider"></li>
+              <li><a class="dropdown-item" href="/admin/reperibilita/impostazioni"><i class="bi bi-clock-history me-2 text-warning"></i>Impostazioni Reperibilità</a></li>
               <li><a class="dropdown-item" href="/admin/import-export">Import / Export</a></li>
               <li><a class="dropdown-item" href="/admin/impostazioni">Impostazioni Globali</a></li>
             </ul>

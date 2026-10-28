@@ -1493,7 +1493,7 @@ def home(r: Request):
         """), {"now": now}).mappings().all()
         
         if not user:
-            reperibilita_attiva = get_active_reperibilita(c)
+            reperibilita_attiva = get_active_reperibilita(c) if CFG.get("reperibilita_messaggi_home", True) else []
             return templates.TemplateResponse(r, "home.html", {
                 "request": r, "cfg": CFG, "avvisi": avvisi, "user": user,
                 "reperibilita_attiva": reperibilita_attiva
@@ -2858,7 +2858,8 @@ def save_impostazioni(r: Request,
                       db_password: str = Form(""),
                       modulo_avvisi: int = Form(0),
                       modulo_presenze: int = Form(0),
-                      modulo_autopark: int = Form(0)):
+                      modulo_autopark: int = Form(0),
+                      reperibilita_messaggi_home: int = Form(0)):
     user = require_superuser(r)
     if isinstance(user, RedirectResponse):
         return user
@@ -2884,6 +2885,7 @@ def save_impostazioni(r: Request,
     CFG["modulo_avvisi"] = bool(modulo_avvisi)
     CFG["modulo_presenze"] = bool(modulo_presenze)
     CFG["modulo_autopark"] = bool(modulo_autopark)
+    CFG["reperibilita_messaggi_home"] = bool(reperibilita_messaggi_home)
     
     try:
         with open(os.path.join(BASE_DIR, "config.json"), "w", encoding="utf-8") as f:
@@ -2892,6 +2894,77 @@ def save_impostazioni(r: Request,
         pass
         
     return RedirectResponse(url="/admin", status_code=303)
+
+@app.get("/admin/reperibilita/impostazioni", response_class=HTMLResponse)
+def admin_reperibilita_impostazioni(r: Request, msg: str = None):
+    if "user" not in r.session:
+        return RedirectResponse(url="/login")
+    user = r.session.get("user")
+    uid = user.get("id")
+    
+    with engine.connect() as c:
+        is_rep_admin = bool(c.execute(text("""
+            SELECT 1 FROM operatori_tag ot
+            JOIN tag_operatori t ON ot.tag_id = t.tag_id
+            WHERE ot.user_id = :uid AND UPPER(TRIM(t.nome)) = 'REP_ADMIN'
+        """), {"uid": uid}).scalar()) or (user.get("ruolo") == "admin")
+        
+        if not is_rep_admin:
+            return RedirectResponse(url="/")
+            
+        reparti_h24 = c.execute(text("""
+            SELECT reparto_id, nome, reperibilita_orario_inizio, reperibilita_festivo_inizio
+            FROM reparti
+            WHERE reperibilita_h24 = 1
+            ORDER BY nome
+        """)).mappings().all()
+        
+        servizi_h24_count = c.execute(text("SELECT COUNT(*) FROM servizi WHERE reperibilita_h24 = 1")).scalar() or 0
+        operatori_rep_count = c.execute(text("""
+            SELECT COUNT(DISTINCT u.user_id) 
+            FROM users u
+            JOIN operatori_tag ot ON u.user_id = ot.user_id
+            JOIN tag_operatori t ON ot.tag_id = t.tag_id
+            WHERE LOWER(TRIM(t.nome)) IN ('reperibile', 'rep_admin') AND u.attivo = 1
+        """)).scalar() or 0
+        
+    return templates.TemplateResponse(r, "admin_reperibilita_impostazioni.html", {
+        "request": r, "cfg": CFG, "user": user,
+        "reparti_h24": reparti_h24,
+        "servizi_h24_count": servizi_h24_count,
+        "operatori_rep_count": operatori_rep_count,
+        "msg": msg
+    })
+
+@app.post("/admin/reperibilita/impostazioni")
+def save_reperibilita_impostazioni(
+    r: Request,
+    reperibilita_messaggi_home: int = Form(0)
+):
+    if "user" not in r.session:
+        return RedirectResponse(url="/login")
+    user = r.session.get("user")
+    uid = user.get("id")
+    
+    with engine.connect() as c:
+        is_rep_admin = bool(c.execute(text("""
+            SELECT 1 FROM operatori_tag ot
+            JOIN tag_operatori t ON ot.tag_id = t.tag_id
+            WHERE ot.user_id = :uid AND UPPER(TRIM(t.nome)) = 'REP_ADMIN'
+        """), {"uid": uid}).scalar()) or (user.get("ruolo") == "admin")
+        
+    if not is_rep_admin:
+        return RedirectResponse(url="/")
+        
+    CFG["reperibilita_messaggi_home"] = bool(reperibilita_messaggi_home)
+    
+    try:
+        with open(os.path.join(BASE_DIR, "config.json"), "w", encoding="utf-8") as f:
+            json.dump(CFG, f, indent=2, ensure_ascii=False)
+    except Exception as e:
+        print("Errore salvataggio config.json:", e)
+        
+    return RedirectResponse(url="/admin/reperibilita/impostazioni?msg=ok", status_code=303)
 
 @app.post("/admin/test-email")
 def test_email(r: Request,

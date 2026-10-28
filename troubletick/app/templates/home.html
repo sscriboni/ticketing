@@ -11,9 +11,11 @@
   <div class="logo mb-2">{{ cfg.logo_emoji }}</div>
   <h1 class="h4 mb-1">{{ cfg.company_name }}</h1>
   <p class="text-muted">{{ cfg.homepage_text }}</p>
+  {% if cfg.get('reperibilita_messaggi_home', True) %}
   <div class="w-100 my-3" style="max-width: 800px;">
     {% include 'reperibilita_banner.html' %}
   </div>
+  {% endif %}
 
   <div class="mt-2 d-flex flex-wrap justify-content-center gap-2">
     <a href="/new" class="btn btn-primary btn-main">📩 Apri un Ticket</a>

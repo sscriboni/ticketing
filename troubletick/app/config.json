@@ -22,5 +22,6 @@
   "webapp_url": "http://localhost:5002/",
   "modulo_avvisi": true,
   "modulo_presenze": true,
-  "modulo_autopark": true
+  "modulo_autopark": true,
+  "reperibilita_messaggi_home": true
 }

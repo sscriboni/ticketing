@@ -917,7 +917,8 @@ def reperibilita_calendario(
             return templates.TemplateResponse(r, "reperibilita.html", {
                 "request": r, "cfg": CFG, "user": user,
                 "reparti_rep": [], "sel_reparto": None,
-                "weeks": [], "summary_list": [],
+                "weeks": [], "summary_list": [], "elenco_stampa": [],
+                "data_stampa": "",
                 "mese": mese, "anno": anno, "nome_mese": nome_mese,
                 "prev_mese": prev_mese, "prev_anno": prev_anno,
                 "next_mese": next_mese, "next_anno": next_anno,
@@ -969,7 +970,7 @@ def reperibilita_calendario(
 
         # Operatori attivi con tag 'Reperibile' o 'Rep_Admin'
         reperibili_raw = c.execute(text("""
-            SELECT DISTINCT u.user_id, u.nome, u.cognome, u.username, u.email, u.reparto_id, r.nome as reparto_nome
+            SELECT DISTINCT u.user_id, u.nome, u.cognome, u.username, u.email, u.telefono, u.reparto_id, r.nome as reparto_nome
             FROM users u
             JOIN operatori_tag ot ON u.user_id = ot.user_id
             JOIN tag_operatori t ON ot.tag_id = t.tag_id
@@ -1034,9 +1035,9 @@ def reperibilita_calendario(
                 absent_map[(auid, cur.isoformat())] = a["motivo"] or "Assenza"
                 cur += timedelta(days=1)
 
-        # Assegnazioni esistenti per il reparto nel mese
+        # Assegnazioni esistenti per il reparto nel mese (con telefono dell'operatore)
         assegnazioni_raw = c.execute(text("""
-            SELECT ra.*, u.nome, u.cognome, u.username
+            SELECT ra.*, u.nome, u.cognome, u.username, u.telefono
             FROM reperibilita_assegnazioni ra
             JOIN users u ON ra.user_id = u.user_id
             WHERE ra.reparto_id = :rid AND ra.data >= :start AND ra.data <= :end
@@ -1114,6 +1115,66 @@ def reperibilita_calendario(
                 })
             weeks.append(week_days)
 
+        # Tabella Elenco Reperibili per la Stampa (giorno settimana, data, operatore, telefono, fasce orarie coperte)
+        giorni_nomi = ["Lunedì", "Martedì", "Mercoledì", "Giovedì", "Venerdì", "Sabato", "Domenica"]
+        elenco_stampa = []
+        for day_num in range(1, num_days + 1):
+            d = date(anno, mese, day_num)
+            d_str = d.isoformat()
+            giorno_settimana = giorni_nomi[d.weekday()]
+            data_formatted = d.strftime("%d/%m/%Y")
+            giorno_e_data = f"{giorno_settimana} {data_formatted}"
+            is_weekend = d.weekday() in (5, 6)
+            holiday_desc = festivita_map.get(d_str)
+            is_festivo = is_weekend or bool(holiday_desc)
+            tipo_giorno = "festivo" if is_festivo else "feriale"
+            day_slots = slots_festivi if is_festivo else slots_feriali
+
+            turni_giorno = []
+            for sl in day_slots:
+                ord_t = sl["ordine_turno"]
+                assigned_users = assignments_by_day_turno.get((d_str, ord_t), [])
+                badge_orario = sl.get("badge_orario") or ""
+                label_turno = sl.get("label") or f"Turno {ord_t}"
+                
+                fascia_label = badge_orario
+                if len(day_slots) > 1 and label_turno:
+                    fascia_label = f"{badge_orario} ({label_turno})"
+
+                if assigned_users:
+                    for au in assigned_users:
+                        nome_operatore = f"{au.get('cognome') or ''} {au.get('nome') or ''}".strip() or au.get('username') or "—"
+                        tel = (au.get("telefono") or "").strip()
+                        turni_giorno.append({
+                            "ordine_turno": ord_t,
+                            "operatore": nome_operatore,
+                            "telefono": tel if tel else "—",
+                            "fascia_oraria": fascia_label,
+                            "coperto": True
+                        })
+                else:
+                    turni_giorno.append({
+                        "ordine_turno": ord_t,
+                        "operatore": "— Non assegnato —",
+                        "telefono": "—",
+                        "fascia_oraria": fascia_label,
+                        "coperto": False
+                    })
+
+            elenco_stampa.append({
+                "date": d,
+                "date_str": d_str,
+                "day_num": day_num,
+                "giorno_settimana": giorno_settimana,
+                "data_formattata": data_formatted,
+                "giorno_e_data": giorno_e_data,
+                "is_festivo": is_festivo,
+                "holiday_desc": holiday_desc,
+                "tipo_giorno": tipo_giorno,
+                "turni": turni_giorno,
+                "num_righe": len(turni_giorno)
+            })
+
         # Riepilogo mensile dei reperibili a fondo pagina
         user_counts = {}
         for ass in assegnazioni_raw:
@@ -1123,6 +1184,7 @@ def reperibilita_calendario(
                     "user_id": auid,
                     "nome_completo": f"{ass['cognome'] or ''} {ass['nome'] or ''}".strip() or ass['username'],
                     "username": ass["username"],
+                    "telefono": (ass.get("telefono") or "").strip() or "—",
                     "feriali": 0,
                     "festivi": 0,
                     "ore": 0.0
@@ -1143,6 +1205,7 @@ def reperibilita_calendario(
                     "user_id": op_uid,
                     "nome_completo": f"{op['cognome'] or ''} {op['nome'] or ''}".strip() or op['username'],
                     "username": op["username"],
+                    "telefono": (op.get("telefono") or "").strip() or "—",
                     "feriali": 0,
                     "festivi": 0,
                     "ore": 0.0
@@ -1165,6 +1228,8 @@ def reperibilita_calendario(
             "sel_reparto": sel_reparto,
             "weeks": weeks,
             "summary_list": summary_list,
+            "elenco_stampa": elenco_stampa,
+            "data_stampa": datetime.now().strftime("%d/%m/%Y %H:%M"),
             "mese": mese, "anno": anno, "nome_mese": nome_mese,
             "prev_mese": prev_mese, "prev_anno": prev_anno,
             "next_mese": next_mese, "next_anno": next_anno,

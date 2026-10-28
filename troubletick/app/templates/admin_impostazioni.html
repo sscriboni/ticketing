@@ -144,6 +144,20 @@
                     <label class="form-check-label fw-bold" for="checkModuloAutopark">🚗 Modulo Carpooling (gestione parco auto)</label>
                 </div>
 
+                <hr class="my-4">
+                <div class="d-flex justify-content-between align-items-center mb-2">
+                    <h4 class="mb-0">🌙 Servizio di Reperibilità H24</h4>
+                    <a href="/admin/reperibilita/impostazioni" class="btn btn-sm btn-outline-primary">
+                        <i class="bi bi-gear-fill me-1"></i> Pagina Impostazioni
+                    </a>
+                </div>
+                <p class="text-muted small">Configura i parametri del servizio di Reperibilità e la visibilità dei messaggi.</p>
+                <div class="mb-4 form-check form-switch">
+                    <input type="checkbox" name="reperibilita_messaggi_home" value="1" class="form-check-input" id="checkReperibilitaHome" {% if cfg.get('reperibilita_messaggi_home', True) %}checked{% endif %}>
+                    <label class="form-check-label fw-bold" for="checkReperibilitaHome">Abilita messaggi di reperibilità sulla Home Page</label>
+                    <div class="form-text text-muted small">Mostra il banner informativo con i reperibili di turno sulla Home Page pubblica durante le sessioni attive.</div>
+                </div>
+
                 <div class="d-flex gap-2">
                     <button type="submit" class="btn btn-primary">Salva Impostazioni</button>
                     <a href="/admin" class="btn btn-outline-secondary">Annulla</a>

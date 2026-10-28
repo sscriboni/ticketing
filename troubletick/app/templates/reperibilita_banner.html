@@ -1,4 +1,4 @@
-{% if reperibilita_attiva and not user %}
+{% if cfg.get('reperibilita_messaggi_home', True) and reperibilita_attiva and not user %}
 <div class="alert alert-warning border-start border-warning border-4 shadow-sm mb-4 rounded-3 text-start" role="alert">
   
   <!-- Banner Title & General Info -->
