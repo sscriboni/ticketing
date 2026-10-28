@@ -3200,7 +3200,15 @@ def admin_servizi(r: Request, error: str = None):
         reparti = c.execute(text("SELECT reparto_id, nome, reperibilita_h24 FROM reparti ORDER BY nome")).mappings().all()
         argomenti = c.execute(text("SELECT a.argomento_id, a.descrizione, a.descrizione_lunga, a.servizio_id, s.descrizione AS servizio_nome FROM argomenti a JOIN servizi s ON a.servizio_id = s.servizio_id ORDER BY s.descrizione, a.descrizione")).mappings().all()
         
-        # Aggrega fornitori associati a ciascun servizio
+        # Aggrega argomenti per servizio
+        argomenti_per_servizio = {}
+        for a in argomenti:
+            sid = a["servizio_id"]
+            if sid not in argomenti_per_servizio:
+                argomenti_per_servizio[sid] = []
+            argomenti_per_servizio[sid].append(dict(a))
+
+        # Aggrega fornitori e argomenti associati a ciascun servizio
         servizi = []
         for s in servizi_raw:
             sid = s["servizio_id"]
@@ -3213,6 +3221,8 @@ def admin_servizi(r: Request, error: str = None):
             """), {"sid": sid}).mappings().all()
             s_dict = dict(s)
             s_dict["fornitori"] = [dict(f) for f in fornitori_list]
+            s_dict["argomenti"] = argomenti_per_servizio.get(sid, [])
+            s_dict["num_argomenti"] = len(s_dict["argomenti"])
             servizi.append(s_dict)
 
     return templates.TemplateResponse(r, "admin_servizi.html", {"request": r, "cfg": CFG, "user": user, "servizi": servizi, "reparti": reparti, "argomenti": argomenti, "error": error})
