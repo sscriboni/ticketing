@@ -130,6 +130,10 @@
       border: 1px solid #e2e8f0;
       box-shadow: 0 4px 6px -1px rgba(0,0,0,0.05);
     }
+    /* Evidenziazione righe festive sia a schermo che in stampa */
+    tr.festivo-row > td {
+      background-color: #fef3c7 !important;
+    }
     @media print {
       @page {
         size: A4 portrait;
@@ -169,10 +173,13 @@
         -webkit-print-color-adjust: exact;
         print-color-adjust: exact;
       }
-      .print-festivo-row {
+      .print-festivo-row,
+      .print-festivo-row td,
+      .print-table-custom tr.print-festivo-row td,
+      .print-table-custom tr.festivo-row td {
         background-color: #fef3c7 !important;
-        -webkit-print-color-adjust: exact;
-        print-color-adjust: exact;
+        -webkit-print-color-adjust: exact !important;
+        print-color-adjust: exact !important;
       }
       .print-hide {
         display: none !important;
@@ -427,14 +434,12 @@
             {% else %}
               {% for day in elenco_stampa %}
                 {% for t in day.turni %}
-                <tr class="{% if day.is_festivo %}table-warning-subtle print-festivo-row{% endif %}">
+                <tr class="{% if day.is_festivo %}festivo-row print-festivo-row{% endif %}">
                   {% if loop.first %}
                   <td rowspan="{{ day.num_righe }}" class="align-middle fw-bold {% if day.is_festivo %}text-danger-emphasis{% else %}text-dark{% endif %}">
                     {{ day.giorno_e_data }}
-                    {% if day.holiday_desc %}
+                    {% if day.holiday_desc and day.holiday_desc|lower != 'festivo' %}
                       <br><span class="badge bg-danger-subtle text-danger border border-danger-subtle fw-normal small"><i class="bi bi-star-fill me-1"></i>{{ day.holiday_desc }}</span>
-                    {% elif day.is_festivo %}
-                      <br><span class="badge bg-secondary-subtle text-secondary border fw-normal small">Festivo</span>
                     {% endif %}
                   </td>
                   {% endif %}

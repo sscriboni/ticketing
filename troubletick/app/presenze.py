@@ -878,7 +878,9 @@ def calc_turni_slots(start_time_str, turni_raw, default_durata=6.0):
             "ordine_turno": 1,
             "durata_ore": default_durata,
             "badge_orario": f"{s_disp} - {e_disp}",
-            "label": f"Turno 1 ({s_disp} - {e_disp})"
+            "label": f"Turno 1 ({s_disp} - {e_disp})",
+            "start_time": s_disp,
+            "end_time": e_disp.split(" ")[0]
         })
         return slots
 
@@ -890,10 +892,33 @@ def calc_turni_slots(start_time_str, turni_raw, default_durata=6.0):
             "ordine_turno": t["ordine_turno"],
             "durata_ore": dur,
             "badge_orario": f"{s_disp} - {e_disp}",
-            "label": f"Turno {t['ordine_turno']} ({s_disp} - {e_disp})"
+            "label": f"Turno {t['ordine_turno']} ({s_disp} - {e_disp})",
+            "start_time": s_disp,
+            "end_time": e_disp.split(" ")[0]
         })
         curr_start = e_disp.split(" ")[0]
     return slots
+
+def merge_slot_ranges(slot_list):
+    """
+    Dato un elenco di slot ({ordine_turno, start_time, end_time}),
+    unisce i turni consecutivi per lo stesso operatore in un unico intervallo orario 'inizio - fine'.
+    """
+    if not slot_list:
+        return []
+    sorted_slots = sorted(slot_list, key=lambda s: s["ordine_turno"])
+    ranges = []
+    curr_group = [sorted_slots[0]]
+    for s in sorted_slots[1:]:
+        prev = curr_group[-1]
+        if s["ordine_turno"] == prev["ordine_turno"] + 1:
+            curr_group.append(s)
+        else:
+            ranges.append(f"{curr_group[0]['start_time']} - {curr_group[-1]['end_time']}")
+            curr_group = [s]
+    if curr_group:
+        ranges.append(f"{curr_group[0]['start_time']} - {curr_group[-1]['end_time']}")
+    return ranges
 
 @router.get("/reperibilita", response_class=HTMLResponse)
 def reperibilita_calendario(
@@ -1169,6 +1194,7 @@ def reperibilita_calendario(
 
             # Raggruppamento per persona nello stesso giorno:
             # se la stessa persona copre più turni nello stesso giorno, unifica in una sola riga
+            # visualizzando un unico orario che comprende entrambi/tutti i turni consecutivi,
             # senza duplicare nome e numero, e ripulisce (+1g) dalla stampa.
             righe_mappa = {}
             for sl in day_slots:
@@ -1177,6 +1203,14 @@ def reperibilita_calendario(
                 badge_orario = sl.get("badge_orario") or ""
                 # Rimuove (+1g) o qualsiasi notazione (+...g) per la stampa
                 clean_fascia = re.sub(r'\s*\(\+\d+\s*g\)', '', badge_orario).strip()
+                s_time = sl.get("start_time") or (clean_fascia.split(" - ")[0].strip() if " - " in clean_fascia else "18:00")
+                e_time = sl.get("end_time") or (clean_fascia.split(" - ")[-1].strip() if " - " in clean_fascia else "08:00")
+                slot_info = {
+                    "ordine_turno": ord_t,
+                    "start_time": s_time,
+                    "end_time": e_time,
+                    "badge_orario": clean_fascia
+                }
 
                 if assigned_users:
                     for au in assigned_users:
@@ -1190,12 +1224,11 @@ def reperibilita_calendario(
                                 "ordine_turno": ord_t,
                                 "operatore": nome_operatore,
                                 "telefono": tel if tel else "—",
-                                "fasce_orarie": [clean_fascia] if clean_fascia else [],
+                                "slots": [slot_info],
                                 "coperto": True
                             }
                         else:
-                            if clean_fascia and clean_fascia not in righe_mappa[key]["fasce_orarie"]:
-                                righe_mappa[key]["fasce_orarie"].append(clean_fascia)
+                            righe_mappa[key]["slots"].append(slot_info)
                 else:
                     key = "unassigned"
                     if key not in righe_mappa:
@@ -1203,16 +1236,17 @@ def reperibilita_calendario(
                             "ordine_turno": ord_t,
                             "operatore": "— Non assegnato —",
                             "telefono": "—",
-                            "fasce_orarie": [clean_fascia] if clean_fascia else [],
+                            "slots": [slot_info],
                             "coperto": False
                         }
                     else:
-                        if clean_fascia and clean_fascia not in righe_mappa[key]["fasce_orarie"]:
-                            righe_mappa[key]["fasce_orarie"].append(clean_fascia)
+                        righe_mappa[key]["slots"].append(slot_info)
 
             turni_giorno = []
             for row_item in righe_mappa.values():
-                row_item["fascia_oraria"] = ", ".join(row_item["fasce_orarie"])
+                merged_ranges = merge_slot_ranges(row_item["slots"])
+                row_item["fasce_orarie"] = merged_ranges
+                row_item["fascia_oraria"] = ", ".join(merged_ranges)
                 turni_giorno.append(row_item)
 
             elenco_stampa.append({
