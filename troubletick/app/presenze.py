@@ -1211,9 +1211,9 @@ def reperibilita_calendario(
                             righe_mappa[key]["fasce_orarie"].append(clean_fascia)
 
             turni_giorno = []
-            for r in righe_mappa.values():
-                r["fascia_oraria"] = ", ".join(r["fasce_orarie"])
-                turni_giorno.append(r)
+            for row_item in righe_mappa.values():
+                row_item["fascia_oraria"] = ", ".join(row_item["fasce_orarie"])
+                turni_giorno.append(row_item)
 
             elenco_stampa.append({
                 "date": d,
