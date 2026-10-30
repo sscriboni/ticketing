@@ -1,6 +1,7 @@
 from datetime import datetime, timedelta, date
 import calendar
 import urllib.parse
+import re
 from fastapi import APIRouter, Request, Form
 from fastapi.responses import HTMLResponse, RedirectResponse
 from sqlalchemy import text
@@ -136,8 +137,8 @@ def nuova_presenza(
         error_msg = "Non è possibile inserire presenze nel passato."
         return RedirectResponse(url=f"/calendario-presenze?error={urllib.parse.quote(error_msg)}", status_code=303)
     
-    # Cap nota at 20 characters
-    nota = (nota or "").strip()[:20]
+    # Cap nota at 40 characters
+    nota = (nota or "").strip()[:40]
     
     with engine.begin() as c:
         c.execute(text("""
@@ -1166,34 +1167,53 @@ def reperibilita_calendario(
             tipo_giorno = "festivo" if is_festivo else "feriale"
             day_slots = slots_festivi if is_festivo else slots_feriali
 
-            turni_giorno = []
+            # Raggruppamento per persona nello stesso giorno:
+            # se la stessa persona copre più turni nello stesso giorno, unifica in una sola riga
+            # senza duplicare nome e numero, e ripulisce (+1g) dalla stampa.
+            righe_mappa = {}
             for sl in day_slots:
                 ord_t = sl["ordine_turno"]
                 assigned_users = assignments_by_day_turno.get((d_str, ord_t), [])
                 badge_orario = sl.get("badge_orario") or ""
-                label_turno = sl.get("label") or f"Turno {ord_t}"
-                
-                fascia_label = badge_orario
+                # Rimuove (+1g) o qualsiasi notazione (+...g) per la stampa
+                clean_fascia = re.sub(r'\s*\(\+\d+\s*g\)', '', badge_orario).strip()
 
                 if assigned_users:
                     for au in assigned_users:
+                        auid = au.get("user_id")
                         nome_operatore = f"{au.get('cognome') or ''} {au.get('nome') or ''}".strip() or au.get('username') or "—"
                         tel = (au.get("telefono") or "").strip()
-                        turni_giorno.append({
-                            "ordine_turno": ord_t,
-                            "operatore": nome_operatore,
-                            "telefono": tel if tel else "—",
-                            "fascia_oraria": fascia_label,
-                            "coperto": True
-                        })
+                        key = f"user_{auid}" if auid else f"name_{nome_operatore}"
+
+                        if key not in righe_mappa:
+                            righe_mappa[key] = {
+                                "ordine_turno": ord_t,
+                                "operatore": nome_operatore,
+                                "telefono": tel if tel else "—",
+                                "fasce_orarie": [clean_fascia] if clean_fascia else [],
+                                "coperto": True
+                            }
+                        else:
+                            if clean_fascia and clean_fascia not in righe_mappa[key]["fasce_orarie"]:
+                                righe_mappa[key]["fasce_orarie"].append(clean_fascia)
                 else:
-                    turni_giorno.append({
-                        "ordine_turno": ord_t,
-                        "operatore": "— Non assegnato —",
-                        "telefono": "—",
-                        "fascia_oraria": fascia_label,
-                        "coperto": False
-                    })
+                    key = "unassigned"
+                    if key not in righe_mappa:
+                        righe_mappa[key] = {
+                            "ordine_turno": ord_t,
+                            "operatore": "— Non assegnato —",
+                            "telefono": "—",
+                            "fasce_orarie": [clean_fascia] if clean_fascia else [],
+                            "coperto": False
+                        }
+                    else:
+                        if clean_fascia and clean_fascia not in righe_mappa[key]["fasce_orarie"]:
+                            righe_mappa[key]["fasce_orarie"].append(clean_fascia)
+
+            turni_giorno = []
+            for r in righe_mappa.values():
+                r["fascia_oraria"] = ", ".join(r["fasce_orarie"])
+                turni_giorno.append(r)
 
             elenco_stampa.append({
                 "date": d,
