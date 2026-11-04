@@ -129,24 +129,13 @@
                 </div>
 
                 <hr class="my-4">
-                <h4 class="mb-3">Moduli Applicativi</h4>
-                <p class="text-muted small">Abilita o disabilita i moduli dell'applicazione. I moduli disabilitati verranno nascosti dai menu di navigazione.</p>
-                <div class="mb-3 form-check">
-                    <input type="checkbox" name="modulo_avvisi" value="1" class="form-check-input" id="checkModuloAvvisi" {% if cfg.get('modulo_avvisi', True) %}checked{% endif %}>
-                    <label class="form-check-label fw-bold" for="checkModuloAvvisi">📢 Modulo Avvisi</label>
+                <div class="d-flex justify-content-between align-items-center mb-2">
+                    <h4 class="mb-0">🧩 Moduli Applicativi</h4>
+                    <a href="/admin/moduli" class="btn btn-sm btn-outline-primary">
+                        <i class="bi bi-sliders me-1"></i> Gestione Moduli
+                    </a>
                 </div>
-                <div class="mb-3 form-check">
-                    <input type="checkbox" name="modulo_presenze" value="1" class="form-check-input" id="checkModuloPresenze" {% if cfg.get('modulo_presenze', True) %}checked{% endif %}>
-                    <label class="form-check-label fw-bold" for="checkModuloPresenze">🗓️ Modulo Presenze</label>
-                </div>
-                <div class="mb-3 form-check">
-                    <input type="checkbox" name="modulo_autopark" value="1" class="form-check-input" id="checkModuloAutopark" {% if cfg.get('modulo_autopark', True) %}checked{% endif %}>
-                    <label class="form-check-label fw-bold" for="checkModuloAutopark">🚗 Modulo Carpooling (gestione parco auto)</label>
-                </div>
-                <div class="mb-4 form-check">
-                    <input type="checkbox" name="modulo_formazione" value="1" class="form-check-input" id="checkModuloFormazione" {% if cfg.get('modulo_formazione', False) %}checked{% endif %}>
-                    <label class="form-check-label fw-bold" for="checkModuloFormazione">🎓 Modulo Formazione (gestione corsi e attestati)</label>
-                </div>
+                <p class="text-muted small mb-0">L'abilitazione e disabilitazione dei singoli moduli applicativi (Avvisi, Presenze, Carpooling, Formazione) è gestita nella <a href="/admin/moduli" class="fw-bold text-decoration-none">pagina dedicata</a>.</p>
 
                 <hr class="my-4">
                 <div class="d-flex justify-content-between align-items-center mb-2">

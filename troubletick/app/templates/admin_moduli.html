@@ -1,0 +1,224 @@
+<!doctype html>
+<html lang="it">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Moduli Applicativi — {{ cfg.app_title }}</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css">
+    <style>
+        .module-card {
+            border: 1px solid rgba(0,0,0,0.08);
+            border-radius: 0.75rem;
+            transition: all 0.2s ease;
+        }
+        .module-card:hover {
+            box-shadow: 0 0.5rem 1rem rgba(0,0,0,0.06);
+        }
+        .module-icon {
+            width: 54px;
+            height: 54px;
+            border-radius: 12px;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 1.6rem;
+        }
+    </style>
+</head>
+<body class="bg-light d-flex flex-column min-vh-100">
+{% include 'navbar.html' %}
+
+<div class="container py-4 flex-grow-1">
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <div>
+            <nav aria-label="breadcrumb">
+                <ol class="breadcrumb mb-1">
+                    <li class="breadcrumb-item"><a href="/admin" class="text-decoration-none">Amministrazione</a></li>
+                    <li class="breadcrumb-item active" aria-current="page">Moduli Applicativi</li>
+                </ol>
+            </nav>
+            <h2 class="fw-bold mb-0 d-flex align-items-center gap-2">
+                <i class="bi bi-grid-fill text-primary"></i> Moduli Applicativi
+            </h2>
+        </div>
+        <div>
+            <a href="/admin" class="btn btn-outline-secondary">
+                <i class="bi bi-arrow-left me-1"></i> Pannello Admin
+            </a>
+        </div>
+    </div>
+
+    {% if request.query_params.get('msg') == 'ok' or msg == 'ok' %}
+    <div class="alert alert-success alert-dismissible fade show fw-bold shadow-sm d-flex align-items-center" role="alert">
+        <i class="bi bi-check-circle-fill me-2 fs-5"></i>
+        <div>Configurazione dei moduli aggiornata con successo! Le modifiche alla navigazione sono immediatamente attive.</div>
+        <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+    </div>
+    {% endif %}
+
+    <div class="alert alert-info shadow-sm d-flex align-items-start gap-2 mb-4">
+        <i class="bi bi-info-circle-fill fs-5 mt-1 text-primary"></i>
+        <div>
+            <strong>Regole di gestione moduli:</strong> In questa pagina puoi abilitare o disabilitare i singoli moduli del sistema in base alle esigenze organizzative.
+            <div class="small mt-1 text-muted">
+                Quando un modulo viene disabilitato, le relative voci di menu e l'accesso diretto vengono nascosti a tutti gli utenti. 
+                <strong>Nessun dato registrato nel database viene eliminato</strong>, e alla riattivazione tutte le informazioni pregresse saranno nuovamente accessibili.
+            </div>
+        </div>
+    </div>
+
+    <form method="POST" action="/admin/moduli">
+        <div class="row g-4 mb-4">
+            <!-- Modulo Avvisi -->
+            <div class="col-12 col-md-6">
+                <div class="card h-100 module-card shadow-sm bg-white p-3">
+                    <div class="card-body d-flex flex-column">
+                        <div class="d-flex justify-content-between align-items-start mb-3">
+                            <div class="d-flex align-items-center gap-3">
+                                <div class="module-icon bg-info-subtle text-info">
+                                    <i class="bi bi-megaphone-fill"></i>
+                                </div>
+                                <div>
+                                    <h5 class="fw-bold mb-0">Modulo Avvisi</h5>
+                                    <small class="text-muted">Comunicazioni e bacheca aziendale</small>
+                                </div>
+                            </div>
+                            <div class="form-check form-switch fs-4">
+                                <input class="form-check-input" type="checkbox" name="modulo_avvisi" value="1" id="switchAvvisi" {% if cfg.get('modulo_avvisi', True) %}checked{% endif %}>
+                            </div>
+                        </div>
+                        <p class="text-muted small flex-grow-1">
+                            Consente di pubblicare comunicazioni e avvisi con diversi livelli di gravità (ordinario, attenzione, emergenza) indirizzati ai reparti o visibili sulla Home page pubblica.
+                        </p>
+                        <div class="d-flex justify-content-between align-items-center pt-2 border-top">
+                            <span class="small text-muted">Stato attuale:</span>
+                            {% if cfg.get('modulo_avvisi', True) %}
+                            <span class="badge bg-success-subtle text-success border border-success-subtle px-2 py-1"><i class="bi bi-check-circle me-1"></i>Attivo</span>
+                            {% else %}
+                            <span class="badge bg-secondary-subtle text-secondary border border-secondary-subtle px-2 py-1"><i class="bi bi-x-circle me-1"></i>Disabilitato</span>
+                            {% endif %}
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Modulo Presenze e Reperibilità -->
+            <div class="col-12 col-md-6">
+                <div class="card h-100 module-card shadow-sm bg-white p-3">
+                    <div class="card-body d-flex flex-column">
+                        <div class="d-flex justify-content-between align-items-start mb-3">
+                            <div class="d-flex align-items-center gap-3">
+                                <div class="module-icon bg-success-subtle text-success">
+                                    <i class="bi bi-calendar-check-fill"></i>
+                                </div>
+                                <div>
+                                    <h5 class="fw-bold mb-0">Modulo Presenze</h5>
+                                    <small class="text-muted">Assenze, ferie e reperibilità H24</small>
+                                </div>
+                            </div>
+                            <div class="form-check form-switch fs-4">
+                                <input class="form-check-input" type="checkbox" name="modulo_presenze" value="1" id="switchPresenze" {% if cfg.get('modulo_presenze', True) %}checked{% endif %}>
+                            </div>
+                        </div>
+                        <p class="text-muted small flex-grow-1">
+                            Include il calendario assenze di reparto, la pianificazione e visualizzazione turni di reperibilità H24, la verifica della copertura servizi e i report orari.
+                        </p>
+                        <div class="d-flex justify-content-between align-items-center pt-2 border-top">
+                            <span class="small text-muted">Stato attuale:</span>
+                            {% if cfg.get('modulo_presenze', True) %}
+                            <span class="badge bg-success-subtle text-success border border-success-subtle px-2 py-1"><i class="bi bi-check-circle me-1"></i>Attivo</span>
+                            {% else %}
+                            <span class="badge bg-secondary-subtle text-secondary border border-secondary-subtle px-2 py-1"><i class="bi bi-x-circle me-1"></i>Disabilitato</span>
+                            {% endif %}
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Modulo Carpooling (Parco Mezzi) -->
+            <div class="col-12 col-md-6">
+                <div class="card h-100 module-card shadow-sm bg-white p-3">
+                    <div class="card-body d-flex flex-column">
+                        <div class="d-flex justify-content-between align-items-start mb-3">
+                            <div class="d-flex align-items-center gap-3">
+                                <div class="module-icon bg-primary-subtle text-primary">
+                                    <i class="bi bi-car-front-fill"></i>
+                                </div>
+                                <div>
+                                    <h5 class="fw-bold mb-0">Modulo Carpooling</h5>
+                                    <small class="text-muted">Gestione flotta automezzi e viaggi</small>
+                                </div>
+                            </div>
+                            <div class="form-check form-switch fs-4">
+                                <input class="form-check-input" type="checkbox" name="modulo_autopark" value="1" id="switchAutopark" {% if cfg.get('modulo_autopark', True) %}checked{% endif %}>
+                            </div>
+                        </div>
+                        <p class="text-muted small flex-grow-1">
+                            Gestione del parco veicoli aziendali, prenotazione mezzi con verifica disponibilità, registro viaggi con conteggio chilometri, rifornimenti, manutenzioni e scadenziario noleggi.
+                        </p>
+                        <div class="d-flex justify-content-between align-items-center pt-2 border-top">
+                            <span class="small text-muted">Stato attuale:</span>
+                            {% if cfg.get('modulo_autopark', True) %}
+                            <span class="badge bg-success-subtle text-success border border-success-subtle px-2 py-1"><i class="bi bi-check-circle me-1"></i>Attivo</span>
+                            {% else %}
+                            <span class="badge bg-secondary-subtle text-secondary border border-secondary-subtle px-2 py-1"><i class="bi bi-x-circle me-1"></i>Disabilitato</span>
+                            {% endif %}
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Modulo Corsi di Formazione -->
+            <div class="col-12 col-md-6">
+                <div class="card h-100 module-card shadow-sm bg-white p-3">
+                    <div class="card-body d-flex flex-column">
+                        <div class="d-flex justify-content-between align-items-start mb-3">
+                            <div class="d-flex align-items-center gap-3">
+                                <div class="module-icon bg-warning-subtle text-warning-emphasis">
+                                    <i class="bi bi-mortarboard-fill"></i>
+                                </div>
+                                <div>
+                                    <h5 class="fw-bold mb-0">Modulo Formazione</h5>
+                                    <small class="text-muted">Gestione corsi ed attestati</small>
+                                </div>
+                            </div>
+                            <div class="form-check form-switch fs-4">
+                                <input class="form-check-input" type="checkbox" name="modulo_formazione" value="1" id="switchFormazione" {% if cfg.get('modulo_formazione', False) %}checked{% endif %}>
+                            </div>
+                        </div>
+                        <p class="text-muted small flex-grow-1">
+                            Piattaforma formativa aziendale: pubblicazione catalogo corsi, iscrizioni dipendenti, tracciamento presenze ed emissione/rinnovo attestati e certificazioni obbligatorie.
+                        </p>
+                        <div class="d-flex justify-content-between align-items-center pt-2 border-top">
+                            <span class="small text-muted">Stato attuale:</span>
+                            {% if cfg.get('modulo_formazione', False) %}
+                            <span class="badge bg-success-subtle text-success border border-success-subtle px-2 py-1"><i class="bi bi-check-circle me-1"></i>Attivo</span>
+                            {% else %}
+                            <span class="badge bg-secondary-subtle text-secondary border border-secondary-subtle px-2 py-1"><i class="bi bi-x-circle me-1"></i>Disabilitato</span>
+                            {% endif %}
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="d-flex justify-content-end gap-2">
+            <a href="/admin" class="btn btn-outline-secondary px-4">Annulla</a>
+            <button type="submit" class="btn btn-primary px-4 fw-bold">
+                <i class="bi bi-floppy me-1"></i> Salva Configurazione Moduli
+            </button>
+        </div>
+    </form>
+</div>
+
+<footer class="bg-dark text-white text-center py-3 mt-auto">
+    <div class="container">
+        <p class="mb-0 small">{{ cfg.footer_text }}</p>
+    </div>
+</footer>
+
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
+</body>
+</html>
+

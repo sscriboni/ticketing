@@ -2858,10 +2858,6 @@ def save_impostazioni(r: Request,
                       db_name: str = Form(""),
                       db_user: str = Form(""),
                       db_password: str = Form(""),
-                      modulo_avvisi: int = Form(0),
-                      modulo_presenze: int = Form(0),
-                      modulo_autopark: int = Form(0),
-                      modulo_formazione: int = Form(0),
                       reperibilita_messaggi_home: int = Form(0)):
     user = require_superuser(r)
     if isinstance(user, RedirectResponse):
@@ -2885,10 +2881,6 @@ def save_impostazioni(r: Request,
     CFG["db_user"] = db_user
     CFG["db_password"] = db_password
     
-    CFG["modulo_avvisi"] = bool(modulo_avvisi)
-    CFG["modulo_presenze"] = bool(modulo_presenze)
-    CFG["modulo_autopark"] = bool(modulo_autopark)
-    CFG["modulo_formazione"] = bool(modulo_formazione)
     CFG["reperibilita_messaggi_home"] = bool(reperibilita_messaggi_home)
     
     try:
@@ -2898,6 +2890,41 @@ def save_impostazioni(r: Request,
         pass
         
     return RedirectResponse(url="/admin", status_code=303)
+
+@app.get("/admin/moduli", response_class=HTMLResponse)
+def admin_moduli(r: Request, msg: Optional[str] = None):
+    user = require_superuser(r)
+    if isinstance(user, RedirectResponse):
+        return user
+    return templates.TemplateResponse(r, "admin_moduli.html", {
+        "request": r,
+        "cfg": CFG,
+        "user": user,
+        "msg": msg
+    })
+
+@app.post("/admin/moduli")
+def save_admin_moduli(r: Request,
+                      modulo_avvisi: int = Form(0),
+                      modulo_presenze: int = Form(0),
+                      modulo_autopark: int = Form(0),
+                      modulo_formazione: int = Form(0)):
+    user = require_superuser(r)
+    if isinstance(user, RedirectResponse):
+        return user
+    
+    CFG["modulo_avvisi"] = bool(modulo_avvisi)
+    CFG["modulo_presenze"] = bool(modulo_presenze)
+    CFG["modulo_autopark"] = bool(modulo_autopark)
+    CFG["modulo_formazione"] = bool(modulo_formazione)
+    
+    try:
+        with open(os.path.join(BASE_DIR, "config.json"), "w", encoding="utf-8") as f:
+            json.dump(CFG, f, indent=2, ensure_ascii=False)
+    except Exception:
+        pass
+        
+    return RedirectResponse(url="/admin/moduli?msg=ok", status_code=303)
 
 @app.get("/admin/reperibilita/impostazioni", response_class=HTMLResponse)
 def admin_reperibilita_impostazioni(r: Request, msg: str = None):
