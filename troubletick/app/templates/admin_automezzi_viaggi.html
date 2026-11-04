@@ -171,11 +171,16 @@
             </div>
 
             <!-- Storico Viaggi Completati -->
-            <div class="d-flex justify-content-between align-items-center mb-3">
+            <div class="d-flex justify-content-between align-items-center mb-3 flex-wrap gap-2">
                 <h4 class="mb-0 text-secondary"><i class="bi bi-archive me-2"></i> Storico Viaggi Completati</h4>
-                <!-- Ricerca / Filtro rapido -->
-                <div class="col-md-3">
-                    <input type="text" id="tripSearch" class="form-control form-control-sm" placeholder="Cerca per targa o operatore..." onkeyup="filterTrips()">
+                <div class="d-flex gap-2 align-items-center">
+                    <button class="btn btn-outline-dark btn-sm fw-semibold shadow-xs" onclick="openPrintMonthlyModal()" title="Stampa o esporta in PDF il registro mensile dei viaggi">
+                        <i class="bi bi-printer me-1 text-primary"></i> Stampa Registro Mensile
+                    </button>
+                    <!-- Ricerca / Filtro rapido -->
+                    <div style="min-width: 250px;">
+                        <input type="text" id="tripSearch" class="form-control form-control-sm" placeholder="Cerca per targa o operatore..." onkeyup="filterTrips()">
+                    </div>
                 </div>
             </div>
             
@@ -800,6 +805,96 @@
                 return false;
             }
             return true;
+        }
+    </script>
+
+    <!-- Modal Stampa Registro Mensile Viaggi -->
+    <div class="modal fade" id="modalPrintMonthlyTrips" tabindex="-1" aria-labelledby="modalPrintMonthlyTripsLabel" aria-hidden="true">
+        <div class="modal-dialog modal-dialog-centered">
+            <div class="modal-content border-0 shadow">
+                <div class="modal-header bg-dark text-white">
+                    <h5 class="modal-title fw-bold" id="modalPrintMonthlyTripsLabel">
+                        <i class="bi bi-printer me-2 text-warning"></i> Stampa Registro Mensile Viaggi
+                    </h5>
+                    <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <form action="/admin/automezzi/viaggi/stampa-registro" method="GET" target="_blank">
+                    <div class="modal-body p-4">
+                        <p class="text-muted small mb-3">
+                            Seleziona il mese, l'anno e l'automezzo per generare il prospetto ufficiale stampabile (formato A4 orizzontale / PDF).
+                        </p>
+                        
+                        <div class="row g-3 mb-3">
+                            <div class="col-md-7">
+                                <label class="form-label fw-bold small text-muted">Mese di Riferimento</label>
+                                <select name="mese" id="printSelectMese" class="form-select">
+                                    <option value="1">Gennaio</option>
+                                    <option value="2">Febbraio</option>
+                                    <option value="3">Marzo</option>
+                                    <option value="4">Aprile</option>
+                                    <option value="5">Maggio</option>
+                                    <option value="6">Giugno</option>
+                                    <option value="7">Luglio</option>
+                                    <option value="8">Agosto</option>
+                                    <option value="9">Settembre</option>
+                                    <option value="10">Ottobre</option>
+                                    <option value="11">Novembre</option>
+                                    <option value="12">Dicembre</option>
+                                </select>
+                            </div>
+                            <div class="col-md-5">
+                                <label class="form-label fw-bold small text-muted">Anno</label>
+                                <select name="anno" id="printSelectAnno" class="form-select">
+                                    <!-- Popolato da JS -->
+                                </select>
+                            </div>
+                        </div>
+
+                        <div class="mb-3">
+                            <label class="form-label fw-bold small text-muted">Automezzo</label>
+                            <select name="automezzo_id" id="printSelectVeicolo" class="form-select">
+                                <option value="0" selected>-- Tutti i Veicoli (Registro Globale Flotta) --</option>
+                                {% for c in veicoli %}
+                                <option value="{{ c.automezzo_id }}">{{ c.targa }} &mdash; {{ c.marca }} {{ c.modello }}</option>
+                                {% endfor %}
+                            </select>
+                        </div>
+                    </div>
+                    <div class="modal-footer bg-light">
+                        <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Annulla</button>
+                        <button type="submit" class="btn btn-primary fw-bold px-3">
+                            <i class="bi bi-file-earmark-pdf-fill me-1"></i> Apri Anteprima / Stampa PDF
+                        </button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        function openPrintMonthlyModal() {
+            const now = new Date();
+            const curMonth = now.getMonth() + 1;
+            const curYear = now.getFullYear();
+
+            const selectMese = document.getElementById('printSelectMese');
+            if (selectMese) selectMese.value = curMonth;
+
+            const selectAnno = document.getElementById('printSelectAnno');
+            if (selectAnno && selectAnno.options.length === 0) {
+                for (let y = curYear + 1; y >= curYear - 4; y--) {
+                    const opt = document.createElement('option');
+                    opt.value = y;
+                    opt.textContent = y;
+                    if (y === curYear) opt.selected = true;
+                    selectAnno.appendChild(opt);
+                }
+            } else if (selectAnno) {
+                selectAnno.value = curYear;
+            }
+
+            const modal = bootstrap.Modal.getOrCreateInstance(document.getElementById('modalPrintMonthlyTrips'));
+            modal.show();
         }
     </script>
 

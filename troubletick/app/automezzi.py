@@ -3488,6 +3488,137 @@ def list_viaggi(r: Request):
         "veicoli": veicoli, "operatori": operatori, "sedi": sedi, "reparti": reparti
     })
 
+@router.get("/admin/automezzi/viaggi/stampa-registro", response_class=HTMLResponse)
+def stampa_registro_viaggi(
+    r: Request,
+    anno: typing.Optional[int] = None,
+    mese: typing.Optional[int] = None,
+    automezzo_id: typing.Optional[int] = None
+):
+    if "user" not in r.session:
+        return RedirectResponse(url="/login", status_code=303)
+    user = r.session.get("user")
+    if user.get("ruolo") not in ("admin", "fleet_manager", "global_fleet_manager"):
+        return RedirectResponse(url="/", status_code=303)
+
+    import calendar
+    today = datetime.date.today()
+    if not anno:
+        anno = today.year
+    if not mese:
+        mese = today.month
+
+    if mese < 1:
+        mese = 1
+    elif mese > 12:
+        mese = 12
+
+    _, num_days = calendar.monthrange(anno, mese)
+    start_date_str = f"{anno:04d}-{mese:02d}-01"
+    end_date_str = f"{anno:04d}-{mese:02d}-{num_days:02d}"
+
+    mesi_it = {
+        1: "Gennaio", 2: "Febbraio", 3: "Marzo", 4: "Aprile",
+        5: "Maggio", 6: "Giugno", 7: "Luglio", 8: "Agosto",
+        9: "Settembre", 10: "Ottobre", 11: "Novembre", 12: "Dicembre"
+    }
+    nome_mese = mesi_it.get(mese, "")
+
+    with engine.connect() as conn:
+        user_rep_id = None
+        if user.get("ruolo") == "fleet_manager":
+            user_rep_id = conn.execute(text("SELECT reparto_id FROM users WHERE user_id = :uid"), {"uid": user.get("id")}).scalar() or 0
+
+        # Query veicolo specifico se selezionato
+        veicolo_selezionato = None
+        if automezzo_id and automezzo_id > 0:
+            query_car = """
+                SELECT a.*, b.nome as marca, s_ass.nome as sede_assegnata_nome, r.nome as reparto_nome
+                FROM automezzi a
+                JOIN marche_automezzi b ON a.marca_id = b.marca_id
+                LEFT JOIN sedi s_ass ON a.sede_assegnata_id = s_ass.sede_id
+                LEFT JOIN reparti r ON a.reparto_assegnato_id = r.reparto_id
+                WHERE a.automezzo_id = :aid
+            """
+            params_car = {"aid": automezzo_id}
+            if user_rep_id is not None:
+                query_car += " AND a.reparto_assegnato_id = :rep"
+                params_car["rep"] = user_rep_id
+            v_row = conn.execute(text(query_car), params_car).mappings().first()
+            if v_row:
+                veicolo_selezionato = dict(v_row)
+
+        # Costruzione query viaggi completati del mese
+        base_query = """
+            SELECT v.*, a.targa, b.nome as marca, a.modello,
+                   s_part.nome as sede_partenza_nome,
+                   s_arr.nome as sede_arrivo_nome,
+                   u.nome as user_nome, u.cognome as user_cognome
+            FROM viaggi_automezzi v
+            JOIN automezzi a ON v.automezzo_id = a.automezzo_id
+            JOIN marche_automezzi b ON a.marca_id = b.marca_id
+            JOIN sedi s_part ON v.sede_partenza_id = s_part.sede_id
+            LEFT JOIN sedi s_arr ON v.sede_arrivo_id = s_arr.sede_id
+            LEFT JOIN users u ON v.user_id = u.user_id
+            WHERE v.data_viaggio >= :start_date 
+              AND v.data_viaggio <= :end_date
+              AND v.km_finali IS NOT NULL
+        """
+        params = {"start_date": start_date_str, "end_date": end_date_str}
+
+        if user_rep_id is not None:
+            base_query += " AND a.reparto_assegnato_id = :rep"
+            params["rep"] = user_rep_id
+
+        if veicolo_selezionato:
+            base_query += " AND v.automezzo_id = :aid"
+            params["aid"] = automezzo_id
+
+        base_query += " ORDER BY v.data_viaggio ASC, v.ora_partenza ASC"
+
+        viaggi_raw = conn.execute(text(base_query), params).mappings().all()
+        viaggi = []
+        tot_km = 0
+        min_km_mese = None
+        max_km_mese = None
+
+        for v in viaggi_raw:
+            v_dict = dict(v)
+            km_p = 0
+            if v_dict.get("km_finali") is not None and v_dict.get("km_iniziali") is not None:
+                km_p = max(0, v_dict["km_finali"] - v_dict["km_iniziali"])
+            v_dict["km_percorsi"] = km_p
+            tot_km += km_p
+
+            if v_dict.get("km_iniziali") is not None:
+                if min_km_mese is None or v_dict["km_iniziali"] < min_km_mese:
+                    min_km_mese = v_dict["km_iniziali"]
+            if v_dict.get("km_finali") is not None:
+                if max_km_mese is None or v_dict["km_finali"] > max_km_mese:
+                    max_km_mese = v_dict["km_finali"]
+
+            viaggi.append(v_dict)
+
+        totale_viaggi = len(viaggi)
+
+    return templates.TemplateResponse(r, "stampa_registro_viaggi.html", {
+        "request": r,
+        "cfg": CFG,
+        "user": user,
+        "anno": anno,
+        "mese": mese,
+        "nome_mese": nome_mese,
+        "start_date": datetime.datetime.strptime(start_date_str, "%Y-%m-%d").strftime("%d/%m/%Y"),
+        "end_date": datetime.datetime.strptime(end_date_str, "%Y-%m-%d").strftime("%d/%m/%Y"),
+        "veicolo": veicolo_selezionato,
+        "viaggi": viaggi,
+        "totale_viaggi": totale_viaggi,
+        "tot_km": tot_km,
+        "min_km_mese": min_km_mese,
+        "max_km_mese": max_km_mese,
+        "data_stampa": datetime.datetime.now().strftime("%d/%m/%Y %H:%M")
+    })
+
 @router.post("/admin/automezzi/viaggi/nuovo")
 def add_viaggio(
     r: Request,

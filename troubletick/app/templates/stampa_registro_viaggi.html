@@ -1,0 +1,408 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Registro Viaggi Mensile — {{ nome_mese }} {{ anno }} — {{ veicolo.targa if veicolo else 'Tutti i Veicoli' }}</title>
+    <!-- Bootstrap 5 CSS -->
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
+    <!-- Bootstrap Icons -->
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css">
+    <style>
+        @page {
+            size: A4 landscape;
+            margin: 10mm 12mm;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+            background-color: #f1f5f9;
+            color: #0f172a;
+            font-size: 9.5pt;
+            margin: 0;
+            padding: 0;
+        }
+
+        .report-sheet {
+            max-width: 1120px;
+            margin: 20px auto;
+            background: #ffffff;
+            padding: 24px 30px;
+            border-radius: 8px;
+            box-shadow: 0 4px 15px rgba(0, 0, 0, 0.08);
+            border: 1px solid #cbd5e1;
+        }
+
+        .header-section {
+            border-bottom: 2px solid #0f172a;
+            padding-bottom: 12px;
+            margin-bottom: 14px;
+        }
+
+        .company-name {
+            font-size: 13pt;
+            font-weight: 800;
+            color: #0f172a;
+            letter-spacing: 0.5px;
+            text-transform: uppercase;
+        }
+
+        .report-title {
+            font-size: 15pt;
+            font-weight: 700;
+            color: #1e3a8a;
+            margin-top: 2px;
+            margin-bottom: 2px;
+        }
+
+        .report-subtitle {
+            font-size: 10pt;
+            color: #475569;
+            font-weight: 500;
+        }
+
+        .vehicle-card {
+            background-color: #f8fafc;
+            border: 1px solid #e2e8f0;
+            border-radius: 6px;
+            padding: 10px 14px;
+            margin-bottom: 14px;
+            font-size: 9pt;
+        }
+
+        .table-trips {
+            width: 100%;
+            border-collapse: collapse;
+            font-size: 8.5pt;
+            margin-bottom: 14px;
+        }
+
+        .table-trips th {
+            background-color: #1e293b !important;
+            color: #ffffff !important;
+            padding: 6px 8px;
+            text-align: left;
+            border: 1px solid #0f172a;
+            font-weight: 600;
+            text-transform: uppercase;
+            font-size: 7.8pt;
+            letter-spacing: 0.4px;
+            -webkit-print-color-adjust: exact;
+            print-color-adjust: exact;
+        }
+
+        .table-trips td {
+            padding: 5px 8px;
+            border: 1px solid #cbd5e1;
+            vertical-align: middle;
+            color: #1e293b;
+        }
+
+        .table-trips tbody tr:nth-child(even) {
+            background-color: #f8fafc;
+            -webkit-print-color-adjust: exact;
+            print-color-adjust: exact;
+        }
+
+        .badge-km {
+            font-weight: 700;
+            font-family: monospace;
+            background: #dcfce7;
+            color: #166534;
+            padding: 2px 6px;
+            border-radius: 4px;
+            border: 1px solid #86efac;
+            font-size: 8.5pt;
+            -webkit-print-color-adjust: exact;
+            print-color-adjust: exact;
+        }
+
+        .summary-card {
+            background: #f8fafc;
+            border: 1px solid #cbd5e1;
+            border-radius: 6px;
+            padding: 10px 16px;
+            margin-top: 12px;
+            margin-bottom: 16px;
+            page-break-inside: avoid;
+        }
+
+        .metric-box {
+            text-align: center;
+            border-right: 1px solid #e2e8f0;
+            padding: 4px 10px;
+        }
+
+        .metric-box:last-child {
+            border-right: none;
+        }
+
+        .metric-value {
+            font-size: 13pt;
+            font-weight: 800;
+            color: #1e3a8a;
+            font-family: monospace;
+            line-height: 1.1;
+        }
+
+        .metric-label {
+            font-size: 7.5pt;
+            font-weight: 600;
+            text-transform: uppercase;
+            color: #64748b;
+            letter-spacing: 0.4px;
+        }
+
+        .signatures-section {
+            margin-top: 18px;
+            padding-top: 10px;
+            border-top: 1px dashed #94a3b8;
+            page-break-inside: avoid;
+        }
+
+        .sign-box {
+            height: 65px;
+            border-bottom: 1px solid #334155;
+            margin-top: 25px;
+        }
+
+        .sign-label {
+            font-size: 8pt;
+            color: #475569;
+            font-weight: 600;
+            margin-top: 4px;
+            text-align: center;
+        }
+
+        @media print {
+            body {
+                background: #ffffff !important;
+                color: #000000 !important;
+                font-size: 9pt !important;
+            }
+
+            .report-sheet {
+                box-shadow: none !important;
+                border: none !important;
+                padding: 0 !important;
+                margin: 0 !important;
+                max-width: 100% !important;
+            }
+
+            .no-print {
+                display: none !important;
+            }
+
+            .table-trips th {
+                background-color: #0f172a !important;
+                color: #ffffff !important;
+            }
+
+            .badge-km {
+                border: none !important;
+                background: transparent !important;
+                color: #000000 !important;
+                font-weight: bold !important;
+            }
+
+            tr {
+                page-break-inside: avoid;
+            }
+        }
+    </style>
+</head>
+<body>
+
+    <!-- Pulsanti Azione (Nascosti in fase di Stampa) -->
+    <div class="container no-print py-3 text-center">
+        <div class="d-inline-flex gap-2 align-items-center bg-white p-2 rounded-pill shadow border">
+            <button onclick="window.print()" class="btn btn-primary rounded-pill px-4 fw-bold">
+                <i class="bi bi-printer-fill me-2"></i> Stampa / Salva in PDF
+            </button>
+            <button onclick="window.close()" class="btn btn-outline-secondary rounded-pill px-3">
+                <i class="bi bi-x-lg me-1"></i> Chiudi
+            </button>
+        </div>
+        <div class="text-muted small mt-2">
+            <i class="bi bi-info-circle me-1"></i> Suggerimento di stampa: assicurati che l'orientamento sia impostato su <strong>Orizzontale (Landscape)</strong> e la casella "Grafica di sfondo" sia selezionata.
+        </div>
+    </div>
+
+    <!-- Foglio Ufficiale di Stampa -->
+    <div class="report-sheet">
+        <!-- Header Documento -->
+        <div class="header-section">
+            <div class="d-flex justify-content-between align-items-start">
+                <div>
+                    <div class="company-name">{{ cfg.company_name or cfg.app_title }}</div>
+                    <h1 class="report-title">Registro Mensile Utilizzo Automezzi</h1>
+                    <div class="report-subtitle">
+                        Mese di riferimento: <strong>{{ nome_mese }} {{ anno }}</strong> &bull; Periodo: dal {{ start_date }} al {{ end_date }}
+                    </div>
+                </div>
+                <div class="text-end" style="font-size: 8pt; color: #64748b;">
+                    <div><strong>Modulo Gestione Flotta & Autopark</strong></div>
+                    <div>Generato il: {{ data_stampa }}</div>
+                    <div>Operatore: {{ user.nome }} {{ user.cognome }} ({{ user.username }})</div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Sezione Parametri / Scheda Veicolo -->
+        <div class="vehicle-card">
+            {% if veicolo %}
+            <div class="row align-items-center">
+                <div class="col-md-3">
+                    <span class="text-muted text-uppercase fw-bold" style="font-size: 7.5pt;">Targa Automezzo:</span>
+                    <div class="fw-bold font-monospace fs-6 text-dark text-uppercase" style="letter-spacing: 1px;">{{ veicolo.targa }}</div>
+                </div>
+                <div class="col-md-3">
+                    <span class="text-muted text-uppercase fw-bold" style="font-size: 7.5pt;">Marca e Modello:</span>
+                    <div class="fw-bold text-dark">{{ veicolo.marca }} {{ veicolo.modello }}</div>
+                </div>
+                <div class="col-md-3">
+                    <span class="text-muted text-uppercase fw-bold" style="font-size: 7.5pt;">Sede Assegnata:</span>
+                    <div class="fw-semibold text-secondary">{{ veicolo.sede_assegnata_nome or 'Non definita' }}</div>
+                </div>
+                <div class="col-md-3">
+                    <span class="text-muted text-uppercase fw-bold" style="font-size: 7.5pt;">Reparto / Proprietà:</span>
+                    <div class="fw-semibold text-secondary">{{ veicolo.reparto_nome or 'Tutti i reparti' }} &bull; {{ veicolo.proprieta or 'Proprietà' }}</div>
+                </div>
+            </div>
+            {% else %}
+            <div class="d-flex justify-content-between align-items-center">
+                <div>
+                    <i class="bi bi-collection-fill text-primary me-2"></i>
+                    <strong>Ambito: Registro Globale Flotta</strong> &mdash; Include tutti i viaggi effettuati dai veicoli aziendali nel mese selezionato.
+                </div>
+                <div class="text-muted small">
+                    Filtro flotta: <strong>Tutti i veicoli attivi</strong>
+                </div>
+            </div>
+            {% endif %}
+        </div>
+
+        <!-- Tabella Registro Viaggi -->
+        <table class="table-trips">
+            <thead>
+                <tr>
+                    <th style="width: 3%; text-align: center;">#</th>
+                    <th style="width: 8%;">Data</th>
+                    {% if not veicolo %}
+                    <th style="width: 14%;">Veicolo / Targa</th>
+                    {% endif %}
+                    <th style="width: 16%;">Conducente</th>
+                    <th style="width: 13%;">Partenza</th>
+                    <th style="width: 13%;">Destinazione</th>
+                    <th style="width: 11%; text-align: center;">Orari</th>
+                    <th style="width: 7%; text-align: right;">Km Inizio</th>
+                    <th style="width: 7%; text-align: right;">Km Fine</th>
+                    <th style="width: 7%; text-align: right;">Distanza</th>
+                    <th style="width: 11%;">Note / Soste</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% if not viaggi %}
+                <tr>
+                    <td colspan="{% if not veicolo %}11{% else %}10{% endif %}" class="text-center py-4 text-muted fst-italic">
+                        Nessun viaggio registrato per il veicolo / periodo selezionato.
+                    </td>
+                </tr>
+                {% else %}
+                {% for v in viaggi %}
+                <tr>
+                    <td style="text-align: center; color: #64748b; font-weight: bold;">{{ loop.index }}</td>
+                    <td class="fw-bold">{{ v.data_viaggio }}</td>
+                    {% if not veicolo %}
+                    <td>
+                        <strong class="font-monospace text-uppercase" style="letter-spacing: 0.8px;">{{ v.targa }}</strong>
+                        <div class="text-muted small" style="font-size: 7.5pt;">{{ v.marca }} {{ v.modello }}</div>
+                    </td>
+                    {% endif %}
+                    <td class="fw-semibold">
+                        {% if v.user_nome or v.user_cognome %}
+                            {{ v.user_nome }} {{ v.user_cognome }}
+                        {% else %}
+                            <span class="text-muted fst-italic">Non specificato</span>
+                        {% endif %}
+                    </td>
+                    <td><i class="bi bi-geo-alt text-muted me-1"></i>{{ v.sede_partenza_nome }}</td>
+                    <td><i class="bi bi-geo-alt-fill text-danger me-1"></i>{{ v.sede_arrivo_nome or v.sede_partenza_nome }}</td>
+                    <td style="text-align: center; font-family: monospace;">
+                        {{ v.ora_partenza or '--:--' }} &rarr; {{ v.ora_arrivo or '--:--' }}
+                    </td>
+                    <td style="text-align: right; font-family: monospace;">{{ v.km_iniziali }}</td>
+                    <td style="text-align: right; font-family: monospace;">{{ v.km_finali }}</td>
+                    <td style="text-align: right;">
+                        <span class="badge-km">+{{ v.km_percorsi }} km</span>
+                    </td>
+                    <td style="font-size: 7.8pt;">
+                        {{ v.note or '-' }}
+                        {% if v.minuti_fermo and v.minuti_fermo > 0 %}
+                            <div class="text-warning-emphasis"><i class="bi bi-clock-history"></i> Fermo: {{ v.minuti_fermo }} min</div>
+                        {% endif %}
+                        {% if v.posizione_parcheggio %}
+                            <div class="text-muted"><i class="bi bi-pin-map"></i> {{ v.posizione_parcheggio }}</div>
+                        {% endif %}
+                    </td>
+                </tr>
+                {% endfor %}
+                {% endif %}
+            </tbody>
+        </table>
+
+        <!-- Sezione Riepilogo e Totali Mese -->
+        <div class="summary-card">
+            <div class="row align-items-center">
+                <div class="col-md-3 metric-box">
+                    <div class="metric-value">{{ totale_viaggi }}</div>
+                    <div class="metric-label">Totale Viaggi Mese</div>
+                </div>
+                <div class="col-md-3 metric-box">
+                    <div class="metric-value text-success">+{{ tot_km }} km</div>
+                    <div class="metric-label">Chilometri Percorsi</div>
+                </div>
+                {% if veicolo %}
+                <div class="col-md-3 metric-box">
+                    <div class="metric-value text-dark">{{ min_km_mese if min_km_mese is not none else '—' }}</div>
+                    <div class="metric-label">Km Iniziali Mese</div>
+                </div>
+                <div class="col-md-3 metric-box">
+                    <div class="metric-value text-dark">{{ max_km_mese if max_km_mese is not none else '—' }}</div>
+                    <div class="metric-label">Km Finali Mese</div>
+                </div>
+                {% else %}
+                <div class="col-md-3 metric-box">
+                    <div class="metric-value text-secondary">{{ viaggi|map(attribute='automezzo_id')|unique|list|length }}</div>
+                    <div class="metric-label">Veicoli Impiegati</div>
+                </div>
+                <div class="col-md-3 metric-box">
+                    <div class="metric-value text-secondary">{{ viaggi|map(attribute='user_id')|select('ne', None)|unique|list|length }}</div>
+                    <div class="metric-label">Conducenti Coinvolti</div>
+                </div>
+                {% endif %}
+            </div>
+        </div>
+
+        <!-- Sezione Firme e Visti di Controllo -->
+        <div class="signatures-section">
+            <div class="row">
+                <div class="col-4">
+                    <div style="font-size: 8pt; color: #64748b;">Luogo e Data:</div>
+                    <div class="fw-bold mt-2" style="font-size: 9pt;">_____________________, ____/____/________</div>
+                </div>
+                <div class="col-4">
+                    <div class="sign-box"></div>
+                    <div class="sign-label">Firma del Conducente / Responsabile Mezzo</div>
+                </div>
+                <div class="col-4">
+                    <div class="sign-box"></div>
+                    <div class="sign-label">Firma e Timbro Fleet Manager / Direzione</div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+</body>
+</html>
+
