@@ -1263,7 +1263,7 @@ def get_active_reperibilita(conn, current_dt: datetime = None) -> list:
     yesterday_date = today_date - timedelta(days=1)
 
     # Recupera tutte le date festive dal DB
-    fest_rows = conn.execute(text("SELECT data FROM festivita")).mappings().all()
+    fest_rows = conn.execute(text("SELECT data FROM festivita WHERE comune_id IS NULL OR comune_id = 0")).mappings().all()
     festivita_dates = {r["data"] for r in fest_rows}
 
     def is_date_festivo(d):

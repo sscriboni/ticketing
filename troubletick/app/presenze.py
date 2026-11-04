@@ -1015,10 +1015,11 @@ def reperibilita_calendario(
         slots_feriali = calc_turni_slots(sel_reparto["reperibilita_orario_inizio"] or "18:00", turni_feriali_raw, default_durata=6.0)
         slots_festivi = calc_turni_slots(sel_reparto["reperibilita_festivo_inizio"] or "08:00", turni_festivi_raw, default_durata=12.0)
 
-        # Festività del mese
+        # Festività del mese (per i turni di reperibilità non si considerano come festivi i giorni con un comune associato)
         festivita_rows = c.execute(text("""
             SELECT data, descrizione, comune_id FROM festivita
             WHERE data >= :start AND data <= :end
+              AND (comune_id IS NULL OR comune_id = 0)
         """), {"start": first_day_of_month.isoformat(), "end": last_day_of_month.isoformat()}).mappings().all()
         festivita_map = {f["data"]: f["descrizione"] for f in festivita_rows}
 
@@ -1277,7 +1278,14 @@ def reperibilita_calendario(
                     "festivi": 0,
                     "ore": 0.0
                 }
-            if ass["tipo_giorno"] == "festivo":
+            ass_dt_str = ass["data"]
+            try:
+                ass_d = datetime.strptime(ass_dt_str, "%Y-%m-%d").date()
+                ass_is_fest = (ass_d.weekday() in (5, 6)) or bool(festivita_map.get(ass_dt_str))
+            except Exception:
+                ass_is_fest = (ass["tipo_giorno"] == "festivo")
+
+            if ass_is_fest:
                 user_counts[auid]["festivi"] += 1
             else:
                 user_counts[auid]["feriali"] += 1
@@ -1464,6 +1472,19 @@ def reperibilita_assegna(
             err = "L'operatore è già assegnato a questo turno."
             params = urllib.parse.urlencode({"anno": redirect_anno, "mese": redirect_mese, "reparto_id": reparto_id, "error": err})
             return RedirectResponse(url=f"/reperibilita?{params}", status_code=303)
+
+        # Ricalcola tipo_giorno per coerenza con le regole reperibilità: non festivo se associato a comune
+        try:
+            d_check = datetime.strptime(data, "%Y-%m-%d").date()
+            is_wknd = d_check.weekday() in (5, 6)
+            is_nat_holiday = bool(c.execute(text("""
+                SELECT 1 FROM festivita 
+                WHERE data = :d AND (comune_id IS NULL OR comune_id = 0)
+                LIMIT 1
+            """), {"d": data}).scalar())
+            tipo_giorno = "festivo" if (is_wknd or is_nat_holiday) else "feriale"
+        except Exception:
+            pass
 
         c.execute(text("""
             INSERT INTO reperibilita_assegnazioni (reparto_id, data, tipo_giorno, ordine_turno, durata_ore, user_id)
