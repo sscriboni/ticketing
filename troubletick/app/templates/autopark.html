@@ -312,7 +312,7 @@
                             <select class="form-select rounded-3" id="destinazione_select" required>
                                 <option value="" disabled selected>-- Seleziona destinazione --</option>
                                 {% for s in sedi %}
-                                    <option value="{{ s.nome }}">Sede: {{ s.nome }}</option>
+                                    <option value="{% if s.comune_nome %}[{{ s.comune_nome }}] {% endif %}{{ s.nome }}">{% if s.comune_nome %}[{{ s.comune_nome }}] {% endif %}{{ s.nome }}</option>
                                 {% endfor %}
                                 <option value="__custom__">Altra destinazione (specificare)...</option>
                             </select>
@@ -589,7 +589,7 @@
                                                             <label class="form-label small fw-bold mb-1">Sede Riconsegna <span class="text-danger">*</span></label>
                                                             <select name="sede_arrivo_id" class="form-select form-select-sm" required>
                                                                 {% for s in sedi %}
-                                                                    <option value="{{ s.sede_id }}" {% if s.sede_id == p.sede_partenza_id %}selected{% endif %}>{{ s.nome }}</option>
+                                                                    <option value="{{ s.sede_id }}" {% if s.sede_id == p.sede_partenza_id %}selected{% endif %}>{% if s.comune_nome %}[{{ s.comune_nome }}] {% endif %}{{ s.nome }}</option>
                                                                 {% endfor %}
                                                             </select>
                                                         </div>

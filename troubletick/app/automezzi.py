@@ -799,7 +799,12 @@ def page_scadenziario_noleggi(
             ORDER BY a.targa ASC
         """)).mappings().all()
 
-        sedi = conn.execute(text("SELECT sede_id, nome FROM sedi ORDER BY nome")).mappings().all()
+        sedi = conn.execute(text("""
+            SELECT s.sede_id, s.nome, c.nome AS comune_nome
+            FROM sedi s
+            LEFT JOIN comuni c ON s.comune_id = c.comune_id
+            ORDER BY CASE WHEN c.nome IS NULL OR c.nome = '' THEN 1 ELSE 0 END, c.nome ASC, s.nome ASC
+        """)).mappings().all()
         reparti = conn.execute(text("SELECT reparto_id, nome FROM reparti ORDER BY nome")).mappings().all()
         marche = conn.execute(text("SELECT marca_id, nome FROM marche_automezzi ORDER BY nome")).mappings().all()
         all_tags = [dict(t) for t in conn.execute(text("SELECT * FROM tag_automezzi ORDER BY nome")).mappings().all()]
@@ -3485,7 +3490,12 @@ def list_viaggi(r: Request):
             ORDER BY cognome, nome
         """)).mappings().all()
         
-        sedi = conn.execute(text("SELECT sede_id, nome FROM sedi ORDER BY nome")).mappings().all()
+        sedi = conn.execute(text("""
+            SELECT s.sede_id, s.nome, c.nome AS comune_nome
+            FROM sedi s
+            LEFT JOIN comuni c ON s.comune_id = c.comune_id
+            ORDER BY CASE WHEN c.nome IS NULL OR c.nome = '' THEN 1 ELSE 0 END, c.nome ASC, s.nome ASC
+        """)).mappings().all()
         reparti = conn.execute(text("SELECT reparto_id, nome FROM reparti ORDER BY nome")).mappings().all()
         
     return templates.TemplateResponse(r, "admin_automezzi_viaggi.html", {
@@ -4021,7 +4031,7 @@ def get_autopark(r: Request, msg: str = None, error: str = None):
                       AND a.escluso_prenotazione = 0) AS auto_disponibili
             FROM sedi s
             LEFT JOIN comuni c ON s.comune_id = c.comune_id
-            ORDER BY COALESCE(c.nome, s.nome) ASC, s.nome ASC
+            ORDER BY CASE WHEN c.nome IS NULL OR c.nome = '' THEN 1 ELSE 0 END, c.nome ASC, s.nome ASC
         """)).mappings().all()
         
         # Instant booking properties
