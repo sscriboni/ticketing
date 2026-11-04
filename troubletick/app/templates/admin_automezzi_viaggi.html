@@ -36,10 +36,13 @@
     <div class="container py-4">
         <!-- Registro Viaggi -->
         <div class="mb-5">
-            <div class="d-flex justify-content-between align-items-center mb-4">
+            <div class="d-flex justify-content-between align-items-center mb-4 flex-wrap gap-2">
                 <h2 class="mb-0"><i class="bi bi-compass text-success me-2"></i> Registro Utilizzo / Viaggi Automezzi</h2>
-                <div class="d-flex gap-2">
-                    <button class="btn btn-success text-white px-4 py-2" onclick="showAddTripModal()">
+                <div class="d-flex gap-2 align-items-center">
+                    <button class="btn btn-outline-dark fw-semibold shadow-xs" onclick="openPrintMonthlyModal()" title="Stampa o esporta in PDF il registro mensile dei viaggi">
+                        <i class="bi bi-printer me-1 text-primary"></i> Stampa Registro Mensile
+                    </button>
+                    <button class="btn btn-success text-white px-4 py-2 fw-semibold" onclick="showAddTripModal()">
                         <i class="bi bi-plus-circle me-1"></i> Registra Nuovo Viaggio
                     </button>
                 </div>
@@ -179,9 +182,6 @@
             <div class="d-flex justify-content-between align-items-center mb-3 flex-wrap gap-2">
                 <h4 class="mb-0 text-secondary"><i class="bi bi-archive me-2"></i> Storico Viaggi Completati</h4>
                 <div class="d-flex gap-2 align-items-center">
-                    <button class="btn btn-outline-dark btn-sm fw-semibold shadow-xs" onclick="openPrintMonthlyModal()" title="Stampa o esporta in PDF il registro mensile dei viaggi">
-                        <i class="bi bi-printer me-1 text-primary"></i> Stampa Registro Mensile
-                    </button>
                     <!-- Ricerca / Filtro rapido -->
                     <div style="min-width: 250px;">
                         <input type="text" id="tripSearch" class="form-control form-control-sm" placeholder="Cerca per targa o operatore..." onkeyup="filterTrips()">
@@ -923,7 +923,7 @@
 
     <!-- Modal Stampa Registro Mensile Viaggi -->
     <div class="modal fade" id="modalPrintMonthlyTrips" tabindex="-1" aria-labelledby="modalPrintMonthlyTripsLabel" aria-hidden="true">
-        <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-dialog modal-dialog-centered modal-lg">
             <div class="modal-content border-0 shadow">
                 <div class="modal-header bg-dark text-white">
                     <h5 class="modal-title fw-bold" id="modalPrintMonthlyTripsLabel">
@@ -931,10 +931,10 @@
                     </h5>
                     <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
                 </div>
-                <form action="/admin/automezzi/viaggi/stampa-registro" method="GET" target="_blank">
+                <form action="/admin/automezzi/viaggi/stampa-registro" method="GET" target="_blank" id="formPrintMonthly">
                     <div class="modal-body p-4">
                         <p class="text-muted small mb-3">
-                            Seleziona il mese, l'anno e l'automezzo per generare il prospetto ufficiale stampabile (formato A4 orizzontale / PDF).
+                            Seleziona il mese, l'anno e gli automezzi per generare il prospetto ufficiale stampabile (formato A4 orizzontale / PDF).
                         </p>
                         
                         <div class="row g-3 mb-3">
@@ -963,14 +963,65 @@
                             </div>
                         </div>
 
+                        <!-- Selezione Automezzi Multipla (ordinata per targa) -->
                         <div class="mb-3">
-                            <label class="form-label fw-bold small text-muted">Automezzo</label>
-                            <select name="automezzo_id" id="printSelectVeicolo" class="form-select">
-                                <option value="0" selected>-- Tutti i Veicoli (Registro Globale Flotta) --</option>
-                                {% for c in veicoli %}
-                                <option value="{{ c.automezzo_id }}">{{ c.targa }} &mdash; {{ c.marca }} {{ c.modello }}</option>
-                                {% endfor %}
-                            </select>
+                            <div class="d-flex justify-content-between align-items-center mb-1">
+                                <label class="form-label fw-bold small text-muted mb-0">
+                                    Automezzi da Includere <span class="badge bg-secondary ms-1" id="printSelectedCount">Tutti</span>
+                                </label>
+                                <div class="d-flex gap-2">
+                                    <button type="button" class="btn btn-link btn-sm p-0 text-decoration-none" onclick="toggleSelectAllVehicles(true)">Seleziona tutti</button>
+                                    <span class="text-muted small">&bull;</span>
+                                    <button type="button" class="btn btn-link btn-sm p-0 text-decoration-none text-danger" onclick="toggleSelectAllVehicles(false)">Deseleziona tutti</button>
+                                </div>
+                            </div>
+                            
+                            <!-- Filtro rapido targa / modello -->
+                            <div class="input-group input-group-sm mb-2">
+                                <span class="input-group-text bg-white"><i class="bi bi-search text-muted"></i></span>
+                                <input type="text" id="printFilterTarga" class="form-control form-control-sm" placeholder="Filtra lista per targa o modello..." onkeyup="filterPrintVehicles()">
+                            </div>
+
+                            <!-- Elenco Checkbox Veicoli ordinati per targa -->
+                            <div class="border rounded p-2 bg-light" style="max-height: 220px; overflow-y: auto;" id="printVehiclesList">
+                                {% if veicoli %}
+                                    {% for c in veicoli %}
+                                    <div class="form-check py-1 px-3 border-bottom border-white vehicle-print-item" data-search="{{ c.targa|lower }} {{ c.marca|lower }} {{ c.modello|lower }}">
+                                        <input class="form-check-input vehicle-print-checkbox" type="checkbox" name="automezzo_id" value="{{ c.automezzo_id }}" id="chk_auto_{{ c.automezzo_id }}" checked onchange="updatePrintSelectedCount()">
+                                        <label class="form-check-label w-100 cursor-pointer d-flex justify-content-between align-items-center" for="chk_auto_{{ c.automezzo_id }}">
+                                            <div>
+                                                <strong class="font-monospace text-uppercase text-dark fs-6" style="letter-spacing: 0.8px;">{{ c.targa }}</strong>
+                                                <span class="text-muted ms-2">{{ c.marca }} {{ c.modello }}</span>
+                                            </div>
+                                            {% if c.sede_attuale_nome %}
+                                                <span class="badge bg-white text-secondary border small">{{ c.sede_attuale_nome }}</span>
+                                            {% endif %}
+                                        </label>
+                                    </div>
+                                    {% endfor %}
+                                {% else %}
+                                    <div class="text-center text-muted py-2 small">Nessun veicolo disponibile.</div>
+                                {% endif %}
+                            </div>
+                        </div>
+
+                        <!-- Modalità di Impaginazione -->
+                        <div class="mb-2">
+                            <label class="form-label fw-bold small text-muted mb-1">Formato di Impaginazione</label>
+                            <div class="d-flex flex-wrap gap-4">
+                                <div class="form-check">
+                                    <input class="form-check-input" type="radio" name="modalita" id="modSeparata" value="separata" checked>
+                                    <label class="form-check-label small fw-semibold" for="modSeparata">
+                                        <i class="bi bi-file-earmark-break text-primary me-1"></i> Schede separate per veicolo <span class="text-muted fw-normal">(1 foglio per mezzo)</span>
+                                    </label>
+                                </div>
+                                <div class="form-check">
+                                    <input class="form-check-input" type="radio" name="modalita" id="modCumulativa" value="cumulativa">
+                                    <label class="form-check-label small fw-semibold" for="modCumulativa">
+                                        <i class="bi bi-table text-secondary me-1"></i> Tabella cumulativa unica <span class="text-muted fw-normal">(tutti i viaggi insieme)</span>
+                                    </label>
+                                </div>
+                            </div>
                         </div>
                     </div>
                     <div class="modal-footer bg-light">
@@ -1006,9 +1057,58 @@
                 selectAnno.value = curYear;
             }
 
+            updatePrintSelectedCount();
+
             const modal = bootstrap.Modal.getOrCreateInstance(document.getElementById('modalPrintMonthlyTrips'));
             modal.show();
         }
+
+        function toggleSelectAllVehicles(selectAll) {
+            const checkboxes = document.querySelectorAll('.vehicle-print-checkbox');
+            checkboxes.forEach(cb => {
+                cb.checked = selectAll;
+            });
+            updatePrintSelectedCount();
+        }
+
+        function updatePrintSelectedCount() {
+            const checkboxes = document.querySelectorAll('.vehicle-print-checkbox');
+            const checked = Array.from(checkboxes).filter(cb => cb.checked);
+            const badge = document.getElementById('printSelectedCount');
+            if (!badge) return;
+            if (checked.length === checkboxes.length) {
+                badge.textContent = 'Tutti (' + checkboxes.length + ')';
+                badge.className = 'badge bg-success ms-1';
+            } else if (checked.length === 0) {
+                badge.textContent = 'Nessuno selezionato';
+                badge.className = 'badge bg-danger ms-1';
+            } else {
+                badge.textContent = checked.length + ' su ' + checkboxes.length + ' selezionati';
+                badge.className = 'badge bg-primary ms-1';
+            }
+        }
+
+        function filterPrintVehicles() {
+            const q = (document.getElementById('printFilterTarga').value || '').trim().toLowerCase();
+            const items = document.querySelectorAll('.vehicle-print-item');
+            items.forEach(it => {
+                const text = it.getAttribute('data-search') || '';
+                it.style.display = (!q || text.includes(q)) ? '' : 'none';
+            });
+        }
+
+        document.addEventListener('DOMContentLoaded', function() {
+            const formPrint = document.getElementById('formPrintMonthly');
+            if (formPrint) {
+                formPrint.addEventListener('submit', function(e) {
+                    const checked = document.querySelectorAll('.vehicle-print-checkbox:checked');
+                    if (checked.length === 0) {
+                        e.preventDefault();
+                        alert("Seleziona almeno un automezzo per cui stampare il registro mensile.");
+                    }
+                });
+            }
+        });
     </script>
 
     <!-- Modal Modifica Viaggio Registrato -->

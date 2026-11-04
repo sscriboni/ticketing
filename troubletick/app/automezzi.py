@@ -3413,7 +3413,7 @@ def list_viaggi(r: Request):
                 JOIN marche_automezzi b ON a.marca_id = b.marca_id 
                 LEFT JOIN sedi s ON a.sede_attuale_id = s.sede_id
                 WHERE a.reparto_assegnato_id = :rep
-                ORDER BY b.nome, a.modello
+                ORDER BY a.targa ASC
             """), {"rep": user_reparto_id}).mappings().all()
         else:
             viaggi_in_corso = conn.execute(text("""
@@ -3475,7 +3475,7 @@ def list_viaggi(r: Request):
                 FROM automezzi a 
                 JOIN marche_automezzi b ON a.marca_id = b.marca_id 
                 LEFT JOIN sedi s ON a.sede_attuale_id = s.sede_id
-                ORDER BY b.nome, a.modello
+                ORDER BY a.targa ASC
             """)).mappings().all()
             
         operatori = conn.execute(text("""
@@ -3499,7 +3499,7 @@ def stampa_registro_viaggi(
     r: Request,
     anno: typing.Optional[int] = None,
     mese: typing.Optional[int] = None,
-    automezzo_id: typing.Optional[int] = None
+    modalita: typing.Optional[str] = "separata"
 ):
     if "user" not in r.session:
         return RedirectResponse(url="/login", status_code=303)
@@ -3530,31 +3530,46 @@ def stampa_registro_viaggi(
     }
     nome_mese = mesi_it.get(mese, "")
 
+    # Parsing automezzi selezionati (supporto selezione multipla)
+    automezzi_ids_raw = r.query_params.getlist("automezzo_id")
+    automezzi_ids = []
+    for aid in automezzi_ids_raw:
+        try:
+            aid_int = int(aid)
+            if aid_int > 0 and aid_int not in automezzi_ids:
+                automezzi_ids.append(aid_int)
+        except ValueError:
+            pass
+
     with engine.connect() as conn:
         user_rep_id = None
         if user.get("ruolo") == "fleet_manager":
             user_rep_id = conn.execute(text("SELECT reparto_id FROM users WHERE user_id = :uid"), {"uid": user.get("id")}).scalar() or 0
 
-        # Query veicolo specifico se selezionato
-        veicolo_selezionato = None
-        if automezzo_id and automezzo_id > 0:
-            query_car = """
-                SELECT a.*, b.nome as marca, s_ass.nome as sede_assegnata_nome, r.nome as reparto_nome
-                FROM automezzi a
-                JOIN marche_automezzi b ON a.marca_id = b.marca_id
-                LEFT JOIN sedi s_ass ON a.sede_assegnata_id = s_ass.sede_id
-                LEFT JOIN reparti r ON a.reparto_assegnato_id = r.reparto_id
-                WHERE a.automezzo_id = :aid
-            """
-            params_car = {"aid": automezzo_id}
-            if user_rep_id is not None:
-                query_car += " AND a.reparto_assegnato_id = :rep"
-                params_car["rep"] = user_rep_id
-            v_row = conn.execute(text(query_car), params_car).mappings().first()
-            if v_row:
-                veicolo_selezionato = dict(v_row)
+        # Query veicoli selezionati (oppure tutti se automezzi_ids è vuoto), ordinati rigorosamente per targa
+        query_cars = """
+            SELECT a.*, b.nome as marca, s_ass.nome as sede_assegnata_nome, r.nome as reparto_nome
+            FROM automezzi a
+            JOIN marche_automezzi b ON a.marca_id = b.marca_id
+            LEFT JOIN sedi s_ass ON a.sede_assegnata_id = s_ass.sede_id
+            LEFT JOIN reparti r ON a.reparto_assegnato_id = r.reparto_id
+            WHERE 1=1
+        """
+        params_cars = {}
+        if user_rep_id is not None:
+            query_cars += " AND a.reparto_assegnato_id = :rep"
+            params_cars["rep"] = user_rep_id
 
-        # Costruzione query viaggi completati del mese
+        if automezzi_ids:
+            placeholders = ", ".join(f":aid_{i}" for i in range(len(automezzi_ids)))
+            query_cars += f" AND a.automezzo_id IN ({placeholders})"
+            for i, aid in enumerate(automezzi_ids):
+                params_cars[f"aid_{i}"] = aid
+
+        query_cars += " ORDER BY a.targa ASC"
+        veicoli_list = [dict(row) for row in conn.execute(text(query_cars), params_cars).mappings().all()]
+
+        # Query viaggi completati del mese per i veicoli selezionati
         base_query = """
             SELECT v.*, a.targa, b.nome as marca, a.modello,
                    s_part.nome as sede_partenza_nome,
@@ -3576,9 +3591,11 @@ def stampa_registro_viaggi(
             base_query += " AND a.reparto_assegnato_id = :rep"
             params["rep"] = user_rep_id
 
-        if veicolo_selezionato:
-            base_query += " AND v.automezzo_id = :aid"
-            params["aid"] = automezzo_id
+        if automezzi_ids:
+            placeholders = ", ".join(f":aid_{i}" for i in range(len(automezzi_ids)))
+            base_query += f" AND v.automezzo_id IN ({placeholders})"
+            for i, aid in enumerate(automezzi_ids):
+                params[f"aid_{i}"] = aid
 
         base_query += " ORDER BY v.data_viaggio ASC, v.ora_partenza ASC"
 
@@ -3607,6 +3624,56 @@ def stampa_registro_viaggi(
 
         totale_viaggi = len(viaggi)
 
+        # Costruzione report: per ciascun veicolo (default) o cumulativo unico
+        veicoli_report = []
+        if modalita == "cumulativa":
+            veicoli_report.append({
+                "veicolo": veicoli_list[0] if len(veicoli_list) == 1 else None,
+                "viaggi": viaggi,
+                "totale_viaggi": totale_viaggi,
+                "tot_km": tot_km,
+                "min_km_mese": min_km_mese,
+                "max_km_mese": max_km_mese
+            })
+        else:
+            trips_by_vehicle = {v["automezzo_id"]: [] for v in veicoli_list}
+            for tr in viaggi:
+                aid = tr["automezzo_id"]
+                if aid in trips_by_vehicle:
+                    trips_by_vehicle[aid].append(tr)
+
+            for v in veicoli_list:
+                v_trips = trips_by_vehicle.get(v["automezzo_id"], [])
+                v_tot_km = sum(tr["km_percorsi"] for tr in v_trips)
+                v_min_km = min((tr["km_iniziali"] for tr in v_trips if tr.get("km_iniziali") is not None), default=None)
+                v_max_km = max((tr["km_finali"] for tr in v_trips if tr.get("km_finali") is not None), default=None)
+                veicoli_report.append({
+                    "veicolo": v,
+                    "viaggi": v_trips,
+                    "totale_viaggi": len(v_trips),
+                    "tot_km": v_tot_km,
+                    "min_km_mese": v_min_km,
+                    "max_km_mese": v_max_km
+                })
+
+        if not veicoli_report:
+            veicoli_report.append({
+                "veicolo": None,
+                "viaggi": [],
+                "totale_viaggi": 0,
+                "tot_km": 0,
+                "min_km_mese": None,
+                "max_km_mese": None
+            })
+
+        veicolo_selezionato = veicoli_list[0] if len(veicoli_list) == 1 else None
+        if len(veicoli_list) == 0:
+            veicoli_selezionati_label = "Nessun veicolo trovato"
+        elif len(veicoli_list) <= 4:
+            veicoli_selezionati_label = ", ".join(v["targa"] for v in veicoli_list)
+        else:
+            veicoli_selezionati_label = f"{len(veicoli_list)} veicoli flotta"
+
     return templates.TemplateResponse(r, "stampa_registro_viaggi.html", {
         "request": r,
         "cfg": CFG,
@@ -3616,7 +3683,10 @@ def stampa_registro_viaggi(
         "nome_mese": nome_mese,
         "start_date": datetime.datetime.strptime(start_date_str, "%Y-%m-%d").strftime("%d/%m/%Y"),
         "end_date": datetime.datetime.strptime(end_date_str, "%Y-%m-%d").strftime("%d/%m/%Y"),
+        "modalita": modalita,
         "veicolo": veicolo_selezionato,
+        "veicoli_report": veicoli_report,
+        "veicoli_selezionati_label": veicoli_selezionati_label,
         "viaggi": viaggi,
         "totale_viaggi": totale_viaggi,
         "tot_km": tot_km,

@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Registro Viaggi Mensile — {{ nome_mese }} {{ anno }} — {{ veicolo.targa if veicolo else 'Tutti i Veicoli' }}</title>
+    <title>Registro Viaggi Mensile — {{ nome_mese }} {{ anno }} — {% if veicoli_report|length == 1 and veicoli_report[0].veicolo %}{{ veicoli_report[0].veicolo.targa }}{% else %}{{ veicoli_selezionati_label }}{% endif %}</title>
     <!-- Bootstrap 5 CSS -->
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
     <!-- Bootstrap Icons -->
@@ -187,6 +187,13 @@
                 padding: 0 !important;
                 margin: 0 !important;
                 max-width: 100% !important;
+                page-break-after: always !important;
+                break-after: page !important;
+            }
+
+            .report-sheet:last-child {
+                page-break-after: auto !important;
+                break-after: auto !important;
             }
 
             .no-print {
@@ -228,6 +235,7 @@
         </div>
     </div>
 
+    {% for sheet in veicoli_report %}
     <!-- Foglio Ufficiale di Stampa -->
     <div class="report-sheet">
         <!-- Header Documento -->
@@ -244,39 +252,42 @@
                     <div><strong>Modulo Gestione Flotta & Autopark</strong></div>
                     <div>Generato il: {{ data_stampa }}</div>
                     <div>Operatore: {{ user.nome }} {{ user.cognome }} ({{ user.username }})</div>
+                    {% if veicoli_report|length > 1 %}
+                    <div class="mt-1 badge bg-dark text-white font-monospace">Foglio {{ loop.index }} di {{ veicoli_report|length }}</div>
+                    {% endif %}
                 </div>
             </div>
         </div>
 
         <!-- Sezione Parametri / Scheda Veicolo -->
         <div class="vehicle-card">
-            {% if veicolo %}
+            {% if sheet.veicolo %}
             <div class="row align-items-center">
                 <div class="col-md-3">
                     <span class="text-muted text-uppercase fw-bold" style="font-size: 7.5pt;">Targa Automezzo:</span>
-                    <div class="fw-bold font-monospace fs-6 text-dark text-uppercase" style="letter-spacing: 1px;">{{ veicolo.targa }}</div>
+                    <div class="fw-bold font-monospace fs-6 text-dark text-uppercase" style="letter-spacing: 1px;">{{ sheet.veicolo.targa }}</div>
                 </div>
                 <div class="col-md-3">
                     <span class="text-muted text-uppercase fw-bold" style="font-size: 7.5pt;">Marca e Modello:</span>
-                    <div class="fw-bold text-dark">{{ veicolo.marca }} {{ veicolo.modello }}</div>
+                    <div class="fw-bold text-dark">{{ sheet.veicolo.marca }} {{ sheet.veicolo.modello }}</div>
                 </div>
                 <div class="col-md-3">
                     <span class="text-muted text-uppercase fw-bold" style="font-size: 7.5pt;">Sede Assegnata:</span>
-                    <div class="fw-semibold text-secondary">{{ veicolo.sede_assegnata_nome or 'Non definita' }}</div>
+                    <div class="fw-semibold text-secondary">{{ sheet.veicolo.sede_assegnata_nome or 'Non definita' }}</div>
                 </div>
                 <div class="col-md-3">
                     <span class="text-muted text-uppercase fw-bold" style="font-size: 7.5pt;">Reparto / Proprietà:</span>
-                    <div class="fw-semibold text-secondary">{{ veicolo.reparto_nome or 'Tutti i reparti' }} &bull; {{ veicolo.proprieta or 'Proprietà' }}</div>
+                    <div class="fw-semibold text-secondary">{{ sheet.veicolo.reparto_nome or 'Tutti i reparti' }} &bull; {{ sheet.veicolo.proprieta or 'Proprietà' }}</div>
                 </div>
             </div>
             {% else %}
             <div class="d-flex justify-content-between align-items-center">
                 <div>
                     <i class="bi bi-collection-fill text-primary me-2"></i>
-                    <strong>Ambito: Registro Globale Flotta</strong> &mdash; Include tutti i viaggi effettuati dai veicoli aziendali nel mese selezionato.
+                    <strong>Ambito: Registro Globale Flotta</strong> &mdash; Include tutti i viaggi effettuati dai veicoli selezionati nel mese.
                 </div>
                 <div class="text-muted small">
-                    Filtro flotta: <strong>Tutti i veicoli attivi</strong>
+                    Filtro flotta: <strong>{{ veicoli_selezionati_label }}</strong>
                 </div>
             </div>
             {% endif %}
@@ -288,7 +299,7 @@
                 <tr>
                     <th style="width: 3%; text-align: center;">#</th>
                     <th style="width: 8%;">Data</th>
-                    {% if not veicolo %}
+                    {% if not sheet.veicolo %}
                     <th style="width: 14%;">Veicolo / Targa</th>
                     {% endif %}
                     <th style="width: 16%;">Conducente</th>
@@ -303,18 +314,18 @@
                 </tr>
             </thead>
             <tbody>
-                {% if not viaggi %}
+                {% if not sheet.viaggi %}
                 <tr>
-                    <td colspan="{% if not veicolo %}12{% else %}11{% endif %}" class="text-center py-4 text-muted fst-italic">
+                    <td colspan="{% if not sheet.veicolo %}12{% else %}11{% endif %}" class="text-center py-4 text-muted fst-italic">
                         Nessun viaggio registrato per il veicolo / periodo selezionato.
                     </td>
                 </tr>
                 {% else %}
-                {% for v in viaggi %}
+                {% for v in sheet.viaggi %}
                 <tr>
                     <td style="text-align: center; color: #64748b; font-weight: bold;">{{ loop.index }}</td>
                     <td class="fw-bold">{{ v.data_viaggio }}</td>
-                    {% if not veicolo %}
+                    {% if not sheet.veicolo %}
                     <td>
                         <strong class="font-monospace text-uppercase" style="letter-spacing: 0.8px;">{{ v.targa }}</strong>
                         <div class="text-muted small" style="font-size: 7.5pt;">{{ v.marca }} {{ v.modello }}</div>
@@ -357,29 +368,29 @@
         <div class="summary-card">
             <div class="row align-items-center">
                 <div class="col-md-3 metric-box">
-                    <div class="metric-value">{{ totale_viaggi }}</div>
+                    <div class="metric-value">{{ sheet.totale_viaggi }}</div>
                     <div class="metric-label">Totale Viaggi Mese</div>
                 </div>
                 <div class="col-md-3 metric-box">
-                    <div class="metric-value text-success">+{{ tot_km }} km</div>
+                    <div class="metric-value text-success">+{{ sheet.tot_km }} km</div>
                     <div class="metric-label">Chilometri Percorsi</div>
                 </div>
-                {% if veicolo %}
+                {% if sheet.veicolo %}
                 <div class="col-md-3 metric-box">
-                    <div class="metric-value text-dark">{{ min_km_mese if min_km_mese is not none else '—' }}</div>
+                    <div class="metric-value text-dark">{{ sheet.min_km_mese if sheet.min_km_mese is not none else '—' }}</div>
                     <div class="metric-label">Km Iniziali Mese</div>
                 </div>
                 <div class="col-md-3 metric-box">
-                    <div class="metric-value text-dark">{{ max_km_mese if max_km_mese is not none else '—' }}</div>
+                    <div class="metric-value text-dark">{{ sheet.max_km_mese if sheet.max_km_mese is not none else '—' }}</div>
                     <div class="metric-label">Km Finali Mese</div>
                 </div>
                 {% else %}
                 <div class="col-md-3 metric-box">
-                    <div class="metric-value text-secondary">{{ viaggi|map(attribute='automezzo_id')|unique|list|length }}</div>
+                    <div class="metric-value text-secondary">{{ sheet.viaggi|map(attribute='automezzo_id')|unique|list|length }}</div>
                     <div class="metric-label">Veicoli Impiegati</div>
                 </div>
                 <div class="col-md-3 metric-box">
-                    <div class="metric-value text-secondary">{{ viaggi|map(attribute='user_id')|select('ne', None)|unique|list|length }}</div>
+                    <div class="metric-value text-secondary">{{ sheet.viaggi|map(attribute='user_id')|select('ne', None)|unique|list|length }}</div>
                     <div class="metric-label">Conducenti Coinvolti</div>
                 </div>
                 {% endif %}
@@ -404,6 +415,7 @@
             </div>
         </div>
     </div>
+    {% endfor %}
 
 </body>
 </html>
