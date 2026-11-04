@@ -39,6 +39,40 @@
                                 {% endif %}
                             </p>
                             
+                            <!-- Booker vs Driver Highlight Box -->
+                            <table border="0" cellpadding="0" cellspacing="0" width="100%" style="background-color: #f8fafc; border: 2px solid {{ '#2563eb' if azione == 'nuova' else '#64748b' }}; border-radius: 10px; margin-bottom: 22px; overflow: hidden;">
+                                <tr>
+                                    <td colspan="2" style="background-color: {{ '#eff6ff' if azione == 'nuova' else '#f1f5f9' }}; padding: 10px 16px; border-bottom: 1px solid #e2e8f0;">
+                                        <span style="font-size: 12px; font-weight: 800; color: {{ '#1d4ed8' if azione == 'nuova' else '#334155' }}; text-transform: uppercase; letter-spacing: 0.6px;">
+                                            👥 Dettagli Richiedente &amp; Conducente
+                                        </span>
+                                    </td>
+                                </tr>
+                                <tr>
+                                    <td style="padding: 10px 16px 6px 16px; font-size: 13px; color: #475569; font-weight: 600; width: 42%;">
+                                        Prenotazione effettuata da:
+                                    </td>
+                                    <td style="padding: 10px 16px 6px 16px; font-size: 14px; color: #0f172a; font-weight: 700;">
+                                        📝 {{ autore_nome }}{% if autore_email %} <span style="font-weight: 400; color: #64748b; font-size: 12px;">({{ autore_email }})</span>{% endif %}
+                                    </td>
+                                </tr>
+                                <tr>
+                                    <td style="padding: 6px 16px 10px 16px; font-size: 13px; color: #475569; font-weight: 600;">
+                                        Conducente designato:
+                                    </td>
+                                    <td style="padding: 6px 16px 10px 16px; font-size: 14px; color: #0f172a; font-weight: 700;">
+                                        👤 {{ prenotazione.conducente_nome }}{% if prenotazione.conducente_email %} <span style="font-weight: 400; color: #64748b; font-size: 12px;">({{ prenotazione.conducente_email }})</span>{% endif %}
+                                    </td>
+                                </tr>
+                                {% if autore_email and prenotazione.conducente_email and autore_email|lower != prenotazione.conducente_email|lower %}
+                                <tr>
+                                    <td colspan="2" style="padding: 8px 16px; background-color: #f0fdf4; border-top: 1px dashed #bbf7d0; font-size: 12px; color: #166534; font-weight: 600;">
+                                        ℹ️ Nota: Prenotazione effettuata da <strong>{{ autore_nome }}</strong> a favore del collega <strong>{{ prenotazione.conducente_nome }}</strong>. Entrambi ricevono questa notifica di riepilogo.
+                                    </td>
+                                </tr>
+                                {% endif %}
+                            </table>
+
                             <!-- Vehicle & Booking Details Table -->
                             <table border="0" cellpadding="0" cellspacing="0" width="100%" style="background-color: #f8fafc; border: 1px solid #e2e8f0; border-radius: 10px; margin-bottom: 22px; overflow: hidden;">
                                 <tr>
@@ -88,19 +122,23 @@
                                 </tr>
                                 {% endif %}
                                 <tr>
-                                    <td style="padding: 8px 18px; font-size: 13px; color: #64748b; font-weight: 600;">Conducente:</td>
-                                    <td style="padding: 8px 18px; font-size: 14px; color: #1e293b; font-weight: 600;">
+                                    <td style="padding: 8px 18px; font-size: 13px; color: #64748b; font-weight: 600;">Conducente Assegnato:</td>
+                                    <td style="padding: 8px 18px; font-size: 14px; color: #1e293b; font-weight: 700;">
                                         👤 {{ prenotazione.conducente_nome }}
+                                        {% if prenotazione.conducente_email %}
+                                            <br><span style="font-size: 12px; color: #64748b; font-weight: normal;">({{ prenotazione.conducente_email }})</span>
+                                        {% endif %}
                                     </td>
                                 </tr>
-                                {% if autore_nome and autore_nome != prenotazione.conducente_nome %}
                                 <tr>
-                                    <td style="padding: 8px 18px 12px 18px; font-size: 13px; color: #64748b; font-weight: 600;">Registrata da:</td>
-                                    <td style="padding: 8px 18px 12px 18px; font-size: 13px; color: #475569; font-weight: 600;">
-                                        {{ autore_nome }}
+                                    <td style="padding: 8px 18px 12px 18px; font-size: 13px; color: #64748b; font-weight: 600;">Prenotata da:</td>
+                                    <td style="padding: 8px 18px 12px 18px; font-size: 13px; color: #1e293b; font-weight: 600;">
+                                        📝 {{ autore_nome }}
+                                        {% if autore_email %}
+                                            <br><span style="font-size: 12px; color: #64748b; font-weight: normal;">({{ autore_email }})</span>
+                                        {% endif %}
                                     </td>
                                 </tr>
-                                {% endif %}
                                 
                                 {% if prenotazione.note %}
                                 <tr>

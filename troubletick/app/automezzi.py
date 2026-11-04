@@ -134,6 +134,7 @@ with engine.begin() as conn:
             sede_arrivo_id INTEGER,
             destinazione TEXT,
             user_id INTEGER,
+            prenotato_da_id INTEGER,
             note TEXT,
             FOREIGN KEY(automezzo_id) REFERENCES automezzi(automezzo_id) ON DELETE CASCADE,
             FOREIGN KEY(sede_partenza_id) REFERENCES sedi(sede_id),
@@ -196,31 +197,6 @@ with engine.begin() as conn:
     except Exception:
         pass
 
-
-def registra_storico_km(conn, automezzo_id: int, km: int, sorgente: str, data_reg: str = None, user_id: int = None, note: str = None):
-    if not data_reg:
-        import datetime
-        data_reg = datetime.date.today().isoformat()
-    try:
-        conn.execute(text("""
-            INSERT INTO registro_km_automezzi (automezzo_id, data_registrazione, km, sorgente, user_id, note)
-            VALUES (:aid, :dreg, :km, :sorg, :uid, :note)
-        """), {
-            "aid": automezzo_id,
-            "dreg": data_reg,
-            "km": km,
-            "sorg": sorgente,
-            "uid": user_id,
-            "note": note
-        })
-        conn.execute(text("""
-            UPDATE automezzi
-            SET km_attuali = CASE WHEN :km > km_attuali THEN :km ELSE km_attuali END
-            WHERE automezzo_id = :aid
-        """), {"aid": automezzo_id, "km": km})
-    except Exception as e:
-        print(f"Error in registra_storico_km: {e}")
-    
     # Reset vehicles stuck in 'In Uso' from old booking logic (bookings no longer change vehicle stato)
     try:
         conn.execute(text("UPDATE automezzi SET stato = 'Disponibile' WHERE stato = 'In Uso'"))
@@ -259,6 +235,11 @@ def registra_storico_km(conn, automezzo_id: int, km: int, sorgente: str, data_re
         
     try:
         conn.execute(text("ALTER TABLE viaggi_automezzi ADD COLUMN destinazione TEXT"))
+    except Exception:
+        pass
+        
+    try:
+        conn.execute(text("ALTER TABLE viaggi_automezzi ADD COLUMN prenotato_da_id INTEGER"))
     except Exception:
         pass
         
@@ -365,6 +346,31 @@ def registra_storico_km(conn, automezzo_id: int, km: int, sorgente: str, data_re
             "tesla": tesla_id, "audi": audi_id, "fiat": fiat_id, "jeep": jeep_id,
             "s1": s1, "s2": s2, "s3": s3, "rep1": rep1, "rep2": rep2, "rep3": rep3
         })
+
+
+def registra_storico_km(conn, automezzo_id: int, km: int, sorgente: str, data_reg: str = None, user_id: int = None, note: str = None):
+    if not data_reg:
+        import datetime
+        data_reg = datetime.date.today().isoformat()
+    try:
+        conn.execute(text("""
+            INSERT INTO registro_km_automezzi (automezzo_id, data_registrazione, km, sorgente, user_id, note)
+            VALUES (:aid, :dreg, :km, :sorg, :uid, :note)
+        """), {
+            "aid": automezzo_id,
+            "dreg": data_reg,
+            "km": km,
+            "sorg": sorgente,
+            "uid": user_id,
+            "note": note
+        })
+        conn.execute(text("""
+            UPDATE automezzi
+            SET km_attuali = CASE WHEN :km > km_attuali THEN :km ELSE km_attuali END
+            WHERE automezzo_id = :aid
+        """), {"aid": automezzo_id, "km": km})
+    except Exception as e:
+        print(f"Error in registra_storico_km: {e}")
 
 
 def _ensure_tag_tables(conn):
@@ -3937,6 +3943,34 @@ def get_autopark(r: Request, msg: str = None, error: str = None):
         user_sede_id = user_row["sede_id"] if user_row else None
         user_ctx = {**user, "sede_id": user_sede_id} if user_sede_id else user
         
+        # Fetch colleagues in the same department (or all users if admin/global)
+        if role in ("admin", "global_fleet_manager"):
+            colleghi_raw = conn.execute(text("""
+                SELECT user_id, nome, cognome, email, username, reparto_id
+                FROM users
+                WHERE attivo = 1 AND email IS NOT NULL AND TRIM(email) != ''
+                ORDER BY cognome ASC, nome ASC, username ASC
+            """)).mappings().all()
+        elif user_reparto_id is not None:
+            colleghi_raw = conn.execute(text("""
+                SELECT user_id, nome, cognome, email, username, reparto_id
+                FROM users
+                WHERE attivo = 1 AND reparto_id = :rep_id AND email IS NOT NULL AND TRIM(email) != ''
+                ORDER BY cognome ASC, nome ASC, username ASC
+            """), {"rep_id": user_reparto_id}).mappings().all()
+        else:
+            colleghi_raw = conn.execute(text("""
+                SELECT user_id, nome, cognome, email, username, reparto_id
+                FROM users
+                WHERE user_id = :uid AND attivo = 1
+            """), {"uid": uid}).mappings().all()
+
+        colleghi_list = [dict(c) for c in colleghi_raw]
+        if not any(c.get("user_id") == uid for c in colleghi_list):
+            curr_u = conn.execute(text("SELECT user_id, nome, cognome, email, username, reparto_id FROM users WHERE user_id = :uid"), {"uid": uid}).mappings().first()
+            if curr_u:
+                colleghi_list.insert(0, dict(curr_u))
+
         # Fetch all vehicles
         veicoli_all = conn.execute(text("""
             SELECT a.*,
@@ -3972,7 +4006,8 @@ def get_autopark(r: Request, msg: str = None, error: str = None):
                    s_arr.nome AS sede_arrivo_nome,
                    a.posizione_parcheggio AS auto_posizione_parcheggio,
                    s_att.nome AS auto_sede_attuale_nome,
-                   u.nome AS driver_nome, u.cognome AS driver_cognome, u.email AS driver_email
+                   u.nome AS driver_nome, u.cognome AS driver_cognome, u.email AS driver_email,
+                   prenotato.nome AS prenotante_nome, prenotato.cognome AS prenotante_cognome, prenotato.email AS prenotante_email
             FROM viaggi_automezzi v
             JOIN automezzi a ON v.automezzo_id = a.automezzo_id
             JOIN marche_automezzi m ON a.marca_id = m.marca_id
@@ -3980,18 +4015,19 @@ def get_autopark(r: Request, msg: str = None, error: str = None):
             LEFT JOIN sedi s_arr ON v.sede_arrivo_id = s_arr.sede_id
             LEFT JOIN sedi s_att ON COALESCE(NULLIF(a.sede_attuale_id, 0), NULLIF(a.sede_assegnata_id, 0)) = s_att.sede_id
             JOIN users u ON v.user_id = u.user_id
+            LEFT JOIN users prenotato ON v.prenotato_da_id = prenotato.user_id
         """
         
         if role in ("admin", "global_fleet_manager"):
             bookings_raw = conn.execute(text(base_query + " ORDER BY v.data_viaggio DESC, v.ora_partenza DESC")).mappings().all()
         elif role == "fleet_manager" and user_reparto_id is not None:
             bookings_raw = conn.execute(text(base_query + """
-                WHERE u.reparto_id = :rep_id
+                WHERE u.reparto_id = :rep_id OR prenotato.reparto_id = :rep_id
                 ORDER BY v.data_viaggio DESC, v.ora_partenza DESC
             """), {"rep_id": user_reparto_id}).mappings().all()
         else:
             bookings_raw = conn.execute(text(base_query + """
-                WHERE v.user_id = :uid
+                WHERE v.user_id = :uid OR v.prenotato_da_id = :uid
                 ORDER BY v.data_viaggio DESC, v.ora_partenza DESC
             """), {"uid": uid}).mappings().all()
             
@@ -4124,6 +4160,7 @@ def get_autopark(r: Request, msg: str = None, error: str = None):
         "prenotazioni_attive": attive_list, 
         "prenotazioni_passate": passate_list, 
         "sedi": sedi_list,
+        "colleghi": colleghi_list,
         "msg": msg,
         "error": error,
         "info": info,
@@ -4252,8 +4289,8 @@ def prenota_automezzo(
         err_msg = urllib.parse.quote("Il campo Destinazione è obbligatorio.")
         return RedirectResponse(url=f"/autopark?error={err_msg}", status_code=303)
     
-    # 1. Resolve final_email of the driver based on role permissions
-    if role in ("admin", "fleet_manager", "global_fleet_manager") and email_conducente:
+    # 1. Resolve final_email of the driver (standard users can choose colleagues from same department)
+    if email_conducente and email_conducente.strip():
         final_email = email_conducente.strip().lower()
     else:
         final_email = current_email.strip().lower() if current_email else ""
@@ -4266,19 +4303,22 @@ def prenota_automezzo(
             WHERE LOWER(email) = LOWER(:email) AND attivo = 1
         """), {"email": final_email}).first()
         
+        user_row = conn.execute(text("SELECT reparto_id FROM users WHERE user_id = :uid"), {"uid": uid}).first()
+        user_rep_id = user_row.reparto_id if user_row else None
+        
     if not driver:
         import urllib.parse
         err_msg = urllib.parse.quote("Nessun utente attivo trovato con l'email del conducente indicata.")
         return RedirectResponse(url=f"/autopark?error={err_msg}", status_code=303)
         
+    # Check department constraint: standard users & fleet managers can only book for users in their same department
+    if role not in ("admin", "global_fleet_manager") and driver.user_id != uid:
+        if user_rep_id is None or driver.reparto_id != user_rep_id:
+            import urllib.parse
+            err_msg = urllib.parse.quote("Puoi selezionare solo colleghi appartenenti al tuo stesso reparto.")
+            return RedirectResponse(url=f"/autopark?error={err_msg}", status_code=303)
+            
     with engine.begin() as conn:
-        # 2. Check department constraint for fleet manager
-        if role == "fleet_manager":
-            fm_reparto_id = conn.execute(text("SELECT reparto_id FROM users WHERE user_id = :uid"), {"uid": uid}).scalar()
-            if driver.reparto_id != fm_reparto_id:
-                import urllib.parse
-                err_msg = urllib.parse.quote("Puoi prenotare solo per utenti appartenenti al tuo stesso reparto.")
-                return RedirectResponse(url=f"/autopark?error={err_msg}", status_code=303)
                 
         # 3. Check if the vehicle exists, is not excluded, and is at the correct location
         car = conn.execute(text("SELECT stato, km_attuali, escluso_prenotazione, sede_attuale_id, sede_assegnata_id FROM automezzi WHERE automezzo_id = :id"), {"id": automezzo_id}).first()
@@ -4333,10 +4373,10 @@ def prenota_automezzo(
         conn.execute(text("""
             INSERT INTO viaggi_automezzi (
                 automezzo_id, data_viaggio, ora_partenza, ora_riconsegna_prevista, ora_arrivo, 
-                km_iniziali, km_finali, sede_partenza_id, sede_arrivo_id, destinazione, user_id, email_conducente, ora_partenza_effettiva, note
+                km_iniziali, km_finali, sede_partenza_id, sede_arrivo_id, destinazione, user_id, email_conducente, ora_partenza_effettiva, note, prenotato_da_id
             ) VALUES (
                 :automezzo_id, :data_viaggio, :ora_partenza, :ora_riconsegna_prevista, NULL,
-                :km_iniziali, NULL, :sede_partenza_id, NULL, :destinazione, :user_id, :email_conducente, NULL, :note
+                :km_iniziali, NULL, :sede_partenza_id, NULL, :destinazione, :user_id, :email_conducente, NULL, :note, :prenotato_da_id
             )
         """), {
             "automezzo_id": automezzo_id,
@@ -4348,7 +4388,8 @@ def prenota_automezzo(
             "destinazione": destinazione_val,
             "user_id": driver.user_id,
             "email_conducente": driver.email,
-            "note": note
+            "note": note,
+            "prenotato_da_id": uid
         })
         
         # Notifica email ai Fleet Manager del reparto di appartenenza del veicolo
@@ -4383,7 +4424,7 @@ def parti_viaggio(id: int, r: Request):
         v = conn.execute(text("""
             SELECT viaggio_id, ora_partenza_effettiva
             FROM viaggi_automezzi
-            WHERE viaggio_id = :id AND user_id = :uid AND ora_arrivo IS NULL
+            WHERE viaggio_id = :id AND (user_id = :uid OR prenotato_da_id = :uid) AND ora_arrivo IS NULL
         """), {"id": id, "uid": uid}).first()
         
         if not v:
@@ -4423,7 +4464,7 @@ def completa_prenotazione(
         v = conn.execute(text("""
             SELECT automezzo_id, km_iniziali, note, data_viaggio, ora_partenza, ora_partenza_effettiva, in_pausa, inizio_pausa, minuti_fermo
             FROM viaggi_automezzi 
-            WHERE viaggio_id = :id AND user_id = :uid AND ora_arrivo IS NULL
+            WHERE viaggio_id = :id AND (user_id = :uid OR prenotato_da_id = :uid) AND ora_arrivo IS NULL
         """), {"id": id, "uid": uid}).first()
         
         if not v:
@@ -4516,10 +4557,10 @@ def annulla_viaggio_fleet(id: int, r: Request):
     
     import urllib.parse
     with engine.begin() as conn:
-        booking = conn.execute(text("SELECT user_id, ora_partenza_effettiva FROM viaggi_automezzi WHERE viaggio_id = :id"), {"id": id}).first()
+        booking = conn.execute(text("SELECT user_id, prenotato_da_id, ora_partenza_effettiva FROM viaggi_automezzi WHERE viaggio_id = :id"), {"id": id}).mappings().first()
         if not booking:
             return RedirectResponse(url=f"/autopark?error={urllib.parse.quote('Prenotazione non trovata.')}", status_code=303)
-        if booking.user_id != uid and role not in ("admin", "global_fleet_manager"):
+        if booking["user_id"] != uid and booking.get("prenotato_da_id") != uid and role not in ("admin", "global_fleet_manager"):
             return RedirectResponse(url=f"/autopark?error={urllib.parse.quote('Non sei autorizzato ad annullare questo viaggio.')}", status_code=303)
             
         conn.execute(text("UPDATE viaggi_automezzi SET ora_partenza_effettiva = NULL, in_pausa = 0 WHERE viaggio_id = :id"), {"id": id})
@@ -4537,22 +4578,22 @@ def elimina_prenotazione(id: int, r: Request, background_tasks: BackgroundTasks,
     
     import urllib.parse
     with engine.begin() as conn:
-        fields = "automezzo_id, km_iniziali, km_finali, user_id, ora_partenza_effettiva, data_viaggio, ora_partenza, ora_riconsegna_prevista, sede_partenza_id, email_conducente, note"
+        fields = "automezzo_id, km_iniziali, km_finali, user_id, prenotato_da_id, ora_partenza_effettiva, data_viaggio, ora_partenza, ora_riconsegna_prevista, sede_partenza_id, email_conducente, note"
         if role in ("admin", "global_fleet_manager"):
             v = conn.execute(text(f"SELECT {fields} FROM viaggi_automezzi WHERE viaggio_id = :id"), {"id": id}).mappings().first()
         elif role == "fleet_manager":
             user_reparto_id = conn.execute(text("SELECT reparto_id FROM users WHERE user_id = :uid"), {"uid": uid}).scalar() or 0
             v = conn.execute(text(f"""
-                SELECT v.automezzo_id, v.km_iniziali, v.km_finali, v.user_id, v.ora_partenza_effettiva, v.data_viaggio,
+                SELECT v.automezzo_id, v.km_iniziali, v.km_finali, v.user_id, v.prenotato_da_id, v.ora_partenza_effettiva, v.data_viaggio,
                        v.ora_partenza, v.ora_riconsegna_prevista, v.sede_partenza_id, v.email_conducente, v.note
                 FROM viaggi_automezzi v
                 JOIN users u ON v.user_id = u.user_id
-                WHERE v.viaggio_id = :id AND u.reparto_id = :rep
-            """), {"id": id, "rep": user_reparto_id}).mappings().first()
+                WHERE v.viaggio_id = :id AND (u.reparto_id = :rep OR v.user_id = :uid OR v.prenotato_da_id = :uid)
+            """), {"id": id, "rep": user_reparto_id, "uid": uid}).mappings().first()
         else:
-            # Normal user / operator: can only delete their own booking if not started yet
+            # Normal user / operator: can delete booking if they are driver or booker, and not started yet
             v = conn.execute(
-                text(f"SELECT {fields} FROM viaggi_automezzi WHERE viaggio_id = :id AND user_id = :uid"),
+                text(f"SELECT {fields} FROM viaggi_automezzi WHERE viaggio_id = :id AND (user_id = :uid OR prenotato_da_id = :uid)"),
                 {"id": id, "uid": uid},
             ).mappings().first()
             

@@ -403,12 +403,24 @@
                             </div>
                         </div>
 
-                        <!-- 7. Email Conducente -->
-                        {% if not instant and user.ruolo in ('admin', 'fleet_manager', 'global_fleet_manager') %}
+                        <!-- 7. Conducente (Colleghi dello stesso reparto) -->
+                        {% if not instant %}
                         <div class="mb-3">
-                            <label for="email_conducente" class="form-label fw-semibold">Email Conducente <span class="text-danger">*</span></label>
-                            <input type="email" class="form-control rounded-3" id="email_conducente" name="email_conducente" placeholder="Email del guidatore" value="{{ user.email or '' }}" required>
-                            <div class="form-text">Inserisci l'email del guidatore (deve appartenere al tuo stesso reparto).</div>
+                            <label for="email_conducente" class="form-label fw-semibold">
+                                <i class="bi bi-person-fill text-primary me-1"></i> Conducente <span class="text-danger">*</span>
+                            </label>
+                            <select class="form-select rounded-3" id="email_conducente" name="email_conducente" required>
+                                {% if colleghi and colleghi|length > 0 %}
+                                    {% for c in colleghi %}
+                                    <option value="{{ c.email }}" {% if (c.email and c.email|lower == (user.email or '')|lower) or c.user_id == user.id %}selected{% endif %}>
+                                        {% if c.cognome or c.nome %}{{ c.cognome }} {{ c.nome }}{% else %}{{ c.username or c.email }}{% endif %}{% if c.user_id == user.id or (c.email and c.email|lower == (user.email or '')|lower) %} (Tu){% endif %} — {{ c.email }}
+                                    </option>
+                                    {% endfor %}
+                                {% else %}
+                                    <option value="{{ user.email }}" selected>{{ user.cognome }} {{ user.nome }} (Tu) — {{ user.email }}</option>
+                                {% endif %}
+                            </select>
+                            <div class="form-text small">Seleziona il collega del tuo reparto per cui prenoti il veicolo (di default te stesso).</div>
                         </div>
                         {% else %}
                         <input type="hidden" id="email_conducente" name="email_conducente" value="{{ user.email or '' }}">
@@ -524,6 +536,9 @@
                                             {% endif %}
                                             <li class="mb-1"><i class="bi bi-person-fill me-2"></i><strong>Guidatore:</strong> {{ p.driver_nome }} {{ p.driver_cognome }}</li>
                                             <li class="mb-1"><i class="bi bi-envelope me-2"></i><strong>Email:</strong> {{ p.driver_email }}</li>
+                                            {% if p.prenotato_da_id and p.prenotato_da_id != p.user_id and (p.prenotante_nome or p.prenotante_cognome or p.prenotante_email) %}
+                                            <li class="mb-1 text-primary"><i class="bi bi-pencil-square me-2"></i><strong>Prenotata da:</strong> {{ p.prenotante_cognome }} {{ p.prenotante_nome }} ({{ p.prenotante_email }})</li>
+                                            {% endif %}
                                             {% if p.note %}
                                                 <li class="mt-2"><i class="bi bi-pencil-square me-2"></i><strong>Note:</strong> {{ p.note }}</li>
                                             {% endif %}
@@ -532,7 +547,7 @@
                                         <!-- Actions -->
                                         <div class="d-flex gap-2 mt-3">
                                             {% set is_future_date = (p.data_viaggio > today_str) %}
-                                            {% set is_not_owner_or_manager = (p.user_id != user.id and user.ruolo not in ('admin', 'fleet_manager', 'global_fleet_manager')) %}
+                                            {% set is_not_owner_or_manager = (p.user_id != user.id and p.prenotato_da_id != user.id and user.ruolo not in ('admin', 'fleet_manager', 'global_fleet_manager')) %}
                                         <button type="button" class="btn btn-sm btn-success w-100 rounded-3 fw-bold flex-fill text-white" 
                                                 {% if not is_future_date and not is_not_owner_or_manager %}data-bs-toggle="collapse" data-bs-target="#rf-{{ p.viaggio_id }}"{% endif %} 
                                                 {% if is_not_owner_or_manager %}
@@ -543,7 +558,7 @@
                                             <i class="bi bi-journal-check me-1"></i> Registra viaggio
                                         </button>
                                             
-                                            {% if user.ruolo in ('admin', 'fleet_manager', 'global_fleet_manager') or p.user_id == user.id %}
+                                            {% if user.ruolo in ('admin', 'fleet_manager', 'global_fleet_manager') or p.user_id == user.id or p.prenotato_da_id == user.id %}
                                             {% set is_past_date = (p.data_viaggio < today_str) %}
                                             <form action="/autopark/elimina/{{ p.viaggio_id }}" method="POST" class="d-inline flex-fill" onsubmit="return confirm('Sei sicuro di voler eliminare questa prenotazione?');">
                                                 <button type="submit" class="btn btn-sm btn-outline-danger w-100 rounded-3 fw-bold" {% if is_past_date %}disabled title="Non è più possibile eliminare una prenotazione dopo il giorno previsto per il viaggio"{% endif %}>
@@ -640,9 +655,7 @@
                                     <th>Destinazione</th>
                                     <th>Sede Riconsegna</th>
                                     <th class="text-nowrap">KM (Inizio/Fine)</th>
-                                    {% if user.ruolo in ('admin', 'fleet_manager', 'global_fleet_manager') %}
-                                        <th>Guidatore</th>
-                                    {% endif %}
+                                    <th>Guidatore</th>
                                     <th>Note</th>
                                     <th class="text-end text-nowrap">Azioni</th>
                                 </tr>
@@ -673,12 +686,13 @@
                                         <td>
                                             <span class="fw-semibold text-primary">{{ p.km_iniziali or '0' }}</span> / <span class="fw-semibold text-success">{{ p.km_finali or '-' }}</span>
                                         </td>
-                                        {% if user.ruolo in ('admin', 'fleet_manager', 'global_fleet_manager') %}
-                                            <td>
-                                                <span class="fw-semibold">{{ p.driver_nome }} {{ p.driver_cognome }}</span><br>
-                                                <span class="small text-muted">{{ p.driver_email }}</span>
-                                            </td>
-                                        {% endif %}
+                                        <td>
+                                            <span class="fw-semibold">{{ p.driver_nome }} {{ p.driver_cognome }}</span><br>
+                                            <span class="small text-muted">{{ p.driver_email }}</span>
+                                            {% if p.prenotato_da_id and p.prenotato_da_id != p.user_id and (p.prenotante_nome or p.prenotante_cognome) %}
+                                                <br><span class="small text-primary"><i class="bi bi-pencil-square"></i> Da: {{ p.prenotante_cognome }} {{ p.prenotante_nome }}</span>
+                                            {% endif %}
+                                        </td>
                                         <td class="text-wrap small text-muted" style="max-width: 150px;">
                                             {{ p.note or '-' }}
                                             {% if p.posizione_parcheggio %}

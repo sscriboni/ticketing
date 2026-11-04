@@ -159,6 +159,7 @@ def notifica_utente_prenotazione(
                 "veicolo": dict(car),
                 "prenotazione": prenotazione_dict,
                 "autore_nome": autore_display,
+                "autore_email": (autore_email or "").strip(),
                 "destinatario_nome": resolved_conducente_nome,
                 "app_url": CFG.get("app_url", ""),
                 "istruzioni": (car.get("istruzioni_carpooling") or "").strip(),
@@ -345,6 +346,7 @@ def notifica_fleet_managers_prenotazione(
                     "veicolo": dict(car),
                     "prenotazione": prenotazione_dict,
                     "autore_nome": autore_display,
+                    "autore_email": (autore_email or "").strip(),
                     "destinatario_nome": fm_nome,
                     "app_url": CFG.get("app_url", "")
                 })
