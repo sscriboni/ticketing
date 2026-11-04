@@ -3687,7 +3687,7 @@ def add_viaggio(
         """), {
             "automezzo_id": automezzo_id, "data_viaggio": data_viaggio, "ora_partenza": ora_partenza,
             "ora_arrivo": ora_arrivo, "km_iniziali": km_iniziali, "km_finali": km_finali_val,
-            "sede_partenza_id": sede_partenza_id, "sede_arrivo_id": sede_arrivo_id_val, "destinazione": destinazione_val,
+            "sede_partenza_id": sede_partenza_id, "sede_arrivo_id": sede_arrivo_id_val,
             "destinazione": destinazione_val,
             "user_id": user_id_val, "note": note
         })
@@ -4135,7 +4135,6 @@ def prenota_automezzo(
     sede_partenza_id: int = Form(...),
     destinazione: str = Form(...),
     email_conducente: str = Form(None),
-    destinazione: str = Form(...),
     note: str = Form(None)
 ):
     if "user" not in r.session:
@@ -4156,32 +4155,14 @@ def prenota_automezzo(
             import urllib.parse
             err_msg = urllib.parse.quote("Non è possibile effettuare prenotazioni per date antecedenti ad oggi.")
             return RedirectResponse(url=f"/autopark?error={err_msg}", status_code=303)
-        
-    destinazione_val = (destinazione or "").strip()
-    if not destinazione_val:
-        import urllib.parse
-        err_msg = urllib.parse.quote("Il campo Destinazione è obbligatorio.")
-        return RedirectResponse(url=f"/autopark?error={err_msg}", status_code=303)
 
         if travel_dt < current_hour_dt:
             import urllib.parse
             err_msg = urllib.parse.quote("Per la giornata odierna è possibile prenotare a partire dall'ora attuale.")
             return RedirectResponse(url=f"/autopark?error={err_msg}", status_code=303)
-        
-    destinazione_val = (destinazione or "").strip()
-    if not destinazione_val:
-        import urllib.parse
-        err_msg = urllib.parse.quote("Il campo Destinazione è obbligatorio.")
-        return RedirectResponse(url=f"/autopark?error={err_msg}", status_code=303)
     except Exception:
         import urllib.parse
         err_msg = urllib.parse.quote("Formato data o ora non valido.")
-        return RedirectResponse(url=f"/autopark?error={err_msg}", status_code=303)
-        
-    destinazione_val = (destinazione or "").strip()
-    if not destinazione_val:
-        import urllib.parse
-        err_msg = urllib.parse.quote("Il campo Destinazione è obbligatorio.")
         return RedirectResponse(url=f"/autopark?error={err_msg}", status_code=303)
 
     # Validate return hour is after departure hour
@@ -4190,12 +4171,6 @@ def prenota_automezzo(
         err_msg = urllib.parse.quote("L'ora di riconsegna deve essere successiva all'ora di partenza.")
         return RedirectResponse(url=f"/autopark?error={err_msg}", status_code=303)
 
-    destinazione_val = (destinazione or "").strip()
-    if not destinazione_val:
-        import urllib.parse
-        err_msg = urllib.parse.quote("Il campo Destinazione è obbligatorio.")
-        return RedirectResponse(url=f"/autopark?error={err_msg}", status_code=303)
-        
     destinazione_val = (destinazione or "").strip()
     if not destinazione_val:
         import urllib.parse
@@ -4221,12 +4196,6 @@ def prenota_automezzo(
         err_msg = urllib.parse.quote("Nessun utente attivo trovato con l'email del conducente indicata.")
         return RedirectResponse(url=f"/autopark?error={err_msg}", status_code=303)
         
-    destinazione_val = (destinazione or "").strip()
-    if not destinazione_val:
-        import urllib.parse
-        err_msg = urllib.parse.quote("Il campo Destinazione è obbligatorio.")
-        return RedirectResponse(url=f"/autopark?error={err_msg}", status_code=303)
-        
     with engine.begin() as conn:
         # 2. Check department constraint for fleet manager
         if role == "fleet_manager":
@@ -4235,12 +4204,6 @@ def prenota_automezzo(
                 import urllib.parse
                 err_msg = urllib.parse.quote("Puoi prenotare solo per utenti appartenenti al tuo stesso reparto.")
                 return RedirectResponse(url=f"/autopark?error={err_msg}", status_code=303)
-        
-    destinazione_val = (destinazione or "").strip()
-    if not destinazione_val:
-        import urllib.parse
-        err_msg = urllib.parse.quote("Il campo Destinazione è obbligatorio.")
-        return RedirectResponse(url=f"/autopark?error={err_msg}", status_code=303)
                 
         # 3. Check if the vehicle exists, is not excluded, and is at the correct location
         car = conn.execute(text("SELECT stato, km_attuali, escluso_prenotazione, sede_attuale_id, sede_assegnata_id FROM automezzi WHERE automezzo_id = :id"), {"id": automezzo_id}).first()
@@ -4270,12 +4233,6 @@ def prenota_automezzo(
             import urllib.parse
             err_msg = urllib.parse.quote("Il veicolo è già prenotato in questa fascia oraria.")
             return RedirectResponse(url=f"/autopark?error={err_msg}", status_code=303)
-        
-    destinazione_val = (destinazione or "").strip()
-    if not destinazione_val:
-        import urllib.parse
-        err_msg = urllib.parse.quote("Il campo Destinazione è obbligatorio.")
-        return RedirectResponse(url=f"/autopark?error={err_msg}", status_code=303)
             
         # 5. Check for driver time-slot overlap on this date
         driver_overlap = conn.execute(text("""
@@ -4296,12 +4253,6 @@ def prenota_automezzo(
             import urllib.parse
             err_msg = urllib.parse.quote("Il guidatore indicato ha già un'altra prenotazione attiva in questa fascia oraria.")
             return RedirectResponse(url=f"/autopark?error={err_msg}", status_code=303)
-        
-    destinazione_val = (destinazione or "").strip()
-    if not destinazione_val:
-        import urllib.parse
-        err_msg = urllib.parse.quote("Il campo Destinazione è obbligatorio.")
-        return RedirectResponse(url=f"/autopark?error={err_msg}", status_code=303)
         
         # 6. Insert new voyage record
         conn.execute(text("""
@@ -4365,22 +4316,10 @@ def parti_viaggio(id: int, r: Request):
             err_msg = urllib.parse.quote("Prenotazione non trovata.")
             return RedirectResponse(url=f"/autopark?error={err_msg}", status_code=303)
         
-    destinazione_val = (destinazione or "").strip()
-    if not destinazione_val:
-        import urllib.parse
-        err_msg = urllib.parse.quote("Il campo Destinazione è obbligatorio.")
-        return RedirectResponse(url=f"/autopark?error={err_msg}", status_code=303)
-        
         if v.ora_partenza_effettiva:
             import urllib.parse
             err_msg = urllib.parse.quote("Il viaggio è già stato avviato.")
             return RedirectResponse(url=f"/autopark?error={err_msg}", status_code=303)
-        
-    destinazione_val = (destinazione or "").strip()
-    if not destinazione_val:
-        import urllib.parse
-        err_msg = urllib.parse.quote("Il campo Destinazione è obbligatorio.")
-        return RedirectResponse(url=f"/autopark?error={err_msg}", status_code=303)
         
         now_str = datetime.datetime.now().strftime("%H:%M")
         conn.execute(text("""
@@ -4425,12 +4364,6 @@ def completa_prenotazione(
             import urllib.parse
             err_msg = urllib.parse.quote(f"L'orario di rientro ({ora_arrivo}) deve essere successivo all'orario di partenza effettiva ({v.ora_partenza_effettiva}).")
             return RedirectResponse(url=f"/autopark?error={err_msg}", status_code=303)
-        
-    destinazione_val = (destinazione or "").strip()
-    if not destinazione_val:
-        import urllib.parse
-        err_msg = urllib.parse.quote("Il campo Destinazione è obbligatorio.")
-        return RedirectResponse(url=f"/autopark?error={err_msg}", status_code=303)
 
         # Check if date has changed (compare today's date with data_viaggio)
         today_str = datetime.date.today().isoformat()
@@ -4793,7 +4726,6 @@ def registra_viaggio_posteriori_autopark(
     destinazione: typing.Optional[str] = Form(None),
     note: str = Form(None),
     sede_arrivo_id: int = Form(None),
-    destinazione: typing.Optional[str] = Form(None),
     posizione_parcheggio: str = Form(None)
 ):
     if "user" not in r.session:
