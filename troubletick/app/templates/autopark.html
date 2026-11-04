@@ -338,7 +338,7 @@
                             <!-- 3. Data Viaggio -->
                             <div class="mb-3">
                                 <label for="data_viaggio" class="form-label fw-semibold">Data Viaggio <span class="text-danger">*</span></label>
-                                <input type="date" class="form-control rounded-3" id="data_viaggio" name="data_viaggio" required>
+                                <input type="date" class="form-control rounded-3" id="data_viaggio" name="data_viaggio" min="{{ today_str }}" required>
                             </div>
 
                             <!-- 4. Ora Partenza -->
@@ -786,38 +786,24 @@
 
         function updateTimeOptions() {
             if (!dateInput || !oraPartenza) return;
-            const now = new Date();
-            const year = now.getFullYear();
-            const month = String(now.getMonth() + 1).padStart(2, '0');
-            const day = String(now.getDate()).padStart(2, '0');
-            const todayStr = `${year}-${month}-${day}`;
-            const currentHour = now.getHours(); // e.g. 8 for 08:35
-
-            const isToday = (dateInput.value === todayStr);
-
+            // Gli orari della giornata odierna possono essere selezionati liberamente, anche se già trascorsi
             Array.from(oraPartenza.options).forEach(opt => {
                 if (!opt.value) return;
-                const optHour = parseInt(opt.value.split(':')[0], 10);
-                if (isToday && optHour < currentHour) {
-                    opt.disabled = true;
-                    if (opt.selected) opt.selected = false;
-                } else {
-                    opt.disabled = false;
-                }
+                opt.disabled = false;
             });
-
-            // If no option selected or selected option is disabled, select current hour option
-            if (isToday && (!oraPartenza.value || (oraPartenza.selectedOptions[0] && oraPartenza.selectedOptions[0].disabled))) {
-                const targetVal = String(currentHour).padStart(2, '0') + ":00";
-                oraPartenza.value = targetVal;
-            }
         }
 
         if (dateInput) {
             const today = new Date().toISOString().split('T')[0];
             dateInput.min = today;
-            dateInput.value = today;
+            if (!dateInput.value) {
+                dateInput.value = today;
+            }
             dateInput.addEventListener("change", function() {
+                if (dateInput.value && dateInput.value < dateInput.min) {
+                    alert("Non è possibile selezionare una data passata. Seleziona la data odierna o una data futura.");
+                    dateInput.value = dateInput.min;
+                }
                 updateTimeOptions();
                 updateVehicleOptions();
             });

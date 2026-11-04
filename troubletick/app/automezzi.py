@@ -4235,11 +4235,6 @@ def prenota_automezzo(
             import urllib.parse
             err_msg = urllib.parse.quote("Non è possibile effettuare prenotazioni per date antecedenti ad oggi.")
             return RedirectResponse(url=f"/autopark?error={err_msg}", status_code=303)
-
-        if travel_dt < current_hour_dt:
-            import urllib.parse
-            err_msg = urllib.parse.quote("Per la giornata odierna è possibile prenotare a partire dall'ora attuale.")
-            return RedirectResponse(url=f"/autopark?error={err_msg}", status_code=303)
     except Exception:
         import urllib.parse
         err_msg = urllib.parse.quote("Formato data o ora non valido.")
