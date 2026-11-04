@@ -139,9 +139,13 @@
                     <input type="checkbox" name="modulo_presenze" value="1" class="form-check-input" id="checkModuloPresenze" {% if cfg.get('modulo_presenze', True) %}checked{% endif %}>
                     <label class="form-check-label fw-bold" for="checkModuloPresenze">🗓️ Modulo Presenze</label>
                 </div>
-                <div class="mb-4 form-check">
+                <div class="mb-3 form-check">
                     <input type="checkbox" name="modulo_autopark" value="1" class="form-check-input" id="checkModuloAutopark" {% if cfg.get('modulo_autopark', True) %}checked{% endif %}>
                     <label class="form-check-label fw-bold" for="checkModuloAutopark">🚗 Modulo Carpooling (gestione parco auto)</label>
+                </div>
+                <div class="mb-4 form-check">
+                    <input type="checkbox" name="modulo_formazione" value="1" class="form-check-input" id="checkModuloFormazione" {% if cfg.get('modulo_formazione', False) %}checked{% endif %}>
+                    <label class="form-check-label fw-bold" for="checkModuloFormazione">🎓 Modulo Formazione (gestione corsi e attestati)</label>
                 </div>
 
                 <hr class="my-4">

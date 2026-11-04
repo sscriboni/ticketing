@@ -23,5 +23,6 @@
   "modulo_avvisi": true,
   "modulo_presenze": true,
   "modulo_autopark": true,
-  "reperibilita_messaggi_home": true
+  "reperibilita_messaggi_home": true,
+  "modulo_formazione": false
 }

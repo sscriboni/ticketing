@@ -24,6 +24,7 @@ import automezzi
 import presenze
 import fornitori
 import contratti
+import formazione
 
 # Init schema + seed
 try:
@@ -1022,6 +1023,7 @@ app.include_router(automezzi.router)
 app.include_router(presenze.router)
 app.include_router(fornitori.router)
 app.include_router(contratti.router)
+app.include_router(formazione.router)
 
 TABLE_CATEGORIES = {
     # Ticketing
@@ -2859,6 +2861,7 @@ def save_impostazioni(r: Request,
                       modulo_avvisi: int = Form(0),
                       modulo_presenze: int = Form(0),
                       modulo_autopark: int = Form(0),
+                      modulo_formazione: int = Form(0),
                       reperibilita_messaggi_home: int = Form(0)):
     user = require_superuser(r)
     if isinstance(user, RedirectResponse):
@@ -2885,6 +2888,7 @@ def save_impostazioni(r: Request,
     CFG["modulo_avvisi"] = bool(modulo_avvisi)
     CFG["modulo_presenze"] = bool(modulo_presenze)
     CFG["modulo_autopark"] = bool(modulo_autopark)
+    CFG["modulo_formazione"] = bool(modulo_formazione)
     CFG["reperibilita_messaggi_home"] = bool(reperibilita_messaggi_home)
     
     try:
