@@ -297,7 +297,7 @@
                     <form action="{% if instant %}/autopark/registra-viaggio-istantaneo{% else %}/autopark/prenota{% endif %}" method="POST" id="bookingForm">
                         <!-- 1. Sede di Partenza -->
                         <div class="mb-3">
-                            <label for="sede_partenza_id" class="form-label fw-semibold">Sede di Partenza</label>
+                            <label for="sede_partenza_id" class="form-label fw-semibold">Sede di Partenza <span class="text-danger">*</span></label>
                             <select class="form-select rounded-3" id="sede_partenza_id" name="sede_partenza_id" required>
                                 <option value="" disabled {% if not user.sede_id %}selected{% endif %}>Seleziona sede di partenza...</option>
                                 {% for s in sedi %}
@@ -306,30 +306,44 @@
                             </select>
                         </div>
 
+                        <!-- 2. Destinazione -->
+                        <div class="mb-3">
+                            <label for="destinazione_select" class="form-label fw-semibold">Destinazione <span class="text-danger">*</span></label>
+                            <select class="form-select rounded-3" id="destinazione_select" required>
+                                <option value="" disabled selected>-- Seleziona destinazione --</option>
+                                {% for s in sedi %}
+                                    <option value="{{ s.nome }}">Sede: {{ s.nome }}</option>
+                                {% endfor %}
+                                <option value="__custom__">Altra destinazione (specificare)...</option>
+                            </select>
+                            <input type="text" class="form-control rounded-3 mt-2 d-none" id="destinazione_custom" placeholder="Inserisci destinazione (es. Cliente Rossi, Roma Centro, ecc.)">
+                            <input type="hidden" name="destinazione" id="destinazione_final" required>
+                        </div>
+
                         {% if instant %}
                             <!-- Instant mode dates (hidden + read-only presentation) -->
                             <input type="hidden" name="data_viaggio" id="data_viaggio" value="{{ instant_date }}">
                             <input type="hidden" name="ora_partenza" id="ora_partenza" value="{{ instant_hour }}">
                             
                             <div class="mb-3">
-                                <label class="form-label fw-semibold">Data Partenza</label>
+                                <label class="form-label fw-semibold">Data Partenza <span class="text-danger">*</span></label>
                                 <div class="p-2 border rounded bg-light text-muted fw-bold">{{ instant_date }}</div>
                             </div>
                             
                             <div class="mb-3">
-                                <label class="form-label fw-semibold">Ora Partenza Effettiva</label>
+                                <label class="form-label fw-semibold">Ora Partenza Effettiva <span class="text-danger">*</span></label>
                                 <div class="p-2 border rounded bg-light text-muted fw-bold">{{ instant_actual_time }}</div>
                             </div>
                         {% else %}
-                            <!-- 2. Data Viaggio -->
+                            <!-- 3. Data Viaggio -->
                             <div class="mb-3">
-                                <label for="data_viaggio" class="form-label fw-semibold">Data Viaggio</label>
+                                <label for="data_viaggio" class="form-label fw-semibold">Data Viaggio <span class="text-danger">*</span></label>
                                 <input type="date" class="form-control rounded-3" id="data_viaggio" name="data_viaggio" required>
                             </div>
 
-                            <!-- 3. Ora Partenza -->
+                            <!-- 4. Ora Partenza -->
                             <div class="mb-3">
-                                <label for="ora_partenza" class="form-label fw-semibold">Ora Partenza</label>
+                                <label for="ora_partenza" class="form-label fw-semibold">Ora Partenza <span class="text-danger">*</span></label>
                                 <select class="form-select rounded-3" id="ora_partenza" name="ora_partenza" required>
                                     <option value="" disabled selected>Seleziona ora di partenza...</option>
                                     {% for h in range(0, 24) %}
@@ -340,9 +354,9 @@
                             </div>
                         {% endif %}
 
-                        <!-- 3b. Ora Riconsegna -->
+                        <!-- 5. Ora Riconsegna -->
                         <div class="mb-3">
-                            <label for="ora_riconsegna_prevista" class="form-label fw-semibold">Ora Riconsegna</label>
+                            <label for="ora_riconsegna_prevista" class="form-label fw-semibold">Ora Riconsegna <span class="text-danger">*</span></label>
                             <select class="form-select rounded-3" id="ora_riconsegna_prevista" name="ora_riconsegna_prevista" required>
                                 <option value="" disabled selected>Seleziona ora di riconsegna...</option>
                                 {% for h in range(0, 24) %}
@@ -352,9 +366,9 @@
                             </select>
                         </div>
 
-                        <!-- 4. Seleziona Veicolo -->
+                        <!-- 6. Seleziona Veicolo -->
                         <div class="mb-3">
-                            <label for="automezzo_id" class="form-label fw-semibold">Seleziona Veicolo</label>
+                            <label for="automezzo_id" class="form-label fw-semibold">Seleziona Veicolo <span class="text-danger">*</span></label>
                             <select class="form-select rounded-3" id="automezzo_id" name="automezzo_id" required>
                                 <option value="" disabled selected>Seleziona prima i dati della partenza...</option>
                             </select>
@@ -389,10 +403,10 @@
                             </div>
                         </div>
 
-                        <!-- 5. Email Conducente -->
+                        <!-- 7. Email Conducente -->
                         {% if not instant and user.ruolo in ('admin', 'fleet_manager', 'global_fleet_manager') %}
                         <div class="mb-3">
-                            <label for="email_conducente" class="form-label fw-semibold">Email Conducente</label>
+                            <label for="email_conducente" class="form-label fw-semibold">Email Conducente <span class="text-danger">*</span></label>
                             <input type="email" class="form-control rounded-3" id="email_conducente" name="email_conducente" placeholder="Email del guidatore" value="{{ user.email or '' }}" required>
                             <div class="form-text">Inserisci l'email del guidatore (deve appartenere al tuo stesso reparto).</div>
                         </div>
@@ -400,23 +414,9 @@
                         <input type="hidden" id="email_conducente" name="email_conducente" value="{{ user.email or '' }}">
                         {% endif %}
 
-                        <!-- 6. Destinazione (Obbligatorio) -->
+                        <!-- 8. Note Aggiuntive -->
                         <div class="mb-3">
-                            <label for="destinazione_select" class="form-label fw-semibold">Destinazione <span class="text-danger">*</span></label>
-                            <select class="form-select rounded-3" id="destinazione_select" required>
-                                <option value="" disabled selected>-- Seleziona destinazione --</option>
-                                {% for s in sedi %}
-                                    <option value="{{ s.nome }}">Sede: {{ s.nome }}</option>
-                                {% endfor %}
-                                <option value="__custom__">Altra destinazione (specificare)...</option>
-                            </select>
-                            <input type="text" class="form-control rounded-3 mt-2 d-none" id="destinazione_custom" placeholder="Inserisci destinazione (es. Cliente Rossi, Roma Centro, ecc.)">
-                            <input type="hidden" name="destinazione" id="destinazione_final" required>
-                        </div>
-
-                        <!-- 7. Note Aggiuntive -->
-                        <div class="mb-3">
-                            <label for="note" class="form-label fw-semibold">Note</label>
+                            <label for="note" class="form-label fw-semibold">Note <span class="text-muted fw-normal small">(Facoltativo)</span></label>
                             <textarea class="form-control rounded-3" id="note" name="note" rows="2" placeholder="Eventuali note sul viaggio..."></textarea>
                         </div>
 
