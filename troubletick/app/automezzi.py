@@ -132,6 +132,7 @@ with engine.begin() as conn:
             km_finali INTEGER,
             sede_partenza_id INTEGER NOT NULL,
             sede_arrivo_id INTEGER,
+            destinazione TEXT,
             user_id INTEGER,
             note TEXT,
             FOREIGN KEY(automezzo_id) REFERENCES automezzi(automezzo_id) ON DELETE CASCADE,
@@ -253,6 +254,11 @@ def registra_storico_km(conn, automezzo_id: int, km: int, sorgente: str, data_re
 
     try:
         conn.execute(text("ALTER TABLE viaggi_automezzi ADD COLUMN posizione_parcheggio TEXT"))
+    except Exception:
+        pass
+        
+    try:
+        conn.execute(text("ALTER TABLE viaggi_automezzi ADD COLUMN destinazione TEXT"))
     except Exception:
         pass
         
@@ -3630,6 +3636,7 @@ def add_viaggio(
     km_finali: int = Form(None),
     sede_partenza_id: int = Form(...),
     sede_arrivo_id: int = Form(None),
+    destinazione: typing.Optional[str] = Form(None),
     user_id: typing.Optional[int] = Form(None),
     note: str = Form(None),
     prenotazione_id: typing.Optional[int] = Form(None)
@@ -3652,6 +3659,7 @@ def add_viaggio(
     km_finali_val = km_finali if km_finali is not None else None
     sede_arrivo_id_val = sede_arrivo_id if sede_arrivo_id else None
     user_id_val = user_id if user_id else None
+    destinazione_val = destinazione.strip() if destinazione and destinazione.strip() else None
     
     with engine.begin() as conn:
         # Se viene registrato un viaggio per una prenotazione, elimina la prenotazione corrispondente
@@ -3671,15 +3679,16 @@ def add_viaggio(
         conn.execute(text("""
             INSERT INTO viaggi_automezzi (
                 automezzo_id, data_viaggio, ora_partenza, ora_partenza_effettiva, ora_arrivo, 
-                km_iniziali, km_finali, sede_partenza_id, sede_arrivo_id, user_id, note
+                km_iniziali, km_finali, sede_partenza_id, sede_arrivo_id, destinazione, user_id, note
             ) VALUES (
                 :automezzo_id, :data_viaggio, :ora_partenza, :ora_partenza, :ora_arrivo,
-                :km_iniziali, :km_finali, :sede_partenza_id, :sede_arrivo_id, :user_id, :note
+                :km_iniziali, :km_finali, :sede_partenza_id, :sede_arrivo_id, :destinazione, :user_id, :note
             )
         """), {
             "automezzo_id": automezzo_id, "data_viaggio": data_viaggio, "ora_partenza": ora_partenza,
             "ora_arrivo": ora_arrivo, "km_iniziali": km_iniziali, "km_finali": km_finali_val,
-            "sede_partenza_id": sede_partenza_id, "sede_arrivo_id": sede_arrivo_id_val,
+            "sede_partenza_id": sede_partenza_id, "sede_arrivo_id": sede_arrivo_id_val, "destinazione": destinazione_val,
+            "destinazione": destinazione_val,
             "user_id": user_id_val, "note": note
         })
         
@@ -4124,7 +4133,9 @@ def prenota_automezzo(
     ora_partenza: str = Form(...),
     ora_riconsegna_prevista: str = Form(...),
     sede_partenza_id: int = Form(...),
+    destinazione: str = Form(...),
     email_conducente: str = Form(None),
+    destinazione: str = Form(...),
     note: str = Form(None)
 ):
     if "user" not in r.session:
@@ -4145,20 +4156,50 @@ def prenota_automezzo(
             import urllib.parse
             err_msg = urllib.parse.quote("Non è possibile effettuare prenotazioni per date antecedenti ad oggi.")
             return RedirectResponse(url=f"/autopark?error={err_msg}", status_code=303)
+        
+    destinazione_val = (destinazione or "").strip()
+    if not destinazione_val:
+        import urllib.parse
+        err_msg = urllib.parse.quote("Il campo Destinazione è obbligatorio.")
+        return RedirectResponse(url=f"/autopark?error={err_msg}", status_code=303)
 
         if travel_dt < current_hour_dt:
             import urllib.parse
             err_msg = urllib.parse.quote("Per la giornata odierna è possibile prenotare a partire dall'ora attuale.")
             return RedirectResponse(url=f"/autopark?error={err_msg}", status_code=303)
+        
+    destinazione_val = (destinazione or "").strip()
+    if not destinazione_val:
+        import urllib.parse
+        err_msg = urllib.parse.quote("Il campo Destinazione è obbligatorio.")
+        return RedirectResponse(url=f"/autopark?error={err_msg}", status_code=303)
     except Exception:
         import urllib.parse
         err_msg = urllib.parse.quote("Formato data o ora non valido.")
+        return RedirectResponse(url=f"/autopark?error={err_msg}", status_code=303)
+        
+    destinazione_val = (destinazione or "").strip()
+    if not destinazione_val:
+        import urllib.parse
+        err_msg = urllib.parse.quote("Il campo Destinazione è obbligatorio.")
         return RedirectResponse(url=f"/autopark?error={err_msg}", status_code=303)
 
     # Validate return hour is after departure hour
     if ora_riconsegna_prevista <= ora_partenza:
         import urllib.parse
         err_msg = urllib.parse.quote("L'ora di riconsegna deve essere successiva all'ora di partenza.")
+        return RedirectResponse(url=f"/autopark?error={err_msg}", status_code=303)
+
+    destinazione_val = (destinazione or "").strip()
+    if not destinazione_val:
+        import urllib.parse
+        err_msg = urllib.parse.quote("Il campo Destinazione è obbligatorio.")
+        return RedirectResponse(url=f"/autopark?error={err_msg}", status_code=303)
+        
+    destinazione_val = (destinazione or "").strip()
+    if not destinazione_val:
+        import urllib.parse
+        err_msg = urllib.parse.quote("Il campo Destinazione è obbligatorio.")
         return RedirectResponse(url=f"/autopark?error={err_msg}", status_code=303)
     
     # 1. Resolve final_email of the driver based on role permissions
@@ -4180,6 +4221,12 @@ def prenota_automezzo(
         err_msg = urllib.parse.quote("Nessun utente attivo trovato con l'email del conducente indicata.")
         return RedirectResponse(url=f"/autopark?error={err_msg}", status_code=303)
         
+    destinazione_val = (destinazione or "").strip()
+    if not destinazione_val:
+        import urllib.parse
+        err_msg = urllib.parse.quote("Il campo Destinazione è obbligatorio.")
+        return RedirectResponse(url=f"/autopark?error={err_msg}", status_code=303)
+        
     with engine.begin() as conn:
         # 2. Check department constraint for fleet manager
         if role == "fleet_manager":
@@ -4188,6 +4235,12 @@ def prenota_automezzo(
                 import urllib.parse
                 err_msg = urllib.parse.quote("Puoi prenotare solo per utenti appartenenti al tuo stesso reparto.")
                 return RedirectResponse(url=f"/autopark?error={err_msg}", status_code=303)
+        
+    destinazione_val = (destinazione or "").strip()
+    if not destinazione_val:
+        import urllib.parse
+        err_msg = urllib.parse.quote("Il campo Destinazione è obbligatorio.")
+        return RedirectResponse(url=f"/autopark?error={err_msg}", status_code=303)
                 
         # 3. Check if the vehicle exists, is not excluded, and is at the correct location
         car = conn.execute(text("SELECT stato, km_attuali, escluso_prenotazione, sede_attuale_id, sede_assegnata_id FROM automezzi WHERE automezzo_id = :id"), {"id": automezzo_id}).first()
@@ -4217,6 +4270,12 @@ def prenota_automezzo(
             import urllib.parse
             err_msg = urllib.parse.quote("Il veicolo è già prenotato in questa fascia oraria.")
             return RedirectResponse(url=f"/autopark?error={err_msg}", status_code=303)
+        
+    destinazione_val = (destinazione or "").strip()
+    if not destinazione_val:
+        import urllib.parse
+        err_msg = urllib.parse.quote("Il campo Destinazione è obbligatorio.")
+        return RedirectResponse(url=f"/autopark?error={err_msg}", status_code=303)
             
         # 5. Check for driver time-slot overlap on this date
         driver_overlap = conn.execute(text("""
@@ -4238,14 +4297,20 @@ def prenota_automezzo(
             err_msg = urllib.parse.quote("Il guidatore indicato ha già un'altra prenotazione attiva in questa fascia oraria.")
             return RedirectResponse(url=f"/autopark?error={err_msg}", status_code=303)
         
+    destinazione_val = (destinazione or "").strip()
+    if not destinazione_val:
+        import urllib.parse
+        err_msg = urllib.parse.quote("Il campo Destinazione è obbligatorio.")
+        return RedirectResponse(url=f"/autopark?error={err_msg}", status_code=303)
+        
         # 6. Insert new voyage record
         conn.execute(text("""
             INSERT INTO viaggi_automezzi (
                 automezzo_id, data_viaggio, ora_partenza, ora_riconsegna_prevista, ora_arrivo, 
-                km_iniziali, km_finali, sede_partenza_id, sede_arrivo_id, user_id, email_conducente, ora_partenza_effettiva, note
+                km_iniziali, km_finali, sede_partenza_id, sede_arrivo_id, destinazione, user_id, email_conducente, ora_partenza_effettiva, note
             ) VALUES (
                 :automezzo_id, :data_viaggio, :ora_partenza, :ora_riconsegna_prevista, NULL,
-                :km_iniziali, NULL, :sede_partenza_id, NULL, :user_id, :email_conducente, NULL, :note
+                :km_iniziali, NULL, :sede_partenza_id, NULL, :destinazione, :user_id, :email_conducente, NULL, :note
             )
         """), {
             "automezzo_id": automezzo_id,
@@ -4254,6 +4319,7 @@ def prenota_automezzo(
             "ora_riconsegna_prevista": ora_riconsegna_prevista,
             "km_iniziali": km_iniziali,
             "sede_partenza_id": sede_partenza_id,
+            "destinazione": destinazione_val,
             "user_id": driver.user_id,
             "email_conducente": driver.email,
             "note": note
@@ -4299,10 +4365,22 @@ def parti_viaggio(id: int, r: Request):
             err_msg = urllib.parse.quote("Prenotazione non trovata.")
             return RedirectResponse(url=f"/autopark?error={err_msg}", status_code=303)
         
+    destinazione_val = (destinazione or "").strip()
+    if not destinazione_val:
+        import urllib.parse
+        err_msg = urllib.parse.quote("Il campo Destinazione è obbligatorio.")
+        return RedirectResponse(url=f"/autopark?error={err_msg}", status_code=303)
+        
         if v.ora_partenza_effettiva:
             import urllib.parse
             err_msg = urllib.parse.quote("Il viaggio è già stato avviato.")
             return RedirectResponse(url=f"/autopark?error={err_msg}", status_code=303)
+        
+    destinazione_val = (destinazione or "").strip()
+    if not destinazione_val:
+        import urllib.parse
+        err_msg = urllib.parse.quote("Il campo Destinazione è obbligatorio.")
+        return RedirectResponse(url=f"/autopark?error={err_msg}", status_code=303)
         
         now_str = datetime.datetime.now().strftime("%H:%M")
         conn.execute(text("""
@@ -4347,6 +4425,12 @@ def completa_prenotazione(
             import urllib.parse
             err_msg = urllib.parse.quote(f"L'orario di rientro ({ora_arrivo}) deve essere successivo all'orario di partenza effettiva ({v.ora_partenza_effettiva}).")
             return RedirectResponse(url=f"/autopark?error={err_msg}", status_code=303)
+        
+    destinazione_val = (destinazione or "").strip()
+    if not destinazione_val:
+        import urllib.parse
+        err_msg = urllib.parse.quote("Il campo Destinazione è obbligatorio.")
+        return RedirectResponse(url=f"/autopark?error={err_msg}", status_code=303)
 
         # Check if date has changed (compare today's date with data_viaggio)
         today_str = datetime.date.today().isoformat()
@@ -4520,6 +4604,7 @@ def modifica_viaggio(
     ora_partenza: str = Form(...),
     ora_arrivo: typing.Optional[str] = Form(None),
     km_finali: typing.Optional[int] = Form(None),
+    destinazione: typing.Optional[str] = Form(None),
     note: typing.Optional[str] = Form(None),
     posizione_parcheggio: typing.Optional[str] = Form(None),
     return_url: typing.Optional[str] = Form(None)
@@ -4576,7 +4661,9 @@ def modifica_viaggio(
 
         aid = v["automezzo_id"]
 
-        # Update editable fields: ora_partenza, ora_arrivo, km_finali, note, posizione_parcheggio
+        dest_clean = destinazione.strip() if destinazione and destinazione.strip() else None
+
+        # Update editable fields: ora_partenza, ora_arrivo, km_finali, destinazione, note, posizione_parcheggio
         conn.execute(text("""
             UPDATE viaggi_automezzi
             SET ora_partenza = :ora_p,
@@ -4584,6 +4671,7 @@ def modifica_viaggio(
                 ora_arrivo = :ora_a,
                 ora_riconsegna_prevista = COALESCE(:ora_a, ora_riconsegna_prevista),
                 km_finali = :km_f,
+                destinazione = COALESCE(:dest, destinazione),
                 note = :note,
                 posizione_parcheggio = COALESCE(:pos_parch, posizione_parcheggio)
             WHERE viaggio_id = :id
@@ -4592,6 +4680,7 @@ def modifica_viaggio(
             "ora_p": ora_partenza_clean,
             "ora_a": ora_arrivo_clean,
             "km_f": km_finali_val,
+            "dest": dest_clean,
             "note": note,
             "pos_parch": pos_parch_clean
         })
@@ -4701,8 +4790,10 @@ def registra_viaggio_posteriori_autopark(
     km_iniziali: int = Form(...),
     km_finali: int = Form(...),
     ora_arrivo: str = Form(...),
+    destinazione: typing.Optional[str] = Form(None),
     note: str = Form(None),
     sede_arrivo_id: int = Form(None),
+    destinazione: typing.Optional[str] = Form(None),
     posizione_parcheggio: str = Form(None)
 ):
     if "user" not in r.session:
@@ -4784,6 +4875,7 @@ def registra_viaggio_posteriori_autopark(
 
         s_arr = sede_arrivo_id or v["sede_partenza_id"]
         pos_parch_clean = posizione_parcheggio.strip() if posizione_parcheggio and posizione_parcheggio.strip() else None
+        dest_clean = destinazione.strip() if destinazione and destinazione.strip() else None
 
         conn.execute(text("""
             UPDATE viaggi_automezzi
@@ -4794,6 +4886,7 @@ def registra_viaggio_posteriori_autopark(
                 ora_arrivo = :ora_a,
                 ora_riconsegna_prevista = :ora_a,
                 sede_arrivo_id = :s_arr,
+                destinazione = COALESCE(:dest, destinazione),
                 note = COALESCE(:note, note),
                 posizione_parcheggio = :pos_parch
             WHERE viaggio_id = :id
@@ -4804,6 +4897,7 @@ def registra_viaggio_posteriori_autopark(
             "km_f": km_finali,
             "ora_a": ora_arrivo,
             "s_arr": s_arr,
+            "dest": dest_clean,
             "note": note,
             "pos_parch": pos_parch_clean
         })
@@ -4832,6 +4926,7 @@ def registra_viaggio_istantaneo(
     automezzo_id: int = Form(...),
     sede_partenza_id: int = Form(...),
     ora_riconsegna_prevista: str = Form(...),
+    destinazione: str = Form(...),
     note: str = Form(None)
 ):
     if "user" not in r.session:
@@ -4847,6 +4942,11 @@ def registra_viaggio_istantaneo(
     import urllib.parse
     if ora_riconsegna_prevista <= ora_partenza:
         err_msg = "L'ora di riconsegna deve essere successiva all'ora di partenza."
+        return RedirectResponse(url=f"/autopark?instant=1&error={urllib.parse.quote(err_msg)}", status_code=303)
+
+    destinazione_val = (destinazione or "").strip()
+    if not destinazione_val:
+        err_msg = "Il campo Destinazione è obbligatorio."
         return RedirectResponse(url=f"/autopark?instant=1&error={urllib.parse.quote(err_msg)}", status_code=303)
         
     with engine.connect() as conn:
@@ -4906,14 +5006,15 @@ def registra_viaggio_istantaneo(
             INSERT INTO viaggi_automezzi (
                 automezzo_id, data_viaggio, ora_partenza, ora_riconsegna_prevista,
                 ora_arrivo, km_iniziali, km_finali,
-                sede_partenza_id, sede_arrivo_id, user_id, email_conducente, ora_partenza_effettiva, note, in_pausa
+                sede_partenza_id, sede_arrivo_id, destinazione, user_id, email_conducente, ora_partenza_effettiva, note, in_pausa
             ) VALUES (
-                :aid, :dv, :op, :orc, NULL, :km, NULL, :sp, NULL, :driver_uid, :email, :ora_partenza_eff, :note, 0
+                :aid, :dv, :op, :orc, NULL, :km, NULL, :sp, NULL, :dest, :driver_uid, :email, :ora_partenza_eff, :note, 0
             )
         """), {
             "aid": automezzo_id, "dv": data_viaggio,
             "op": ora_partenza, "orc": ora_riconsegna_prevista,
             "km": km_iniziali, "sp": sede_partenza_id,
+            "dest": destinazione_val,
             "driver_uid": uid, "email": driver.email, "ora_partenza_eff": ora_partenza_eff, "note": note,
         })
         

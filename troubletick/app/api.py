@@ -175,6 +175,7 @@ class PrenotazioneCreateRequest(BaseModel):
     ora_partenza: str
     ora_riconsegna_prevista: str
     sede_partenza_id: int
+    destinazione: Optional[str] = None
     email_conducente: Optional[str] = None
     note: Optional[str] = None
 
@@ -942,7 +943,7 @@ def get_user_prenotazioni(
                        COALESCE(v.ora_partenza, '') AS ora_partenza,
                        COALESCE(v.ora_riconsegna_prevista, '') AS ora_riconsegna_prevista,
                        COALESCE(v.note, '') AS note,
-                       COALESCE(v.note, '') AS destinazione,
+                       COALESCE(v.destinazione, '') AS destinazione,
                        COALESCE(v.ora_partenza_effettiva, '') AS ora_partenza_effettiva,
                        COALESCE(v.ora_arrivo, '') AS ora_arrivo,
                        COALESCE(v.km_iniziali, 0) AS km_iniziali,
@@ -1044,6 +1045,7 @@ def create_prenotazione(req: PrenotazioneCreateRequest, background_tasks: Backgr
     ora_riconsegna = req.ora_riconsegna_prevista.strip()
     sede_partenza_id = int(req.sede_partenza_id)
     automezzo_id = int(req.automezzo_id)
+    destinazione = (req.destinazione or "").strip()
     note = (req.note or "").strip()
 
     now = datetime.now()
@@ -1163,11 +1165,11 @@ def create_prenotazione(req: PrenotazioneCreateRequest, background_tasks: Backgr
             res = conn.execute(text("""
                 INSERT INTO viaggi_automezzi (
                     automezzo_id, data_viaggio, ora_partenza, ora_riconsegna_prevista, ora_arrivo,
-                    km_iniziali, km_finali, sede_partenza_id, sede_arrivo_id, user_id, email_conducente,
+                    km_iniziali, km_finali, sede_partenza_id, sede_arrivo_id, destinazione, user_id, email_conducente,
                     ora_partenza_effettiva, note
                 ) VALUES (
                     :automezzo_id, :data_viaggio, :ora_partenza, :ora_riconsegna_prevista, NULL,
-                    :km_iniziali, NULL, :sede_partenza_id, NULL, :user_id, :email_conducente,
+                    :km_iniziali, NULL, :sede_partenza_id, NULL, :destinazione, :user_id, :email_conducente,
                     NULL, :note
                 )
             """), {
@@ -1177,6 +1179,7 @@ def create_prenotazione(req: PrenotazioneCreateRequest, background_tasks: Backgr
                 "ora_riconsegna_prevista": ora_riconsegna,
                 "km_iniziali": km_iniziali,
                 "sede_partenza_id": sede_partenza_id,
+                "destinazione": destinazione,
                 "user_id": driver["user_id"],
                 "email_conducente": driver["email"],
                 "note": note

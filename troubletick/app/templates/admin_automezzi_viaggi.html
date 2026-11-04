@@ -57,6 +57,7 @@
                                 <th>Targa</th>
                                 <th>Operatore</th>
                                 <th>Partenza da</th>
+                                <th>Destinazione</th>
                                 <th>Data / Ora Programmata</th>
                                 <th>Ora Partenza Effettiva</th>
                                 <th>Km Partenza</th>
@@ -71,6 +72,7 @@
                                 <td><strong class="font-monospace text-dark fs-6 text-uppercase" style="letter-spacing: 1.2px; font-weight: 800;">{{ v.targa }}</strong></td>
                                 <td>{% if v.user_nome or v.user_cognome %}{{ v.user_nome }} {{ v.user_cognome }}{% else %}<span class="text-muted fst-italic">Non specificato</span>{% endif %}</td>
                                 <td><i class="bi bi-geo-alt-fill text-danger me-1"></i>{{ v.sede_partenza_nome }}</td>
+                                <td><span class="fw-semibold text-primary">{{ v.destinazione or '-' }}</span></td>
                                 <td>{{ v.data_viaggio }} alle {{ v.ora_partenza }}</td>
                                 <td><span class="badge bg-success font-monospace">{{ v.ora_partenza_effettiva }}</span></td>
                                 <td>{{ v.km_iniziali }} km</td>
@@ -110,6 +112,7 @@
                                 <th>Targa</th>
                                 <th>Operatore</th>
                                 <th>Partenza da</th>
+                                <th>Destinazione</th>
                                 <th>Data / Ora Prevista</th>
                                 <th>Note</th>
                                 <th class="text-end">Azioni</th>
@@ -129,6 +132,7 @@
                                         </span>
                                     {% endif %}
                                 </td>
+                                <td><span class="fw-semibold text-primary">{{ v.destinazione or '-' }}</span></td>
                                 <td>{{ v.data_viaggio }} alle {{ v.ora_partenza }}</td>
                                 <td><span class="text-muted small">{{ v.note or '-' }}</span></td>
                                 <td class="text-end">
@@ -141,6 +145,7 @@
                                                  data-sede-partenza-id="{{ v.sede_partenza_id or '' }}"
                                                  data-km-iniziali="{{ v.km_iniziali or 0 }}"
                                                  data-user-id="{{ v.user_id or '' }}"
+                                                 data-destinazione="{{ (v.destinazione or '') | e }}"
                                                  data-note="{{ v.note or '' }}"
                                                  onclick="registraViaggioDaPrenotazioneBtn(this)"
                                                  title="Registra viaggio per questa prenotazione (la prenotazione verrà eliminata)">
@@ -194,7 +199,8 @@
                                 <th>Targa</th>
                                 <th>Operatore</th>
                                 <th>Sede Partenza</th>
-                                <th>Sede Arrivo</th>
+                                <th>Destinazione</th>
+                                <th>Sede Riconsegna</th>
                                 <th>Data / Orario</th>
                                 <th>Km Iniziali</th>
                                 <th>Km Finali</th>
@@ -210,7 +216,8 @@
                                 <td class="vehicle-targa"><strong class="font-monospace text-dark fs-6 text-uppercase" style="letter-spacing: 1.2px; font-weight: 800;">{{ v.targa }}</strong></td>
                                 <td class="driver-name">{% if v.user_nome or v.user_cognome %}{{ v.user_nome }} {{ v.user_cognome }}{% else %}<span class="text-muted fst-italic">Non specificato</span>{% endif %}</td>
                                 <td>{{ v.sede_partenza_nome }}</td>
-                                <td><i class="bi bi-geo-alt-fill text-danger me-1"></i>{{ v.sede_arrivo_nome }}</td>
+                                <td><span class="fw-semibold text-dark">{{ v.destinazione or '-' }}</span></td>
+                                <td><i class="bi bi-geo-alt-fill text-danger me-1"></i>{{ v.sede_arrivo_nome or '-' }}</td>
                                 <td>
                                     {{ v.data_viaggio }} ({{ v.ora_partenza }} - {{ v.ora_arrivo }})
                                     {% if v.minuti_fermo and v.minuti_fermo > 0 %}
@@ -244,6 +251,7 @@
                                                 data-km-finali="{{ v.km_finali or '' }}"
                                                 data-sede-partenza-nome="{{ v.sede_partenza_nome or '-' }}"
                                                 data-sede-arrivo-nome="{{ v.sede_arrivo_nome or v.sede_partenza_nome or '-' }}"
+                                                data-destinazione="{{ (v.destinazione or '') | e }}"
                                                 data-note="{{ (v.note or '') | e }}"
                                                 data-posizione-parcheggio="{{ (v.posizione_parcheggio or '') | e }}"
                                                 onclick="openEditTripModal(this)"
@@ -349,6 +357,25 @@
                             </div>
                         </div>
 
+                        <!-- Destinazione (Obbligatorio) -->
+                        <div class="row g-3 mb-3">
+                            <div class="col-md-6">
+                                <label class="form-label text-muted fw-bold">Destinazione *</label>
+                                <select class="form-select" id="addTripDestinazioneSelect" onchange="onAddTripDestChange(this.value)" required>
+                                    <option value="" disabled selected>-- Seleziona Destinazione --</option>
+                                    {% for s in sedi %}
+                                    <option value="{{ s.nome }}">Sede: {{ s.nome }}</option>
+                                    {% endfor %}
+                                    <option value="__custom__">Altra destinazione (specificare)...</option>
+                                </select>
+                            </div>
+                            <div class="col-md-6" id="addTripDestCustomCol" style="display: none;">
+                                <label class="form-label text-muted fw-bold">Specifica Altra Destinazione *</label>
+                                <input type="text" class="form-control" id="addTripDestCustomInput" placeholder="Es. Cliente Rossi, Roma Centro...">
+                            </div>
+                            <input type="hidden" name="destinazione" id="addTripDestinazioneFinal" required>
+                        </div>
+
                         <!-- Km Partenza -->
                         <div class="row g-3 mb-3">
                             <div class="col-md-6">
@@ -362,18 +389,18 @@
                             </div>
                         </div>
 
-                        <!-- Info Arrivo (Opzionali, per registrare viaggi già conclusi) -->
+                        <!-- Info Riconsegna (Opzionali, per registrare viaggi già conclusi) -->
                         <div class="border-top pt-3 mt-3">
-                            <h6 class="fw-bold text-success mb-3"><i class="bi bi-flag-fill me-1"></i> Dati di Arrivo (Compilare solo se il viaggio è già terminato)</h6>
+                            <h6 class="fw-bold text-success mb-3"><i class="bi bi-flag-fill me-1"></i> Dati di Riconsegna (Compilare solo se il viaggio è già terminato)</h6>
                             <div class="row g-3 mb-3">
                                 <div class="col-md-4">
-                                    <label class="form-label text-muted">Ora Arrivo</label>
+                                    <label class="form-label text-muted">Ora Riconsegna</label>
                                     <input type="time" class="form-control" name="ora_arrivo" id="addTripOraArrivo">
                                 </div>
                                 <div class="col-md-4">
-                                    <label class="form-label text-muted">Sede Arrivo</label>
+                                    <label class="form-label text-muted">Sede Riconsegna</label>
                                     <select class="form-select" name="sede_arrivo_id" id="addTripSedeArrivoId">
-                                        <option value="" selected>-- Stessa sede di partenza o seleziona --</option>
+                                        <option value="" selected>-- Stessa sede di partenza o seleziona sede di riconsegna --</option>
                                         {% for s in sedi %}
                                         <option value="{{ s.sede_id }}">{{ s.nome }}</option>
                                         {% endfor %}
@@ -434,11 +461,11 @@
                             <input type="time" class="form-control" name="ora_arrivo" id="compOraArrivo" required>
                         </div>
 
-                        <!-- Sede Arrivo -->
+                        <!-- Sede Riconsegna -->
                         <div class="mb-3">
-                            <label class="form-label text-muted">Sede Arrivo (Logistica) *</label>
+                            <label class="form-label text-muted">Sede Riconsegna *</label>
                             <select class="form-select" name="sede_arrivo_id" id="compSedeArrivoId" required>
-                                <option value="" disabled selected>-- Seleziona Sede Arrivo --</option>
+                                <option value="" disabled selected>-- Seleziona Sede Riconsegna --</option>
                                 {% for s in sedi %}
                                 <option value="{{ s.sede_id }}">{{ s.nome }}</option>
                                 {% endfor %}
@@ -495,10 +522,78 @@
             document.getElementById('addTripOraPartenza').value = timeStr;
         });
 
+        function onAddTripDestChange(val) {
+            const customCol = document.getElementById('addTripDestCustomCol');
+            const customInput = document.getElementById('addTripDestCustomInput');
+            const finalInput = document.getElementById('addTripDestinazioneFinal');
+            if (!customCol || !finalInput) return;
+
+            if (val === '__custom__') {
+                customCol.style.display = '';
+                if (customInput) customInput.required = true;
+                finalInput.value = customInput ? customInput.value.trim() : '';
+            } else {
+                customCol.style.display = 'none';
+                if (customInput) {
+                    customInput.required = false;
+                    customInput.value = '';
+                }
+                finalInput.value = val;
+            }
+        }
+
+        function setAddTripDestinazione(val) {
+            const select = document.getElementById('addTripDestinazioneSelect');
+            const customCol = document.getElementById('addTripDestCustomCol');
+            const customInput = document.getElementById('addTripDestCustomInput');
+            const finalInput = document.getElementById('addTripDestinazioneFinal');
+            if (!select || !finalInput) return;
+
+            if (!val) {
+                select.value = '';
+                onAddTripDestChange('');
+                return;
+            }
+
+            let found = false;
+            for (let i = 0; i < select.options.length; i++) {
+                if (select.options[i].value === val) {
+                    select.selectedIndex = i;
+                    found = true;
+                    break;
+                }
+            }
+            if (found) {
+                onAddTripDestChange(val);
+            } else {
+                select.value = '__custom__';
+                if (customCol) customCol.style.display = '';
+                if (customInput) {
+                    customInput.required = true;
+                    customInput.value = val;
+                }
+                finalInput.value = val;
+            }
+        }
+
+        document.addEventListener('DOMContentLoaded', () => {
+            const customInput = document.getElementById('addTripDestCustomInput');
+            const finalInput = document.getElementById('addTripDestinazioneFinal');
+            if (customInput && finalInput) {
+                customInput.addEventListener('input', function() {
+                    const select = document.getElementById('addTripDestinazioneSelect');
+                    if (select && select.value === '__custom__') {
+                        finalInput.value = this.value.trim();
+                    }
+                });
+            }
+        });
+
         function showAddTripModal() {
             document.getElementById('addTripPrenotazioneId').value = '';
             const banner = document.getElementById('addTripPrenotazioneBanner');
             if (banner) banner.classList.add('d-none');
+            setAddTripDestinazione('');
 
             const searchInput = document.getElementById('cercaTargaVeicoloInput');
             if (searchInput) {
@@ -523,6 +618,7 @@
                 sede_partenza_id: btn.getAttribute('data-sede-partenza-id'),
                 km_iniziali: btn.getAttribute('data-km-iniziali'),
                 user_id: btn.getAttribute('data-user-id'),
+                destinazione: btn.getAttribute('data-destinazione'),
                 note: btn.getAttribute('data-note')
             };
             registraViaggioDaPrenotazione(p);
@@ -571,6 +667,12 @@
             const noteInput = document.querySelector('textarea[name="note"]');
             if (noteInput && p.note) {
                 noteInput.value = p.note;
+            }
+
+            if (p.destinazione) {
+                setAddTripDestinazione(p.destinazione);
+            } else {
+                setAddTripDestinazione('');
             }
 
             addTripModalEl.show();
@@ -655,6 +757,14 @@
         }
 
         function validateNewTripForm() {
+            const destFinal = document.getElementById('addTripDestinazioneFinal');
+            if (!destFinal || !destFinal.value.trim()) {
+                alert("Il campo Destinazione è obbligatorio. Seleziona una sede o indica un'altra destinazione.");
+                const destSel = document.getElementById('addTripDestinazioneSelect');
+                if (destSel) destSel.focus();
+                return false;
+            }
+
             const kmInit = parseInt(document.getElementById('addTripKmIniziali').value || 0, 10);
             const kmFinEl = document.getElementById('addTripKmFinali');
             
@@ -673,7 +783,7 @@
             // If any arrival detail is entered, ensure all required arrival details are entered
             if (oraArr || kmFinVal || sedeArr) {
                 if (!oraArr || !kmFinVal || !sedeArr) {
-                    alert("Se vuoi inserire i dati di arrivo, compila tutti e tre i campi: Ora Arrivo, Sede Arrivo e Chilometri Finali.");
+                    alert("Se vuoi inserire i dati di riconsegna, compila tutti e tre i campi: Ora Riconsegna, Sede Riconsegna e Chilometri Finali.");
                     return false;
                 }
             }
@@ -763,6 +873,7 @@
             const kmFinali = btn.dataset.kmFinali;
             const sedePartenzaNome = btn.dataset.sedePartenzaNome;
             const sedeArrivoNome = btn.dataset.sedeArrivoNome;
+            const destinazione = btn.dataset.destinazione;
             const note = btn.dataset.note;
             const posParch = btn.dataset.posizioneParcheggio;
 
@@ -779,6 +890,8 @@
             document.getElementById('editTripKmFinali').value = kmFinali || '';
             document.getElementById('editTripSedePartenzaDisplay').value = sedePartenzaNome || '-';
             document.getElementById('editTripSedeArrivoDisplay').value = sedeArrivoNome || '-';
+            const editDestEl = document.getElementById('editTripDestinazione');
+            if (editDestEl) editDestEl.value = destinazione || '';
             document.getElementById('editTripNote').value = note || '';
             const editPosEl = document.getElementById('editTripPosizioneParcheggio');
             if (editPosEl) editPosEl.value = posParch || '';
@@ -934,7 +1047,7 @@
                                         <input type="text" id="editTripKmInizialiDisplay" class="form-control form-control-sm bg-white border-0 fw-semibold text-dark" readonly tabindex="-1">
                                     </div>
                                     <div class="col-md-4">
-                                        <label class="form-label text-muted small mb-0">Sede Partenza / Arrivo</label>
+                                        <label class="form-label text-muted small mb-0">Sede Partenza / Riconsegna</label>
                                         <div class="d-flex gap-1 align-items-center">
                                             <input type="text" id="editTripSedePartenzaDisplay" class="form-control form-control-sm bg-white border-0 fw-semibold text-dark p-1" readonly tabindex="-1" style="font-size: 0.8rem;">
                                             <i class="bi bi-arrow-right text-muted small"></i>
@@ -958,6 +1071,11 @@
                             <div class="col-md-4">
                                 <label class="form-label small fw-bold text-success mb-1"><i class="bi bi-speedometer2 me-1"></i>KM Arrivo / Rientro</label>
                                 <input type="number" name="km_finali" id="editTripKmFinali" class="form-control" min="0" placeholder="Es. 45200">
+                            </div>
+
+                            <div class="col-12">
+                                <label class="form-label small fw-bold text-primary mb-1"><i class="bi bi-pin-map-fill me-1"></i>Destinazione</label>
+                                <input type="text" name="destinazione" id="editTripDestinazione" class="form-control" placeholder="Es. Sede Centrale, Cliente Rossi...">
                             </div>
 
                             <div class="col-12">

@@ -292,19 +292,20 @@
                     <th style="width: 14%;">Veicolo / Targa</th>
                     {% endif %}
                     <th style="width: 16%;">Conducente</th>
-                    <th style="width: 13%;">Partenza</th>
-                    <th style="width: 13%;">Destinazione</th>
-                    <th style="width: 11%; text-align: center;">Orari</th>
-                    <th style="width: 7%; text-align: right;">Km Inizio</th>
-                    <th style="width: 7%; text-align: right;">Km Fine</th>
-                    <th style="width: 7%; text-align: right;">Distanza</th>
-                    <th style="width: 11%;">Note / Soste</th>
+                    <th style="width: 10%;">Partenza</th>
+                    <th style="width: 12%;">Destinazione</th>
+                    <th style="width: 10%;">Riconsegna</th>
+                    <th style="width: 10%; text-align: center;">Orari</th>
+                    <th style="width: 6%; text-align: right;">Km Inizio</th>
+                    <th style="width: 6%; text-align: right;">Km Fine</th>
+                    <th style="width: 6%; text-align: right;">Distanza</th>
+                    <th style="width: 10%;">Note / Soste</th>
                 </tr>
             </thead>
             <tbody>
                 {% if not viaggi %}
                 <tr>
-                    <td colspan="{% if not veicolo %}11{% else %}10{% endif %}" class="text-center py-4 text-muted fst-italic">
+                    <td colspan="{% if not veicolo %}12{% else %}11{% endif %}" class="text-center py-4 text-muted fst-italic">
                         Nessun viaggio registrato per il veicolo / periodo selezionato.
                     </td>
                 </tr>
@@ -327,7 +328,8 @@
                         {% endif %}
                     </td>
                     <td><i class="bi bi-geo-alt text-muted me-1"></i>{{ v.sede_partenza_nome }}</td>
-                    <td><i class="bi bi-geo-alt-fill text-danger me-1"></i>{{ v.sede_arrivo_nome or v.sede_partenza_nome }}</td>
+                    <td class="fw-semibold text-dark">{{ v.destinazione or '-' }}</td>
+                    <td><i class="bi bi-geo-alt-fill text-danger me-1"></i>{{ v.sede_arrivo_nome or '-' }}</td>
                     <td style="text-align: center; font-family: monospace;">
                         {{ v.ora_partenza or '--:--' }} &rarr; {{ v.ora_arrivo or '--:--' }}
                     </td>
