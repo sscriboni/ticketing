@@ -137,32 +137,57 @@
     @media print {
       @page {
         size: A4 portrait;
-        margin: 12mm 10mm;
+        margin: 8mm 8mm 6mm 8mm;
       }
       body {
         background: #fff !important;
         font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Arial, sans-serif !important;
-        font-size: 9.5pt !important;
+        font-size: 8pt !important;
+        line-height: 1.15 !important;
         color: #111 !important;
+      }
+      .container-fluid {
+        padding: 0 !important;
+        margin: 0 !important;
+        width: 100% !important;
+        max-width: 100% !important;
       }
       .navbar, .btn-no-print, .alert, .nav-actions-container, .btn-remove-chip, .btn-add-turno, footer, .summary-card, #sezione-calendario {
         display: none !important;
       }
       #sezione-tabella-reperibili {
         display: block !important;
+        margin-bottom: 0 !important;
       }
       .print-header-doc {
         display: block !important;
+        margin-bottom: 4px !important;
+      }
+      .print-header-doc h1 {
+        font-size: 11pt !important;
+        margin-bottom: 1px !important;
+      }
+      .print-header-doc h2 {
+        font-size: 9.5pt !important;
+        margin-bottom: 1px !important;
+      }
+      .print-header-doc .small, .print-header-doc div {
+        font-size: 7.5pt !important;
+        line-height: 1.15 !important;
+      }
+      .print-header-doc .border-bottom {
+        padding-bottom: 2px !important;
       }
       .print-table-custom {
         width: 100% !important;
         border-collapse: collapse !important;
-        margin-top: 10px !important;
+        margin-top: 4px !important;
       }
       .print-table-custom th, .print-table-custom td {
         border: 1px solid #333 !important;
-        padding: 5px 8px !important;
-        font-size: 9.5pt !important;
+        padding: 2px 5px !important;
+        font-size: 8pt !important;
+        line-height: 1.15 !important;
         color: #000 !important;
       }
       .print-table-custom thead th {
@@ -170,8 +195,15 @@
         color: #000 !important;
         border-bottom: 2px solid #000 !important;
         font-weight: bold !important;
+        padding: 3px 5px !important;
+        font-size: 8pt !important;
         -webkit-print-color-adjust: exact;
         print-color-adjust: exact;
+      }
+      .print-table-custom .badge {
+        padding: 1px 3px !important;
+        font-size: 6.5pt !important;
+        line-height: 1 !important;
       }
       .print-festivo-row,
       .print-festivo-row td,
@@ -187,7 +219,8 @@
       .print-fascia {
         border: none !important;
         background: transparent !important;
-        font-size: 9pt !important;
+        font-size: 7.5pt !important;
+        line-height: 1.15 !important;
         color: #000 !important;
         padding: 0 !important;
       }
