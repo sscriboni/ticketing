@@ -669,7 +669,9 @@
                                         <td>
                                             <span class="fw-bold">{{ p.data_viaggio }}</span><br>
                                             <span class="small fw-semibold text-primary"><i class="bi bi-clock me-1"></i>{{ p.ora_partenza }}{% if p.ora_arrivo %} - {{ p.ora_arrivo }}{% elif p.ora_riconsegna_prevista %} - {{ p.ora_riconsegna_prevista }}{% endif %}</span>
-                                            {% if p.minuti_fermo and p.minuti_fermo > 0 %}
+                                            {% if not p.ora_arrivo %}
+                                                <br><span class="badge bg-warning text-dark small" style="font-size: 0.72rem; padding: 2px 6px;"><i class="bi bi-exclamation-circle me-1"></i>Non registrato</span>
+                                            {% elif p.minuti_fermo and p.minuti_fermo > 0 %}
                                                 <br><span class="badge bg-warning text-dark small" style="font-size: 0.72rem; padding: 2px 6px;"><i class="bi bi-clock-history"></i> Fermo: {{ p.minuti_fermo }} min</span>
                                             {% endif %}
                                         </td>
@@ -683,7 +685,11 @@
                                             <i class="bi bi-geo-alt-fill text-danger me-1"></i><span>{{ p.sede_arrivo_nome or '-' }}</span>
                                         </td>
                                         <td>
-                                            <span class="fw-semibold text-primary">{{ p.km_iniziali or '0' }}</span> / <span class="fw-semibold text-success">{{ p.km_finali or '-' }}</span>
+                                            {% if p.ora_arrivo %}
+                                                <span class="fw-semibold text-primary">{{ p.km_iniziali or '0' }}</span> / <span class="fw-semibold text-success">{{ p.km_finali or '-' }}</span>
+                                            {% else %}
+                                                <span class="fw-semibold text-primary">{{ p.km_iniziali or '0' }}</span> / <span class="badge bg-light text-muted border">In attesa</span>
+                                            {% endif %}
                                         </td>
                                         <td>
                                             <span class="fw-semibold">{{ p.driver_nome }} {{ p.driver_cognome }}</span><br>
@@ -700,32 +706,59 @@
                                         </td>
                                         <td class="text-end text-nowrap">
                                             <div class="d-inline-flex gap-2 align-items-center">
-                                                {% if user.ruolo in ('admin', 'fleet_manager', 'global_fleet_manager') or p.user_id == user.id %}
-                                                <button type="button" class="btn btn-sm btn-outline-primary fw-bold d-inline-flex align-items-center gap-1"
-                                                        data-viaggio-id="{{ p.viaggio_id }}"
-                                                        data-automezzo-id="{{ p.automezzo_id }}"
-                                                        data-targa="{{ p.targa }}"
-                                                        data-marca-modello="{{ p.marca_nome }} {{ p.modello }}"
-                                                        data-data-viaggio="{{ p.data_viaggio }}"
-                                                        data-ora-partenza="{{ p.ora_partenza }}"
-                                                        data-ora-arrivo="{{ p.ora_arrivo or '' }}"
-                                                        data-km-iniziali="{{ p.km_iniziali or 0 }}"
-                                                        data-km-finali="{{ p.km_finali or '' }}"
-                                                        data-sede-partenza-nome="{{ p.sede_partenza_nome or '-' }}"
-                                                        data-sede-arrivo-nome="{{ p.sede_arrivo_nome or p.sede_partenza_nome or '-' }}"
-                                                        data-note="{{ (p.note or '') | e }}"
-                                                        data-posizione-parcheggio="{{ (p.posizione_parcheggio or '') | e }}"
-                                                        onclick="openEditTripModal(this)"
-                                                        title="Modifica dettagli del viaggio registrato">
-                                                    <i class="bi bi-pencil-square"></i> Modifica
-                                                </button>
-                                                {% endif %}
-                                                {% if user.ruolo in ('admin', 'fleet_manager', 'global_fleet_manager') %}
-                                                <form id="delete-form-desktop-{{ p.viaggio_id }}" action="/autopark/elimina/{{ p.viaggio_id }}" method="POST" onsubmit="return confirmDeleteTrip('delete-form-desktop-{{ p.viaggio_id }}', {{ p.km_iniziali or 0 }});" class="d-inline m-0">
-                                                    <button type="submit" class="btn btn-sm btn-link text-danger p-0" title="Elimina record">
-                                                        <i class="bi bi-trash fs-5"></i>
+                                                {% if not p.ora_arrivo %}
+                                                    {# Prenotazione passata non ancora registrata #}
+                                                    {% if p.within_grace_period and (user.ruolo in ('admin', 'fleet_manager', 'global_fleet_manager') or p.user_id == user.id or p.prenotato_da_id == user.id) %}
+                                                    <button type="button" class="btn btn-sm btn-success fw-bold d-inline-flex align-items-center gap-1 shadow-sm"
+                                                            data-viaggio-id="{{ p.viaggio_id }}"
+                                                            data-automezzo-id="{{ p.automezzo_id }}"
+                                                            data-targa="{{ p.targa }}"
+                                                            data-marca-modello="{{ p.marca_nome }} {{ p.modello }}"
+                                                            data-data-viaggio="{{ p.data_viaggio }}"
+                                                            data-ora-partenza="{{ p.ora_partenza }}"
+                                                            data-ora-riconsegna="{{ p.ora_riconsegna_prevista or '' }}"
+                                                            data-km-iniziali="{{ p.km_iniziali or 0 }}"
+                                                            data-sede-partenza-id="{{ p.sede_partenza_id }}"
+                                                            data-sede-partenza-nome="{{ p.sede_partenza_nome or '-' }}"
+                                                            data-destinazione="{{ (p.destinazione or '') | e }}"
+                                                            data-note="{{ (p.note or '') | e }}"
+                                                            onclick="openRegisterTripModal(this)"
+                                                            title="Registra i dettagli del viaggio effettuato">
+                                                        <i class="bi bi-journal-check"></i> Registra Viaggio
                                                     </button>
-                                                </form>
+                                                    <form action="/autopark/elimina/{{ p.viaggio_id }}" method="POST" class="d-inline m-0" onsubmit="return confirm('Sei sicuro di voler eliminare questa prenotazione non registrata?');">
+                                                        <button type="submit" class="btn btn-sm btn-outline-danger" title="Elimina prenotazione non registrata">
+                                                            <i class="bi bi-trash"></i>
+                                                        </button>
+                                                    </form>
+                                                    {% endif %}
+                                                {% else %}
+                                                    {# Viaggio già registrato: NON modificabile dall'utente ordinario, solo da Fleet Manager e Admin #}
+                                                    {% if user.ruolo in ('admin', 'fleet_manager', 'global_fleet_manager') %}
+                                                    <button type="button" class="btn btn-sm btn-outline-primary fw-bold d-inline-flex align-items-center gap-1"
+                                                            data-viaggio-id="{{ p.viaggio_id }}"
+                                                            data-automezzo-id="{{ p.automezzo_id }}"
+                                                            data-targa="{{ p.targa }}"
+                                                            data-marca-modello="{{ p.marca_nome }} {{ p.modello }}"
+                                                            data-data-viaggio="{{ p.data_viaggio }}"
+                                                            data-ora-partenza="{{ p.ora_partenza }}"
+                                                            data-ora-arrivo="{{ p.ora_arrivo or '' }}"
+                                                            data-km-iniziali="{{ p.km_iniziali or 0 }}"
+                                                            data-km-finali="{{ p.km_finali or '' }}"
+                                                            data-sede-partenza-nome="{{ p.sede_partenza_nome or '-' }}"
+                                                            data-sede-arrivo-nome="{{ p.sede_arrivo_nome or p.sede_partenza_nome or '-' }}"
+                                                            data-note="{{ (p.note or '') | e }}"
+                                                            data-posizione-parcheggio="{{ (p.posizione_parcheggio or '') | e }}"
+                                                            onclick="openEditTripModal(this)"
+                                                            title="Modifica dettagli del viaggio registrato">
+                                                        <i class="bi bi-pencil-square"></i> Modifica
+                                                    </button>
+                                                    <form id="delete-form-desktop-{{ p.viaggio_id }}" action="/autopark/elimina/{{ p.viaggio_id }}" method="POST" onsubmit="return confirmDeleteTrip('delete-form-desktop-{{ p.viaggio_id }}', {{ p.km_iniziali or 0 }});" class="d-inline m-0">
+                                                        <button type="submit" class="btn btn-sm btn-link text-danger p-0" title="Elimina record">
+                                                            <i class="bi bi-trash fs-5"></i>
+                                                        </button>
+                                                    </form>
+                                                    {% endif %}
                                                 {% endif %}
                                             </div>
                                         </td>
@@ -1245,6 +1278,60 @@
         }
         return true;
     }
+
+    function openRegisterTripModal(btn) {
+        const viaggioId = btn.getAttribute('data-viaggio-id');
+        const targa = btn.getAttribute('data-targa') || '';
+        const veicolo = btn.getAttribute('data-marca-modello') || '';
+        const dataV = btn.getAttribute('data-data-viaggio') || '';
+        const oraP = btn.getAttribute('data-ora-partenza') || '';
+        const oraR = btn.getAttribute('data-ora-riconsegna') || '';
+        const kmInit = btn.getAttribute('data-km-iniziali') || '0';
+        const sedePartenzaId = btn.getAttribute('data-sede-partenza-id') || '';
+        const sedePartenzaNome = btn.getAttribute('data-sede-partenza-nome') || '';
+        const destinazione = btn.getAttribute('data-destinazione') || '';
+        const note = btn.getAttribute('data-note') || '';
+
+        const form = document.getElementById('registerTripForm');
+        if (form) form.action = '/autopark/registra-viaggio/' + viaggioId;
+        
+        document.getElementById('regTripTargaLabel').textContent = targa;
+        document.getElementById('regTripVeicoloLabel').textContent = veicolo;
+        document.getElementById('regTripDataDisplay').value = dataV;
+        document.getElementById('regTripSedePartenzaDisplay').value = sedePartenzaNome;
+        document.getElementById('regTripOraPartenza').value = oraP;
+        document.getElementById('regTripOraArrivo').value = oraR || '';
+        document.getElementById('regTripKmIniziali').value = kmInit;
+        document.getElementById('regTripKmFinali').value = '';
+        document.getElementById('regTripDestinazione').value = destinazione;
+        document.getElementById('regTripNote').value = note;
+
+        const sedeArrivoSelect = document.getElementById('regTripSedeArrivo');
+        if (sedeArrivoSelect && sedePartenzaId) {
+            sedeArrivoSelect.value = sedePartenzaId;
+        }
+
+        const modalEl = document.getElementById('registerTripModal');
+        const modal = bootstrap.Modal.getOrCreateInstance(modalEl);
+        modal.show();
+    }
+
+    function validateRegisterTripForm() {
+        const kmInit = parseInt(document.getElementById('regTripKmIniziali').value, 10) || 0;
+        const kmFinVal = document.getElementById('regTripKmFinali').value;
+        const kmFin = parseInt(kmFinVal, 10);
+        if (isNaN(kmFin) || kmFin < kmInit) {
+            alert("I chilometri al rientro (" + kmFinVal + " km) non possono essere inferiori a quelli di partenza (" + kmInit + " km).");
+            return false;
+        }
+        const oraP = document.getElementById('regTripOraPartenza').value;
+        const oraA = document.getElementById('regTripOraArrivo').value;
+        if (oraP && oraA && oraA <= oraP) {
+            alert("L'orario di rientro deve essere successivo all'orario di partenza.");
+            return false;
+        }
+        return true;
+    }
 </script>
 
 <!-- Modal Modifica Viaggio Registrato -->
@@ -1323,6 +1410,114 @@
                 <div class="modal-footer bg-light">
                     <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Annulla</button>
                     <button type="submit" class="btn btn-primary fw-bold"><i class="bi bi-check2-circle me-1"></i> Salva Modifiche</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+<!-- Modal Registra Viaggio da Storico (Tolleranza 5 Giorni) -->
+<div class="modal fade" id="registerTripModal" tabindex="-1" aria-labelledby="registerTripModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered modal-lg">
+        <div class="modal-content border-0 shadow">
+            <div class="modal-header bg-success text-white">
+                <h5 class="modal-title fw-bold" id="registerTripModalLabel">
+                    <i class="bi bi-journal-check me-2"></i> Registra Viaggio non Completato
+                </h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <form action="" method="post" id="registerTripForm" onsubmit="return validateRegisterTripForm()">
+                <div class="modal-body p-4">
+                    <div class="alert alert-success bg-success bg-opacity-10 border-success border-opacity-25 py-2 px-3 mb-3 d-flex align-items-center justify-content-between">
+                        <div>
+                            <i class="bi bi-car-front-fill me-2 text-success"></i> <strong id="regTripVeicoloLabel"></strong>
+                        </div>
+                        <span class="badge bg-dark font-monospace fs-6" id="regTripTargaLabel"></span>
+                    </div>
+
+                    <div class="card bg-light border-0 mb-3">
+                        <div class="card-body py-2 px-3">
+                            <div class="d-flex align-items-center mb-2">
+                                <i class="bi bi-lock-fill text-muted me-1 small"></i>
+                                <span class="text-muted fw-bold small text-uppercase" style="font-size: 0.75rem; letter-spacing: 0.5px;">Dati Prenotazione</span>
+                            </div>
+                            <div class="row g-2">
+                                <div class="col-md-6">
+                                    <label class="form-label text-muted small mb-0">Data Viaggio</label>
+                                    <input type="text" id="regTripDataDisplay" class="form-control form-control-sm bg-white border-0 fw-semibold text-dark" readonly tabindex="-1">
+                                </div>
+                                <div class="col-md-6">
+                                    <label class="form-label text-muted small mb-0">Sede Partenza</label>
+                                    <input type="text" id="regTripSedePartenzaDisplay" class="form-control form-control-sm bg-white border-0 fw-semibold text-dark" readonly tabindex="-1">
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="row g-3">
+                        <div class="col-md-6">
+                            <label class="form-label small fw-bold text-primary mb-1">
+                                <i class="bi bi-clock me-1"></i>Ora Partenza <span class="text-danger">*</span>
+                            </label>
+                            <input type="time" name="ora_partenza" id="regTripOraPartenza" class="form-control" required>
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label small fw-bold text-success mb-1">
+                                <i class="bi bi-clock-history me-1"></i>Ora Rientro <span class="text-danger">*</span>
+                            </label>
+                            <input type="time" name="ora_arrivo" id="regTripOraArrivo" class="form-control" required>
+                        </div>
+
+                        <div class="col-md-6">
+                            <label class="form-label small fw-bold text-primary mb-1">
+                                <i class="bi bi-speedometer2 me-1"></i>KM Partenza <span class="text-danger">*</span>
+                            </label>
+                            <input type="number" name="km_iniziali" id="regTripKmIniziali" class="form-control" min="0" required>
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label small fw-bold text-success mb-1">
+                                <i class="bi bi-speedometer me-1"></i>KM Rientro <span class="text-danger">*</span>
+                            </label>
+                            <input type="number" name="km_finali" id="regTripKmFinali" class="form-control" min="0" placeholder="Km finali al rientro" required>
+                        </div>
+
+                        <div class="col-md-6">
+                            <label class="form-label small fw-bold text-dark mb-1">
+                                <i class="bi bi-geo-alt-fill text-danger me-1"></i>Sede Riconsegna <span class="text-danger">*</span>
+                            </label>
+                            <select name="sede_arrivo_id" id="regTripSedeArrivo" class="form-select" required>
+                                {% for s in sedi %}
+                                    <option value="{{ s.sede_id }}">{% if s.comune_nome %}[{{ s.comune_nome }}] {% endif %}{{ s.nome }}</option>
+                                {% endfor %}
+                            </select>
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label small fw-bold text-dark mb-1">
+                                <i class="bi bi-pin-map-fill text-primary me-1"></i>Destinazione <span class="text-danger">*</span>
+                            </label>
+                            <input type="text" name="destinazione" id="regTripDestinazione" class="form-control" placeholder="Es. Sede Centrale o Cliente" required>
+                        </div>
+
+                        <div class="col-12">
+                            <label class="form-label small fw-bold text-muted mb-1">
+                                <i class="bi bi-pin-map-fill text-danger me-1"></i>Posizione / Stallo Parcheggio
+                            </label>
+                            <input type="text" name="posizione_parcheggio" id="regTripPosizioneParcheggio" class="form-control" placeholder="Es. Stallo 4 cortile interno">
+                        </div>
+
+                        <div class="col-12">
+                            <label class="form-label small fw-bold text-muted mb-1">
+                                <i class="bi bi-journal-text me-1"></i>Note Viaggio
+                            </label>
+                            <textarea name="note" id="regTripNote" class="form-control" rows="2" placeholder="Note facoltative sul viaggio..."></textarea>
+                        </div>
+                    </div>
+                </div>
+                <div class="modal-footer bg-light">
+                    <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Annulla</button>
+                    <button type="submit" class="btn btn-success fw-bold">
+                        <i class="bi bi-check-lg me-1"></i> Salva e Registra Viaggio
+                    </button>
                 </div>
             </form>
         </div>

@@ -3936,6 +3936,17 @@ def get_autopark(r: Request, msg: str = None, error: str = None):
     uid = user.get("id")
     role = user.get("ruolo")
     
+    with engine.begin() as conn:
+        # Automatic purge: eliminate unrecorded bookings older than 5 days
+        try:
+            cutoff_5days = (datetime.date.today() - datetime.timedelta(days=5)).isoformat()
+            conn.execute(text("""
+                DELETE FROM viaggi_automezzi
+                WHERE ora_arrivo IS NULL AND data_viaggio < :cutoff
+            """), {"cutoff": cutoff_5days})
+        except Exception as e_purge:
+            print("Purge error in get_autopark:", e_purge)
+
     with engine.connect() as conn:
         # Get user's own reparto_id and sede_id
         user_row = conn.execute(text("SELECT reparto_id, sede_id FROM users WHERE user_id = :uid"), {"uid": uid}).mappings().first()
@@ -4032,6 +4043,7 @@ def get_autopark(r: Request, msg: str = None, error: str = None):
             """), {"uid": uid}).mappings().all()
             
         now = datetime.datetime.now()
+        today_str = now.strftime("%Y-%m-%d")
         attive_list = []
         passate_list = []
         
@@ -4045,17 +4057,24 @@ def get_autopark(r: Request, msg: str = None, error: str = None):
             p_dict["can_start"] = not has_started and not has_ended
             p_dict["can_complete"] = has_started and not has_ended
             
+            # Booking belongs to past if already completed OR trip day has passed
+            is_past_day = p["data_viaggio"] < today_str
+            p_dict["is_unrecorded"] = not has_ended
+            
+            # Within 5-day grace period check for past unrecorded bookings
             try:
-                reconsegna_dt = datetime.datetime.strptime(f"{p['data_viaggio']} {p['ora_riconsegna_prevista']}", "%Y-%m-%d %H:%M")
-                is_past = now > reconsegna_dt
+                t_date = datetime.date.fromisoformat(p["data_viaggio"])
+                days_diff = (now.date() - t_date).days
+                p_dict["within_grace_period"] = (0 <= days_diff <= 5)
             except Exception:
-                is_past = False
+                p_dict["within_grace_period"] = False
                 
             if has_ended:
                 passate_list.append(p_dict)
-            elif is_past and not has_started:
+            elif is_past_day:
                 passate_list.append(p_dict)
             else:
+                # Same day (whole day) or future day and not completed -> stays in active bookings
                 attive_list.append(p_dict)
                 
         # Fetch all locations (sedi) with count of available vehicles assigned to the location
@@ -4604,11 +4623,16 @@ def elimina_prenotazione(id: int, r: Request, background_tasks: BackgroundTasks,
             return RedirectResponse(url=f"/autopark?error={urllib.parse.quote('Prenotazione non trovata o non sei autorizzato a eliminarla.')}", status_code=303)
 
         today_str = datetime.date.today().isoformat()
-        if v["data_viaggio"] < today_str:
-            return RedirectResponse(url=f"/autopark?error={urllib.parse.quote('Non è più possibile eliminare prenotazioni per date antecedenti ad oggi.')}", status_code=303)
-            
-        if role not in ("admin", "fleet_manager", "global_fleet_manager") and v["ora_partenza_effettiva"]:
-            return RedirectResponse(url=f"/autopark?error={urllib.parse.quote('Non puoi eliminare un viaggio che è già iniziato o completato.')}", status_code=303)
+        cutoff_5days = (datetime.date.today() - datetime.timedelta(days=5)).isoformat()
+        
+        if v.get("ora_arrivo"):
+            # Completed trip: cannot be deleted by normal user
+            if role not in ("admin", "fleet_manager", "global_fleet_manager"):
+                return RedirectResponse(url=f"/autopark?error={urllib.parse.quote('Non puoi eliminare un viaggio che è già stato registrato e completato.')}", status_code=303)
+        else:
+            # Unrecorded booking: can be deleted if today/future or within 5 days
+            if v["data_viaggio"] < cutoff_5days:
+                return RedirectResponse(url=f"/autopark?error={urllib.parse.quote('Non è più possibile eliminare prenotazioni antecedenti a 5 giorni fa.')}", status_code=303)
             
         if v:
             k_init = v["km_iniziali"] or 0
@@ -4626,8 +4650,8 @@ def elimina_prenotazione(id: int, r: Request, background_tasks: BackgroundTasks,
                 
             conn.execute(text("DELETE FROM viaggi_automezzi WHERE viaggio_id = :id"), {"id": id})
 
-            # Se era una prenotazione (non ancora avviata), notifica i Fleet Manager del reparto
-            if not v.get("ora_partenza_effettiva"):
+            # Se era una prenotazione per oggi o futura (non ancora avviata), notifica i Fleet Manager del reparto
+            if not v.get("ora_partenza_effettiva") and not v.get("ora_arrivo") and v["data_viaggio"] >= today_str:
                 autore_display = f"{user.get('nome', '')} {user.get('cognome', '')}".strip() or user.get("username", "Utente")
                 background_tasks.add_task(
                     notifica_fleet_managers_prenotazione,
@@ -4692,6 +4716,12 @@ def modifica_viaggio(
 
         if not v:
             err_msg = urllib.parse.quote("Viaggio non trovato o non sei autorizzato a modificarlo.")
+            sep = "&" if "?" in redirect_target else "?"
+            return RedirectResponse(url=f"{redirect_target}{sep}error={err_msg}", status_code=303)
+
+        # Regola: i viaggi già registrati/completati non possono essere modificati dall'utente, ma solo da Fleet Manager e Admin
+        if v.get("ora_arrivo") and role not in ("admin", "fleet_manager", "global_fleet_manager"):
+            err_msg = urllib.parse.quote("I viaggi già registrati possono essere modificati esclusivamente da un Fleet Manager o Amministratore.")
             sep = "&" if "?" in redirect_target else "?"
             return RedirectResponse(url=f"{redirect_target}{sep}error={err_msg}", status_code=303)
 
@@ -4864,9 +4894,14 @@ def registra_viaggio_posteriori_autopark(
             import urllib.parse
             return RedirectResponse(url=f"/autopark?error={urllib.parse.quote('Prenotazione non trovata o già completata.')}", status_code=303)
 
-        if v["user_id"] != uid and role not in ("admin", "fleet_manager", "global_fleet_manager"):
+        if v["user_id"] != uid and v.get("prenotato_da_id") != uid and role not in ("admin", "fleet_manager", "global_fleet_manager"):
             import urllib.parse
             return RedirectResponse(url=f"/autopark?error={urllib.parse.quote('Non sei autorizzato a registrare questo viaggio.')}", status_code=303)
+
+        cutoff_5days = (datetime.date.today() - datetime.timedelta(days=5)).isoformat()
+        if v["data_viaggio"] < cutoff_5days and role not in ("admin", "fleet_manager", "global_fleet_manager"):
+            import urllib.parse
+            return RedirectResponse(url=f"/autopark?error={urllib.parse.quote('Sono trascorsi più di 5 giorni dalla data del viaggio: la registrazione è scaduta.')}", status_code=303)
 
         if ora_arrivo <= ora_partenza:
             import urllib.parse
