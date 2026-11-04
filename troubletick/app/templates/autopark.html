@@ -726,8 +726,10 @@
                                                             title="Registra i dettagli del viaggio effettuato">
                                                         <i class="bi bi-journal-check"></i> Registra Viaggio
                                                     </button>
+                                                    {% endif %}
+                                                    {% if user.ruolo in ('admin', 'fleet_manager', 'global_fleet_manager') or (p.can_delete_48h and (p.user_id == user.id or p.prenotato_da_id == user.id)) %}
                                                     <form action="/autopark/elimina/{{ p.viaggio_id }}" method="POST" class="d-inline m-0" onsubmit="return confirm('Sei sicuro di voler eliminare questa prenotazione non registrata?');">
-                                                        <button type="submit" class="btn btn-sm btn-outline-danger" title="Elimina prenotazione non registrata">
+                                                        <button type="submit" class="btn btn-sm btn-outline-danger" title="Elimina prenotazione (fino a 48 ore)">
                                                             <i class="bi bi-trash"></i>
                                                         </button>
                                                     </form>
@@ -758,6 +760,13 @@
                                                             <i class="bi bi-trash fs-5"></i>
                                                         </button>
                                                     </form>
+                                                    {% elif p.can_delete_48h and (p.user_id == user.id or p.prenotato_da_id == user.id) %}
+                                                    {# Viaggio registrato: cancellabile dall'utente fino a 48 ore dalla prenotazione #}
+                                                    <form action="/autopark/elimina/{{ p.viaggio_id }}" method="POST" class="d-inline m-0" onsubmit="return confirm('Sei sicuro di voler eliminare questo viaggio registrato entro le 48 ore dalla data di prenotazione?');">
+                                                        <button type="submit" class="btn btn-sm btn-outline-danger fw-bold d-inline-flex align-items-center gap-1" title="Elimina viaggio registrato (consentito entro 48 ore)">
+                                                            <i class="bi bi-trash"></i> Elimina
+                                                        </button>
+                                                    </form>
                                                     {% endif %}
                                                 {% endif %}
                                             </div>
@@ -782,19 +791,19 @@
                 <div class="row g-3 small text-muted">
                     <div class="col-md-3">
                         <h6 class="fw-bold text-dark"><i class="bi bi-calendar-check me-1 text-success"></i> 1. Prenotazione Auto</h6>
-                        <p class="mb-0">Imposta i 4 dati richiesti: <strong>Sede di Partenza</strong>, <strong>Data Viaggio</strong>, <strong>Ora Partenza</strong> e <strong>Ora Riconsegna</strong>. La tendina mostrerà unicamente le auto assegnate alla sede e la loro disponibilità.</p>
+                        <p class="mb-0">Imposta i dati richiesti: <strong>Sede di Partenza</strong>, <strong>Destinazione</strong>, <strong>Data Viaggio</strong> e <strong>Fascia Oraria</strong>. Puoi selezionare il conducente tra i colleghi del tuo stesso reparto (di default te stesso).</p>
                     </div>
                     <div class="col-md-3">
                         <h6 class="fw-bold text-dark"><i class="bi bi-journal-check me-1 text-primary"></i> 2. Registrazione Viaggio</h6>
-                        <p class="mb-0">Nelle prenotazioni attive clicca su <strong>Registra viaggio</strong> per espandere il modulo inline. Compila orari, KM iniziali/finali e sede di rientro. Il sistema verificherà che non vi siano viaggi successivi già completati.</p>
+                        <p class="mb-0">La prenotazione rimane attiva per tutta la giornata del viaggio. Se non completata in giornata, passa allo storico dove rimane registrabile tramite modale per <strong>5 giorni</strong> (oltre i quali viene eliminata).</p>
                     </div>
                     <div class="col-md-3">
-                        <h6 class="fw-bold text-dark"><i class="bi bi-trash-fill me-1 text-danger"></i> 3. Gestione ed Eliminazione</h6>
-                        <p class="mb-0">È possibile eliminare una prenotazione tramite il pulsante <strong>Elimina</strong> fino al giorno del viaggio stesso. Dopo quella data, il pulsante viene disabilitato per garantire la tracciabilità flotta.</p>
+                        <h6 class="fw-bold text-dark"><i class="bi bi-trash-fill me-1 text-danger"></i> 3. Cancellazione entro 48h</h6>
+                        <p class="mb-0">È consentito cancellare qualsiasi viaggio (<strong>prenotato o già registrato</strong>) <strong>fino a 48 ore</strong> dalla data di prenotazione. Trascorse le 48 ore, la cancellazione è riservata ai Fleet Manager.</p>
                     </div>
                     <div class="col-md-3">
-                        <h6 class="fw-bold text-dark"><i class="bi bi-printer-fill me-1 text-warning"></i> 4. Indisponibilità & QR Mobile</h6>
-                        <p class="mb-0">Se non vi sono auto libere, clicca su <strong>Stampa Dichiarazione di Indisponibilità</strong> per generare l'attestato ufficiale A4. Inquadra il <strong>QR Code</strong> per accedere alla Webapp Mobile da smartphone.</p>
+                        <h6 class="fw-bold text-dark"><i class="bi bi-shield-lock-fill me-1 text-warning"></i> 4. Modifiche & Indisponibilità</h6>
+                        <p class="mb-0">I viaggi già registrati possono essere modificati unicamente dai <strong>Fleet Manager</strong> e Amministratori. Se non ci sono auto libere per i criteri scelti, puoi stampare la Dichiarazione di Indisponibilità.</p>
                     </div>
                 </div>
             </div>

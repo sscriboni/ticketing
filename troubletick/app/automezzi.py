@@ -4068,6 +4068,18 @@ def get_autopark(r: Request, msg: str = None, error: str = None):
                 p_dict["within_grace_period"] = (0 <= days_diff <= 5)
             except Exception:
                 p_dict["within_grace_period"] = False
+
+            # Check 48 hours cancellation window from booking date/time
+            try:
+                b_dt = datetime.datetime.strptime(f"{p['data_viaggio']} {p.get('ora_partenza') or '00:00'}", "%Y-%m-%d %H:%M")
+                hours_diff = (now - b_dt).total_seconds() / 3600.0
+                p_dict["can_delete_48h"] = (hours_diff <= 48.0)
+            except Exception:
+                try:
+                    t_date = datetime.date.fromisoformat(p["data_viaggio"])
+                    p_dict["can_delete_48h"] = ((now.date() - t_date).days <= 2)
+                except Exception:
+                    p_dict["can_delete_48h"] = False
                 
             if has_ended:
                 passate_list.append(p_dict)
@@ -4600,7 +4612,7 @@ def elimina_prenotazione(id: int, r: Request, background_tasks: BackgroundTasks,
     
     import urllib.parse
     with engine.begin() as conn:
-        fields = "automezzo_id, km_iniziali, km_finali, user_id, prenotato_da_id, ora_partenza_effettiva, data_viaggio, ora_partenza, ora_riconsegna_prevista, sede_partenza_id, email_conducente, note"
+        fields = "automezzo_id, km_iniziali, km_finali, user_id, prenotato_da_id, ora_partenza_effettiva, ora_arrivo, data_viaggio, ora_partenza, ora_riconsegna_prevista, sede_partenza_id, email_conducente, note"
         if role in ("admin", "global_fleet_manager"):
             v = conn.execute(text(f"SELECT {fields} FROM viaggi_automezzi WHERE viaggio_id = :id"), {"id": id}).mappings().first()
         elif role == "fleet_manager":
@@ -4623,16 +4635,29 @@ def elimina_prenotazione(id: int, r: Request, background_tasks: BackgroundTasks,
             return RedirectResponse(url=f"/autopark?error={urllib.parse.quote('Prenotazione non trovata o non sei autorizzato a eliminarla.')}", status_code=303)
 
         today_str = datetime.date.today().isoformat()
-        cutoff_5days = (datetime.date.today() - datetime.timedelta(days=5)).isoformat()
+        now = datetime.datetime.now()
         
-        if v.get("ora_arrivo"):
-            # Completed trip: cannot be deleted by normal user
-            if role not in ("admin", "fleet_manager", "global_fleet_manager"):
-                return RedirectResponse(url=f"/autopark?error={urllib.parse.quote('Non puoi eliminare un viaggio che è già stato registrato e completato.')}", status_code=303)
-        else:
-            # Unrecorded booking: can be deleted if today/future or within 5 days
-            if v["data_viaggio"] < cutoff_5days:
-                return RedirectResponse(url=f"/autopark?error={urllib.parse.quote('Non è più possibile eliminare prenotazioni antecedenti a 5 giorni fa.')}", status_code=303)
+        # Regola: un utente puo' cancellare un viaggio prenotato o registrato fino a 48 ore dalla data di prenotazione
+        if role not in ("admin", "fleet_manager", "global_fleet_manager"):
+            can_delete_user = False
+            try:
+                b_dt = datetime.datetime.strptime(f"{v['data_viaggio']} {v.get('ora_partenza') or '00:00'}", "%Y-%m-%d %H:%M")
+                hours_diff = (now - b_dt).total_seconds() / 3600.0
+                if hours_diff <= 48.0:
+                    can_delete_user = True
+                else:
+                    t_date = datetime.date.fromisoformat(v["data_viaggio"])
+                    if (now.date() - t_date).days <= 2:
+                        can_delete_user = True
+            except Exception:
+                try:
+                    t_date = datetime.date.fromisoformat(v["data_viaggio"])
+                    can_delete_user = ((now.date() - t_date).days <= 2)
+                except Exception:
+                    can_delete_user = False
+            
+            if not can_delete_user:
+                return RedirectResponse(url=f"/autopark?error={urllib.parse.quote('Non è più possibile cancellare questo viaggio: sono trascorse più di 48 ore dalla data di prenotazione.')}", status_code=303)
             
         if v:
             k_init = v["km_iniziali"] or 0
