@@ -309,15 +309,14 @@
                         <!-- 2. Destinazione -->
                         <div class="mb-3">
                             <label for="destinazione_select" class="form-label fw-semibold">Destinazione <span class="text-danger">*</span></label>
-                            <select class="form-select rounded-3" id="destinazione_select" required>
+                            <select class="form-select rounded-3" id="destinazione_select" name="destinazione" required>
                                 <option value="" disabled selected>-- Seleziona destinazione --</option>
                                 {% for s in sedi %}
                                     <option value="{% if s.comune_nome %}[{{ s.comune_nome }}] {% endif %}{{ s.nome }}">{% if s.comune_nome %}[{{ s.comune_nome }}] {% endif %}{{ s.nome }}</option>
                                 {% endfor %}
                                 <option value="__custom__">Altra destinazione (specificare)...</option>
                             </select>
-                            <input type="text" class="form-control rounded-3 mt-2 d-none" id="destinazione_custom" placeholder="Inserisci destinazione (es. Cliente Rossi, Roma Centro, ecc.)">
-                            <input type="hidden" name="destinazione" id="destinazione_final" required>
+                            <input type="text" class="form-control rounded-3 mt-2 d-none" id="destinazione_custom" name="destinazione_custom" placeholder="Inserisci destinazione (es. Cliente Rossi, Roma Centro, ecc.)">
                         </div>
 
                         {% if instant %}
@@ -843,6 +842,8 @@
         const vehicleInfoBox = document.getElementById("vehicleInfoBox");
         const vehicleKmText = document.getElementById("vehicleKmText");
         const vehicleSedeText = document.getElementById("vehicleSedeText");
+        const statusBadge = document.getElementById("vehicleStatusBadge");
+        const countText = document.getElementById("vehicleCountText");
 
         function hasBookingOverlap(automezzoId, dateStr, startStr, endStr) {
             if (!dateStr || !startStr || !endStr) return null;
@@ -1091,15 +1092,14 @@
 
         const destSelect = document.getElementById("destinazione_select");
         const destCustom = document.getElementById("destinazione_custom");
-        const destFinal = document.getElementById("destinazione_final");
 
         function syncDestinazione() {
-            if (!destSelect || !destFinal) return;
+            if (!destSelect) return;
             if (destSelect.value === "__custom__") {
                 if (destCustom) {
                     destCustom.classList.remove("d-none");
                     destCustom.required = true;
-                    destFinal.value = destCustom.value.trim();
+                    destCustom.focus();
                 }
             } else {
                 if (destCustom) {
@@ -1107,29 +1107,28 @@
                     destCustom.required = false;
                     destCustom.value = "";
                 }
-                destFinal.value = destSelect.value;
             }
         }
 
         if (destSelect) {
             destSelect.addEventListener("change", syncDestinazione);
         }
-        if (destCustom) {
-            destCustom.addEventListener("input", function() {
-                if (destFinal) destFinal.value = this.value.trim();
-            });
-        }
 
         if (bookingForm) {
             bookingForm.addEventListener("submit", function(e) {
-                syncDestinazione();
-                if (!destFinal || !destFinal.value.trim()) {
+                if (destSelect && destSelect.value === "__custom__") {
+                    if (!destCustom || !destCustom.value.trim()) {
+                        e.preventDefault();
+                        alert("Specificare l'altra destinazione prima di confermare la prenotazione.");
+                        if (destCustom) destCustom.focus();
+                        return;
+                    }
+                } else if (destSelect && !destSelect.value) {
                     e.preventDefault();
                     alert("Il campo Destinazione è obbligatorio. Seleziona una sede o specifica un'altra destinazione.");
-                    if (destSelect) destSelect.focus();
+                    destSelect.focus();
                     return;
                 }
-                // If hidden, enable just in case, but display:none fields submit normally
                 if (oraPartenza && oraRiconsegna && oraPartenza.value && oraRiconsegna.value) {
                     if (oraRiconsegna.value <= oraPartenza.value) {
                         e.preventDefault();

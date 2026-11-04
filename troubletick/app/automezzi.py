@@ -4250,7 +4250,8 @@ def prenota_automezzo(
     ora_partenza: str = Form(...),
     ora_riconsegna_prevista: str = Form(...),
     sede_partenza_id: int = Form(...),
-    destinazione: str = Form(...),
+    destinazione: typing.Optional[str] = Form(None),
+    destinazione_custom: typing.Optional[str] = Form(None),
     email_conducente: str = Form(None),
     note: str = Form(None)
 ):
@@ -4284,6 +4285,8 @@ def prenota_automezzo(
         return RedirectResponse(url=f"/autopark?error={err_msg}", status_code=303)
 
     destinazione_val = (destinazione or "").strip()
+    if destinazione_val == "__custom__" or not destinazione_val:
+        destinazione_val = (destinazione_custom or "").strip()
     if not destinazione_val:
         import urllib.parse
         err_msg = urllib.parse.quote("Il campo Destinazione è obbligatorio.")
@@ -4974,7 +4977,8 @@ def registra_viaggio_istantaneo(
     automezzo_id: int = Form(...),
     sede_partenza_id: int = Form(...),
     ora_riconsegna_prevista: str = Form(...),
-    destinazione: str = Form(...),
+    destinazione: typing.Optional[str] = Form(None),
+    destinazione_custom: typing.Optional[str] = Form(None),
     note: str = Form(None)
 ):
     if "user" not in r.session:
@@ -4993,6 +4997,8 @@ def registra_viaggio_istantaneo(
         return RedirectResponse(url=f"/autopark?instant=1&error={urllib.parse.quote(err_msg)}", status_code=303)
 
     destinazione_val = (destinazione or "").strip()
+    if destinazione_val == "__custom__" or not destinazione_val:
+        destinazione_val = (destinazione_custom or "").strip()
     if not destinazione_val:
         err_msg = "Il campo Destinazione è obbligatorio."
         return RedirectResponse(url=f"/autopark?instant=1&error={urllib.parse.quote(err_msg)}", status_code=303)
