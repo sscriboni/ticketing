@@ -425,7 +425,16 @@
                         <input type="hidden" id="email_conducente" name="email_conducente" value="{{ user.email or '' }}">
                         {% endif %}
 
-                        <!-- 8. Note Aggiuntive -->
+                        <!-- 8. Numero Passeggeri -->
+                        <div class="mb-3">
+                            <label for="numero_passeggeri" class="form-label fw-semibold">
+                                <i class="bi bi-people-fill text-primary me-1"></i> Numero Passeggeri <span class="text-danger">*</span>
+                            </label>
+                            <input type="number" class="form-control rounded-3" id="numero_passeggeri" name="numero_passeggeri" min="1" max="5" value="1" required>
+                            <div class="form-text small">Numero totale di persone a bordo (minimo 1, massimo 5, default 1).</div>
+                        </div>
+
+                        <!-- 9. Note Aggiuntive -->
                         <div class="mb-3">
                             <label for="note" class="form-label fw-semibold">Note <span class="text-muted fw-normal small">(Facoltativo)</span></label>
                             <textarea class="form-control rounded-3" id="note" name="note" rows="2" placeholder="Eventuali note sul viaggio..."></textarea>
@@ -535,6 +544,7 @@
                                             {% endif %}
                                             <li class="mb-1"><i class="bi bi-person-fill me-2"></i><strong>Guidatore:</strong> {{ p.driver_nome }} {{ p.driver_cognome }}</li>
                                             <li class="mb-1"><i class="bi bi-envelope me-2"></i><strong>Email:</strong> {{ p.driver_email }}</li>
+                                            <li class="mb-1"><i class="bi bi-people me-2"></i><strong>Passeggeri:</strong> {{ p.numero_passeggeri or 1 }}</li>
                                             {% if p.prenotato_da_id and p.prenotato_da_id != p.user_id and (p.prenotante_nome or p.prenotante_cognome or p.prenotante_email) %}
                                             <li class="mb-1 text-primary"><i class="bi bi-pencil-square me-2"></i><strong>Prenotata da:</strong> {{ p.prenotante_cognome }} {{ p.prenotante_nome }} ({{ p.prenotante_email }})</li>
                                             {% endif %}
@@ -694,6 +704,7 @@
                                         <td>
                                             <span class="fw-semibold">{{ p.driver_nome }} {{ p.driver_cognome }}</span><br>
                                             <span class="small text-muted">{{ p.driver_email }}</span>
+                                            <br><span class="badge bg-light text-dark border small mt-1"><i class="bi bi-people me-1"></i>{{ p.numero_passeggeri or 1 }} pass.</span>
                                             {% if p.prenotato_da_id and p.prenotato_da_id != p.user_id and (p.prenotante_nome or p.prenotante_cognome) %}
                                                 <br><span class="small text-primary"><i class="bi bi-pencil-square"></i> Da: {{ p.prenotante_cognome }} {{ p.prenotante_nome }}</span>
                                             {% endif %}
@@ -751,6 +762,7 @@
                                                             data-sede-arrivo-nome="{{ p.sede_arrivo_nome or p.sede_partenza_nome or '-' }}"
                                                             data-note="{{ (p.note or '') | e }}"
                                                             data-posizione-parcheggio="{{ (p.posizione_parcheggio or '') | e }}"
+                                                            data-numero-passeggeri="{{ p.numero_passeggeri or 1 }}"
                                                             onclick="openEditTripModal(this)"
                                                             title="Modifica dettagli del viaggio registrato">
                                                         <i class="bi bi-pencil-square"></i> Modifica
@@ -1263,6 +1275,8 @@
         document.getElementById('editTripNote').value = note || '';
         const editPosEl = document.getElementById('editTripPosizioneParcheggio');
         if (editPosEl) editPosEl.value = posParch || '';
+        const editPassEl = document.getElementById('editTripNumeroPasseggeri');
+        if (editPassEl) editPassEl.value = btn.dataset.numeroPasseggeri || 1;
 
         const modalEl = document.getElementById('editTripModal');
         const modal = bootstrap.Modal.getOrCreateInstance(modalEl);
@@ -1392,17 +1406,21 @@
 
                     <!-- Dati Modificabili -->
                     <div class="row g-3">
-                        <div class="col-md-4">
+                        <div class="col-md-3">
                             <label class="form-label small fw-bold text-primary mb-1"><i class="bi bi-clock me-1"></i>Ora Partenza <span class="text-danger">*</span></label>
                             <input type="time" name="ora_partenza" id="editTripOraPartenza" class="form-control" required>
                         </div>
-                        <div class="col-md-4">
+                        <div class="col-md-3">
                             <label class="form-label small fw-bold text-primary mb-1"><i class="bi bi-clock-history me-1"></i>Ora Arrivo / Rientro</label>
                             <input type="time" name="ora_arrivo" id="editTripOraArrivo" class="form-control">
                         </div>
-                        <div class="col-md-4">
+                        <div class="col-md-3">
                             <label class="form-label small fw-bold text-success mb-1"><i class="bi bi-speedometer2 me-1"></i>KM Arrivo / Rientro</label>
                             <input type="number" name="km_finali" id="editTripKmFinali" class="form-control" min="0" placeholder="Es. 45200">
+                        </div>
+                        <div class="col-md-3">
+                            <label class="form-label small fw-bold text-primary mb-1"><i class="bi bi-people me-1"></i>Passeggeri <span class="text-danger">*</span></label>
+                            <input type="number" name="numero_passeggeri" id="editTripNumeroPasseggeri" class="form-control" min="1" max="5" value="1" required>
                         </div>
 
                         <div class="col-12">

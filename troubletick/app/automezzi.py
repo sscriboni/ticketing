@@ -136,6 +136,7 @@ with engine.begin() as conn:
             user_id INTEGER,
             prenotato_da_id INTEGER,
             note TEXT,
+            numero_passeggeri INTEGER DEFAULT 1,
             FOREIGN KEY(automezzo_id) REFERENCES automezzi(automezzo_id) ON DELETE CASCADE,
             FOREIGN KEY(sede_partenza_id) REFERENCES sedi(sede_id),
             FOREIGN KEY(sede_arrivo_id) REFERENCES sedi(sede_id),
@@ -240,6 +241,11 @@ with engine.begin() as conn:
         
     try:
         conn.execute(text("ALTER TABLE viaggi_automezzi ADD COLUMN prenotato_da_id INTEGER"))
+    except Exception:
+        pass
+        
+    try:
+        conn.execute(text("ALTER TABLE viaggi_automezzi ADD COLUMN numero_passeggeri INTEGER DEFAULT 1"))
     except Exception:
         pass
         
@@ -3725,6 +3731,7 @@ def add_viaggio(
     destinazione: typing.Optional[str] = Form(None),
     user_id: typing.Optional[int] = Form(None),
     note: str = Form(None),
+    numero_passeggeri: int = Form(1),
     prenotazione_id: typing.Optional[int] = Form(None)
 ):
     if "user" not in r.session: 
@@ -3746,10 +3753,22 @@ def add_viaggio(
     sede_arrivo_id_val = sede_arrivo_id if sede_arrivo_id else None
     user_id_val = user_id if user_id else None
     destinazione_val = destinazione.strip() if destinazione and destinazione.strip() else None
+
+    try:
+        num_passeggeri = int(numero_passeggeri)
+        if num_passeggeri < 1:
+            num_passeggeri = 1
+        elif num_passeggeri > 5:
+            num_passeggeri = 5
+    except Exception:
+        num_passeggeri = 1
     
     with engine.begin() as conn:
         # Se viene registrato un viaggio per una prenotazione, elimina la prenotazione corrispondente
         if prenotazione_id:
+            old_p = conn.execute(text("SELECT numero_passeggeri FROM viaggi_automezzi WHERE viaggio_id = :pid"), {"pid": prenotazione_id}).mappings().first()
+            if old_p and old_p.get("numero_passeggeri") and (numero_passeggeri == 1 or numero_passeggeri is None):
+                num_passeggeri = old_p["numero_passeggeri"]
             conn.execute(text("DELETE FROM viaggi_automezzi WHERE viaggio_id = :pid"), {"pid": prenotazione_id})
         else:
             # Se esiste una prenotazione attiva (non ancora avviata) per lo stesso veicolo e data, eliminala per evitare duplicazioni
@@ -3765,17 +3784,18 @@ def add_viaggio(
         conn.execute(text("""
             INSERT INTO viaggi_automezzi (
                 automezzo_id, data_viaggio, ora_partenza, ora_partenza_effettiva, ora_arrivo, 
-                km_iniziali, km_finali, sede_partenza_id, sede_arrivo_id, destinazione, user_id, note
+                km_iniziali, km_finali, sede_partenza_id, sede_arrivo_id, destinazione, user_id, note, numero_passeggeri
             ) VALUES (
                 :automezzo_id, :data_viaggio, :ora_partenza, :ora_partenza, :ora_arrivo,
-                :km_iniziali, :km_finali, :sede_partenza_id, :sede_arrivo_id, :destinazione, :user_id, :note
+                :km_iniziali, :km_finali, :sede_partenza_id, :sede_arrivo_id, :destinazione, :user_id, :note, :numero_passeggeri
             )
         """), {
             "automezzo_id": automezzo_id, "data_viaggio": data_viaggio, "ora_partenza": ora_partenza,
             "ora_arrivo": ora_arrivo, "km_iniziali": km_iniziali, "km_finali": km_finali_val,
             "sede_partenza_id": sede_partenza_id, "sede_arrivo_id": sede_arrivo_id_val,
             "destinazione": destinazione_val,
-            "user_id": user_id_val, "note": note
+            "user_id": user_id_val, "note": note,
+            "numero_passeggeri": num_passeggeri
         })
         
         if ora_arrivo and km_finali_val is not None:
@@ -4284,7 +4304,8 @@ def prenota_automezzo(
     destinazione: typing.Optional[str] = Form(None),
     destinazione_custom: typing.Optional[str] = Form(None),
     email_conducente: str = Form(None),
-    note: str = Form(None)
+    note: str = Form(None),
+    numero_passeggeri: int = Form(1)
 ):
     if "user" not in r.session:
         return RedirectResponse(url="/login", status_code=303)
@@ -4404,13 +4425,22 @@ def prenota_automezzo(
             return RedirectResponse(url=f"/autopark?error={err_msg}", status_code=303)
         
         # 6. Insert new voyage record
+        try:
+            num_passeggeri = int(numero_passeggeri)
+            if num_passeggeri < 1:
+                num_passeggeri = 1
+            elif num_passeggeri > 5:
+                num_passeggeri = 5
+        except Exception:
+            num_passeggeri = 1
+
         conn.execute(text("""
             INSERT INTO viaggi_automezzi (
                 automezzo_id, data_viaggio, ora_partenza, ora_riconsegna_prevista, ora_arrivo, 
-                km_iniziali, km_finali, sede_partenza_id, sede_arrivo_id, destinazione, user_id, email_conducente, ora_partenza_effettiva, note, prenotato_da_id
+                km_iniziali, km_finali, sede_partenza_id, sede_arrivo_id, destinazione, user_id, email_conducente, ora_partenza_effettiva, note, prenotato_da_id, numero_passeggeri
             ) VALUES (
                 :automezzo_id, :data_viaggio, :ora_partenza, :ora_riconsegna_prevista, NULL,
-                :km_iniziali, NULL, :sede_partenza_id, NULL, :destinazione, :user_id, :email_conducente, NULL, :note, :prenotato_da_id
+                :km_iniziali, NULL, :sede_partenza_id, NULL, :destinazione, :user_id, :email_conducente, NULL, :note, :prenotato_da_id, :numero_passeggeri
             )
         """), {
             "automezzo_id": automezzo_id,
@@ -4423,7 +4453,8 @@ def prenota_automezzo(
             "user_id": driver.user_id,
             "email_conducente": driver.email,
             "note": note,
-            "prenotato_da_id": uid
+            "prenotato_da_id": uid,
+            "numero_passeggeri": num_passeggeri
         })
         
         # Notifica email ai Fleet Manager del reparto di appartenenza del veicolo
@@ -4708,6 +4739,7 @@ def modifica_viaggio(
     destinazione: typing.Optional[str] = Form(None),
     note: typing.Optional[str] = Form(None),
     posizione_parcheggio: typing.Optional[str] = Form(None),
+    numero_passeggeri: typing.Optional[int] = Form(None),
     return_url: typing.Optional[str] = Form(None)
 ):
     if "user" not in r.session:
@@ -4770,7 +4802,14 @@ def modifica_viaggio(
 
         dest_clean = destinazione.strip() if destinazione and destinazione.strip() else None
 
-        # Update editable fields: ora_partenza, ora_arrivo, km_finali, destinazione, note, posizione_parcheggio
+        num_pass_val = None
+        if numero_passeggeri is not None:
+            try:
+                num_pass_val = max(1, min(5, int(numero_passeggeri)))
+            except Exception:
+                num_pass_val = 1
+
+        # Update editable fields: ora_partenza, ora_arrivo, km_finali, destinazione, note, posizione_parcheggio, numero_passeggeri
         conn.execute(text("""
             UPDATE viaggi_automezzi
             SET ora_partenza = :ora_p,
@@ -4780,7 +4819,8 @@ def modifica_viaggio(
                 km_finali = :km_f,
                 destinazione = COALESCE(:dest, destinazione),
                 note = :note,
-                posizione_parcheggio = COALESCE(:pos_parch, posizione_parcheggio)
+                posizione_parcheggio = COALESCE(:pos_parch, posizione_parcheggio),
+                numero_passeggeri = COALESCE(:num_pass, numero_passeggeri)
             WHERE viaggio_id = :id
         """), {
             "id": id,
@@ -4789,7 +4829,8 @@ def modifica_viaggio(
             "km_f": km_finali_val,
             "dest": dest_clean,
             "note": note,
-            "pos_parch": pos_parch_clean
+            "pos_parch": pos_parch_clean,
+            "num_pass": num_pass_val
         })
 
         if pos_parch_clean:
@@ -5039,7 +5080,8 @@ def registra_viaggio_istantaneo(
     ora_riconsegna_prevista: str = Form(...),
     destinazione: typing.Optional[str] = Form(None),
     destinazione_custom: typing.Optional[str] = Form(None),
-    note: str = Form(None)
+    note: str = Form(None),
+    numero_passeggeri: int = Form(1)
 ):
     if "user" not in r.session:
         return RedirectResponse(url="/login", status_code=303)
@@ -5116,13 +5158,22 @@ def registra_viaggio_istantaneo(
             return RedirectResponse(url=f"/autopark?instant=1&error={urllib.parse.quote(err_msg)}", status_code=303)
             
         km_iniziali = car.km_attuali or 0
+        try:
+            num_passeggeri = int(numero_passeggeri)
+            if num_passeggeri < 1:
+                num_passeggeri = 1
+            elif num_passeggeri > 5:
+                num_passeggeri = 5
+        except Exception:
+            num_passeggeri = 1
+
         conn.execute(text("""
             INSERT INTO viaggi_automezzi (
                 automezzo_id, data_viaggio, ora_partenza, ora_riconsegna_prevista,
                 ora_arrivo, km_iniziali, km_finali,
-                sede_partenza_id, sede_arrivo_id, destinazione, user_id, email_conducente, ora_partenza_effettiva, note, in_pausa
+                sede_partenza_id, sede_arrivo_id, destinazione, user_id, email_conducente, ora_partenza_effettiva, note, in_pausa, numero_passeggeri
             ) VALUES (
-                :aid, :dv, :op, :orc, NULL, :km, NULL, :sp, NULL, :dest, :driver_uid, :email, :ora_partenza_eff, :note, 0
+                :aid, :dv, :op, :orc, NULL, :km, NULL, :sp, NULL, :dest, :driver_uid, :email, :ora_partenza_eff, :note, 0, :numero_passeggeri
             )
         """), {
             "aid": automezzo_id, "dv": data_viaggio,
@@ -5130,6 +5181,7 @@ def registra_viaggio_istantaneo(
             "km": km_iniziali, "sp": sede_partenza_id,
             "dest": destinazione_val,
             "driver_uid": uid, "email": driver.email, "ora_partenza_eff": ora_partenza_eff, "note": note,
+            "numero_passeggeri": num_passeggeri
         })
         
     return RedirectResponse(url="/autopark?msg=started", status_code=303)
