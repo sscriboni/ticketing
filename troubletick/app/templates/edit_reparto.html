@@ -65,6 +65,15 @@
                   </button>
                   <div id="festivo_summary" class="small text-muted mt-2 fw-semibold"></div>
                 </div>
+
+                <!-- Note Reperibilità -->
+                <div class="card p-3 mb-3 bg-light border-0 rounded-3">
+                  <h6 class="fw-bold text-dark mb-2"><i class="bi bi-info-circle me-1"></i>Note e Istruzioni Reperibilità (Stampa)</h6>
+                  <label class="form-label small text-muted mb-1">
+                    Inserisci informazioni sul funzionamento del servizio (modalità di attivazione, escalation, contatti). Questo testo verrà stampato in calce al calendario di reperibilità.
+                  </label>
+                  <textarea name="reperibilita_note" class="form-control" rows="4" placeholder="Es. In caso di emergenza contattare l'operatore di turno al numero di telefono reperibile. Specificare procedure di ingaggio e canali di comunicazione...">{{ reparto.reperibilita_note or '' }}</textarea>
+                </div>
             </div>
 
             <div class="d-flex gap-2"><button type="submit" class="btn btn-primary">Salva Modifiche</button>

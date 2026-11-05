@@ -79,7 +79,8 @@ try:
             descrizione TEXT,
             reperibilita_h24 INTEGER DEFAULT 0,
             reperibilita_orario_inizio TEXT DEFAULT '18:00',
-            reperibilita_festivo_inizio TEXT DEFAULT '08:00'
+            reperibilita_festivo_inizio TEXT DEFAULT '08:00',
+            reperibilita_note TEXT
         )"""))
         c.execute(text(f"""CREATE TABLE IF NOT EXISTS reparti_reperibilita_turni (
             id {DB_PK},
@@ -510,6 +511,7 @@ try:
             "ALTER TABLE reparti ADD COLUMN reperibilita_h24 INTEGER DEFAULT 0",
             "ALTER TABLE reparti ADD COLUMN reperibilita_orario_inizio TEXT DEFAULT '18:00'",
             "ALTER TABLE reparti ADD COLUMN reperibilita_festivo_inizio TEXT DEFAULT '08:00'",
+            "ALTER TABLE reparti ADD COLUMN reperibilita_note TEXT",
             "ALTER TABLE servizi ADD COLUMN reperibilita_h24 INTEGER DEFAULT 0",
             "ALTER TABLE argomenti ADD COLUMN descrizione_lunga TEXT",
             "INSERT OR IGNORE INTO operatori_magazzini (user_id, magazzino_id) SELECT user_id, magazzino_id FROM users WHERE magazzino_id IS NOT NULL"
@@ -3339,7 +3341,8 @@ async def add_reparto(
     accetta_ticket: int = Form(0),
     reperibilita_h24: int = Form(0),
     reperibilita_orario_inizio: str = Form("18:00"),
-    reperibilita_festivo_inizio: str = Form("08:00")
+    reperibilita_festivo_inizio: str = Form("08:00"),
+    reperibilita_note: str = Form("")
 ):
     user = require_superuser(r)
     if isinstance(user, RedirectResponse):
@@ -3354,15 +3357,16 @@ async def add_reparto(
 
     with engine.begin() as c:
         cursor = c.execute(text("""
-            INSERT INTO reparti (nome, descrizione, accetta_ticket, reperibilita_h24, reperibilita_orario_inizio, reperibilita_festivo_inizio) 
-            VALUES (:nome, :descrizione, :at, :rep_h24, :rep_ora, :rep_fest_ora)
+            INSERT INTO reparti (nome, descrizione, accetta_ticket, reperibilita_h24, reperibilita_orario_inizio, reperibilita_festivo_inizio, reperibilita_note) 
+            VALUES (:nome, :descrizione, :at, :rep_h24, :rep_ora, :rep_fest_ora, :rep_note)
         """), {
             "nome": nome,
             "descrizione": descrizione,
             "at": accetta_ticket,
             "rep_h24": rep_h24,
             "rep_ora": rep_ora,
-            "rep_fest_ora": rep_fest_ora
+            "rep_fest_ora": rep_fest_ora,
+            "rep_note": reperibilita_note.strip() if reperibilita_note else ""
         })
         reparto_id = cursor.lastrowid
         if not reparto_id:
@@ -3416,7 +3420,8 @@ async def edit_reparto_action(
     accetta_ticket: int = Form(0),
     reperibilita_h24: int = Form(0),
     reperibilita_orario_inizio: str = Form("18:00"),
-    reperibilita_festivo_inizio: str = Form("08:00")
+    reperibilita_festivo_inizio: str = Form("08:00"),
+    reperibilita_note: str = Form("")
 ):
     user = require_superuser(r)
     if isinstance(user, RedirectResponse): return user
@@ -3428,17 +3433,21 @@ async def edit_reparto_action(
     feriali_durate = form_data.getlist("feriale_turni_durata")
     festivi_durate = form_data.getlist("festivo_turni_durata")
 
+    rep_note = (reperibilita_note or "").strip()
+
     with engine.begin() as c:
         if rep_h24:
             c.execute(text("""
                 UPDATE reparti 
                 SET nome = :nome, descrizione = :desc, accetta_ticket = :at,
                     reperibilita_h24 = 1, reperibilita_orario_inizio = :rep_ora,
-                    reperibilita_festivo_inizio = :rep_fest_ora 
+                    reperibilita_festivo_inizio = :rep_fest_ora,
+                    reperibilita_note = :rep_note 
                 WHERE reparto_id = :id
             """), {
                 "nome": nome, "desc": descrizione, "at": accetta_ticket,
                 "rep_ora": rep_ora, "rep_fest_ora": rep_fest_ora,
+                "rep_note": rep_note,
                 "id": reparto_id
             })
             
@@ -3466,16 +3475,18 @@ async def edit_reparto_action(
                     pass
         else:
             # Se la reperibilità viene disabilitata:
-            # 1. Imposta reperibilita_h24 = 0 (mantenendo invariati nome, descrizione, accetta_ticket e orari di riferimento)
+            # 1. Imposta reperibilita_h24 = 0 (mantenendo invariati nome, descrizione, accetta_ticket, orari di riferimento e note)
             # 2. NON eliminare i turni configurati (reparti_reperibilita_turni rimangono intatti)
             # 3. NON azzerare la reperibilità dei singoli servizi collegati
             c.execute(text("""
                 UPDATE reparti 
                 SET nome = :nome, descrizione = :desc, accetta_ticket = :at,
-                    reperibilita_h24 = 0
+                    reperibilita_h24 = 0,
+                    reperibilita_note = :rep_note
                 WHERE reparto_id = :id
             """), {
                 "nome": nome, "desc": descrizione, "at": accetta_ticket,
+                "rep_note": rep_note,
                 "id": reparto_id
             })
 

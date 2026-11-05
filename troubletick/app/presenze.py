@@ -969,7 +969,7 @@ def reperibilita_calendario(
     with engine.connect() as c:
         # Reparti con reperibilita_h24 = 1
         reparti_rep = c.execute(text("""
-            SELECT reparto_id, nome, reperibilita_orario_inizio, reperibilita_festivo_inizio
+            SELECT reparto_id, nome, reperibilita_orario_inizio, reperibilita_festivo_inizio, reperibilita_note
             FROM reparti
             WHERE reperibilita_h24 = 1
             ORDER BY nome

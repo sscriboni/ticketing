@@ -224,6 +224,28 @@
         color: #000 !important;
         padding: 0 !important;
       }
+      .print-note-reperibilita {
+        display: block !important;
+        margin-top: 6px !important;
+        padding: 5px 8px !important;
+        border: 1px solid #444 !important;
+        border-radius: 4px !important;
+        background: #f8fafc !important;
+        page-break-inside: avoid !important;
+        -webkit-print-color-adjust: exact !important;
+        print-color-adjust: exact !important;
+      }
+      .print-note-reperibilita h6 {
+        font-size: 8.5pt !important;
+        font-weight: bold !important;
+        color: #000 !important;
+        margin-bottom: 2px !important;
+      }
+      .print-note-reperibilita div {
+        font-size: 7.5pt !important;
+        line-height: 1.25 !important;
+        color: #222 !important;
+      }
       tr {
         page-break-inside: avoid;
       }
@@ -508,10 +530,28 @@
           </tbody>
         </table>
       </div>
+
+      {% if sel_reparto and sel_reparto.reperibilita_note %}
+      <div class="print-note-reperibilita mt-3 p-3 border rounded bg-light">
+        <h6 class="fw-bold mb-1 text-dark d-flex align-items-center gap-1">
+          <i class="bi bi-info-circle-fill text-primary"></i> Note e Istruzioni Servizio di Reperibilità
+        </h6>
+        <div class="small text-secondary" style="white-space: pre-wrap;">{{ sel_reparto.reperibilita_note }}</div>
+      </div>
+      {% endif %}
     </div>
 
     <!-- SEZIONE CALENDARIO (CALENDAR GRID) -->
     <div id="sezione-calendario">
+      {% if sel_reparto and sel_reparto.reperibilita_note %}
+      <div class="alert alert-light border shadow-sm p-3 mb-3 btn-no-print d-flex align-items-start gap-2">
+        <i class="bi bi-info-circle-fill text-primary fs-5 mt-1"></i>
+        <div>
+          <strong class="d-block text-dark mb-1">Note e Istruzioni Reperibilità ({{ sel_reparto.nome }}):</strong>
+          <div class="small text-muted" style="white-space: pre-wrap;">{{ sel_reparto.reperibilita_note }}</div>
+        </div>
+      </div>
+      {% endif %}
       <div class="table-responsive shadow-sm rounded-3 mb-4">
         <table class="table calendar-table mb-0">
         <thead>
