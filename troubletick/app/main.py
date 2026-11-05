@@ -3429,21 +3429,21 @@ async def edit_reparto_action(
     festivi_durate = form_data.getlist("festivo_turni_durata")
 
     with engine.begin() as c:
-        c.execute(text("""
-            UPDATE reparti 
-            SET nome = :nome, descrizione = :desc, accetta_ticket = :at,
-                reperibilita_h24 = :rep_h24, reperibilita_orario_inizio = :rep_ora,
-                reperibilita_festivo_inizio = :rep_fest_ora 
-            WHERE reparto_id = :id
-        """), {
-            "nome": nome, "desc": descrizione, "at": accetta_ticket,
-            "rep_h24": rep_h24, "rep_ora": rep_ora, "rep_fest_ora": rep_fest_ora,
-            "id": reparto_id
-        })
-        
-        # Sostituisci turni
-        c.execute(text("DELETE FROM reparti_reperibilita_turni WHERE reparto_id = :id"), {"id": reparto_id})
         if rep_h24:
+            c.execute(text("""
+                UPDATE reparti 
+                SET nome = :nome, descrizione = :desc, accetta_ticket = :at,
+                    reperibilita_h24 = 1, reperibilita_orario_inizio = :rep_ora,
+                    reperibilita_festivo_inizio = :rep_fest_ora 
+                WHERE reparto_id = :id
+            """), {
+                "nome": nome, "desc": descrizione, "at": accetta_ticket,
+                "rep_ora": rep_ora, "rep_fest_ora": rep_fest_ora,
+                "id": reparto_id
+            })
+            
+            # Sostituisci i turni solo quando la reperibilità è attiva
+            c.execute(text("DELETE FROM reparti_reperibilita_turni WHERE reparto_id = :id"), {"id": reparto_id})
             for idx, d_str in enumerate(feriali_durate, start=1):
                 try:
                     d_val = float(d_str)
@@ -3465,7 +3465,19 @@ async def edit_reparto_action(
                 except (ValueError, TypeError):
                     pass
         else:
-            c.execute(text("UPDATE servizi SET reperibilita_h24 = 0 WHERE reparto_id = :id"), {"id": reparto_id})
+            # Se la reperibilità viene disabilitata:
+            # 1. Imposta reperibilita_h24 = 0 (mantenendo invariati nome, descrizione, accetta_ticket e orari di riferimento)
+            # 2. NON eliminare i turni configurati (reparti_reperibilita_turni rimangono intatti)
+            # 3. NON azzerare la reperibilità dei singoli servizi collegati
+            c.execute(text("""
+                UPDATE reparti 
+                SET nome = :nome, descrizione = :desc, accetta_ticket = :at,
+                    reperibilita_h24 = 0
+                WHERE reparto_id = :id
+            """), {
+                "nome": nome, "desc": descrizione, "at": accetta_ticket,
+                "id": reparto_id
+            })
 
     return RedirectResponse(url="/admin/reparti", status_code=303)
 

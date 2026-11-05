@@ -30,6 +30,7 @@
             <div class="mb-3 form-check">
                 <input type="checkbox" name="reperibilita_h24" value="1" class="form-check-input" id="checkEditRep" {% if reparto.reperibilita_h24 %}checked{% endif %}>
                 <label class="form-check-label fw-bold" for="checkEditRep">Reperibilità h24</label>
+                <div class="form-text text-muted small">Se disabilitata, il servizio di reperibilità viene sospeso per questo reparto, ma la configurazione dei turni e i dati associati rimangono conservati.</div>
             </div>
             
             <div class="mb-4" id="divOrarioEditRep" style="display: {% if reparto.reperibilita_h24 %}block{% else %}none{% endif %};">
