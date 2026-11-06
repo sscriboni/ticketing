@@ -246,106 +246,117 @@
 <!-- Modal Nuovo Corso -->
 <div class="modal fade" id="modalNuovoCorso" tabindex="-1" aria-labelledby="modalNuovoCorsoLabel" aria-hidden="true">
   <div class="modal-dialog modal-lg modal-dialog-scrollable">
-    <div class="modal-content rounded-4 border-0 shadow">
-      <form action="/formazione/corsi/nuovo" method="POST">
-        <div class="modal-header bg-primary text-white">
-          <h5 class="modal-title fw-bold" id="modalNuovoCorsoLabel">
-            <i class="bi bi-journal-plus me-2"></i>Nuovo Corso di Formazione
-          </h5>
+    <form action="/formazione/corsi/nuovo" method="POST" class="modal-content rounded-4 border-0 shadow">
+      <div class="modal-header bg-primary text-white d-flex justify-content-between align-items-center">
+        <h5 class="modal-title fw-bold mb-0" id="modalNuovoCorsoLabel">
+          <i class="bi bi-journal-plus me-2"></i>Nuovo Corso di Formazione
+        </h5>
+        <div class="d-flex align-items-center gap-2">
+          <button type="submit" class="btn btn-sm btn-light text-primary fw-bold shadow-sm">
+            <i class="bi bi-check-circle-fill me-1"></i>Salva Corso
+          </button>
           <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Chiudi"></button>
         </div>
-        <div class="modal-body p-4">
-          <div class="row g-3">
-            <div class="col-12 col-md-8">
-              <label class="form-label small fw-bold">Titolo del Corso <span class="text-danger">*</span></label>
-              <input type="text" name="titolo" class="form-control" placeholder="es. Formazione Generale Sicurezza sul Lavoro" required>
-            </div>
-            <div class="col-12 col-md-4">
-              <label class="form-label small fw-bold">Categoria</label>
-              <input type="text" name="categoria" class="form-control" placeholder="es. Sicurezza, Privacy, IT">
-            </div>
+      </div>
+      <div class="modal-body p-4">
+        <div class="row g-3">
+          <div class="col-12 col-md-8">
+            <label class="form-label small fw-bold">Titolo del Corso <span class="text-danger">*</span></label>
+            <input type="text" name="titolo" class="form-control" placeholder="es. Formazione Generale Sicurezza sul Lavoro" required>
+          </div>
+          <div class="col-12 col-md-4">
+            <label class="form-label small fw-bold">Categoria</label>
+            <input type="text" name="categoria" class="form-control" placeholder="es. Sicurezza, Privacy, IT">
+          </div>
 
-            <div class="col-12">
-              <label class="form-label small fw-bold">Descrizione Breve</label>
-              <input type="text" name="descrizione_breve" class="form-control" placeholder="Sintetica introduzione visibile nel catalogo...">
-            </div>
+          <div class="col-12">
+            <label class="form-label small fw-bold">Descrizione Breve</label>
+            <input type="text" name="descrizione_breve" class="form-control" placeholder="Sintetica introduzione visibile nel catalogo...">
+          </div>
 
-            <div class="col-12">
-              <label class="form-label small fw-bold">Descrizione Dettagliata</label>
-              <textarea name="descrizione" class="form-control" rows="4" placeholder="Argomenti trattati, obiettivi didattici, programma del corso..."></textarea>
-            </div>
+          <div class="col-12">
+            <label class="form-label small fw-bold">Descrizione Dettagliata</label>
+            <textarea name="descrizione" class="form-control" rows="4" placeholder="Argomenti trattati, obiettivi didattici, programma del corso..."></textarea>
+          </div>
 
-            <div class="col-12 col-md-6">
-              <label class="form-label small fw-bold"><i class="bi bi-people me-1 text-primary"></i>Destinatari</label>
-              <input type="text" name="destinatari" class="form-control" placeholder="es. Tutti i dipendenti, Addetti antincendio, Neoassunti">
-            </div>
+          <div class="col-12 col-md-6">
+            <label class="form-label small fw-bold"><i class="bi bi-people me-1 text-primary"></i>Destinatari</label>
+            <input type="text" name="destinatari" class="form-control" placeholder="es. Tutti i dipendenti, Addetti antincendio, Neoassunti">
+          </div>
 
-            <div class="col-12 col-md-6">
-              <label class="form-label small fw-bold"><i class="bi bi-building me-1 text-info"></i>Tutor / Ente Erogatore</label>
-              <input type="text" name="ente_erogatore" class="form-control" placeholder="es. Formatemi Srl, Risorsa interna, Consulente esterno">
-            </div>
+          <div class="col-12 col-md-6">
+            <label class="form-label small fw-bold"><i class="bi bi-building me-1 text-info"></i>Tutor / Ente Erogatore</label>
+            <input type="text" name="ente_erogatore" class="form-control" placeholder="es. Formatemi Srl, Risorsa interna, Consulente esterno">
+          </div>
 
-            <div class="col-12 col-md-6">
-              <label class="form-label small fw-bold"><i class="bi bi-calendar-event me-1 text-success"></i>Periodo di Svolgimento</label>
-              <input type="text" name="periodo_svolgimento" class="form-control" placeholder="es. Maggio - Giugno 2026, II Semestre, Annuale">
-            </div>
+          <div class="col-12 col-md-6">
+            <label class="form-label small fw-bold"><i class="bi bi-calendar-event me-1 text-success"></i>Periodo di Svolgimento</label>
+            <input type="text" name="periodo_svolgimento" class="form-control" placeholder="es. Maggio - Giugno 2026, II Semestre, Annuale">
+          </div>
 
-            <div class="col-12 col-md-6">
-              <label class="form-label small fw-bold"><i class="bi bi-clock-history me-1 text-warning"></i>Durata Totale Prevista (ore)</label>
-              <input type="number" step="0.5" name="durata_ore" class="form-control" placeholder="es. 8 o 12.5">
-            </div>
+          <div class="col-12 col-md-6">
+            <label class="form-label small fw-bold"><i class="bi bi-clock-history me-1 text-warning"></i>Durata Totale Prevista (ore)</label>
+            <input type="number" step="0.5" name="durata_ore" class="form-control" placeholder="es. 8 o 12.5">
+          </div>
 
-            <div class="col-12">
-              <label class="form-label small fw-bold mb-2"><i class="bi bi-layers me-1 text-secondary"></i>Modalità di Erogazione Previste</label>
-              <div class="d-flex flex-wrap gap-3 p-3 bg-light rounded-3 border">
-                <div class="form-check">
-                  <input class="form-check-input" type="checkbox" name="modalita" value="In Presenza" id="mod_presenza">
-                  <label class="form-check-label fw-semibold" for="mod_presenza">
-                    <i class="bi bi-geo-alt-fill text-primary me-1"></i> In Presenza
-                  </label>
-                </div>
-                <div class="form-check">
-                  <input class="form-check-input" type="checkbox" name="modalita" value="Online Sincrono" id="mod_online">
-                  <label class="form-check-label fw-semibold" for="mod_online">
-                    <i class="bi bi-camera-video-fill text-success me-1"></i> Online Sincrono (Webinar)
-                  </label>
-                </div>
-                <div class="form-check">
-                  <input class="form-check-input" type="checkbox" name="modalita" value="Online Asincrono (FAD)" id="mod_fad">
-                  <label class="form-check-label fw-semibold" for="mod_fad">
-                    <i class="bi bi-play-circle-fill text-warning me-1"></i> Online Asincrono (FAD)
-                  </label>
-                </div>
-                <div class="form-check">
-                  <input class="form-check-input" type="checkbox" name="modalita" value="Mista / Ibrida" id="mod_mista">
-                  <label class="form-check-label fw-semibold" for="mod_mista">
-                    <i class="bi bi-diagram-3-fill text-purple me-1"></i> Mista / Ibrida
-                  </label>
-                </div>
+          <div class="col-12">
+            <label class="form-label small fw-bold mb-2"><i class="bi bi-layers me-1 text-secondary"></i>Modalità di Erogazione Previste</label>
+            <div class="d-flex flex-wrap gap-3 p-3 bg-light rounded-3 border">
+              <div class="form-check">
+                <input class="form-check-input" type="checkbox" name="modalita" value="In Presenza" id="mod_presenza">
+                <label class="form-check-label fw-semibold" for="mod_presenza">
+                  <i class="bi bi-geo-alt-fill text-primary me-1"></i> In Presenza
+                </label>
               </div>
-            </div>
-
-            <div class="col-12">
-              <label class="form-label small fw-bold"><i class="bi bi-link-45deg me-1 text-primary"></i>Eventuale Link a Piattaforma E-learning o Risorse</label>
-              <input type="text" name="link_piattaforma" class="form-control font-monospace small" placeholder="https://elearning.azienda.it/course/101">
-            </div>
-
-            <div class="col-12 mt-3">
-              <div class="form-check form-switch">
-                <input class="form-check-input" type="checkbox" role="switch" id="attivoSwitch" name="attivo" value="1" checked>
-                <label class="form-check-label fw-semibold" for="attivoSwitch">Corso Attivo e visibile a catalogo</label>
+              <div class="form-check">
+                <input class="form-check-input" type="checkbox" name="modalita" value="Online Sincrono" id="mod_online">
+                <label class="form-check-label fw-semibold" for="mod_online">
+                  <i class="bi bi-camera-video-fill text-success me-1"></i> Online Sincrono (Webinar)
+                </label>
+              </div>
+              <div class="form-check">
+                <input class="form-check-input" type="checkbox" name="modalita" value="Online Asincrono (FAD)" id="mod_fad">
+                <label class="form-check-label fw-semibold" for="mod_fad">
+                  <i class="bi bi-play-circle-fill text-warning me-1"></i> Online Asincrono (FAD)
+                </label>
+              </div>
+              <div class="form-check">
+                <input class="form-check-input" type="checkbox" name="modalita" value="Mista / Ibrida" id="mod_mista">
+                <label class="form-check-label fw-semibold" for="mod_mista">
+                  <i class="bi bi-diagram-3-fill text-purple me-1"></i> Mista / Ibrida
+                </label>
               </div>
             </div>
           </div>
+
+          <div class="col-12">
+            <label class="form-label small fw-bold"><i class="bi bi-link-45deg me-1 text-primary"></i>Eventuale Link a Piattaforma E-learning o Risorse</label>
+            <input type="text" name="link_piattaforma" class="form-control font-monospace small" placeholder="https://elearning.azienda.it/course/101">
+          </div>
+
+          <div class="col-12 mt-3">
+            <div class="form-check form-switch">
+              <input class="form-check-input" type="checkbox" role="switch" id="attivoSwitch" name="attivo" value="1" checked>
+              <label class="form-check-label fw-semibold" for="attivoSwitch">Corso Attivo e visibile a catalogo</label>
+            </div>
+          </div>
+
+          <!-- Pulsante di conferma interno al corpo del form -->
+          <div class="col-12 mt-4 pt-3 border-top d-flex justify-content-end gap-2">
+            <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Annulla</button>
+            <button type="submit" class="btn btn-primary fw-bold px-4 py-2 shadow-sm">
+              <i class="bi bi-check-circle-fill me-1"></i> Salva e Crea Corso
+            </button>
+          </div>
         </div>
-        <div class="modal-footer bg-light">
-          <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Annulla</button>
-          <button type="submit" class="btn btn-primary fw-bold">
-            <i class="bi bi-check-lg me-1"></i> Crea Corso
-          </button>
-        </div>
-      </form>
-    </div>
+      </div>
+      <div class="modal-footer bg-light justify-content-between">
+        <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Annulla</button>
+        <button type="submit" class="btn btn-primary fw-bold px-4 py-2 shadow-sm">
+          <i class="bi bi-check-circle-fill me-1"></i> Salva e Crea Corso
+        </button>
+      </div>
+    </form>
   </div>
 </div>
 {% endif %}

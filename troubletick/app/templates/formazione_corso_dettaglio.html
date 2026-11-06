@@ -342,15 +342,19 @@
 {% if can_manage %}
 <!-- Modal Nuova Edizione -->
 <div class="modal fade" id="modalNuovaEdizione" tabindex="-1" aria-labelledby="modalNuovaEdizioneLabel" aria-hidden="true">
-  <div class="modal-dialog modal-lg">
-    <div class="modal-content rounded-4 border-0 shadow">
-      <form action="/formazione/corso/{{ corso.corso_id }}/edizioni/nuova" method="POST">
-        <div class="modal-header bg-primary text-white">
-          <h5 class="modal-title fw-bold" id="modalNuovaEdizioneLabel">
-            <i class="bi bi-calendar-plus me-2"></i>Nuova Edizione per "{{ corso.titolo }}"
-          </h5>
+  <div class="modal-dialog modal-lg modal-dialog-scrollable">
+    <form action="/formazione/corso/{{ corso.corso_id }}/edizioni/nuova" method="POST" class="modal-content rounded-4 border-0 shadow">
+      <div class="modal-header bg-primary text-white d-flex justify-content-between align-items-center">
+        <h5 class="modal-title fw-bold mb-0" id="modalNuovaEdizioneLabel">
+          <i class="bi bi-calendar-plus me-2"></i>Nuova Edizione per "{{ corso.titolo }}"
+        </h5>
+        <div class="d-flex align-items-center gap-2">
+          <button type="submit" class="btn btn-sm btn-light text-primary fw-bold shadow-sm">
+            <i class="bi bi-check-circle-fill me-1"></i>Salva Edizione
+          </button>
           <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Chiudi"></button>
         </div>
+      </div>
         <div class="modal-body p-4">
           <div class="row g-3">
             <div class="col-12 col-md-6">
@@ -441,30 +445,41 @@
               <label class="form-label small fw-bold">Note aggiuntive per l'edizione</label>
               <textarea name="note" class="form-control" rows="2" placeholder="Indicazioni sui partecipanti, credenziali di accesso, materiale occorrente..."></textarea>
             </div>
+
+            <!-- Pulsante submit nel corpo -->
+            <div class="col-12 mt-4 pt-3 border-top d-flex justify-content-end gap-2">
+              <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Annulla</button>
+              <button type="submit" class="btn btn-primary fw-bold px-4 py-2 shadow-sm">
+                <i class="bi bi-check-circle-fill me-1"></i> Conferma e Salva Edizione
+              </button>
+            </div>
           </div>
         </div>
-        <div class="modal-footer bg-light">
+        <div class="modal-footer bg-light justify-content-between">
           <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Annulla</button>
-          <button type="submit" class="btn btn-primary fw-bold">
-            <i class="bi bi-check-lg me-1"></i> Salva Edizione
+          <button type="submit" class="btn btn-primary fw-bold px-4 py-2 shadow-sm">
+            <i class="bi bi-check-circle-fill me-1"></i> Salva Edizione
           </button>
         </div>
       </form>
-    </div>
   </div>
 </div>
 
 <!-- Modal Modifica Edizione Dinamico -->
 <div class="modal fade" id="modalModificaEdizione" tabindex="-1" aria-labelledby="modalModificaEdizioneLabel" aria-hidden="true">
-  <div class="modal-dialog modal-lg">
-    <div class="modal-content rounded-4 border-0 shadow">
-      <form id="formModificaEdizione" method="POST" action="">
-        <div class="modal-header bg-primary text-white">
-          <h5 class="modal-title fw-bold" id="modalModificaEdizioneLabel">
-            <i class="bi bi-pencil-square me-2"></i>Modifica Edizione
-          </h5>
+  <div class="modal-dialog modal-lg modal-dialog-scrollable">
+    <form id="formModificaEdizione" method="POST" action="" class="modal-content rounded-4 border-0 shadow">
+      <div class="modal-header bg-primary text-white d-flex justify-content-between align-items-center">
+        <h5 class="modal-title fw-bold mb-0" id="modalModificaEdizioneLabel">
+          <i class="bi bi-pencil-square me-2"></i>Modifica Edizione
+        </h5>
+        <div class="d-flex align-items-center gap-2">
+          <button type="submit" class="btn btn-sm btn-light text-primary fw-bold shadow-sm">
+            <i class="bi bi-check-circle-fill me-1"></i>Aggiorna
+          </button>
           <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Chiudi"></button>
         </div>
+      </div>
         <div class="modal-body p-4">
           <div class="row g-3">
             <div class="col-12 col-md-6">
@@ -555,122 +570,140 @@
               <label class="form-label small fw-bold">Note aggiuntive per l'edizione</label>
               <textarea name="note" id="edit_note" class="form-control" rows="2"></textarea>
             </div>
+
+            <!-- Pulsante submit nel corpo -->
+            <div class="col-12 mt-4 pt-3 border-top d-flex justify-content-end gap-2">
+              <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Annulla</button>
+              <button type="submit" class="btn btn-primary fw-bold px-4 py-2 shadow-sm">
+                <i class="bi bi-check-circle-fill me-1"></i> Conferma Aggiornamento
+              </button>
+            </div>
           </div>
         </div>
-        <div class="modal-footer bg-light">
+        <div class="modal-footer bg-light justify-content-between">
           <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Annulla</button>
-          <button type="submit" class="btn btn-primary fw-bold">
-            <i class="bi bi-check-lg me-1"></i> Aggiorna Edizione
+          <button type="submit" class="btn btn-primary fw-bold px-4 py-2 shadow-sm">
+            <i class="bi bi-check-circle-fill me-1"></i> Aggiorna Edizione
           </button>
         </div>
       </form>
-    </div>
   </div>
 </div>
 
 <!-- Modal Modifica Corso -->
 <div class="modal fade" id="modalModificaCorso" tabindex="-1" aria-labelledby="modalModificaCorsoLabel" aria-hidden="true">
   <div class="modal-dialog modal-lg modal-dialog-scrollable">
-    <div class="modal-content rounded-4 border-0 shadow">
-      <form action="/formazione/corso/{{ corso.corso_id }}/modifica" method="POST">
-        <div class="modal-header bg-primary text-white">
-          <h5 class="modal-title fw-bold" id="modalModificaCorsoLabel">
-            <i class="bi bi-pencil-square me-2"></i>Modifica Corso
-          </h5>
+    <form action="/formazione/corso/{{ corso.corso_id }}/modifica" method="POST" class="modal-content rounded-4 border-0 shadow">
+      <div class="modal-header bg-primary text-white d-flex justify-content-between align-items-center">
+        <h5 class="modal-title fw-bold mb-0" id="modalModificaCorsoLabel">
+          <i class="bi bi-pencil-square me-2"></i>Modifica Corso
+        </h5>
+        <div class="d-flex align-items-center gap-2">
+          <button type="submit" class="btn btn-sm btn-light text-primary fw-bold shadow-sm">
+            <i class="bi bi-check-circle-fill me-1"></i>Salva Modifiche
+          </button>
           <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Chiudi"></button>
         </div>
-        <div class="modal-body p-4">
-          <div class="row g-3">
-            <div class="col-12 col-md-8">
-              <label class="form-label small fw-bold">Titolo del Corso <span class="text-danger">*</span></label>
-              <input type="text" name="titolo" class="form-control" value="{{ corso.titolo }}" required>
-            </div>
-            <div class="col-12 col-md-4">
-              <label class="form-label small fw-bold">Categoria</label>
-              <input type="text" name="categoria" class="form-control" value="{{ corso.categoria or '' }}">
-            </div>
+      </div>
+      <div class="modal-body p-4">
+        <div class="row g-3">
+          <div class="col-12 col-md-8">
+            <label class="form-label small fw-bold">Titolo del Corso <span class="text-danger">*</span></label>
+            <input type="text" name="titolo" class="form-control" value="{{ corso.titolo }}" required>
+          </div>
+          <div class="col-12 col-md-4">
+            <label class="form-label small fw-bold">Categoria</label>
+            <input type="text" name="categoria" class="form-control" value="{{ corso.categoria or '' }}">
+          </div>
 
-            <div class="col-12">
-              <label class="form-label small fw-bold">Descrizione Breve</label>
-              <input type="text" name="descrizione_breve" class="form-control" value="{{ corso.descrizione_breve or '' }}">
-            </div>
+          <div class="col-12">
+            <label class="form-label small fw-bold">Descrizione Breve</label>
+            <input type="text" name="descrizione_breve" class="form-control" value="{{ corso.descrizione_breve or '' }}">
+          </div>
 
-            <div class="col-12">
-              <label class="form-label small fw-bold">Descrizione Dettagliata</label>
-              <textarea name="descrizione" class="form-control" rows="4">{{ corso.descrizione or '' }}</textarea>
-            </div>
+          <div class="col-12">
+            <label class="form-label small fw-bold">Descrizione Dettagliata</label>
+            <textarea name="descrizione" class="form-control" rows="4">{{ corso.descrizione or '' }}</textarea>
+          </div>
 
-            <div class="col-12 col-md-6">
-              <label class="form-label small fw-bold"><i class="bi bi-people me-1 text-primary"></i>Destinatari</label>
-              <input type="text" name="destinatari" class="form-control" value="{{ corso.destinatari or '' }}">
-            </div>
+          <div class="col-12 col-md-6">
+            <label class="form-label small fw-bold"><i class="bi bi-people me-1 text-primary"></i>Destinatari</label>
+            <input type="text" name="destinatari" class="form-control" value="{{ corso.destinatari or '' }}">
+          </div>
 
-            <div class="col-12 col-md-6">
-              <label class="form-label small fw-bold"><i class="bi bi-building me-1 text-info"></i>Tutor / Ente Erogatore</label>
-              <input type="text" name="ente_erogatore" class="form-control" value="{{ corso.ente_erogatore or '' }}">
-            </div>
+          <div class="col-12 col-md-6">
+            <label class="form-label small fw-bold"><i class="bi bi-building me-1 text-info"></i>Tutor / Ente Erogatore</label>
+            <input type="text" name="ente_erogatore" class="form-control" value="{{ corso.ente_erogatore or '' }}">
+          </div>
 
-            <div class="col-12 col-md-6">
-              <label class="form-label small fw-bold"><i class="bi bi-calendar-event me-1 text-success"></i>Periodo di Svolgimento</label>
-              <input type="text" name="periodo_svolgimento" class="form-control" value="{{ corso.periodo_svolgimento or '' }}">
-            </div>
+          <div class="col-12 col-md-6">
+            <label class="form-label small fw-bold"><i class="bi bi-calendar-event me-1 text-success"></i>Periodo di Svolgimento</label>
+            <input type="text" name="periodo_svolgimento" class="form-control" value="{{ corso.periodo_svolgimento or '' }}">
+          </div>
 
-            <div class="col-12 col-md-6">
-              <label class="form-label small fw-bold"><i class="bi bi-clock-history me-1 text-warning"></i>Durata Totale Prevista (ore)</label>
-              <input type="number" step="0.5" name="durata_ore" class="form-control" value="{{ corso.durata_ore or '' }}">
-            </div>
+          <div class="col-12 col-md-6">
+            <label class="form-label small fw-bold"><i class="bi bi-clock-history me-1 text-warning"></i>Durata Totale Prevista (ore)</label>
+            <input type="number" step="0.5" name="durata_ore" class="form-control" value="{{ corso.durata_ore or '' }}">
+          </div>
 
-            <div class="col-12">
-              <label class="form-label small fw-bold mb-2"><i class="bi bi-layers me-1 text-secondary"></i>Modalità di Erogazione Previste</label>
-              <div class="d-flex flex-wrap gap-3 p-3 bg-light rounded-3 border">
-                <div class="form-check">
-                  <input class="form-check-input" type="checkbox" name="modalita" value="In Presenza" id="mod_edit_presenza" {% if 'Presenza' in (corso.modalita or '') %}checked{% endif %}>
-                  <label class="form-check-label fw-semibold" for="mod_edit_presenza">
-                    <i class="bi bi-geo-alt-fill text-primary me-1"></i> In Presenza
-                  </label>
-                </div>
-                <div class="form-check">
-                  <input class="form-check-input" type="checkbox" name="modalita" value="Online Sincrono" id="mod_edit_online" {% if 'Sincrono' in (corso.modalita or '') %}checked{% endif %}>
-                  <label class="form-check-label fw-semibold" for="mod_edit_online">
-                    <i class="bi bi-camera-video-fill text-success me-1"></i> Online Sincrono (Webinar)
-                  </label>
-                </div>
-                <div class="form-check">
-                  <input class="form-check-input" type="checkbox" name="modalita" value="Online Asincrono (FAD)" id="mod_edit_fad" {% if 'Asincrono' in (corso.modalita or '') or 'FAD' in (corso.modalita or '') %}checked{% endif %}>
-                  <label class="form-check-label fw-semibold" for="mod_edit_fad">
-                    <i class="bi bi-play-circle-fill text-warning me-1"></i> Online Asincrono (FAD)
-                  </label>
-                </div>
-                <div class="form-check">
-                  <input class="form-check-input" type="checkbox" name="modalita" value="Mista / Ibrida" id="mod_edit_mista" {% if 'Mista' in (corso.modalita or '') %}checked{% endif %}>
-                  <label class="form-check-label fw-semibold" for="mod_edit_mista">
-                    <i class="bi bi-diagram-3-fill text-purple me-1"></i> Mista / Ibrida
-                  </label>
-                </div>
+          <div class="col-12">
+            <label class="form-label small fw-bold mb-2"><i class="bi bi-layers me-1 text-secondary"></i>Modalità di Erogazione Previste</label>
+            <div class="d-flex flex-wrap gap-3 p-3 bg-light rounded-3 border">
+              <div class="form-check">
+                <input class="form-check-input" type="checkbox" name="modalita" value="In Presenza" id="mod_edit_presenza" {% if 'Presenza' in (corso.modalita or '') %}checked{% endif %}>
+                <label class="form-check-label fw-semibold" for="mod_edit_presenza">
+                  <i class="bi bi-geo-alt-fill text-primary me-1"></i> In Presenza
+                </label>
               </div>
-            </div>
-
-            <div class="col-12">
-              <label class="form-label small fw-bold"><i class="bi bi-link-45deg me-1 text-primary"></i>Eventuale Link a Piattaforma E-learning</label>
-              <input type="text" name="link_piattaforma" class="form-control font-monospace small" value="{{ corso.link_piattaforma or '' }}">
-            </div>
-
-            <div class="col-12 mt-3">
-              <div class="form-check form-switch">
-                <input class="form-check-input" type="checkbox" role="switch" id="attivoEditSwitch" name="attivo" value="1" {% if corso.attivo %}checked{% endif %}>
-                <label class="form-check-label fw-semibold" for="attivoEditSwitch">Corso Attivo e visibile a catalogo</label>
+              <div class="form-check">
+                <input class="form-check-input" type="checkbox" name="modalita" value="Online Sincrono" id="mod_edit_online" {% if 'Sincrono' in (corso.modalita or '') %}checked{% endif %}>
+                <label class="form-check-label fw-semibold" for="mod_edit_online">
+                  <i class="bi bi-camera-video-fill text-success me-1"></i> Online Sincrono (Webinar)
+                </label>
+              </div>
+              <div class="form-check">
+                <input class="form-check-input" type="checkbox" name="modalita" value="Online Asincrono (FAD)" id="mod_edit_fad" {% if 'Asincrono' in (corso.modalita or '') or 'FAD' in (corso.modalita or '') %}checked{% endif %}>
+                <label class="form-check-label fw-semibold" for="mod_edit_fad">
+                  <i class="bi bi-play-circle-fill text-warning me-1"></i> Online Asincrono (FAD)
+                </label>
+              </div>
+              <div class="form-check">
+                <input class="form-check-input" type="checkbox" name="modalita" value="Mista / Ibrida" id="mod_edit_mista" {% if 'Mista' in (corso.modalita or '') %}checked{% endif %}>
+                <label class="form-check-label fw-semibold" for="mod_edit_mista">
+                  <i class="bi bi-diagram-3-fill text-purple me-1"></i> Mista / Ibrida
+                </label>
               </div>
             </div>
           </div>
+
+          <div class="col-12">
+            <label class="form-label small fw-bold"><i class="bi bi-link-45deg me-1 text-primary"></i>Eventuale Link a Piattaforma E-learning</label>
+            <input type="text" name="link_piattaforma" class="form-control font-monospace small" value="{{ corso.link_piattaforma or '' }}">
+          </div>
+
+          <div class="col-12 mt-3">
+            <div class="form-check form-switch">
+              <input class="form-check-input" type="checkbox" role="switch" id="attivoEditSwitch" name="attivo" value="1" {% if corso.attivo %}checked{% endif %}>
+              <label class="form-check-label fw-semibold" for="attivoEditSwitch">Corso Attivo e visibile a catalogo</label>
+            </div>
+          </div>
+
+          <!-- Pulsante submit nel corpo -->
+          <div class="col-12 mt-4 pt-3 border-top d-flex justify-content-end gap-2">
+            <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Annulla</button>
+            <button type="submit" class="btn btn-primary fw-bold px-4 py-2 shadow-sm">
+              <i class="bi bi-check-circle-fill me-1"></i> Salva Modifiche Corso
+            </button>
+          </div>
         </div>
-        <div class="modal-footer bg-light">
-          <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Annulla</button>
-          <button type="submit" class="btn btn-primary fw-bold">
-            <i class="bi bi-check-lg me-1"></i> Salva Modifiche
-          </button>
-        </div>
-      </form>
-    </div>
+      </div>
+      <div class="modal-footer bg-light justify-content-between">
+        <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Annulla</button>
+        <button type="submit" class="btn btn-primary fw-bold px-4 py-2 shadow-sm">
+          <i class="bi bi-check-circle-fill me-1"></i> Salva Modifiche
+        </button>
+      </div>
+    </form>
   </div>
 </div>
 
