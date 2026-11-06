@@ -10,7 +10,7 @@ from starlette.middleware.sessions import SessionMiddleware
 from sqlalchemy import create_engine, text
 import bcrypt
 
-from core import CFG, BASE_DIR, UPLOAD_DIR, LOG_DIR, engine, DB_TYPE, DB_PK, DB_DRIVER, templates
+from core import CFG, BASE_DIR, UPLOAD_DIR, LOG_DIR, engine, DB_TYPE, DB_PK, DB_DRIVER, templates, init_config, save_config_item, save_all_config
 from utils import (
     current_user, require_superuser, save_upload, save_user_roles, 
     user_can_manage_fornitori, user_has_tag_dec, user_has_tag_amministrazione, 
@@ -1050,6 +1050,7 @@ templates.env.globals["user_can_manage_fornitori"] = user_can_manage_fornitori
 templates.env.globals["user_has_tag_reperibile"] = user_has_tag_reperibile
 templates.env.globals["user_has_tag_rep_admin"] = user_has_tag_rep_admin
 templates.env.globals["user_is_train_manager"] = user_is_train_manager
+templates.env.globals["cfg"] = CFG
 
 
 @app.exception_handler(Exception)
@@ -2968,44 +2969,51 @@ def save_impostazioni(r: Request,
                       db_name: str = Form(""),
                       db_user: str = Form(""),
                       db_password: str = Form(""),
-                      reperibilita_messaggi_home: int = Form(0)):
+                      reperibilita_messaggi_home: int = Form(0),
+                      modulo_avvisi: Optional[int] = Form(None),
+                      modulo_presenze: Optional[int] = Form(None),
+                      modulo_autopark: Optional[int] = Form(None),
+                      modulo_formazione: Optional[int] = Form(None)):
     user = require_superuser(r)
     if isinstance(user, RedirectResponse):
         return user
     
-    CFG["company_name"] = company_name
-    CFG["helpdesk_email"] = helpdesk_email
-    CFG["app_url"] = app_url.strip()
-    CFG["webapp_url"] = webapp_url.strip()
-    
-    CFG["smtp_server"] = smtp_server
-    CFG["smtp_port"] = int(smtp_port) if smtp_port.isdigit() else (587 if smtp_server else "")
-    CFG["smtp_user"] = smtp_user
-    CFG["smtp_password"] = smtp_password
-    CFG["smtp_tls"] = bool(smtp_tls)
-    
-    CFG["db_type"] = db_type
-    CFG["db_host"] = db_host
-    CFG["db_port"] = int(db_port) if db_port.isdigit() else ""
-    CFG["db_name"] = db_name
-    CFG["db_user"] = db_user
-    CFG["db_password"] = db_password
-    
-    CFG["reperibilita_messaggi_home"] = bool(reperibilita_messaggi_home)
-    
-    try:
-        with open(os.path.join(BASE_DIR, "config.json"), "w", encoding="utf-8") as f:
-            json.dump(CFG, f, indent=2, ensure_ascii=False)
-    except Exception:
-        pass
+    updates = {
+        "company_name": company_name,
+        "helpdesk_email": helpdesk_email,
+        "app_url": app_url.strip(),
+        "webapp_url": webapp_url.strip(),
+        "smtp_server": smtp_server,
+        "smtp_port": int(smtp_port) if smtp_port.isdigit() else (587 if smtp_server else ""),
+        "smtp_user": smtp_user,
+        "smtp_password": smtp_password,
+        "smtp_tls": bool(smtp_tls),
+        "db_type": db_type,
+        "db_host": db_host,
+        "db_port": int(db_port) if db_port.isdigit() else "",
+        "db_name": db_name,
+        "db_user": db_user,
+        "db_password": db_password,
+        "reperibilita_messaggi_home": bool(reperibilita_messaggi_home)
+    }
+    if modulo_avvisi is not None:
+        updates["modulo_avvisi"] = bool(modulo_avvisi)
+    if modulo_presenze is not None:
+        updates["modulo_presenze"] = bool(modulo_presenze)
+    if modulo_autopark is not None:
+        updates["modulo_autopark"] = bool(modulo_autopark)
+    if modulo_formazione is not None:
+        updates["modulo_formazione"] = bool(modulo_formazione)
         
-    return RedirectResponse(url="/admin", status_code=303)
+    save_all_config(updates)
+    return RedirectResponse(url="/admin?msg=impostazioni_salvate", status_code=303)
 
 @app.get("/admin/moduli", response_class=HTMLResponse)
 def admin_moduli(r: Request, msg: Optional[str] = None):
     user = require_superuser(r)
     if isinstance(user, RedirectResponse):
         return user
+    init_config()
     return templates.TemplateResponse(r, "admin_moduli.html", {
         "request": r,
         "cfg": CFG,
@@ -3023,18 +3031,31 @@ def save_admin_moduli(r: Request,
     if isinstance(user, RedirectResponse):
         return user
     
-    CFG["modulo_avvisi"] = bool(modulo_avvisi)
-    CFG["modulo_presenze"] = bool(modulo_presenze)
-    CFG["modulo_autopark"] = bool(modulo_autopark)
-    CFG["modulo_formazione"] = bool(modulo_formazione)
-    
-    try:
-        with open(os.path.join(BASE_DIR, "config.json"), "w", encoding="utf-8") as f:
-            json.dump(CFG, f, indent=2, ensure_ascii=False)
-    except Exception:
-        pass
+    save_all_config({
+        "modulo_avvisi": bool(modulo_avvisi),
+        "modulo_presenze": bool(modulo_presenze),
+        "modulo_autopark": bool(modulo_autopark),
+        "modulo_formazione": bool(modulo_formazione)
+    })
         
     return RedirectResponse(url="/admin/moduli?msg=ok", status_code=303)
+
+@app.post("/admin/moduli/toggle")
+async def toggle_admin_modulo(r: Request):
+    user = require_superuser(r)
+    if isinstance(user, RedirectResponse):
+        return {"ok": False, "error": "unauthorized"}
+    try:
+        data = await r.json()
+        modulo = data.get("modulo")
+        attivo = bool(data.get("attivo"))
+        valid_moduli = ["modulo_avvisi", "modulo_presenze", "modulo_autopark", "modulo_formazione"]
+        if modulo not in valid_moduli:
+            return {"ok": False, "error": "invalid_modulo"}
+        save_config_item(modulo, attivo)
+        return {"ok": True, "modulo": modulo, "attivo": attivo}
+    except Exception as e:
+        return {"ok": False, "error": str(e)}
 
 @app.get("/admin/reperibilita/impostazioni", response_class=HTMLResponse)
 def admin_reperibilita_impostazioni(r: Request, msg: str = None):
@@ -3097,13 +3118,7 @@ def save_reperibilita_impostazioni(
     if not is_rep_admin:
         return RedirectResponse(url="/")
         
-    CFG["reperibilita_messaggi_home"] = bool(reperibilita_messaggi_home)
-    
-    try:
-        with open(os.path.join(BASE_DIR, "config.json"), "w", encoding="utf-8") as f:
-            json.dump(CFG, f, indent=2, ensure_ascii=False)
-    except Exception as e:
-        print("Errore salvataggio config.json:", e)
+    save_config_item("reperibilita_messaggi_home", bool(reperibilita_messaggi_home))
         
     return RedirectResponse(url="/admin/reperibilita/impostazioni?msg=ok", status_code=303)
 

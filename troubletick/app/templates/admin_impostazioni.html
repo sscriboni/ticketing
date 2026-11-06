@@ -129,13 +129,44 @@
                 </div>
 
                 <hr class="my-4">
-                <div class="d-flex justify-content-between align-items-center mb-2">
+                <div class="d-flex justify-content-between align-items-center mb-3">
                     <h4 class="mb-0">🧩 Moduli Applicativi</h4>
                     <a href="/admin/moduli" class="btn btn-sm btn-outline-primary">
-                        <i class="bi bi-sliders me-1"></i> Gestione Moduli
+                        <i class="bi bi-sliders me-1"></i> Schede Dettagliate Moduli
                     </a>
                 </div>
-                <p class="text-muted small mb-0">L'abilitazione e disabilitazione dei singoli moduli applicativi (Avvisi, Presenze, Carpooling, Formazione) è gestita nella <a href="/admin/moduli" class="fw-bold text-decoration-none">pagina dedicata</a>.</p>
+                <p class="text-muted small mb-3">Abilita o disabilita rapidamente i singoli moduli applicativi aziendali:</p>
+
+                <div class="row g-3 mb-4">
+                    <div class="col-md-6">
+                        <div class="form-check form-switch p-3 bg-light rounded-3 border">
+                            <input class="form-check-input ms-0 me-2" type="checkbox" name="modulo_avvisi" value="1" id="impAvvisi" {% if cfg.get('modulo_avvisi', True) %}checked{% endif %}>
+                            <label class="form-check-label fw-bold" for="impAvvisi"><i class="bi bi-megaphone-fill text-info me-1"></i> Modulo Avvisi</label>
+                            <div class="text-muted small mt-1">Bacheca e comunicazioni aziendali</div>
+                        </div>
+                    </div>
+                    <div class="col-md-6">
+                        <div class="form-check form-switch p-3 bg-light rounded-3 border">
+                            <input class="form-check-input ms-0 me-2" type="checkbox" name="modulo_presenze" value="1" id="impPresenze" {% if cfg.get('modulo_presenze', True) %}checked{% endif %}>
+                            <label class="form-check-label fw-bold" for="impPresenze"><i class="bi bi-calendar-check-fill text-success me-1"></i> Modulo Presenze</label>
+                            <div class="text-muted small mt-1">Assenze, ferie e turni reperibilità H24</div>
+                        </div>
+                    </div>
+                    <div class="col-md-6">
+                        <div class="form-check form-switch p-3 bg-light rounded-3 border">
+                            <input class="form-check-input ms-0 me-2" type="checkbox" name="modulo_autopark" value="1" id="impAutopark" {% if cfg.get('modulo_autopark', True) %}checked{% endif %}>
+                            <label class="form-check-label fw-bold" for="impAutopark"><i class="bi bi-car-front-fill text-primary me-1"></i> Modulo Carpooling</label>
+                            <div class="text-muted small mt-1">Flotta automezzi e registro viaggi</div>
+                        </div>
+                    </div>
+                    <div class="col-md-6">
+                        <div class="form-check form-switch p-3 bg-light rounded-3 border">
+                            <input class="form-check-input ms-0 me-2" type="checkbox" name="modulo_formazione" value="1" id="impFormazione" {% if cfg.get('modulo_formazione', False) %}checked{% endif %}>
+                            <label class="form-check-label fw-bold" for="impFormazione"><i class="bi bi-mortarboard-fill text-warning me-1"></i> Modulo Formazione</label>
+                            <div class="text-muted small mt-1">Corsi di formazione ed edizioni (Train Manager)</div>
+                        </div>
+                    </div>
+                </div>
 
                 <hr class="my-4">
                 <div class="d-flex justify-content-between align-items-center mb-2">

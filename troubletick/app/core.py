@@ -39,4 +39,87 @@ def get_last_inserted_id(conn):
     elif DB_DRIVER.startswith("mysql"):
         return conn.execute(text("SELECT LAST_INSERT_ID()")).scalar()
     else:
-        return conn.execute(text("SELECT LASTVAL()")).scalar()
+        return conn.execute(text("SELECT LASTVAL()")).scalar()
+
+def init_config():
+    """Crea la tabella impostazioni_sistema se non esiste e sincronizza CFG con il DB"""
+    try:
+        with engine.begin() as conn:
+            conn.execute(text("""
+                CREATE TABLE IF NOT EXISTS impostazioni_sistema (
+                    chiave VARCHAR(100) PRIMARY KEY,
+                    valore TEXT
+                )
+            """))
+            rows = conn.execute(text("SELECT chiave, valore FROM impostazioni_sistema")).mappings().all()
+            for r in rows:
+                k = r["chiave"]
+                v = r["valore"]
+                if v is None:
+                    continue
+                v_str = str(v).strip()
+                if v_str.lower() == "true":
+                    CFG[k] = True
+                elif v_str.lower() == "false":
+                    CFG[k] = False
+                elif v_str.isdigit():
+                    CFG[k] = int(v_str)
+                else:
+                    CFG[k] = v_str
+    except Exception as e:
+        print("init_config warning:", e)
+
+def save_config_item(key: str, value):
+    """Salva una chiave di configurazione sia in CFG, sia nel DB, sia su config.json"""
+    CFG[key] = value
+    str_val = "true" if value is True else "false" if value is False else str(value)
+
+    # 1. Salva nel DB (persistenza affidabile e multi-processo)
+    try:
+        with engine.begin() as conn:
+            conn.execute(text("""
+                CREATE TABLE IF NOT EXISTS impostazioni_sistema (
+                    chiave VARCHAR(100) PRIMARY KEY,
+                    valore TEXT
+                )
+            """))
+            conn.execute(text("DELETE FROM impostazioni_sistema WHERE chiave = :k"), {"k": key})
+            conn.execute(text("INSERT INTO impostazioni_sistema (chiave, valore) VALUES (:k, :v)"), {"k": key, "v": str_val})
+    except Exception as e:
+        print(f"Errore salvataggio DB per {key}:", e)
+
+    # 2. Salva in config.json
+    try:
+        with open(os.path.join(BASE_DIR, "config.json"), "w", encoding="utf-8") as f:
+            json.dump(CFG, f, indent=2, ensure_ascii=False)
+    except Exception as e:
+        print("Errore salvataggio config.json:", e)
+
+def save_all_config(new_dict: dict):
+    """Aggiorna molteplici parametri sia in CFG, sia nel DB, sia su file config.json"""
+    for k, v in new_dict.items():
+        CFG[k] = v
+
+    try:
+        with engine.begin() as conn:
+            conn.execute(text("""
+                CREATE TABLE IF NOT EXISTS impostazioni_sistema (
+                    chiave VARCHAR(100) PRIMARY KEY,
+                    valore TEXT
+                )
+            """))
+            for k, v in new_dict.items():
+                str_val = "true" if v is True else "false" if v is False else str(v)
+                conn.execute(text("DELETE FROM impostazioni_sistema WHERE chiave = :k"), {"k": k})
+                conn.execute(text("INSERT INTO impostazioni_sistema (chiave, valore) VALUES (:k, :v)"), {"k": k, "v": str_val})
+    except Exception as e:
+        print("Errore salvataggio massivo DB:", e)
+
+    try:
+        with open(os.path.join(BASE_DIR, "config.json"), "w", encoding="utf-8") as f:
+            json.dump(CFG, f, indent=2, ensure_ascii=False)
+    except Exception as e:
+        print("Errore salvataggio config.json:", e)
+
+# Inizializza subito le impostazioni dal DB al caricamento del modulo
+init_config()
