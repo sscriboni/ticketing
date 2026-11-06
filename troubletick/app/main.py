@@ -216,7 +216,8 @@ try:
             creato_il TEXT DEFAULT CURRENT_TIMESTAMP,
             is_test INTEGER DEFAULT 0,
             reparto_appartenenza TEXT,
-            allegato TEXT
+            allegato TEXT,
+            operatore_id INTEGER
         )"""))
         c.execute(text(f"""CREATE TABLE IF NOT EXISTS ticket_notes (
             note_id {DB_PK},
@@ -488,6 +489,7 @@ try:
             "ALTER TABLE tickets ADD COLUMN is_test INTEGER DEFAULT 0",
             "ALTER TABLE users ADD COLUMN sede_id INTEGER",
             "ALTER TABLE tickets ADD COLUMN allegato TEXT",
+            "ALTER TABLE tickets ADD COLUMN operatore_id INTEGER",
             "ALTER TABLE ticket_notes ADD COLUMN allegato TEXT",
             "ALTER TABLE ticket_notes ADD COLUMN is_internal INTEGER DEFAULT 0",
             "ALTER TABLE materiali ADD COLUMN tipologia TEXT",
@@ -2237,12 +2239,8 @@ def tickets(r: Request, reparto_id: str = None, servizio_id: str = None, stato: 
             params["uid_my"] = user.get("id")
 
         if assegnati_a_me == "1" and user.get("ruolo") != "normale":
-            autore_corrente = f"{user.get('nome','')} {user.get('cognome','')}".strip() or user.get('username')
-            where_clauses.append("""
-                (SELECT autore FROM ticket_notes tn WHERE tn.ticket_id = t.ticket_id ORDER BY tn.creato_il DESC LIMIT 1) IN (:autore_normale, :autore_sistema)
-            """)
-            params["autore_normale"] = autore_corrente
-            params["autore_sistema"] = f"Sistema ({autore_corrente})"
+            where_clauses.append("t.operatore_id = :uid_assegnato")
+            params["uid_assegnato"] = user.get("id")
 
         if reparto_id:
             where_clauses.append("t.reparto_id = :reparto_id")
@@ -2270,14 +2268,15 @@ def tickets(r: Request, reparto_id: str = None, servizio_id: str = None, stato: 
 
         rows = c.execute(text(f"""
             SELECT t.ticket_id, t.codice_ticket, t.nome, t.cognome, t.riferimento, t.priorita, t.stato,
-                   t.creato_il, t.ip, t.reparto_id, t.servizio_id, t.sede, t.is_test,
+                   t.creato_il, t.ip, t.reparto_id, t.servizio_id, t.sede, t.is_test, t.operatore_id,
+                   op.nome AS op_nome, op.cognome AS op_cognome, op.username AS op_username,
                    COALESCE(t.reparto_appartenenza, ra.nome, u_rep.nome) AS reparto_appartenenza_nome,
                    r.nome AS reparto_nome, s.descrizione AS servizio_desc, a.descrizione AS argomento_desc,
                    t.descrizione,
-                   (SELECT autore FROM ticket_notes tn WHERE tn.ticket_id = t.ticket_id ORDER BY tn.creato_il DESC LIMIT 1) AS ultimo_operatore,
                    (SELECT COUNT(*) FROM richieste_materiale rm WHERE rm.ticket_id = t.ticket_id AND rm.stato != 'annullata') AS req_totali,
                    (SELECT COUNT(*) FROM richieste_materiale rm WHERE rm.ticket_id = t.ticket_id AND rm.stato = 'evasa') AS req_evase
               FROM tickets t
+              LEFT JOIN users op ON t.operatore_id = op.user_id
               LEFT JOIN reparti r ON t.reparto_id = r.reparto_id
               LEFT JOIN reparti ra ON t.reparto_appartenenza_id = ra.reparto_id
               LEFT JOIN users u ON LOWER(t.email) = LOWER(u.email) AND u.email IS NOT NULL AND u.email != ''
@@ -2322,9 +2321,8 @@ def tickets(r: Request, reparto_id: str = None, servizio_id: str = None, stato: 
         cnt_nuovi = c.execute(text(f"SELECT COUNT(*) FROM tickets t {base_where} {'AND' if base_where else 'WHERE'} t.stato = 'nuova'"), base_params).scalar() or 0
         cnt_presi = c.execute(text(f"SELECT COUNT(*) FROM tickets t {base_where} {'AND' if base_where else 'WHERE'} t.stato = 'presa_in_carico'"), base_params).scalar() or 0
         
-        autore_corrente = f"{user.get('nome','')} {user.get('cognome','')}".strip() or user.get('username')
-        p_miei = dict(base_params); p_miei["a1"] = autore_corrente; p_miei["a2"] = f"Sistema ({autore_corrente})"
-        cnt_miei = c.execute(text(f"SELECT COUNT(*) FROM tickets t {base_where} {'AND' if base_where else 'WHERE'} t.stato != 'chiusa' AND (SELECT autore FROM ticket_notes tn WHERE tn.ticket_id = t.ticket_id ORDER BY tn.creato_il DESC LIMIT 1) IN (:a1, :a2)"), p_miei).scalar() or 0
+        p_miei = dict(base_params); p_miei["uid_miei"] = uid
+        cnt_miei = c.execute(text(f"SELECT COUNT(*) FROM tickets t {base_where} {'AND' if base_where else 'WHERE'} t.stato != 'chiusa' AND t.operatore_id = :uid_miei"), p_miei).scalar() or 0
         
         p_servizi = dict(base_params); p_servizi["uid2"] = uid
         cnt_servizi = c.execute(text(f"SELECT COUNT(*) FROM tickets t {base_where} {'AND' if base_where else 'WHERE'} t.stato != 'chiusa' AND t.servizio_id IN (SELECT servizio_id FROM operatori_servizi WHERE user_id = :uid2)"), p_servizi).scalar() or 0
@@ -2389,8 +2387,10 @@ def ticket_detail(r: Request, ticket_id: int):
         ticket = c.execute(text("""
             SELECT t.*, r.nome AS reparto_nome, s.descrizione AS servizio_desc, s.note AS servizio_note,
                    COALESCE(t.reparto_appartenenza, ra.nome) AS reparto_appartenenza_nome,
-                   a.descrizione AS argomento_desc
+                   a.descrizione AS argomento_desc,
+                   op.nome AS op_nome, op.cognome AS op_cognome, op.username AS op_username, op.email AS op_email
               FROM tickets t
+              LEFT JOIN users op ON t.operatore_id = op.user_id
               LEFT JOIN reparti r ON t.reparto_id = r.reparto_id
               LEFT JOIN reparti ra ON t.reparto_appartenenza_id = ra.reparto_id
               LEFT JOIN servizi s ON t.servizio_id = s.servizio_id
@@ -2623,11 +2623,38 @@ def update_ticket_status(r: Request, ticket_id: int, background_tasks: Backgroun
             if not nota_chiusura or not nota_chiusura.strip():
                 return RedirectResponse(url=f"/ticket/{ticket_id}?error=missing_closing_note", status_code=303)
                 
-        c.execute(text("UPDATE tickets SET stato = :stato WHERE ticket_id = :id"), {"stato": stato, "id": ticket_id})
-        
+        uid = user.get("id")
         autore = f"{user.get('nome','')} {user.get('cognome','')}".strip() or user.get('username')
-        stato_formatted = stato.replace("_", " ").title()
-        testo = f"Stato modificato in: **{stato_formatted}**."
+
+        # Recupera operatore corrente e stato precedente
+        cur_ticket = c.execute(text("""
+            SELECT t.stato, t.operatore_id, u.nome AS op_nome, u.cognome AS op_cognome, u.username AS op_username
+            FROM tickets t
+            LEFT JOIN users u ON t.operatore_id = u.user_id
+            WHERE t.ticket_id = :id
+        """), {"id": ticket_id}).mappings().first()
+
+        old_op_id = cur_ticket["operatore_id"] if cur_ticket else None
+        old_op_name = ""
+        if cur_ticket and old_op_id:
+            old_op_name = f"{cur_ticket.get('op_nome') or ''} {cur_ticket.get('op_cognome') or ''}".strip() or (cur_ticket.get("op_username") or "Operatore")
+
+        testo = None
+        if stato == "presa_in_carico":
+            c.execute(text("UPDATE tickets SET stato = :stato, operatore_id = :uid WHERE ticket_id = :id"), {"stato": stato, "uid": uid, "id": ticket_id})
+            if old_op_id and old_op_id != uid:
+                testo = f"Ticket preso in carico da **{autore}** (subentro da **{old_op_name}**)."
+            else:
+                testo = f"Ticket preso in carico da **{autore}**."
+        elif stato == "nuova":
+            c.execute(text("UPDATE tickets SET stato = :stato, operatore_id = NULL WHERE ticket_id = :id"), {"stato": stato, "id": ticket_id})
+            stato_formatted = stato.replace("_", " ").title()
+            testo = f"Stato modificato in: **{stato_formatted}** (presa in carico azzerata)."
+        else:
+            c.execute(text("UPDATE tickets SET stato = :stato WHERE ticket_id = :id"), {"stato": stato, "id": ticket_id})
+            stato_formatted = stato.replace("_", " ").title()
+            testo = f"Stato modificato in: **{stato_formatted}**."
+
         c.execute(text("""INSERT INTO ticket_notes (ticket_id, autore, testo) VALUES (:tid, :a, :t)"""),
                  {"tid": ticket_id, "a": autore, "t": testo})
                  
@@ -2687,14 +2714,21 @@ def reassign_ticket(r: Request, ticket_id: int, background_tasks: BackgroundTask
              WHERE t.ticket_id = :id
         """), {"id": ticket_id}).mappings().first()
         
-        c.execute(text("UPDATE tickets SET reparto_id = :rid, servizio_id = :sid, argomento_id = NULL WHERE ticket_id = :id"), 
-                  {"rid": reparto_id, "sid": servizio_id_val, "id": ticket_id})
+        c.execute(text("""
+            UPDATE tickets 
+               SET reparto_id = :rid, 
+                   servizio_id = :sid, 
+                   argomento_id = NULL,
+                   stato = 'nuova',
+                   operatore_id = NULL
+             WHERE ticket_id = :id
+        """), {"rid": reparto_id, "sid": servizio_id_val, "id": ticket_id})
         
         nuovo_rep = c.execute(text("SELECT nome FROM reparti WHERE reparto_id = :rid"), {"rid": reparto_id}).scalar()
         nuovo_serv = c.execute(text("SELECT descrizione FROM servizi WHERE servizio_id = :sid"), {"sid": servizio_id_val}).scalar() if servizio_id_val else "Nessuno"
         
         autore = f"{user.get('nome','')} {user.get('cognome','')}".strip() or user.get('username')
-        testo = f"Ticket trasferito da **{vecchio['rep_nome'] or 'Nessuno'} ({vecchio['serv_desc'] or 'Nessuno'})** a **{nuovo_rep or 'Nessuno'} ({nuovo_serv})**."
+        testo = f"Ticket trasferito da **{vecchio['rep_nome'] or 'Nessuno'} ({vecchio['serv_desc'] or 'Nessuno'})** a **{nuovo_rep or 'Nessuno'} ({nuovo_serv})**. Stato reimpostato a **Nuova** in attesa di presa in carico da un nuovo operatore."
         c.execute(text("""INSERT INTO ticket_notes (ticket_id, autore, testo) VALUES (:tid, :a, :t)"""),
                  {"tid": ticket_id, "a": autore, "t": testo})
                  

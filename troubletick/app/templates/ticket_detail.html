@@ -60,6 +60,17 @@
     <div class="col-md-4"><strong>Priorità</strong><br>{{ ticket.priorita }}</div>
     {% endif %}
     <div class="col-md-4"><strong>Stato</strong><br>{{ ticket.stato }}</div>
+    <div class="col-md-4">
+      <strong>Operatore in Carico</strong><br>
+      {% if ticket.op_nome or ticket.op_cognome or ticket.op_username %}
+        <span class="badge bg-light text-dark border font-monospace py-1.5 px-2">
+          <i class="bi bi-person-fill text-primary me-1"></i>
+          {{ (ticket.op_nome ~ ' ' ~ ticket.op_cognome).strip() if (ticket.op_nome or ticket.op_cognome) else ticket.op_username }}
+        </span>
+      {% else %}
+        <span class="text-muted fst-italic">Non ancora preso in carico</span>
+      {% endif %}
+    </div>
     <div class="col-md-4"><strong>Creato il</strong><br>{{ ticket.creato_il }}<br><small>{{ ticket.ip or 'IP non disponibile' }}</small></div>
   </div>
   <hr>
@@ -169,6 +180,13 @@
         <input type="hidden" name="stato" value="presa_in_carico">
         <button type="submit" class="btn btn-sm btn-primary">
             <i class="bi bi-box-arrow-in-down"></i> Prendi in Carico
+        </button>
+    </form>
+    {% elif ticket.stato == 'presa_in_carico' and ticket.operatore_id != user.id %}
+    <form method="post" action="/ticket/{{ ticket.ticket_id }}/stato" class="d-inline" onsubmit="return confirm('Vuoi subentrare e prendere in carico questo ticket?');">
+        <input type="hidden" name="stato" value="presa_in_carico">
+        <button type="submit" class="btn btn-sm btn-outline-primary" title="Subentra e prendi in carico il ticket">
+            <i class="bi bi-arrow-left-right me-1"></i> Subentra nella Presa in Carico
         </button>
     </form>
     {% endif %}

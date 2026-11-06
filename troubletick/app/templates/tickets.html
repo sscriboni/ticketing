@@ -135,7 +135,7 @@
 </div>
 
 <div class="table-responsive"><table class="table table-striped align-middle">
-<thead><tr><th>ID / Codice</th><th>Richiedente</th><th>Riferimento</th><th>Reparto / Servizio</th><th>Descrizione</th>{% if user.ruolo != 'normale' %}<th>Priorità</th>{% endif %}<th>Stato</th><th>Ultimo Operatore</th><th>Creato il</th><th>Dettagli</th></tr></thead>
+<thead><tr><th>ID / Codice</th><th>Richiedente</th><th>Riferimento</th><th>Reparto / Servizio</th><th>Descrizione</th>{% if user.ruolo != 'normale' %}<th>Priorità</th>{% endif %}<th>Stato</th><th>Operatore in Carico</th><th>Creato il</th><th>Dettagli</th></tr></thead>
 <tbody>
 {% for t in tickets %}
 <tr {% if t.is_unhandled_over_24h %}class="table-danger"
@@ -176,14 +176,14 @@
   {% if user.ruolo != 'normale' %}<td>{{ t.priorita }}</td>{% endif %}
   <td>{{ t.stato }}</td>
   <td>
-    {% if t.ultimo_operatore %}
-      {% set clean_op = t.ultimo_operatore.replace('Sistema (', '').replace(')', '') %}
-      {{ clean_op }}
-      {% if clean_op in absent_names %}
+    {% if t.op_nome or t.op_cognome or t.op_username %}
+      {% set op_display = (t.op_nome ~ ' ' ~ t.op_cognome).strip() if (t.op_nome or t.op_cognome) else t.op_username %}
+      <span class="fw-semibold text-dark"><i class="bi bi-person-fill text-primary me-1"></i>{{ op_display }}</span>
+      {% if op_display in absent_names %}
         <span class="badge bg-warning text-dark ms-1" style="font-size: 0.7em;" title="Assente oggi">Assente</span>
       {% endif %}
     {% else %}
-      —
+      <span class="text-muted">—</span>
     {% endif %}
   </td>
   <td>{{ t.creato_il }}<br><small>{{ t.ip or 'IP non disponibile' }}</small></td>
