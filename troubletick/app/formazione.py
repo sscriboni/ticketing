@@ -66,7 +66,12 @@ def get_formazione_catalogo(
         query_sql += " ORDER BY c.attivo DESC, c.creato_il DESC"
         
         corsi = conn.execute(text(query_sql), params).mappings().all()
-        sedi = conn.execute(text("SELECT sede_id, nome, citta FROM sedi ORDER BY nome")).mappings().all()
+        sedi = conn.execute(text("""
+            SELECT s.sede_id, s.nome, com.nome AS citta 
+            FROM sedi s 
+            LEFT JOIN comuni com ON s.comune_id = com.comune_id 
+            ORDER BY s.nome
+        """)).mappings().all()
         
     return templates.TemplateResponse(r, "formazione_corsi.html", {
         "request": r,
@@ -171,16 +176,22 @@ def get_corso_dettaglio(r: Request, corso_id: int):
 
         edizioni = conn.execute(text("""
             SELECT e.*,
-                   s.nome as sede_nome, s.citta as sede_citta, s.indirizzo as sede_indirizzo,
+                   s.nome as sede_nome, com.nome as sede_citta, s.indirizzo as sede_indirizzo,
                    u.nome as creatore_nome, u.cognome as creatore_cognome
             FROM edizioni_formazione e
             LEFT JOIN sedi s ON e.sede_id = s.sede_id
+            LEFT JOIN comuni com ON s.comune_id = com.comune_id
             LEFT JOIN users u ON e.creato_da_id = u.user_id
             WHERE e.corso_id = :cid
             ORDER BY e.data_inizio DESC, e.ora DESC
         """), {"cid": corso_id}).mappings().all()
 
-        sedi = conn.execute(text("SELECT sede_id, nome, citta, indirizzo FROM sedi ORDER BY nome")).mappings().all()
+        sedi = conn.execute(text("""
+            SELECT s.sede_id, s.nome, com.nome AS citta, s.indirizzo 
+            FROM sedi s 
+            LEFT JOIN comuni com ON s.comune_id = com.comune_id 
+            ORDER BY s.nome
+        """)).mappings().all()
 
     # Parse modalita as list for convenient badge display
     modalita_tags = [m.strip() for m in (corso["modalita"] or "").split(",") if m.strip()]
