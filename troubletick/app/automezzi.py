@@ -4109,6 +4109,30 @@ def get_autopark(r: Request, msg: str = None, error: str = None):
                 # Same day (whole day) or future day and not completed -> stays in active bookings
                 attive_list.append(p_dict)
                 
+        prenotazioni_sede_attive = []
+        user_sede_nome = ""
+        if user_sede_id:
+            s_row = conn.execute(text("SELECT nome FROM sedi WHERE sede_id = :sid"), {"sid": user_sede_id}).first()
+            if s_row:
+                user_sede_nome = s_row[0]
+
+        # Per utenti normali ed operatori: query prenotazioni attive degli autoveicoli della propria sede (escluse le proprie)
+        if role not in ("admin", "global_fleet_manager", "fleet_manager") and user_sede_id:
+            sede_raw = conn.execute(text(base_query + """
+                WHERE (v.user_id != :uid AND (v.prenotato_da_id IS NULL OR v.prenotato_da_id != :uid))
+                  AND (v.sede_partenza_id = :sid OR COALESCE(NULLIF(a.sede_attuale_id, 0), NULLIF(a.sede_assegnata_id, 0)) = :sid)
+                  AND (v.ora_arrivo IS NULL OR v.ora_arrivo = '')
+                  AND (v.data_viaggio >= :today OR v.ora_partenza_effettiva IS NOT NULL)
+                ORDER BY v.data_viaggio ASC, v.ora_partenza ASC
+            """), {"uid": uid, "sid": user_sede_id, "today": today_str}).mappings().all()
+
+            for p in sede_raw:
+                p_dict = dict(p)
+                has_started = bool(p.get("ora_partenza_effettiva"))
+                p_dict["is_in_corso"] = has_started
+                p_dict["in_pausa"] = bool(p.get("in_pausa", 0))
+                prenotazioni_sede_attive.append(p_dict)
+                
         # Fetch all locations (sedi) with count of available vehicles assigned to the location
         sedi_list = conn.execute(text("""
             SELECT s.sede_id, s.nome, c.nome AS comune_nome,
@@ -4209,6 +4233,9 @@ def get_autopark(r: Request, msg: str = None, error: str = None):
         "user": user_ctx, 
         "veicoli": veicoli_dicts, 
         "prenotazioni_attive": attive_list, 
+        "prenotazioni_sede_attive": prenotazioni_sede_attive,
+        "user_sede_id": user_sede_id,
+        "user_sede_nome": user_sede_nome,
         "prenotazioni_passate": passate_list, 
         "sedi": sedi_list,
         "colleghi": colleghi_list,
