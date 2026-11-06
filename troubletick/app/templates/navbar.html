@@ -394,6 +394,10 @@
               <li><a class="dropdown-item" href="/formazione"><i class="bi bi-journal-bookmark me-2 text-primary"></i>Catalogo Corsi</a></li>
               <li><a class="dropdown-item" href="/formazione"><i class="bi bi-person-video3 me-2 text-success"></i>I Miei Corsi</a></li>
               <li><a class="dropdown-item" href="/formazione"><i class="bi bi-award me-2 text-warning"></i>Attestati</a></li>
+              {% if user_is_train_manager(user) %}
+              <li><hr class="dropdown-divider"></li>
+              <li><a class="dropdown-item" href="/formazione"><i class="bi bi-gear me-2 text-secondary"></i>Gestione Corsi</a></li>
+              {% endif %}
             </ul>
           </li>
           {% endif %}
@@ -526,6 +530,10 @@
               <li><a class="dropdown-item" href="/formazione"><i class="bi bi-journal-bookmark me-2 text-primary"></i>Catalogo Corsi</a></li>
               <li><a class="dropdown-item" href="/formazione"><i class="bi bi-person-video3 me-2 text-success"></i>I Miei Corsi</a></li>
               <li><a class="dropdown-item" href="/formazione"><i class="bi bi-award me-2 text-warning"></i>Attestati</a></li>
+              {% if user_is_train_manager(user) %}
+              <li><hr class="dropdown-divider"></li>
+              <li><a class="dropdown-item" href="/formazione"><i class="bi bi-gear me-2 text-secondary"></i>Gestione Corsi</a></li>
+              {% endif %}
             </ul>
           </li>
           {% endif %}
@@ -593,6 +601,75 @@
               <li><a class="dropdown-item" href="/formazione"><i class="bi bi-journal-bookmark me-2 text-primary"></i>Catalogo Corsi</a></li>
               <li><a class="dropdown-item" href="/formazione"><i class="bi bi-person-video3 me-2 text-success"></i>I Miei Corsi</a></li>
               <li><a class="dropdown-item" href="/formazione"><i class="bi bi-award me-2 text-warning"></i>Attestati</a></li>
+              {% if user_is_train_manager(user) %}
+              <li><hr class="dropdown-divider"></li>
+              <li><a class="dropdown-item" href="/formazione"><i class="bi bi-gear me-2 text-secondary"></i>Gestione Corsi</a></li>
+              {% endif %}
+            </ul>
+          </li>
+          {% endif %}
+
+        <!-- NAVBAR TRAIN MANAGER -->
+        {% elif user.ruolo == 'train_manager' %}
+          <li class="nav-item dropdown">
+            <a class="nav-link dropdown-toggle {% if request.url.path == '/tickets' or request.url.path == '/new' %}active fw-bold{% endif %}" href="#" id="ticketDropdownTM" role="button" data-bs-toggle="dropdown" aria-expanded="false">
+              <i class="bi bi-ticket-detailed"></i> Ticket
+            </a>
+            <ul class="dropdown-menu shadow" aria-labelledby="ticketDropdownTM">
+              <li><a class="dropdown-item" href="/tickets">Elenco Ticket</a></li>
+              <li><a class="dropdown-item" href="/new">Nuovo Ticket</a></li>
+            </ul>
+          </li>
+
+          {% if cfg.get('modulo_autopark', True) %}
+          <li class="nav-item">
+            <a class="nav-link {% if request.url.path == '/autopark' %}active fw-bold{% endif %}" href="/autopark">
+              <i class="bi bi-car-front-fill me-1"></i> Carpooling
+            </a>
+          </li>
+          {% endif %}
+
+          {% if user_can_manage_fornitori(user) %}
+          <li class="nav-item dropdown">
+            <a class="nav-link dropdown-toggle {% if request.url.path == '/fornitori' or request.url.path.startswith('/admin/fornitor') %}active fw-bold{% endif %}" href="#" id="fornitoriDropdownTM" role="button" data-bs-toggle="dropdown" aria-expanded="false">
+              <i class="bi bi-journal-bookmark"></i> Fornitori
+            </a>
+            <ul class="dropdown-menu shadow" aria-labelledby="fornitoriDropdownTM">
+              <li><a class="dropdown-item" href="/fornitori"><i class="bi bi-journal-bookmark me-2"></i>Rubrica Fornitori</a></li>
+              <li><a class="dropdown-item" href="/admin/fornitori"><i class="bi bi-building-gear me-2"></i>Gestione Fornitori</a></li>
+            </ul>
+          </li>
+          {% endif %}
+
+          {% if user_can_access_contratti(user) %}
+          <li class="nav-item">
+            <a class="nav-link {% if request.url.path.startswith('/contratt') %}active fw-bold{% endif %}" href="/contratti">
+              <i class="bi bi-file-earmark-text"></i> Contratti
+            </a>
+          </li>
+          {% endif %}
+
+          {% if user_has_tag_reperibile(user) %}
+          <li class="nav-item">
+            <a class="nav-link {% if request.url.path == '/reperibilita' %}active fw-bold{% endif %}" href="/reperibilita">
+              <i class="bi bi-clock-history text-warning me-1"></i> Reperibilità
+            </a>
+          </li>
+          {% endif %}
+
+          <!-- Formazione Dropdown (Train Manager) -->
+          {% if cfg.get('modulo_formazione', False) %}
+          <li class="nav-item dropdown">
+            <a class="nav-link dropdown-toggle {% if request.url.path.startswith('/formazione') %}active fw-bold{% endif %}" href="#" id="formazioneDropdownTM" role="button" data-bs-toggle="dropdown" aria-expanded="false">
+              <i class="bi bi-mortarboard-fill me-1"></i> Formazione
+            </a>
+            <ul class="dropdown-menu shadow" aria-labelledby="formazioneDropdownTM">
+              <li><h6 class="dropdown-header text-uppercase fw-bold text-primary small"><i class="bi bi-mortarboard-fill me-1"></i> Corsi di Formazione</h6></li>
+              <li><a class="dropdown-item" href="/formazione"><i class="bi bi-journal-bookmark me-2 text-primary"></i>Catalogo Corsi</a></li>
+              <li><a class="dropdown-item" href="/formazione"><i class="bi bi-person-video3 me-2 text-success"></i>I Miei Corsi</a></li>
+              <li><a class="dropdown-item" href="/formazione"><i class="bi bi-award me-2 text-warning"></i>Attestati</a></li>
+              <li><hr class="dropdown-divider"></li>
+              <li><a class="dropdown-item" href="/formazione"><i class="bi bi-gear me-2 text-secondary"></i>Gestione Corsi</a></li>
             </ul>
           </li>
           {% endif %}
@@ -666,6 +743,10 @@
               <li><a class="dropdown-item" href="/formazione"><i class="bi bi-journal-bookmark me-2 text-primary"></i>Catalogo Corsi</a></li>
               <li><a class="dropdown-item" href="/formazione"><i class="bi bi-person-video3 me-2 text-success"></i>I Miei Corsi</a></li>
               <li><a class="dropdown-item" href="/formazione"><i class="bi bi-award me-2 text-warning"></i>Attestati</a></li>
+              {% if user_is_train_manager(user) %}
+              <li><hr class="dropdown-divider"></li>
+              <li><a class="dropdown-item" href="/formazione"><i class="bi bi-gear me-2 text-secondary"></i>Gestione Corsi</a></li>
+              {% endif %}
             </ul>
           </li>
           {% endif %}

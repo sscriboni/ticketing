@@ -1,0 +1,750 @@
+<!doctype html>
+<html lang="it">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>{{ corso.titolo }} — Dettaglio Corso Formazione</title>
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css">
+  <style>
+    :root {
+      --primary-gradient: linear-gradient(135deg, #1e3c72 0%, #2a5298 100%);
+      --card-shadow: 0 6px 20px rgba(0,0,0,0.06);
+    }
+    body {
+      background-color: #f8fafc;
+      font-family: 'Inter', system-ui, -apple-system, sans-serif;
+      color: #334155;
+    }
+    .gradient-header {
+      background: var(--primary-gradient);
+      color: white;
+      border-radius: 0 0 20px 20px;
+      padding: 2rem 0;
+      margin-bottom: 2rem;
+      box-shadow: 0 4px 20px rgba(0,0,0,0.08);
+    }
+    .custom-card {
+      background: white;
+      border: 1px solid #e2e8f0;
+      border-radius: 14px;
+      box-shadow: var(--card-shadow);
+      margin-bottom: 1.5rem;
+    }
+    .badge-modalita {
+      font-size: 0.75rem;
+      font-weight: 600;
+      padding: 0.35rem 0.65rem;
+      border-radius: 50rem;
+    }
+    .badge-presenza { background-color: #e0f2fe; color: #0369a1; border: 1px solid #bae6fd; }
+    .badge-online { background-color: #dcfce7; color: #15803d; border: 1px solid #bbf7d0; }
+    .badge-fad { background-color: #fef3c7; color: #b45309; border: 1px solid #fde68a; }
+    .badge-mista { background-color: #f3e8ff; color: #6b21a8; border: 1px solid #e9d5ff; }
+
+    .edition-card {
+      background: white;
+      border: 1px solid #e2e8f0;
+      border-left: 5px solid #2a5298;
+      border-radius: 10px;
+      padding: 1.25rem;
+      margin-bottom: 1rem;
+      transition: all 0.2s ease;
+    }
+    .edition-card:hover {
+      box-shadow: 0 6px 18px rgba(0,0,0,0.08);
+      border-color: #cbd5e1;
+    }
+    .edition-card.stato-in_corso { border-left-color: #0d6efd; }
+    .edition-card.stato-programmata { border-left-color: #ffc107; }
+    .edition-card.stato-conclusa { border-left-color: #198754; opacity: 0.9; }
+    .edition-card.stato-annullata { border-left-color: #dc3545; opacity: 0.75; }
+  </style>
+</head>
+<body>
+{% include 'navbar.html' %}
+
+<div class="gradient-header py-4 mb-4">
+  <div class="container-fluid px-3 px-xl-5">
+    <div class="d-flex flex-wrap justify-content-between align-items-center gap-3">
+      <div>
+        <a href="/formazione" class="text-white-50 text-decoration-none small mb-2 d-inline-block">
+          <i class="bi bi-arrow-left me-1"></i> Torna al Catalogo Corsi
+        </a>
+        <div class="d-flex flex-wrap align-items-center gap-2">
+          <h2 class="fw-bold mb-0 text-white">{{ corso.titolo }}</h2>
+          {% if corso.attivo %}
+          <span class="badge bg-success-subtle text-success border border-success-subtle rounded-pill">Attivo</span>
+          {% else %}
+          <span class="badge bg-secondary-subtle text-secondary border border-secondary-subtle rounded-pill">Archiviato</span>
+          {% endif %}
+          {% if corso.categoria %}
+          <span class="badge bg-light text-primary rounded-pill">{{ corso.categoria }}</span>
+          {% endif %}
+        </div>
+      </div>
+
+      {% if can_manage %}
+      <div class="d-flex gap-2">
+        <button type="button" class="btn btn-light fw-semibold text-primary" data-bs-toggle="modal" data-bs-target="#modalModificaCorso">
+          <i class="bi bi-pencil-square me-1"></i> Modifica Corso
+        </button>
+        <button type="button" class="btn btn-outline-light" data-bs-toggle="modal" data-bs-target="#modalEliminaCorso" title="Elimina corso">
+          <i class="bi bi-trash"></i>
+        </button>
+      </div>
+      {% endif %}
+    </div>
+  </div>
+</div>
+
+<div class="container-fluid px-3 px-md-4 px-xl-5 mb-5" style="max-width: 1700px;">
+
+  <!-- Feedback messaggi -->
+  {% if request.query_params.get('success') %}
+  <div class="alert alert-success alert-dismissible fade show rounded-3 shadow-sm mb-4" role="alert">
+    <i class="bi bi-check-circle-fill me-2"></i> {{ request.query_params.get('success') }}
+    <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Chiudi"></button>
+  </div>
+  {% endif %}
+
+  {% if request.query_params.get('error') %}
+  <div class="alert alert-danger alert-dismissible fade show rounded-3 shadow-sm mb-4" role="alert">
+    <i class="bi bi-exclamation-triangle-fill me-2"></i> {{ request.query_params.get('error') }}
+    <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Chiudi"></button>
+  </div>
+  {% endif %}
+
+  <div class="row g-4">
+    <!-- Colonna Sinistra: Scheda Informativa Corso -->
+    <div class="col-12 col-lg-5 col-xl-4">
+      <div class="custom-card p-4">
+        <h5 class="fw-bold text-dark border-bottom pb-2 mb-3">
+          <i class="bi bi-info-circle me-2 text-primary"></i>Scheda del Corso
+        </h5>
+
+        {% if modalita_tags and modalita_tags|length > 0 %}
+        <div class="mb-3">
+          <label class="form-label small fw-bold text-muted mb-1 d-block">Modalità previste</label>
+          <div class="d-flex flex-wrap gap-1">
+            {% for m in modalita_tags %}
+              {% if 'Presenza' in m %}
+                <span class="badge-modalita badge-presenza"><i class="bi bi-geo-alt-fill me-1"></i>{{ m }}</span>
+              {% elif 'Sincrono' in m %}
+                <span class="badge-modalita badge-online"><i class="bi bi-camera-video-fill me-1"></i>{{ m }}</span>
+              {% elif 'Asincrono' in m or 'FAD' in m %}
+                <span class="badge-modalita badge-fad"><i class="bi bi-play-circle-fill me-1"></i>{{ m }}</span>
+              {% else %}
+                <span class="badge-modalita badge-mista"><i class="bi bi-diagram-3-fill me-1"></i>{{ m }}</span>
+              {% endif %}
+            {% endfor %}
+          </div>
+        </div>
+        {% endif %}
+
+        {% if corso.descrizione_breve %}
+        <div class="mb-3">
+          <label class="form-label small fw-bold text-muted mb-1">Descrizione Breve</label>
+          <div class="p-2 bg-light rounded text-dark small border">{{ corso.descrizione_breve }}</div>
+        </div>
+        {% endif %}
+
+        {% if corso.descrizione %}
+        <div class="mb-3">
+          <label class="form-label small fw-bold text-muted mb-1">Descrizione Dettagliata / Programma</label>
+          <div class="p-3 bg-light rounded text-secondary small border" style="white-space: pre-wrap;">{{ corso.descrizione }}</div>
+        </div>
+        {% endif %}
+
+        <hr class="text-muted opacity-25">
+
+        <div class="small">
+          <div class="mb-2">
+            <span class="text-muted"><i class="bi bi-people me-2 text-primary"></i><strong>Destinatari:</strong></span>
+            <span class="text-dark ms-1">{{ corso.destinatari or 'Tutti i collaboratori' }}</span>
+          </div>
+
+          <div class="mb-2">
+            <span class="text-muted"><i class="bi bi-building me-2 text-info"></i><strong>Tutor / Ente erogatore:</strong></span>
+            <span class="text-dark ms-1">{{ corso.ente_erogatore or 'Non specificato' }}</span>
+          </div>
+
+          <div class="mb-2">
+            <span class="text-muted"><i class="bi bi-calendar-event me-2 text-success"></i><strong>Periodo svolgimento:</strong></span>
+            <span class="text-dark ms-1">{{ corso.periodo_svolgimento or 'Non specificato' }}</span>
+          </div>
+
+          {% if corso.durata_ore %}
+          <div class="mb-2">
+            <span class="text-muted"><i class="bi bi-clock-history me-2 text-warning"></i><strong>Durata complessiva:</strong></span>
+            <span class="text-dark ms-1">{{ corso.durata_ore }} ore</span>
+          </div>
+          {% endif %}
+
+          {% if corso.link_piattaforma %}
+          <div class="mb-2">
+            <span class="text-muted"><i class="bi bi-link-45deg me-2 text-primary"></i><strong>Piattaforma:</strong></span>
+            <a href="{{ corso.link_piattaforma }}" target="_blank" rel="noopener noreferrer" class="ms-1 text-truncate d-inline-block align-bottom" style="max-width: 200px;">
+              {{ corso.link_piattaforma }} <i class="bi bi-box-arrow-up-right small"></i>
+            </a>
+          </div>
+          {% endif %}
+        </div>
+
+        <div class="mt-4 pt-3 border-top text-muted small">
+          <i class="bi bi-clock me-1"></i> Inserito il {{ corso.creato_il[:10] if corso.creato_il else 'N/D' }}
+          {% if corso.creatore_nome or corso.creatore_cognome %}
+          da {{ corso.creatore_nome }} {{ corso.creatore_cognome }}
+          {% endif %}
+        </div>
+      </div>
+    </div>
+
+    <!-- Colonna Destra: Edizioni del Corso -->
+    <div class="col-12 col-lg-7 col-xl-8">
+      <div class="custom-card p-4">
+        <div class="d-flex flex-wrap justify-content-between align-items-center mb-4 pb-2 border-bottom gap-2">
+          <div>
+            <h4 class="fw-bold text-dark mb-0">
+              <i class="bi bi-collection-play me-2 text-primary"></i>Edizioni del Corso
+            </h4>
+            <div class="text-muted small">
+              Totale: {{ edizioni|length }} edizion{{ 'e' if edizioni|length == 1 else 'i' }}
+            </div>
+          </div>
+
+          {% if can_manage %}
+          <button type="button" class="btn btn-primary fw-semibold" data-bs-toggle="modal" data-bs-target="#modalNuovaEdizione">
+            <i class="bi bi-plus-lg me-1"></i> Aggiungi Edizione
+          </button>
+          {% endif %}
+        </div>
+
+        {% if edizioni and edizioni|length > 0 %}
+          {% for ed in edizioni %}
+          <div class="edition-card stato-{{ ed.stato }}">
+            <div class="d-flex flex-wrap justify-content-between align-items-start gap-2 mb-2">
+              <div>
+                <span class="badge bg-dark px-2 py-1 me-2">{{ ed.codice_edizione or ('Edizione ' ~ loop.index) }}</span>
+                {% if ed.stato == 'programmata' %}
+                <span class="badge bg-warning text-dark"><i class="bi bi-calendar-event me-1"></i>Programmata</span>
+                {% elif ed.stato == 'in_corso' %}
+                <span class="badge bg-primary"><i class="bi bi-play-circle me-1"></i>In Corso</span>
+                {% elif ed.stato == 'conclusa' %}
+                <span class="badge bg-success"><i class="bi bi-check-circle me-1"></i>Conclusa</span>
+                {% elif ed.stato == 'annullata' %}
+                <span class="badge bg-danger"><i class="bi bi-x-circle me-1"></i>Annullata</span>
+                {% endif %}
+              </div>
+
+              {% if can_manage %}
+              <div class="dropdown">
+                <button class="btn btn-sm btn-light border py-0 px-2" type="button" data-bs-toggle="dropdown" aria-expanded="false">
+                  <i class="bi bi-three-dots"></i>
+                </button>
+                <ul class="dropdown-menu dropdown-menu-end shadow-sm">
+                  <li>
+                    <button class="dropdown-item" type="button" onclick="apriModificaEdizione({{ ed.edizione_id }}, '{{ ed.codice_edizione|escape }}', '{{ ed.data_inizio }}', '{{ ed.data_fine or '' }}', '{{ ed.ora or '' }}', '{{ ed.durata or '' }}', '{{ ed.tipo_localita }}', '{{ ed.sede_id or '' }}', '{{ (ed.luogo_custom or '')|escape }}', '{{ (ed.tutor or '')|escape }}', '{{ (ed.link_piattaforma or '')|escape }}', '{{ ed.stato }}', `{{ (ed.note or '')|escape }}`)">
+                      <i class="bi bi-pencil me-2 text-primary"></i>Modifica Edizione
+                    </button>
+                  </li>
+                  <li><hr class="dropdown-divider"></li>
+                  <li>
+                    <form action="/formazione/edizione/{{ ed.edizione_id }}/elimina" method="POST" onsubmit="return confirm('Sei sicuro di voler eliminare questa edizione?');">
+                      <button type="submit" class="dropdown-item text-danger">
+                        <i class="bi bi-trash me-2"></i>Elimina Edizione
+                      </button>
+                    </form>
+                  </li>
+                </ul>
+              </div>
+              {% endif %}
+            </div>
+
+            <div class="row g-2 small text-secondary mt-1">
+              <div class="col-12 col-md-6">
+                <i class="bi bi-calendar3 me-2 text-primary"></i><strong>Data:</strong>
+                <span class="text-dark fw-semibold ms-1">{{ ed.data_inizio }}</span>
+                {% if ed.data_fine and ed.data_fine != ed.data_inizio %}
+                  <span class="text-muted"> fino al </span><span class="text-dark fw-semibold">{{ ed.data_fine }}</span>
+                {% endif %}
+                {% if ed.ora %}
+                  <span class="ms-2 badge bg-light text-dark border"><i class="bi bi-clock me-1"></i>{{ ed.ora }}</span>
+                {% endif %}
+                {% if ed.durata %}
+                  <span class="ms-1 badge bg-light text-dark border">{{ ed.durata }}</span>
+                {% endif %}
+              </div>
+
+              <div class="col-12 col-md-6">
+                <i class="bi bi-geo-alt-fill me-2 text-danger"></i><strong>Località:</strong>
+                {% if ed.tipo_localita == 'online' %}
+                  <span class="badge bg-success-subtle text-success border border-success-subtle">
+                    <i class="bi bi-camera-video me-1"></i>Online
+                  </span>
+                {% elif ed.tipo_localita == 'sede' %}
+                  <span class="badge bg-primary-subtle text-primary border border-primary-subtle">
+                    <i class="bi bi-building me-1"></i>Sede: {{ ed.sede_nome or 'Sede aziendale' }}{% if ed.sede_citta %} ({{ ed.sede_citta }}){% endif %}
+                  </span>
+                {% elif ed.tipo_localita == 'altro' %}
+                  <span class="badge bg-secondary-subtle text-secondary border border-secondary-subtle">
+                    <i class="bi bi-pin-map me-1"></i>{{ ed.luogo_custom or 'Altra sede' }}
+                  </span>
+                {% else %}
+                  <span class="text-dark">{{ ed.tipo_localita }}</span>
+                {% endif %}
+              </div>
+
+              {% if ed.tutor %}
+              <div class="col-12 col-md-6">
+                <i class="bi bi-person-badge me-2 text-info"></i><strong>Tutor:</strong>
+                <span class="text-dark ms-1">{{ ed.tutor }}</span>
+              </div>
+              {% endif %}
+
+              {% if ed.link_piattaforma %}
+              <div class="col-12 col-md-6">
+                <i class="bi bi-link-45deg me-2 text-primary"></i><strong>Link / Stanza virtuale:</strong>
+                <a href="{{ ed.link_piattaforma }}" target="_blank" rel="noopener noreferrer" class="btn btn-sm btn-outline-primary py-0 px-2 rounded-pill ms-1">
+                  Accedi <i class="bi bi-box-arrow-up-right ms-1"></i>
+                </a>
+              </div>
+              {% endif %}
+
+              {% if ed.note %}
+              <div class="col-12 mt-2 pt-2 border-top">
+                <i class="bi bi-card-text me-1 text-muted"></i><span class="text-muted">Note:</span>
+                <span class="text-dark ms-1">{{ ed.note }}</span>
+              </div>
+              {% endif %}
+            </div>
+          </div>
+          {% endfor %}
+        {% else %}
+          <div class="p-5 text-center bg-light rounded-4 border">
+            <i class="bi bi-calendar-x text-muted" style="font-size: 3rem;"></i>
+            <h5 class="fw-bold mt-3 text-dark">Nessuna edizione programmata</h5>
+            <p class="text-muted small mx-auto" style="max-width: 450px;">
+              Attualmente non ci sono edizioni pianificate per questo corso di formazione.
+            </p>
+            {% if can_manage %}
+            <button type="button" class="btn btn-primary fw-semibold btn-sm mt-1" data-bs-toggle="modal" data-bs-target="#modalNuovaEdizione">
+              <i class="bi bi-plus-lg me-1"></i> Pianifica la Prima Edizione
+            </button>
+            {% endif %}
+          </div>
+        {% endif %}
+      </div>
+    </div>
+  </div>
+</div>
+
+{% if can_manage %}
+<!-- Modal Nuova Edizione -->
+<div class="modal fade" id="modalNuovaEdizione" tabindex="-1" aria-labelledby="modalNuovaEdizioneLabel" aria-hidden="true">
+  <div class="modal-dialog modal-lg">
+    <div class="modal-content rounded-4 border-0 shadow">
+      <form action="/formazione/corso/{{ corso.corso_id }}/edizioni/nuova" method="POST">
+        <div class="modal-header bg-primary text-white">
+          <h5 class="modal-title fw-bold" id="modalNuovaEdizioneLabel">
+            <i class="bi bi-calendar-plus me-2"></i>Nuova Edizione per "{{ corso.titolo }}"
+          </h5>
+          <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Chiudi"></button>
+        </div>
+        <div class="modal-body p-4">
+          <div class="row g-3">
+            <div class="col-12 col-md-6">
+              <label class="form-label small fw-bold">Codice / Nome Edizione</label>
+              <input type="text" name="codice_edizione" class="form-control" placeholder="es. Edizione 1 (o lascia vuoto per auto-assegnare)">
+            </div>
+            <div class="col-12 col-md-6">
+              <label class="form-label small fw-bold">Stato Edizione</label>
+              <select name="stato" class="form-select">
+                <option value="programmata" selected>Programmata</option>
+                <option value="in_corso">In Corso</option>
+                <option value="conclusa">Conclusa</option>
+                <option value="annullata">Annullata</option>
+              </select>
+            </div>
+
+            <div class="col-12 col-md-6">
+              <label class="form-label small fw-bold">Data Inizio <span class="text-danger">*</span></label>
+              <input type="date" name="data_inizio" class="form-control" required>
+            </div>
+            <div class="col-12 col-md-6">
+              <label class="form-label small fw-bold">Data Fine (facoltativa per corsi multi-giornata)</label>
+              <input type="date" name="data_fine" class="form-control">
+            </div>
+
+            <div class="col-12 col-md-6">
+              <label class="form-label small fw-bold">Orario</label>
+              <input type="text" name="ora" class="form-control" placeholder="es. 09:00 - 13:00 oppure 14:30">
+            </div>
+            <div class="col-12 col-md-6">
+              <label class="form-label small fw-bold">Durata</label>
+              <input type="text" name="durata" class="form-control" placeholder="es. 4 ore o 2 giorni">
+            </div>
+
+            <!-- Selezione Località -->
+            <div class="col-12">
+              <label class="form-label small fw-bold mb-1">Località di svolgimento</label>
+              <div class="p-3 bg-light rounded-3 border">
+                <div class="d-flex flex-wrap gap-4 mb-3">
+                  <div class="form-check">
+                    <input class="form-check-input" type="radio" name="tipo_localita" id="loc_online" value="online" checked onchange="aggiornaCampiLocalita('nuova')">
+                    <label class="form-check-label fw-semibold" for="loc_online">
+                      <i class="bi bi-camera-video text-success me-1"></i> Online / Piattaforma remota
+                    </label>
+                  </div>
+                  <div class="form-check">
+                    <input class="form-check-input" type="radio" name="tipo_localita" id="loc_sede" value="sede" onchange="aggiornaCampiLocalita('nuova')">
+                    <label class="form-check-label fw-semibold" for="loc_sede">
+                      <i class="bi bi-building text-primary me-1"></i> Presso una Sede Aziendale
+                    </label>
+                  </div>
+                  <div class="form-check">
+                    <input class="form-check-input" type="radio" name="tipo_localita" id="loc_altro" value="altro" onchange="aggiornaCampiLocalita('nuova')">
+                    <label class="form-check-label fw-semibold" for="loc_altro">
+                      <i class="bi bi-pin-map text-danger me-1"></i> Altro Luogo / Struttura esterna
+                    </label>
+                  </div>
+                </div>
+
+                <div id="box_sede_nuova" style="display: none;" class="mt-2">
+                  <label class="form-label small fw-bold text-muted">Seleziona la Sede Aziendale</label>
+                  <select name="sede_id" class="form-select">
+                    <option value="">-- Seleziona Sede --</option>
+                    {% for s in sedi %}
+                    <option value="{{ s.sede_id }}">{{ s.nome }}{% if s.citta %} ({{ s.citta }}){% endif %}</option>
+                    {% endfor %}
+                  </select>
+                </div>
+
+                <div id="box_altro_nuova" style="display: none;" class="mt-2">
+                  <label class="form-label small fw-bold text-muted">Specificare il Luogo / Indirizzo</label>
+                  <input type="text" name="luogo_custom" class="form-control" placeholder="es. Centro Congressi Roma - Sala Minerva">
+                </div>
+              </div>
+            </div>
+
+            <div class="col-12 col-md-6">
+              <label class="form-label small fw-bold">Tutor / Docente per questa edizione</label>
+              <input type="text" name="tutor" class="form-control" placeholder="es. Dott. Rossi / Ing. Bianchi" value="{{ corso.ente_erogatore or '' }}">
+            </div>
+
+            <div class="col-12 col-md-6">
+              <label class="form-label small fw-bold">Link Piattaforma / Stanza Virtuale</label>
+              <input type="text" name="link_piattaforma" class="form-control font-monospace small" placeholder="https://meet.google.com/..." value="{{ corso.link_piattaforma or '' }}">
+            </div>
+
+            <div class="col-12">
+              <label class="form-label small fw-bold">Note aggiuntive per l'edizione</label>
+              <textarea name="note" class="form-control" rows="2" placeholder="Indicazioni sui partecipanti, credenziali di accesso, materiale occorrente..."></textarea>
+            </div>
+          </div>
+        </div>
+        <div class="modal-footer bg-light">
+          <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Annulla</button>
+          <button type="submit" class="btn btn-primary fw-bold">
+            <i class="bi bi-check-lg me-1"></i> Salva Edizione
+          </button>
+        </div>
+      </form>
+    </div>
+  </div>
+</div>
+
+<!-- Modal Modifica Edizione Dinamico -->
+<div class="modal fade" id="modalModificaEdizione" tabindex="-1" aria-labelledby="modalModificaEdizioneLabel" aria-hidden="true">
+  <div class="modal-dialog modal-lg">
+    <div class="modal-content rounded-4 border-0 shadow">
+      <form id="formModificaEdizione" method="POST" action="">
+        <div class="modal-header bg-primary text-white">
+          <h5 class="modal-title fw-bold" id="modalModificaEdizioneLabel">
+            <i class="bi bi-pencil-square me-2"></i>Modifica Edizione
+          </h5>
+          <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Chiudi"></button>
+        </div>
+        <div class="modal-body p-4">
+          <div class="row g-3">
+            <div class="col-12 col-md-6">
+              <label class="form-label small fw-bold">Codice / Nome Edizione <span class="text-danger">*</span></label>
+              <input type="text" name="codice_edizione" id="edit_codice_edizione" class="form-control" required>
+            </div>
+            <div class="col-12 col-md-6">
+              <label class="form-label small fw-bold">Stato Edizione</label>
+              <select name="stato" id="edit_stato" class="form-select">
+                <option value="programmata">Programmata</option>
+                <option value="in_corso">In Corso</option>
+                <option value="conclusa">Conclusa</option>
+                <option value="annullata">Annullata</option>
+              </select>
+            </div>
+
+            <div class="col-12 col-md-6">
+              <label class="form-label small fw-bold">Data Inizio <span class="text-danger">*</span></label>
+              <input type="date" name="data_inizio" id="edit_data_inizio" class="form-control" required>
+            </div>
+            <div class="col-12 col-md-6">
+              <label class="form-label small fw-bold">Data Fine</label>
+              <input type="date" name="data_fine" id="edit_data_fine" class="form-control">
+            </div>
+
+            <div class="col-12 col-md-6">
+              <label class="form-label small fw-bold">Orario</label>
+              <input type="text" name="ora" id="edit_ora" class="form-control">
+            </div>
+            <div class="col-12 col-md-6">
+              <label class="form-label small fw-bold">Durata</label>
+              <input type="text" name="durata" id="edit_durata" class="form-control">
+            </div>
+
+            <!-- Selezione Località -->
+            <div class="col-12">
+              <label class="form-label small fw-bold mb-1">Località di svolgimento</label>
+              <div class="p-3 bg-light rounded-3 border">
+                <div class="d-flex flex-wrap gap-4 mb-3">
+                  <div class="form-check">
+                    <input class="form-check-input" type="radio" name="tipo_localita" id="edit_loc_online" value="online" onchange="aggiornaCampiLocalita('modifica')">
+                    <label class="form-check-label fw-semibold" for="edit_loc_online">
+                      <i class="bi bi-camera-video text-success me-1"></i> Online / Remota
+                    </label>
+                  </div>
+                  <div class="form-check">
+                    <input class="form-check-input" type="radio" name="tipo_localita" id="edit_loc_sede" value="sede" onchange="aggiornaCampiLocalita('modifica')">
+                    <label class="form-check-label fw-semibold" for="edit_loc_sede">
+                      <i class="bi bi-building text-primary me-1"></i> Presso Sede Aziendale
+                    </label>
+                  </div>
+                  <div class="form-check">
+                    <input class="form-check-input" type="radio" name="tipo_localita" id="edit_loc_altro" value="altro" onchange="aggiornaCampiLocalita('modifica')">
+                    <label class="form-check-label fw-semibold" for="edit_loc_altro">
+                      <i class="bi bi-pin-map text-danger me-1"></i> Altro Luogo
+                    </label>
+                  </div>
+                </div>
+
+                <div id="box_sede_modifica" style="display: none;" class="mt-2">
+                  <label class="form-label small fw-bold text-muted">Seleziona la Sede Aziendale</label>
+                  <select name="sede_id" id="edit_sede_id" class="form-select">
+                    <option value="">-- Seleziona Sede --</option>
+                    {% for s in sedi %}
+                    <option value="{{ s.sede_id }}">{{ s.nome }}{% if s.citta %} ({{ s.citta }}){% endif %}</option>
+                    {% endfor %}
+                  </select>
+                </div>
+
+                <div id="box_altro_modifica" style="display: none;" class="mt-2">
+                  <label class="form-label small fw-bold text-muted">Specificare il Luogo / Indirizzo</label>
+                  <input type="text" name="luogo_custom" id="edit_luogo_custom" class="form-control">
+                </div>
+              </div>
+            </div>
+
+            <div class="col-12 col-md-6">
+              <label class="form-label small fw-bold">Tutor / Docente per questa edizione</label>
+              <input type="text" name="tutor" id="edit_tutor" class="form-control">
+            </div>
+
+            <div class="col-12 col-md-6">
+              <label class="form-label small fw-bold">Link Piattaforma / Stanza Virtuale</label>
+              <input type="text" name="link_piattaforma" id="edit_link_piattaforma" class="form-control font-monospace small">
+            </div>
+
+            <div class="col-12">
+              <label class="form-label small fw-bold">Note aggiuntive per l'edizione</label>
+              <textarea name="note" id="edit_note" class="form-control" rows="2"></textarea>
+            </div>
+          </div>
+        </div>
+        <div class="modal-footer bg-light">
+          <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Annulla</button>
+          <button type="submit" class="btn btn-primary fw-bold">
+            <i class="bi bi-check-lg me-1"></i> Aggiorna Edizione
+          </button>
+        </div>
+      </form>
+    </div>
+  </div>
+</div>
+
+<!-- Modal Modifica Corso -->
+<div class="modal fade" id="modalModificaCorso" tabindex="-1" aria-labelledby="modalModificaCorsoLabel" aria-hidden="true">
+  <div class="modal-dialog modal-lg modal-dialog-scrollable">
+    <div class="modal-content rounded-4 border-0 shadow">
+      <form action="/formazione/corso/{{ corso.corso_id }}/modifica" method="POST">
+        <div class="modal-header bg-primary text-white">
+          <h5 class="modal-title fw-bold" id="modalModificaCorsoLabel">
+            <i class="bi bi-pencil-square me-2"></i>Modifica Corso
+          </h5>
+          <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Chiudi"></button>
+        </div>
+        <div class="modal-body p-4">
+          <div class="row g-3">
+            <div class="col-12 col-md-8">
+              <label class="form-label small fw-bold">Titolo del Corso <span class="text-danger">*</span></label>
+              <input type="text" name="titolo" class="form-control" value="{{ corso.titolo }}" required>
+            </div>
+            <div class="col-12 col-md-4">
+              <label class="form-label small fw-bold">Categoria</label>
+              <input type="text" name="categoria" class="form-control" value="{{ corso.categoria or '' }}">
+            </div>
+
+            <div class="col-12">
+              <label class="form-label small fw-bold">Descrizione Breve</label>
+              <input type="text" name="descrizione_breve" class="form-control" value="{{ corso.descrizione_breve or '' }}">
+            </div>
+
+            <div class="col-12">
+              <label class="form-label small fw-bold">Descrizione Dettagliata</label>
+              <textarea name="descrizione" class="form-control" rows="4">{{ corso.descrizione or '' }}</textarea>
+            </div>
+
+            <div class="col-12 col-md-6">
+              <label class="form-label small fw-bold"><i class="bi bi-people me-1 text-primary"></i>Destinatari</label>
+              <input type="text" name="destinatari" class="form-control" value="{{ corso.destinatari or '' }}">
+            </div>
+
+            <div class="col-12 col-md-6">
+              <label class="form-label small fw-bold"><i class="bi bi-building me-1 text-info"></i>Tutor / Ente Erogatore</label>
+              <input type="text" name="ente_erogatore" class="form-control" value="{{ corso.ente_erogatore or '' }}">
+            </div>
+
+            <div class="col-12 col-md-6">
+              <label class="form-label small fw-bold"><i class="bi bi-calendar-event me-1 text-success"></i>Periodo di Svolgimento</label>
+              <input type="text" name="periodo_svolgimento" class="form-control" value="{{ corso.periodo_svolgimento or '' }}">
+            </div>
+
+            <div class="col-12 col-md-6">
+              <label class="form-label small fw-bold"><i class="bi bi-clock-history me-1 text-warning"></i>Durata Totale Prevista (ore)</label>
+              <input type="number" step="0.5" name="durata_ore" class="form-control" value="{{ corso.durata_ore or '' }}">
+            </div>
+
+            <div class="col-12">
+              <label class="form-label small fw-bold mb-2"><i class="bi bi-layers me-1 text-secondary"></i>Modalità di Erogazione Previste</label>
+              <div class="d-flex flex-wrap gap-3 p-3 bg-light rounded-3 border">
+                <div class="form-check">
+                  <input class="form-check-input" type="checkbox" name="modalita" value="In Presenza" id="mod_edit_presenza" {% if 'Presenza' in (corso.modalita or '') %}checked{% endif %}>
+                  <label class="form-check-label fw-semibold" for="mod_edit_presenza">
+                    <i class="bi bi-geo-alt-fill text-primary me-1"></i> In Presenza
+                  </label>
+                </div>
+                <div class="form-check">
+                  <input class="form-check-input" type="checkbox" name="modalita" value="Online Sincrono" id="mod_edit_online" {% if 'Sincrono' in (corso.modalita or '') %}checked{% endif %}>
+                  <label class="form-check-label fw-semibold" for="mod_edit_online">
+                    <i class="bi bi-camera-video-fill text-success me-1"></i> Online Sincrono (Webinar)
+                  </label>
+                </div>
+                <div class="form-check">
+                  <input class="form-check-input" type="checkbox" name="modalita" value="Online Asincrono (FAD)" id="mod_edit_fad" {% if 'Asincrono' in (corso.modalita or '') or 'FAD' in (corso.modalita or '') %}checked{% endif %}>
+                  <label class="form-check-label fw-semibold" for="mod_edit_fad">
+                    <i class="bi bi-play-circle-fill text-warning me-1"></i> Online Asincrono (FAD)
+                  </label>
+                </div>
+                <div class="form-check">
+                  <input class="form-check-input" type="checkbox" name="modalita" value="Mista / Ibrida" id="mod_edit_mista" {% if 'Mista' in (corso.modalita or '') %}checked{% endif %}>
+                  <label class="form-check-label fw-semibold" for="mod_edit_mista">
+                    <i class="bi bi-diagram-3-fill text-purple me-1"></i> Mista / Ibrida
+                  </label>
+                </div>
+              </div>
+            </div>
+
+            <div class="col-12">
+              <label class="form-label small fw-bold"><i class="bi bi-link-45deg me-1 text-primary"></i>Eventuale Link a Piattaforma E-learning</label>
+              <input type="text" name="link_piattaforma" class="form-control font-monospace small" value="{{ corso.link_piattaforma or '' }}">
+            </div>
+
+            <div class="col-12 mt-3">
+              <div class="form-check form-switch">
+                <input class="form-check-input" type="checkbox" role="switch" id="attivoEditSwitch" name="attivo" value="1" {% if corso.attivo %}checked{% endif %}>
+                <label class="form-check-label fw-semibold" for="attivoEditSwitch">Corso Attivo e visibile a catalogo</label>
+              </div>
+            </div>
+          </div>
+        </div>
+        <div class="modal-footer bg-light">
+          <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Annulla</button>
+          <button type="submit" class="btn btn-primary fw-bold">
+            <i class="bi bi-check-lg me-1"></i> Salva Modifiche
+          </button>
+        </div>
+      </form>
+    </div>
+  </div>
+</div>
+
+<!-- Modal Elimina Corso -->
+<div class="modal fade" id="modalEliminaCorso" tabindex="-1" aria-labelledby="modalEliminaCorsoLabel" aria-hidden="true">
+  <div class="modal-dialog">
+    <div class="modal-content rounded-4 border-0 shadow">
+      <form action="/formazione/corso/{{ corso.corso_id }}/elimina" method="POST">
+        <div class="modal-header bg-danger text-white">
+          <h5 class="modal-title fw-bold" id="modalEliminaCorsoLabel">
+            <i class="bi bi-exclamation-triangle-fill me-2"></i>Conferma Eliminazione
+          </h5>
+          <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Chiudi"></button>
+        </div>
+        <div class="modal-body p-4 text-center">
+          <i class="bi bi-trash text-danger" style="font-size: 3rem;"></i>
+          <h5 class="fw-bold mt-3 text-dark">Eliminare definitivamente questo corso?</h5>
+          <p class="text-muted small">
+            Stai per eliminare il corso <strong>"{{ corso.titolo }}"</strong> e tutte le relative edizioni associate. L'operazione non può essere annullata.
+          </p>
+        </div>
+        <div class="modal-footer bg-light justify-content-center">
+          <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Annulla</button>
+          <button type="submit" class="btn btn-danger fw-bold">
+            <i class="bi bi-trash me-1"></i> Elimina Corso ed Edizioni
+          </button>
+        </div>
+      </form>
+    </div>
+  </div>
+</div>
+{% endif %}
+
+<script>
+function aggiornaCampiLocalita(contesto) {
+  var isOnline = document.getElementById(contesto === 'nuova' ? 'loc_online' : 'edit_loc_online').checked;
+  var isSede = document.getElementById(contesto === 'nuova' ? 'loc_sede' : 'edit_loc_sede').checked;
+  var isAltro = document.getElementById(contesto === 'nuova' ? 'loc_altro' : 'edit_loc_altro').checked;
+
+  var boxSede = document.getElementById(contesto === 'nuova' ? 'box_sede_nuova' : 'box_sede_modifica');
+  var boxAltro = document.getElementById(contesto === 'nuova' ? 'box_altro_nuova' : 'box_altro_modifica');
+
+  if (boxSede) boxSede.style.display = isSede ? 'block' : 'none';
+  if (boxAltro) boxAltro.style.display = isAltro ? 'block' : 'none';
+}
+
+function apriModificaEdizione(id, codice, dInizio, dFine, ora, durata, tipoLoc, sedeId, luogoCustom, tutor, link, stato, note) {
+  document.getElementById('formModificaEdizione').action = '/formazione/edizione/' + id + '/modifica';
+  document.getElementById('edit_codice_edizione').value = codice;
+  document.getElementById('edit_data_inizio').value = dInizio;
+  document.getElementById('edit_data_fine').value = dFine;
+  document.getElementById('edit_ora').value = ora;
+  document.getElementById('edit_durata').value = durata;
+  document.getElementById('edit_tutor').value = tutor;
+  document.getElementById('edit_link_piattaforma').value = link;
+  document.getElementById('edit_stato').value = stato;
+  document.getElementById('edit_note').value = note;
+
+  if (tipoLoc === 'sede') {
+    document.getElementById('edit_loc_sede').checked = true;
+    document.getElementById('edit_sede_id').value = sedeId;
+  } else if (tipoLoc === 'altro') {
+    document.getElementById('edit_loc_altro').checked = true;
+    document.getElementById('edit_luogo_custom').value = luogoCustom;
+  } else {
+    document.getElementById('edit_loc_online').checked = true;
+  }
+
+  aggiornaCampiLocalita('modifica');
+
+  var modal = new bootstrap.Modal(document.getElementById('modalModificaEdizione'));
+  modal.show();
+}
+</script>
+
+</body>
+</html>

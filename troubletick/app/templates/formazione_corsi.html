@@ -1,0 +1,354 @@
+<!doctype html>
+<html lang="it">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Catalogo Formazione — {{ cfg.get('app_title', 'TroubleTick') }}</title>
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css">
+  <style>
+    :root {
+      --primary-gradient: linear-gradient(135deg, #1e3c72 0%, #2a5298 100%);
+      --card-shadow: 0 8px 25px rgba(0,0,0,0.06);
+    }
+    body {
+      background-color: #f8fafc;
+      font-family: 'Inter', system-ui, -apple-system, sans-serif;
+      color: #334155;
+    }
+    .gradient-header {
+      background: var(--primary-gradient);
+      color: white;
+      border-radius: 0 0 20px 20px;
+      padding: 2.5rem 0;
+      margin-bottom: 2rem;
+      box-shadow: 0 4px 20px rgba(0,0,0,0.08);
+    }
+    .course-card {
+      background: white;
+      border: 1px solid #e2e8f0;
+      border-radius: 14px;
+      box-shadow: var(--card-shadow);
+      transition: all 0.25s ease;
+      display: flex;
+      flex-direction: column;
+      height: 100%;
+    }
+    .course-card:hover {
+      transform: translateY(-3px);
+      box-shadow: 0 12px 30px rgba(0,0,0,0.1);
+      border-color: #cbd5e1;
+    }
+    .filter-card {
+      background: white;
+      border-radius: 12px;
+      border: 1px solid #e2e8f0;
+      box-shadow: var(--card-shadow);
+      padding: 1.25rem;
+      margin-bottom: 2rem;
+    }
+    .badge-modalita {
+      font-size: 0.75rem;
+      font-weight: 600;
+      padding: 0.35rem 0.65rem;
+      border-radius: 50rem;
+    }
+    .badge-presenza { background-color: #e0f2fe; color: #0369a1; border: 1px solid #bae6fd; }
+    .badge-online { background-color: #dcfce7; color: #15803d; border: 1px solid #bbf7d0; }
+    .badge-fad { background-color: #fef3c7; color: #b45309; border: 1px solid #fde68a; }
+    .badge-mista { background-color: #f3e8ff; color: #6b21a8; border: 1px solid #e9d5ff; }
+  </style>
+</head>
+<body>
+{% include 'navbar.html' %}
+
+<div class="gradient-header py-4 mb-4">
+  <div class="container-fluid px-3 px-xl-4 text-center">
+    <div class="display-6 fw-bold mb-2">🎓 Catalogo Corsi di Formazione</div>
+    <p class="lead opacity-75 mb-0 fs-6">Esplora l'offerta formativa aziendale, i dettagli dei corsi e le prossime edizioni programmate.</p>
+  </div>
+</div>
+
+<div class="container-fluid px-3 px-md-4 px-xl-5 mb-5" style="max-width: 1700px;">
+
+  <!-- Feedback Messaggi -->
+  {% if request.query_params.get('success') %}
+  <div class="alert alert-success alert-dismissible fade show rounded-3 shadow-sm mb-4" role="alert">
+    <i class="bi bi-check-circle-fill me-2"></i> {{ request.query_params.get('success') }}
+    <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Chiudi"></button>
+  </div>
+  {% endif %}
+
+  {% if request.query_params.get('error') %}
+  <div class="alert alert-danger alert-dismissible fade show rounded-3 shadow-sm mb-4" role="alert">
+    <i class="bi bi-exclamation-triangle-fill me-2"></i> {{ request.query_params.get('error') }}
+    <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Chiudi"></button>
+  </div>
+  {% endif %}
+
+  <!-- Barra Filtri e Azioni -->
+  <div class="filter-card">
+    <form method="GET" action="/formazione" class="row g-3 align-items-end">
+      <div class="col-12 col-md-4">
+        <label class="form-label small fw-bold text-muted mb-1"><i class="bi bi-search me-1"></i>Cerca nei corsi</label>
+        <div class="input-group">
+          <input type="text" name="q" class="form-control" placeholder="Titolo, descrizione, destinatari, tutor..." value="{{ q }}">
+          {% if q %}
+          <a href="/formazione" class="btn btn-outline-secondary" title="Pulisci ricerca"><i class="bi bi-x-lg"></i></a>
+          {% endif %}
+        </div>
+      </div>
+
+      <div class="col-6 col-md-3">
+        <label class="form-label small fw-bold text-muted mb-1"><i class="bi bi-laptop me-1"></i>Modalità</label>
+        <select name="modalita" class="form-select">
+          <option value="" {% if not modalita %}selected{% endif %}>Tutte le modalità</option>
+          <option value="Presenza" {% if modalita == 'Presenza' %}selected{% endif %}>In Presenza</option>
+          <option value="Online Sincrono" {% if modalita == 'Online Sincrono' %}selected{% endif %}>Online Sincrono</option>
+          <option value="Asincrono" {% if modalita == 'Asincrono' %}selected{% endif %}>Online Asincrono (FAD)</option>
+          <option value="Mista" {% if modalita == 'Mista' %}selected{% endif %}>Mista / Ibrida</option>
+        </select>
+      </div>
+
+      <div class="col-6 col-md-2">
+        <label class="form-label small fw-bold text-muted mb-1"><i class="bi bi-toggle-on me-1"></i>Stato</label>
+        <select name="stato" class="form-select">
+          <option value="tutti" {% if stato == 'tutti' %}selected{% endif %}>Tutti i corsi</option>
+          <option value="attivi" {% if stato == 'attivi' %}selected{% endif %}>Solo Attivi</option>
+          <option value="disattivati" {% if stato == 'disattivati' %}selected{% endif %}>Disattivati</option>
+        </select>
+      </div>
+
+      <div class="col-12 col-md-3 d-flex gap-2">
+        <button type="submit" class="btn btn-primary fw-semibold flex-grow-1">
+          <i class="bi bi-funnel me-1"></i> Filtra
+        </button>
+        {% if q or modalita or (stato and stato != 'tutti') %}
+        <a href="/formazione" class="btn btn-outline-secondary" title="Reimposta tutti i filtri">
+          <i class="bi bi-arrow-counterclockwise"></i>
+        </a>
+        {% endif %}
+        {% if can_manage %}
+        <button type="button" class="btn btn-success fw-bold text-nowrap" data-bs-toggle="modal" data-bs-target="#modalNuovoCorso">
+          <i class="bi bi-plus-lg me-1"></i> Nuovo Corso
+        </button>
+        {% endif %}
+      </div>
+    </form>
+  </div>
+
+  <!-- Elenco Corsi Card Grid -->
+  {% if corsi and corsi|length > 0 %}
+  <div class="row row-cols-1 row-cols-md-2 row-cols-lg-3 g-4">
+    {% for c in corsi %}
+    <div class="col">
+      <div class="course-card">
+        <div class="p-3 border-bottom d-flex justify-content-between align-items-start">
+          <div class="pe-2">
+            {% if c.categoria %}
+            <span class="badge bg-light text-primary border border-primary-subtle rounded-pill mb-1 small">{{ c.categoria }}</span>
+            {% endif %}
+            <h5 class="fw-bold text-dark mb-1">{{ c.titolo }}</h5>
+          </div>
+          <div>
+            {% if c.attivo %}
+            <span class="badge bg-success-subtle text-success border border-success-subtle rounded-pill">Attivo</span>
+            {% else %}
+            <span class="badge bg-secondary-subtle text-secondary border border-secondary-subtle rounded-pill">Archiviato</span>
+            {% endif %}
+          </div>
+        </div>
+
+        <div class="p-3 flex-grow-1">
+          <!-- Modalità badges -->
+          {% if c.modalita %}
+          <div class="d-flex flex-wrap gap-1 mb-2">
+            {% for mod in c.modalita.split(',') %}
+              {% set m = mod.strip() %}
+              {% if 'Presenza' in m %}
+                <span class="badge-modalita badge-presenza"><i class="bi bi-geo-alt-fill me-1"></i>{{ m }}</span>
+              {% elif 'Sincrono' in m %}
+                <span class="badge-modalita badge-online"><i class="bi bi-camera-video-fill me-1"></i>{{ m }}</span>
+              {% elif 'Asincrono' in m or 'FAD' in m %}
+                <span class="badge-modalita badge-fad"><i class="bi bi-play-circle-fill me-1"></i>{{ m }}</span>
+              {% else %}
+                <span class="badge-modalita badge-mista"><i class="bi bi-diagram-3-fill me-1"></i>{{ m }}</span>
+              {% endif %}
+            {% endfor %}
+          </div>
+          {% endif %}
+
+          {% if c.descrizione_breve %}
+          <p class="text-muted small mb-3">{{ c.descrizione_breve }}</p>
+          {% elif c.descrizione %}
+          <p class="text-muted small mb-3">{{ c.descrizione[:140] }}{% if c.descrizione|length > 140 %}...{% endif %}</p>
+          {% endif %}
+
+          <div class="small text-secondary mb-2">
+            {% if c.destinatari %}
+            <div class="mb-1"><i class="bi bi-people me-2 text-primary"></i><strong>Destinatari:</strong> {{ c.destinatari }}</div>
+            {% endif %}
+            {% if c.ente_erogatore %}
+            <div class="mb-1"><i class="bi bi-building me-2 text-info"></i><strong>Tutor / Ente:</strong> {{ c.ente_erogatore }}</div>
+            {% endif %}
+            {% if c.periodo_svolgimento %}
+            <div class="mb-1"><i class="bi bi-calendar3 me-2 text-success"></i><strong>Periodo:</strong> {{ c.periodo_svolgimento }}</div>
+            {% endif %}
+            {% if c.durata_ore %}
+            <div class="mb-1"><i class="bi bi-clock-history me-2 text-warning"></i><strong>Durata stima:</strong> {{ c.durata_ore }} ore</div>
+            {% endif %}
+          </div>
+        </div>
+
+        <div class="p-3 bg-light border-top rounded-bottom-4 d-flex justify-content-between align-items-center">
+          <div>
+            <span class="badge bg-white text-dark border shadow-sm">
+              <i class="bi bi-collection-play me-1 text-primary"></i>{{ c.edizioni_count }} Edizion{{ 'e' if c.edizioni_count == 1 else 'i' }}
+            </span>
+            {% if c.edizioni_attive_count > 0 %}
+            <span class="badge bg-primary-subtle text-primary border border-primary-subtle ms-1">
+              {{ c.edizioni_attive_count }} attive
+            </span>
+            {% endif %}
+          </div>
+          <a href="/formazione/corso/{{ c.corso_id }}" class="btn btn-sm btn-outline-primary fw-semibold">
+            Dettagli & Edizioni <i class="bi bi-chevron-right ms-1"></i>
+          </a>
+        </div>
+      </div>
+    </div>
+    {% endfor %}
+  </div>
+  {% else %}
+  <div class="card border-0 shadow-sm rounded-4 p-5 text-center bg-white my-4">
+    <div class="py-4">
+      <i class="bi bi-journal-x text-muted" style="font-size: 3.5rem;"></i>
+      <h4 class="fw-bold mt-3 text-dark">Nessun corso trovato</h4>
+      <p class="text-muted mx-auto" style="max-width: 500px;">
+        {% if q or modalita or stato %}
+        Nessun corso corrisponde ai filtri di ricerca selezionati. Prova a modificare i criteri.
+        {% else %}
+        Non sono ancora presenti corsi nel catalogo di formazione aziendale.
+        {% endif %}
+      </p>
+      {% if can_manage %}
+      <button type="button" class="btn btn-primary fw-bold px-4 py-2 mt-2 rounded-pill shadow-sm" data-bs-toggle="modal" data-bs-target="#modalNuovoCorso">
+        <i class="bi bi-plus-lg me-1"></i> Crea il Primo Corso
+      </button>
+      {% endif %}
+    </div>
+  </div>
+  {% endif %}
+
+</div>
+
+{% if can_manage %}
+<!-- Modal Nuovo Corso -->
+<div class="modal fade" id="modalNuovoCorso" tabindex="-1" aria-labelledby="modalNuovoCorsoLabel" aria-hidden="true">
+  <div class="modal-dialog modal-lg modal-dialog-scrollable">
+    <div class="modal-content rounded-4 border-0 shadow">
+      <form action="/formazione/corsi/nuovo" method="POST">
+        <div class="modal-header bg-primary text-white">
+          <h5 class="modal-title fw-bold" id="modalNuovoCorsoLabel">
+            <i class="bi bi-journal-plus me-2"></i>Nuovo Corso di Formazione
+          </h5>
+          <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Chiudi"></button>
+        </div>
+        <div class="modal-body p-4">
+          <div class="row g-3">
+            <div class="col-12 col-md-8">
+              <label class="form-label small fw-bold">Titolo del Corso <span class="text-danger">*</span></label>
+              <input type="text" name="titolo" class="form-control" placeholder="es. Formazione Generale Sicurezza sul Lavoro" required>
+            </div>
+            <div class="col-12 col-md-4">
+              <label class="form-label small fw-bold">Categoria</label>
+              <input type="text" name="categoria" class="form-control" placeholder="es. Sicurezza, Privacy, IT">
+            </div>
+
+            <div class="col-12">
+              <label class="form-label small fw-bold">Descrizione Breve</label>
+              <input type="text" name="descrizione_breve" class="form-control" placeholder="Sintetica introduzione visibile nel catalogo...">
+            </div>
+
+            <div class="col-12">
+              <label class="form-label small fw-bold">Descrizione Dettagliata</label>
+              <textarea name="descrizione" class="form-control" rows="4" placeholder="Argomenti trattati, obiettivi didattici, programma del corso..."></textarea>
+            </div>
+
+            <div class="col-12 col-md-6">
+              <label class="form-label small fw-bold"><i class="bi bi-people me-1 text-primary"></i>Destinatari</label>
+              <input type="text" name="destinatari" class="form-control" placeholder="es. Tutti i dipendenti, Addetti antincendio, Neoassunti">
+            </div>
+
+            <div class="col-12 col-md-6">
+              <label class="form-label small fw-bold"><i class="bi bi-building me-1 text-info"></i>Tutor / Ente Erogatore</label>
+              <input type="text" name="ente_erogatore" class="form-control" placeholder="es. Formatemi Srl, Risorsa interna, Consulente esterno">
+            </div>
+
+            <div class="col-12 col-md-6">
+              <label class="form-label small fw-bold"><i class="bi bi-calendar-event me-1 text-success"></i>Periodo di Svolgimento</label>
+              <input type="text" name="periodo_svolgimento" class="form-control" placeholder="es. Maggio - Giugno 2026, II Semestre, Annuale">
+            </div>
+
+            <div class="col-12 col-md-6">
+              <label class="form-label small fw-bold"><i class="bi bi-clock-history me-1 text-warning"></i>Durata Totale Prevista (ore)</label>
+              <input type="number" step="0.5" name="durata_ore" class="form-control" placeholder="es. 8 o 12.5">
+            </div>
+
+            <div class="col-12">
+              <label class="form-label small fw-bold mb-2"><i class="bi bi-layers me-1 text-secondary"></i>Modalità di Erogazione Previste</label>
+              <div class="d-flex flex-wrap gap-3 p-3 bg-light rounded-3 border">
+                <div class="form-check">
+                  <input class="form-check-input" type="checkbox" name="modalita" value="In Presenza" id="mod_presenza">
+                  <label class="form-check-label fw-semibold" for="mod_presenza">
+                    <i class="bi bi-geo-alt-fill text-primary me-1"></i> In Presenza
+                  </label>
+                </div>
+                <div class="form-check">
+                  <input class="form-check-input" type="checkbox" name="modalita" value="Online Sincrono" id="mod_online">
+                  <label class="form-check-label fw-semibold" for="mod_online">
+                    <i class="bi bi-camera-video-fill text-success me-1"></i> Online Sincrono (Webinar)
+                  </label>
+                </div>
+                <div class="form-check">
+                  <input class="form-check-input" type="checkbox" name="modalita" value="Online Asincrono (FAD)" id="mod_fad">
+                  <label class="form-check-label fw-semibold" for="mod_fad">
+                    <i class="bi bi-play-circle-fill text-warning me-1"></i> Online Asincrono (FAD)
+                  </label>
+                </div>
+                <div class="form-check">
+                  <input class="form-check-input" type="checkbox" name="modalita" value="Mista / Ibrida" id="mod_mista">
+                  <label class="form-check-label fw-semibold" for="mod_mista">
+                    <i class="bi bi-diagram-3-fill text-purple me-1"></i> Mista / Ibrida
+                  </label>
+                </div>
+              </div>
+            </div>
+
+            <div class="col-12">
+              <label class="form-label small fw-bold"><i class="bi bi-link-45deg me-1 text-primary"></i>Eventuale Link a Piattaforma E-learning o Risorse</label>
+              <input type="text" name="link_piattaforma" class="form-control font-monospace small" placeholder="https://elearning.azienda.it/course/101">
+            </div>
+
+            <div class="col-12 mt-3">
+              <div class="form-check form-switch">
+                <input class="form-check-input" type="checkbox" role="switch" id="attivoSwitch" name="attivo" value="1" checked>
+                <label class="form-check-label fw-semibold" for="attivoSwitch">Corso Attivo e visibile a catalogo</label>
+              </div>
+            </div>
+          </div>
+        </div>
+        <div class="modal-footer bg-light">
+          <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Annulla</button>
+          <button type="submit" class="btn btn-primary fw-bold">
+            <i class="bi bi-check-lg me-1"></i> Crea Corso
+          </button>
+        </div>
+      </form>
+    </div>
+  </div>
+</div>
+{% endif %}
+
+</body>
+</html>

@@ -92,6 +92,24 @@ def require_fornitori_manager(r: Request):
         return RedirectResponse(url="/fornitori?error=accesso_non_autorizzato", status_code=303)
     return user
 
+def user_is_train_manager(user: dict) -> bool:
+    """Verifica se l'utente ha ruolo admin o train_manager (principale o secondario)"""
+    if not user:
+        return False
+    if user.get("ruolo") in ("admin", "train_manager"):
+        return True
+    uid = user.get("id") or user.get("user_id")
+    if not uid:
+        return False
+    try:
+        from core import engine
+        from sqlalchemy import text
+        with engine.connect() as conn:
+            count = conn.execute(text("SELECT COUNT(*) FROM user_roles WHERE user_id = :uid AND ruolo = 'train_manager'"), {"uid": uid}).scalar() or 0
+            return count > 0
+    except Exception:
+        return False
+
 def safe_int(val, default=None):
     """Converte in modo sicuro una stringa o valore in int, restituendo default se vuoto o non valido"""
     if val is None:
@@ -216,4 +234,4 @@ def resolve_sede_id(conn, sede_text):
     except Exception:
         pass
         
-    return None
+    return None

@@ -14,7 +14,8 @@ from core import CFG, BASE_DIR, UPLOAD_DIR, LOG_DIR, engine, DB_TYPE, DB_PK, DB_
 from utils import (
     current_user, require_superuser, save_upload, save_user_roles, 
     user_can_manage_fornitori, user_has_tag_dec, user_has_tag_amministrazione, 
-    user_has_tag_reperibile, user_has_tag_rep_admin, resolve_sede_id
+    user_has_tag_reperibile, user_has_tag_rep_admin, resolve_sede_id,
+    user_is_train_manager
 )
 from email_utils import send_email_async
 
@@ -436,6 +437,45 @@ try:
             FOREIGN KEY(tag_id) REFERENCES tag_operatori(tag_id) ON DELETE CASCADE
         )"""))
 
+        c.execute(text(f"""CREATE TABLE IF NOT EXISTS corsi_formazione (
+            corso_id {DB_PK},
+            codice TEXT,
+            titolo TEXT NOT NULL,
+            descrizione_breve TEXT,
+            descrizione TEXT,
+            destinatari TEXT,
+            ente_erogatore TEXT,
+            periodo_svolgimento TEXT,
+            modalita TEXT,
+            link_piattaforma TEXT,
+            durata_ore REAL,
+            categoria TEXT,
+            attivo INTEGER DEFAULT 1,
+            creato_da_id INTEGER,
+            creato_il TEXT DEFAULT CURRENT_TIMESTAMP
+        )"""))
+
+        c.execute(text(f"""CREATE TABLE IF NOT EXISTS edizioni_formazione (
+            edizione_id {DB_PK},
+            corso_id INTEGER NOT NULL,
+            codice_edizione TEXT,
+            data_inizio TEXT NOT NULL,
+            data_fine TEXT,
+            ora TEXT,
+            durata TEXT,
+            tipo_localita TEXT DEFAULT 'online',
+            sede_id INTEGER,
+            luogo_custom TEXT,
+            tutor TEXT,
+            link_piattaforma TEXT,
+            max_partecipanti INTEGER,
+            stato TEXT DEFAULT 'programmata',
+            note TEXT,
+            creato_da_id INTEGER,
+            creato_il TEXT DEFAULT CURRENT_TIMESTAMP,
+            FOREIGN KEY (corso_id) REFERENCES corsi_formazione(corso_id) ON DELETE CASCADE
+        )"""))
+
         count_op_tags = c.execute(text("SELECT COUNT(*) FROM tag_operatori")).scalar() or 0
         if count_op_tags == 0:
             default_op_tags = [
@@ -538,7 +578,8 @@ try:
             ('assistenza', 'Operatore di assistenza (gestisce ticket dei propri servizi)'),
             ('normale', 'Operatore normale (non vede/gestisce ticket)'),
             ('fleet_manager', 'Fleet Manager (gestisce gli automezzi)'),
-            ('global_fleet_manager', 'Global Fleet Manager (gestisce tutti gli automezzi)')
+            ('global_fleet_manager', 'Global Fleet Manager (gestisce tutti gli automezzi)'),
+            ('train_manager', 'Train Manager (gestione corsi ed edizioni)')
         ]:
             try:
                 exists = c.execute(text("SELECT COUNT(*) FROM ruoli WHERE nome = :name"), {"name": r_nome}).scalar() or 0
@@ -1008,6 +1049,7 @@ templates.env.globals["user_can_access_contratti"] = contratti.user_can_access_c
 templates.env.globals["user_can_manage_fornitori"] = user_can_manage_fornitori
 templates.env.globals["user_has_tag_reperibile"] = user_has_tag_reperibile
 templates.env.globals["user_has_tag_rep_admin"] = user_has_tag_rep_admin
+templates.env.globals["user_is_train_manager"] = user_is_train_manager
 
 
 @app.exception_handler(Exception)
@@ -1934,6 +1976,38 @@ def home(r: Request):
                 "carpooling_warning": carpooling_warning
             }
             return templates.TemplateResponse(r, "home_fleet_manager.html", {
+                "request": r, "cfg": CFG, "avvisi": avvisi, "user": user, "stats": stats
+            })
+            
+        elif ruolo == "train_manager":
+            totale_corsi = c.execute(text("SELECT COUNT(*) FROM corsi_formazione")).scalar() or 0
+            corsi_attivi = c.execute(text("SELECT COUNT(*) FROM corsi_formazione WHERE attivo = 1")).scalar() or 0
+            edizioni_programmate = c.execute(text("SELECT COUNT(*) FROM edizioni_formazione WHERE stato = 'programmata'")).scalar() or 0
+            edizioni_in_corso = c.execute(text("SELECT COUNT(*) FROM edizioni_formazione WHERE stato = 'in_corso'")).scalar() or 0
+            ultimi_corsi = c.execute(text("""
+                SELECT c.*, (SELECT COUNT(*) FROM edizioni_formazione e WHERE e.corso_id = c.corso_id) as edizioni_count
+                FROM corsi_formazione c
+                ORDER BY c.creato_il DESC
+                LIMIT 5
+            """)).mappings().all()
+            prossime_edizioni = c.execute(text("""
+                SELECT e.*, c.titolo as corso_titolo, s.nome as sede_nome
+                FROM edizioni_formazione e
+                JOIN corsi_formazione c ON e.corso_id = c.corso_id
+                LEFT JOIN sedi s ON e.sede_id = s.sede_id
+                WHERE e.stato IN ('programmata', 'in_corso')
+                ORDER BY e.data_inizio ASC
+                LIMIT 5
+            """)).mappings().all()
+            stats = {
+                "totale_corsi": totale_corsi,
+                "corsi_attivi": corsi_attivi,
+                "edizioni_programmate": edizioni_programmate,
+                "edizioni_in_corso": edizioni_in_corso,
+                "ultimi_corsi": ultimi_corsi,
+                "prossime_edizioni": prossime_edizioni
+            }
+            return templates.TemplateResponse(r, "home_train_manager.html", {
                 "request": r, "cfg": CFG, "avvisi": avvisi, "user": user, "stats": stats
             })
             
@@ -4395,7 +4469,8 @@ def admin_operatori(r: Request):
                     ('assistenza', 'Operatore di assistenza (gestisce ticket dei propri servizi)'),
                     ('normale', 'Operatore normale (non vede/gestisce ticket)'),
                     ('fleet_manager', 'Fleet Manager (gestisce gli automezzi)'),
-                    ('global_fleet_manager', 'Global Fleet Manager (gestisce tutti gli automezzi)')
+                    ('global_fleet_manager', 'Global Fleet Manager (gestisce tutti gli automezzi)'),
+                    ('train_manager', 'Train Manager (gestione corsi ed edizioni)')
                 ]:
                     exists = conn.execute(text("SELECT COUNT(*) FROM ruoli WHERE nome = :name"), {"name": r_nome}).scalar() or 0
                     if not exists:
@@ -4538,7 +4613,8 @@ def edit_operatore_form(r: Request, user_id: int):
                     ('assistenza', 'Operatore di assistenza (gestisce ticket dei propri servizi)'),
                     ('normale', 'Operatore normale (non vede/gestisce ticket)'),
                     ('fleet_manager', 'Fleet Manager (gestisce gli automezzi)'),
-                    ('global_fleet_manager', 'Global Fleet Manager (gestisce tutti gli automezzi)')
+                    ('global_fleet_manager', 'Global Fleet Manager (gestisce tutti gli automezzi)'),
+                    ('train_manager', 'Train Manager (gestione corsi ed edizioni)')
                 ]:
                     exists = conn.execute(text("SELECT COUNT(*) FROM ruoli WHERE nome = :name"), {"name": r_nome}).scalar() or 0
                     if not exists:
@@ -4888,7 +4964,8 @@ def edit_utente_form(r: Request, user_id: int):
                     ('assistenza', 'Operatore di assistenza (gestisce ticket dei propri servizi)'),
                     ('normale', 'Operatore normale (non vede/gestisce ticket)'),
                     ('fleet_manager', 'Fleet Manager (gestisce gli automezzi)'),
-                    ('global_fleet_manager', 'Global Fleet Manager (gestisce tutti gli automezzi)')
+                    ('global_fleet_manager', 'Global Fleet Manager (gestisce tutti gli automezzi)'),
+                    ('train_manager', 'Train Manager (gestione corsi ed edizioni)')
                 ]:
                     exists = conn.execute(text("SELECT COUNT(*) FROM ruoli WHERE nome = :name"), {"name": r_nome}).scalar() or 0
                     if not exists:
