@@ -8,6 +8,7 @@ from sqlalchemy import text
 
 from core import CFG, engine, templates
 from utils import current_user, user_is_train_manager
+from admin_logger import log_admin_action
 
 router = APIRouter()
 
@@ -142,6 +143,7 @@ async def create_corso(
             "creato_il": datetime.now().strftime("%Y-%m-%d %H:%M:%S")
         })
         new_id = res.lastrowid
+        log_admin_action(r, "FORMAZIONE_CREA_CORSO", f"Creato corso '{titolo.strip()}' (ID: {new_id})")
 
     return RedirectResponse(url=f"/formazione/corso/{new_id}?success=" + urllib.parse.quote("Corso creato con successo!"), status_code=303)
 
@@ -258,6 +260,7 @@ async def update_corso(
             "categoria": (categoria or "").strip(),
             "attivo": attivo
         })
+        log_admin_action(r, "FORMAZIONE_MODIFICA_CORSO", f"Modificato corso ID: {corso_id} ('{titolo.strip()}')")
 
     return RedirectResponse(url=f"/formazione/corso/{corso_id}?success=" + urllib.parse.quote("Corso aggiornato con successo!"), status_code=303)
 
@@ -275,6 +278,7 @@ def delete_corso(r: Request, corso_id: int):
     with engine.begin() as conn:
         conn.execute(text("DELETE FROM edizioni_formazione WHERE corso_id = :cid"), {"cid": corso_id})
         conn.execute(text("DELETE FROM corsi_formazione WHERE corso_id = :cid"), {"cid": corso_id})
+        log_admin_action(r, "FORMAZIONE_ELIMINA_CORSO", f"Eliminato corso ID: {corso_id} e relative edizioni")
 
     return RedirectResponse(url="/formazione?success=" + urllib.parse.quote("Corso ed edizioni associate eliminati con successo!"), status_code=303)
 
@@ -349,6 +353,8 @@ def create_edizione(
             "creato_da_id": uid,
             "creato_il": datetime.now().strftime("%Y-%m-%d %H:%M:%S")
         })
+        new_ed_id = res.lastrowid
+        log_admin_action(r, "FORMAZIONE_CREA_EDIZIONE", f"Creata edizione '{codice_edizione.strip()}' per corso ID: {corso_id} (ID ed: {new_ed_id})")
 
     return RedirectResponse(url=f"/formazione/corso/{corso_id}?success=" + urllib.parse.quote("Nuova edizione creata con successo!"), status_code=303)
 
@@ -421,6 +427,7 @@ def update_edizione(
             "stato": stato,
             "note": (note or "").strip()
         })
+        log_admin_action(r, "FORMAZIONE_MODIFICA_EDIZIONE", f"Modificata edizione ID: {edizione_id} (corso ID: {corso_id}, codice: {codice_edizione.strip()})")
 
     return RedirectResponse(url=f"/formazione/corso/{corso_id}?success=" + urllib.parse.quote("Edizione modificata con successo!"), status_code=303)
 
@@ -441,5 +448,6 @@ def delete_edizione(r: Request, edizione_id: int):
             return RedirectResponse(url="/formazione?error=" + urllib.parse.quote("Edizione non trovata"), status_code=303)
 
         conn.execute(text("DELETE FROM edizioni_formazione WHERE edizione_id = :eid"), {"eid": edizione_id})
+        log_admin_action(r, "FORMAZIONE_ELIMINA_EDIZIONE", f"Eliminata edizione ID: {edizione_id} (corso ID: {corso_id})")
 
     return RedirectResponse(url=f"/formazione/corso/{corso_id}?success=" + urllib.parse.quote("Edizione eliminata con successo!"), status_code=303)

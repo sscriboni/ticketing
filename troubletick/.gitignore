@@ -21,3 +21,6 @@ __pycache__/
 
 # Variabili d'ambiente e segreti
 .env
+# Cartella logs
+logs/*
+!logs/.gitkeep

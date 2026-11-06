@@ -26,6 +26,7 @@ import presenze
 import fornitori
 import contratti
 import formazione
+from admin_logger import log_admin_action, get_recent_admin_logs, get_admin_log_filepath
 
 # Init schema + seed
 try:
@@ -887,6 +888,25 @@ async def lifespan(app: FastAPI):
 
 app = FastAPI(title=f"{CFG.get('app_title','Troubletick')} ({DB_TYPE})", lifespan=lifespan)
 app.add_middleware(SessionMiddleware, secret_key="supersecretkey")
+
+@app.middleware("http")
+async def audit_admin_actions_middleware(request: Request, call_next):
+    path = request.url.path
+    method = request.method
+    is_admin_mutation = path.startswith("/admin") and method in ("POST", "PUT", "DELETE")
+    
+    response = await call_next(request)
+    
+    if is_admin_mutation:
+        status = response.status_code
+        esito = "SUCCESS" if status < 400 else f"HTTP_{status}"
+        log_admin_action(
+            request, 
+            azione=f"{method} {path}", 
+            dettagli=f"HTTP Status: {status}", 
+            esito=esito
+        )
+    return response
 
 @app.middleware("http")
 async def trigger_morning_recap_middleware(request: Request, call_next):
@@ -2929,7 +2949,35 @@ def delete_tickets_massivo(r: Request, data_inizio: str = Form(...), data_fine: 
         try: os.remove(os.path.join(UPLOAD_DIR, f))
         except: pass
         
+    log_admin_action(r, "ELIMINAZIONE_MASSIVA_TICKETS", f"Eliminati {len(tickets)} ticket nel range {data_inizio} - {data_fine}")
     return RedirectResponse(url="/admin/impostazioni?msg=delete_ok", status_code=303)
+
+
+@app.get("/admin/log", response_class=HTMLResponse)
+def admin_log_view(r: Request):
+    user = require_superuser(r)
+    if isinstance(user, RedirectResponse):
+        return user
+    raw_logs = get_recent_admin_logs(limit=500)
+    parsed_logs = [line.strip() for line in reversed(raw_logs) if line.strip()]
+    return templates.TemplateResponse(r, "admin_log.html", {
+        "request": r,
+        "cfg": CFG,
+        "user": user,
+        "logs": parsed_logs,
+        "total_lines": len(parsed_logs)
+    })
+
+@app.get("/admin/log/download")
+def admin_log_download(r: Request):
+    user = require_superuser(r)
+    if isinstance(user, RedirectResponse):
+        return user
+    filepath = get_admin_log_filepath()
+    if not os.path.exists(filepath):
+        log_admin_action(r, "INIZIALIZZAZIONE_LOG", "Creazione iniziale file log")
+    filename = f"admin_log_{datetime.now().strftime('%Y%m%d_%H%M%S')}.txt"
+    return FileResponse(filepath, filename=filename, media_type="text/plain; charset=utf-8")
 
 @app.get("/admin", response_class=HTMLResponse)
 def admin(r: Request):
@@ -3006,6 +3054,7 @@ def save_impostazioni(r: Request,
         updates["modulo_formazione"] = bool(modulo_formazione)
         
     save_all_config(updates)
+    log_admin_action(r, "SALVATAGGIO_IMPOSTAZIONI", f"Aggiornate impostazioni globali (Azienda: {company_name}, DB: {db_type}, Helpdesk: {helpdesk_email})")
     return RedirectResponse(url="/admin?msg=impostazioni_salvate", status_code=303)
 
 @app.get("/admin/moduli", response_class=HTMLResponse)
@@ -3038,6 +3087,7 @@ def save_admin_moduli(r: Request,
         "modulo_formazione": bool(modulo_formazione)
     })
         
+    log_admin_action(r, "SALVATAGGIO_MODULI", f"avvisi={bool(modulo_avvisi)}, presenze={bool(modulo_presenze)}, autopark={bool(modulo_autopark)}, formazione={bool(modulo_formazione)}")
     return RedirectResponse(url="/admin/moduli?msg=ok", status_code=303)
 
 @app.post("/admin/moduli/toggle")
@@ -3053,6 +3103,7 @@ async def toggle_admin_modulo(r: Request):
         if modulo not in valid_moduli:
             return {"ok": False, "error": "invalid_modulo"}
         save_config_item(modulo, attivo)
+        log_admin_action(r, "TOGGLE_MODULO", f"Modulo {modulo} impostato su {attivo}")
         return {"ok": True, "modulo": modulo, "attivo": attivo}
     except Exception as e:
         return {"ok": False, "error": str(e)}
