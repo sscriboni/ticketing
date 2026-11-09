@@ -1,0 +1,100 @@
+<!doctype html>
+<html lang="it">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Nuova comunicazione sul Ticket #{{ ticket.codice_ticket }} — {{ cfg.company_name }}</title>
+</head>
+<body style="margin: 0; padding: 0; background-color: #f4f6f8; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; -webkit-font-smoothing: antialiased;">
+    <table border="0" cellpadding="0" cellspacing="0" width="100%" style="background-color: #f4f6f8; padding: 25px 0;">
+        <tr>
+            <td align="center">
+                <!-- Wrapper Table -->
+                <table border="0" cellpadding="0" cellspacing="0" width="100%" style="max-width: 620px; background-color: #ffffff; border-radius: 12px; box-shadow: 0 4px 12px rgba(0,0,0,0.06); overflow: hidden;">
+                    <!-- Header -->
+                    <tr>
+                        <td align="center" style="background: linear-gradient(135deg, #2563eb, #1d4ed8); padding: 30px 20px; text-align: center;">
+                            <span style="font-size: 38px; margin-bottom: 8px; display: block;">💬</span>
+                            <h1 style="color: #ffffff; margin: 0; font-size: 22px; font-weight: 800; letter-spacing: -0.5px;">{{ cfg.company_name }}</h1>
+                            <p style="color: #bfdbfe; margin: 6px 0 0 0; font-size: 13px; text-transform: uppercase; font-weight: 600; letter-spacing: 1px;">
+                                Aggiornamento Ticket #{{ ticket.codice_ticket }}
+                            </p>
+                        </td>
+                    </tr>
+                    
+                    <!-- Content -->
+                    <tr>
+                        <td style="padding: 35px 30px;">
+                            <p style="color: #374151; font-size: 15px; line-height: 1.6; margin-top: 0;">
+                                Gentile <strong>{{ ticket.nome }} {{ ticket.cognome or '' }}</strong>,
+                            </p>
+                            <p style="color: #4b5563; font-size: 15px; line-height: 1.6; margin-bottom: 22px;">
+                                è stata aggiunta una nuova comunicazione al tuo ticket <strong style="color: #2563eb;">#{{ ticket.codice_ticket }}</strong> (<em>{{ ticket.descrizione[:80] }}{% if ticket.descrizione|length > 80 %}...{% endif %}</em>).
+                            </p>
+                            
+                            <!-- Nuova Nota in Evidenza -->
+                            <div style="background-color: #eff6ff; border-left: 4px solid #2563eb; border-radius: 8px; padding: 18px 20px; margin-bottom: 25px;">
+                                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px;">
+                                    <span style="font-size: 12px; color: #1e40af; font-weight: 800; text-transform: uppercase; letter-spacing: 0.5px;">
+                                        Nuovo Messaggio da {{ nuova_nota.autore }}
+                                    </span>
+                                    <span style="font-size: 12px; color: #6b7280; font-weight: 500;">
+                                        {{ nuova_nota.data }}
+                                    </span>
+                                </div>
+                                <div style="font-size: 14px; color: #1e293b; line-height: 1.6; white-space: pre-wrap; font-weight: 500;">{{ nuova_nota.testo }}</div>
+                                {% if nuova_nota.allegato %}
+                                <div style="margin-top: 12px; padding-top: 10px; border-top: 1px dashed #bfdbfe; font-size: 12px; color: #1e40af;">
+                                    📎 <strong>File allegato alla comunicazione:</strong> {{ nuova_nota.allegato }}
+                                </div>
+                                {% endif %}
+                            </div>
+
+                            <!-- Note Precedenti (se esistenti) -->
+                            {% if note_precedenti %}
+                            <div style="margin-top: 30px; margin-bottom: 20px;">
+                                <h3 style="color: #374151; font-size: 14px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 12px; border-bottom: 1px solid #e5e7eb; padding-bottom: 8px;">
+                                    📜 Cronologia Comunicazioni Precedenti
+                                </h3>
+                                <div style="display: flex; flex-direction: column; gap: 12px;">
+                                    {% for np in note_precedenti %}
+                                    <div style="background-color: #f9fafb; border: 1px solid #e5e7eb; border-radius: 6px; padding: 12px 16px; margin-bottom: 10px;">
+                                        <div style="margin-bottom: 6px; font-size: 12px; color: #4b5563;">
+                                            <strong style="color: #111827;">{{ np.autore }}</strong> &bull; <span style="color: #6b7280;">{{ np.creato_il }}</span>
+                                        </div>
+                                        <div style="font-size: 13px; color: #374151; line-height: 1.5; white-space: pre-wrap;">{{ np.testo }}</div>
+                                        {% if np.allegato %}
+                                        <div style="margin-top: 6px; font-size: 11px; color: #6b7280;">
+                                            📎 Allegato: {{ np.allegato }}
+                                        </div>
+                                        {% endif %}
+                                    </div>
+                                    {% endfor %}
+                                </div>
+                            </div>
+                            {% endif %}
+                            
+                            <!-- Box info e link portale -->
+                            <div style="margin-top: 25px; padding: 14px 18px; background-color: #f8fafc; border: 1px solid #e2e8f0; border-radius: 8px;">
+                                <p style="margin: 0; font-size: 13px; color: #64748b; line-height: 1.5;">
+                                    ℹ️ Puoi visualizzare lo stato completo del ticket e rispondere direttamente accedendo al portale aziendale.
+                                </p>
+                            </div>
+                        </td>
+                    </tr>
+                    
+                    <!-- Footer -->
+                    <tr>
+                        <td align="center" style="background-color: #f9fafb; padding: 22px 20px; border-top: 1px solid #f3f4f6; border-bottom-left-radius: 12px; border-bottom-right-radius: 12px;">
+                            <p style="margin: 0; font-size: 12px; color: #9ca3af;">{{ cfg.footer_text }}</p>
+                            <p style="margin: 6px 0 0 0; font-size: 11px; color: #9ca3af;">
+                                Questa è un'email automatica di notifica generata dal sistema di ticketing.
+                            </p>
+                        </td>
+                    </tr>
+                </table>
+            </td>
+        </tr>
+    </table>
+</body>
+</html>

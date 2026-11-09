@@ -2684,12 +2684,21 @@ def ticket_detail(r: Request, ticket_id: int):
     })
 
 @app.post("/ticket/{ticket_id}/note")
-def add_ticket_note(r: Request, ticket_id: int, testo: str = Form(...), allegato: UploadFile = File(None), is_internal: int = Form(0)):
+def add_ticket_note(
+    r: Request, 
+    ticket_id: int, 
+    background_tasks: BackgroundTasks,
+    testo: str = Form(...), 
+    allegato: UploadFile = File(None), 
+    is_internal: int = Form(0),
+    invia_email: int = Form(0)
+):
     if "user" not in r.session: return RedirectResponse(url="/login")
     user = r.session.get("user")
     if user.get("ruolo") == "normale":
         return RedirectResponse(url=f"/ticket/{ticket_id}", status_code=303)
     autore = f"{r.session['user'].get('nome','')} {r.session['user'].get('cognome','')}".strip() or r.session['user'].get('username')
+    uid = user.get("id")
     
     allegato_filename = save_upload(allegato)
     with engine.begin() as c:
@@ -2697,8 +2706,90 @@ def add_ticket_note(r: Request, ticket_id: int, testo: str = Form(...), allegato
         if stato != 'presa_in_carico':
             return RedirectResponse(url=f"/ticket/{ticket_id}?error=not_taken_in_charge", status_code=303)
             
-        c.execute(text("""INSERT INTO ticket_notes (ticket_id, autore, testo, allegato, is_internal) VALUES (:tid, :a, :t, :all, :is_int)"""),
+        res = c.execute(text("""INSERT INTO ticket_notes (ticket_id, autore, testo, allegato, is_internal) VALUES (:tid, :a, :t, :all, :is_int)"""),
                  {"tid": ticket_id, "a": autore, "t": testo, "all": allegato_filename, "is_int": is_internal})
+        new_note_id = res.lastrowid
+        if not new_note_id:
+            new_note_id = c.execute(text("SELECT MAX(note_id) FROM ticket_notes WHERE ticket_id = :tid"), {"tid": ticket_id}).scalar()
+
+        # Invio email di notifica se la nota è pubblica e la spunta invia_email è attiva
+        if is_internal == 0 and bool(invia_email):
+            ticket = c.execute(text("""
+                SELECT codice_ticket, nome, cognome, email, descrizione, servizio_id 
+                FROM tickets 
+                WHERE ticket_id = :tid
+            """), {"tid": ticket_id}).mappings().first()
+
+            if ticket and ticket["email"]:
+                dest_email = str(ticket["email"]).strip()
+                
+                # Email operatore per il CC
+                op_email = (user.get("email") or "").strip()
+                if not op_email and uid:
+                    op_email = (c.execute(text("SELECT email FROM users WHERE user_id = :uid"), {"uid": uid}).scalar() or "").strip()
+                
+                cc_email = op_email if op_email and op_email.lower() != dest_email.lower() else None
+                
+                # Altri operatori legati al servizio per il BCC
+                bcc_list = []
+                if ticket["servizio_id"]:
+                    ops = c.execute(text("""
+                        SELECT DISTINCT u.email 
+                        FROM users u 
+                        JOIN operatori_servizi os ON u.user_id = os.user_id 
+                        WHERE os.servizio_id = :sid 
+                          AND u.email IS NOT NULL 
+                          AND u.email != '' 
+                          AND u.attivo = 1
+                    """), {"sid": ticket["servizio_id"]}).scalars().all()
+                    
+                    exclude_set = {dest_email.lower()}
+                    if cc_email:
+                        exclude_set.add(cc_email.lower())
+                    
+                    for em in ops:
+                        em_clean = str(em).strip()
+                        if em_clean and em_clean.lower() not in exclude_set:
+                            bcc_list.append(em_clean)
+                
+                # Note precedenti pubbliche (ordine decrescente: dalla più recente alla meno recente)
+                note_precedenti = c.execute(text("""
+                    SELECT autore, testo, allegato, creato_il 
+                    FROM ticket_notes 
+                    WHERE ticket_id = :tid 
+                      AND is_internal = 0 
+                      AND note_id != :nid
+                    ORDER BY creato_il DESC, note_id DESC
+                """), {"tid": ticket_id, "nid": new_note_id}).mappings().all()
+                
+                nuova_nota_dict = {
+                    "autore": autore,
+                    "testo": testo,
+                    "data": datetime.now().strftime("%d/%m/%Y %H:%M"),
+                    "allegato": allegato_filename
+                }
+                
+                subject = f"[{CFG.get('company_name', 'Helpdesk')}] Aggiornamento Ticket #{ticket['codice_ticket']}"
+                body = templates.get_template("email_ticket_nota.html").render({
+                    "cfg": CFG,
+                    "ticket": ticket,
+                    "nuova_nota": nuova_nota_dict,
+                    "note_precedenti": note_precedenti
+                })
+                
+                att_path = os.path.join(UPLOAD_DIR, allegato_filename) if allegato_filename else None
+                
+                background_tasks.add_task(
+                    send_email_async,
+                    dest_email=dest_email,
+                    subject=subject,
+                    body=body,
+                    reason=f"Notifica nota pubblica ticket #{ticket['codice_ticket']}",
+                    cc_email=cc_email,
+                    bcc_email=bcc_list,
+                    attachment_path=att_path
+                )
+
     return RedirectResponse(url=f"/ticket/{ticket_id}", status_code=303)
 
 @app.post("/ticket/{ticket_id}/stato")

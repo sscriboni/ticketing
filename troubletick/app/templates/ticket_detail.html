@@ -265,10 +265,16 @@
         <div class="mb-3"><label class="form-label">Testo nota</label><textarea name="testo" rows="4" class="form-control" required></textarea></div>
         <div class="mb-3">
           <label class="form-label">Visibilità Nota</label>
-          <select name="is_internal" class="form-select">
+          <select name="is_internal" id="select_is_internal" class="form-select" onchange="toggleEmailCheckbox()">
             <option value="1" selected>Privata (Solo Operatori)</option>
             <option value="0">Pubblica (Visibile all'Utente)</option>
           </select>
+        </div>
+        <div class="mb-3 form-check" id="box_invia_email">
+          <input type="checkbox" class="form-check-input" id="check_invia_email" name="invia_email" value="1" disabled>
+          <label class="form-check-label small" for="check_invia_email" id="label_invia_email">
+            <i class="bi bi-envelope-at me-1"></i> Invia notifica email all'utente (con copia CC a operatore e BCC al servizio)
+          </label>
         </div>
         <div class="mb-3">
           <label class="form-label">Allegato (opzionale)</label>
@@ -769,4 +775,21 @@ document.addEventListener('DOMContentLoaded', function() {
 </script>
 {% endif %}
 
+<script>
+function toggleEmailCheckbox() {
+  var sel = document.getElementById('select_is_internal');
+  var chk = document.getElementById('check_invia_email');
+  if (sel && chk) {
+    if (sel.value === '0') {
+      chk.disabled = false;
+    } else {
+      chk.disabled = true;
+      chk.checked = false;
+    }
+  }
+}
+document.addEventListener('DOMContentLoaded', function() {
+  toggleEmailCheckbox();
+});
+</script>
 </body></html>
