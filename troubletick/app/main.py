@@ -3070,6 +3070,16 @@ def admin_log_download(r: Request):
     filename = f"admin_log_{datetime.now().strftime('%Y%m%d_%H%M%S')}.txt"
     return FileResponse(filepath, filename=filename, media_type="text/plain; charset=utf-8")
 
+@app.get("/report", response_class=HTMLResponse)
+@app.get("/admin/report", response_class=HTMLResponse)
+def report_hub(r: Request):
+    if "user" not in r.session:
+        return RedirectResponse(url="/login")
+    user = r.session.get("user")
+    if user.get("ruolo") not in ("admin", "responsabile", "assistenza", "amministrativo"):
+        return RedirectResponse(url="/", status_code=303)
+    return templates.TemplateResponse(r, "report.html", {"request": r, "cfg": CFG, "user": user})
+
 @app.get("/admin", response_class=HTMLResponse)
 def admin(r: Request):
     user = require_superuser(r)

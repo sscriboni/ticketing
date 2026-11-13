@@ -16,19 +16,30 @@
             transform: translateY(-3px);
             box-shadow: 0 0.5rem 1rem rgba(0,0,0,0.08);
         }
+        .section-header {
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+            padding-bottom: 0.5rem;
+            margin-bottom: 1rem;
+            border-bottom: 2px solid rgba(0,0,0,0.05);
+        }
     </style>
 </head>
 <body class="bg-light d-flex flex-column min-vh-100">
 {% include 'navbar.html' %}
 <div class="container py-4 flex-grow-1">
-    <div class="d-flex justify-content-between align-items-center mb-4">
+    <div class="d-flex justify-content-between align-items-center mb-4 flex-wrap gap-2">
         <div>
             <h2 class="fw-bold mb-1 d-flex align-items-center gap-2">
                 <i class="bi bi-gear-wide-connected text-primary"></i> Pannello Amministrativo
             </h2>
-            <p class="text-muted mb-0">Gestione globale di parametri, anagrafiche, struttura aziendale e moduli.</p>
+            <p class="text-muted mb-0">Gestione globale di parametri, anagrafiche, struttura aziendale e moduli applicativi.</p>
         </div>
-        <div class="d-flex gap-2">
+        <div class="d-flex gap-2 flex-wrap">
+            <a href="/report" class="btn btn-outline-info">
+                <i class="bi bi-bar-chart-line me-1"></i> Report & Statistiche
+            </a>
             <a href="/admin/log" class="btn btn-outline-danger">
                 <i class="bi bi-shield-shaded me-1"></i> Registro Log
             </a>
@@ -41,318 +52,364 @@
         </div>
     </div>
 
-<div class="row g-4">
-  <!-- 1. Impostazioni Globali -->
-  <div class="col-12 col-md-6 col-lg-3">
-    <div class="card h-100 shadow-sm admin-card border-0">
-      <div class="card-body text-center d-flex flex-column">
-        <h5 class="card-title fw-bold">⚙️ Impostazioni</h5>
-        <p class="card-text text-muted mb-3 small flex-grow-1">Parametri tecnici, database e server SMTP</p>
-        <a href="/admin/impostazioni" class="btn btn-primary btn-sm px-3">Accedi</a>
-      </div>
+    <!-- Avviso info spostamento report -->
+    <div class="alert alert-light border shadow-sm d-flex align-items-center justify-content-between mb-4 flex-wrap gap-2">
+        <div class="d-flex align-items-center gap-3">
+            <div class="bg-primary bg-opacity-10 text-primary p-2 rounded-circle fs-5">
+                <i class="bi bi-bar-chart-line-fill"></i>
+            </div>
+            <div>
+                <strong class="d-block text-dark">Cerchi i Report e le Statistiche?</strong>
+                <span class="text-muted small">I report di copertura personale, movimentazione magazzini e riepilogo economico contratti sono ora organizzati nel nuovo menu dedicato <strong>Report</strong>.</span>
+            </div>
+        </div>
+        <a href="/report" class="btn btn-primary btn-sm px-3 fw-semibold">
+            <i class="bi bi-arrow-right-circle me-1"></i> Apri Menu Report
+        </a>
     </div>
-  </div>
 
-  <!-- 2. Moduli Applicativi -->
-  <div class="col-12 col-md-6 col-lg-3">
-    <div class="card h-100 shadow-sm admin-card border-0">
-      <div class="card-body text-center d-flex flex-column">
-        <h5 class="card-title fw-bold">🧩 Moduli</h5>
-        <p class="card-text text-muted mb-3 small flex-grow-1">Abilitazione e disattivazione moduli app</p>
-        <a href="/admin/moduli" class="btn btn-primary btn-sm px-3">Accedi</a>
-      </div>
+    <!-- 1. UTENTI, OPERATORI E RUOLI -->
+    <div class="mb-5">
+        <div class="section-header">
+            <span class="badge bg-primary bg-opacity-10 text-primary p-2 fs-6 rounded">
+                <i class="bi bi-people-fill"></i>
+            </span>
+            <h4 class="h5 fw-bold mb-0 text-dark">Utenti, Operatori & Ruoli</h4>
+            <span class="text-muted small ms-2 d-none d-md-inline">— Gestione account, autorizzazioni, tag operativi e richiedenti</span>
+        </div>
+        <div class="row g-3">
+            <!-- Operatori -->
+            <div class="col-12 col-md-6 col-lg-4">
+                <div class="card h-100 shadow-sm admin-card border-0">
+                    <div class="card-body text-center d-flex flex-column">
+                        <h5 class="card-title fw-bold position-relative d-inline-block">
+                            👥 Operatori
+                            {% set cnt_ops = get_operators_count(user) %}
+                            {% if cnt_ops > 0 %}
+                            <span class="position-absolute top-0 start-100 translate-middle badge rounded-pill bg-warning text-dark" style="font-size: 0.65rem;">{{ cnt_ops }}</span>
+                            {% endif %}
+                        </h5>
+                        <p class="card-text text-muted mb-3 small flex-grow-1">Gestisci gli account degli operatori di supporto</p>
+                        <a href="/admin/operatori" class="btn btn-primary btn-sm px-3">Accedi</a>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Tag Operatori -->
+            <div class="col-12 col-md-6 col-lg-4">
+                <div class="card h-100 shadow-sm admin-card border-0">
+                    <div class="card-body text-center d-flex flex-column">
+                        <h5 class="card-title fw-bold">🏷️ Tag Operatori</h5>
+                        <p class="card-text text-muted mb-3 small flex-grow-1">Competenze tecniche, ruoli speciali e raggruppamenti</p>
+                        <a href="/admin/operatori/tag" class="btn btn-primary btn-sm px-3">Accedi</a>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Utenti -->
+            <div class="col-12 col-md-6 col-lg-4">
+                <div class="card h-100 shadow-sm admin-card border-0">
+                    <div class="card-body text-center d-flex flex-column">
+                        <h5 class="card-title fw-bold position-relative d-inline-block">
+                            👤 Utenti Richiedenti
+                            {% set cnt_uts = get_users_count(user) %}
+                            {% if cnt_uts > 0 %}
+                            <span class="position-absolute top-0 start-100 translate-middle badge rounded-pill bg-danger" style="font-size: 0.65rem;">{{ cnt_uts }}</span>
+                            {% endif %}
+                        </h5>
+                        <p class="card-text text-muted mb-3 small flex-grow-1">Gestisci le anagrafiche degli utenti dipendenti</p>
+                        <a href="/admin/utenti" class="btn btn-primary btn-sm px-3">Accedi</a>
+                    </div>
+                </div>
+            </div>
+        </div>
     </div>
-  </div>
 
-  <!-- 3. Reperibilità -->
-  <div class="col-12 col-md-6 col-lg-3">
-    <div class="card h-100 shadow-sm admin-card border-0">
-      <div class="card-body text-center d-flex flex-column">
-        <h5 class="card-title fw-bold">🌙 Reperibilità</h5>
-        <p class="card-text text-muted mb-3 small flex-grow-1">Impostazioni turni H24 e banner Home</p>
-        <a href="/admin/reperibilita/impostazioni" class="btn btn-primary btn-sm px-3">Accedi</a>
-      </div>
+    <!-- 2. STRUTTURA ORGANIZZATIVA E TERRITORIALE -->
+    <div class="mb-5">
+        <div class="section-header">
+            <span class="badge bg-info bg-opacity-10 text-info p-2 fs-6 rounded">
+                <i class="bi bi-building"></i>
+            </span>
+            <h4 class="h5 fw-bold mb-0 text-dark">Struttura Organizzativa & Territorio</h4>
+            <span class="text-muted small ms-2 d-none d-md-inline">— Reparti, uffici, catalogo servizi, sedi e comuni</span>
+        </div>
+        <div class="row g-3">
+            <!-- Reparti -->
+            <div class="col-12 col-md-6 col-lg-3">
+                <div class="card h-100 shadow-sm admin-card border-0">
+                    <div class="card-body text-center d-flex flex-column">
+                        <h5 class="card-title fw-bold">🏢 Reparti</h5>
+                        <p class="card-text text-muted mb-3 small flex-grow-1">Gestisci i reparti, settori e uffici aziendali</p>
+                        <a href="/admin/reparti" class="btn btn-primary btn-sm px-3">Accedi</a>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Servizi -->
+            <div class="col-12 col-md-6 col-lg-3">
+                <div class="card h-100 shadow-sm admin-card border-0">
+                    <div class="card-body text-center d-flex flex-column">
+                        <h5 class="card-title fw-bold">🛠️ Servizi</h5>
+                        <p class="card-text text-muted mb-3 small flex-grow-1">Catalogo servizi disponibili per l'apertura ticket</p>
+                        <a href="/admin/servizi" class="btn btn-primary btn-sm px-3">Accedi</a>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Sedi -->
+            <div class="col-12 col-md-6 col-lg-3">
+                <div class="card h-100 shadow-sm admin-card border-0">
+                    <div class="card-body text-center d-flex flex-column">
+                        <h5 class="card-title fw-bold">📍 Sedi</h5>
+                        <p class="card-text text-muted mb-3 small flex-grow-1">Anagrafica sedi fisiche e presidi territoriali</p>
+                        <a href="/admin/sedi" class="btn btn-primary btn-sm px-3">Accedi</a>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Comuni -->
+            <div class="col-12 col-md-6 col-lg-3">
+                <div class="card h-100 shadow-sm admin-card border-0">
+                    <div class="card-body text-center d-flex flex-column">
+                        <h5 class="card-title fw-bold">🏛️ Comuni</h5>
+                        <p class="card-text text-muted mb-3 small flex-grow-1">Anagrafica comuni del bacino territoriale</p>
+                        <a href="/admin/comuni" class="btn btn-primary btn-sm px-3">Accedi</a>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Festività (se modulo_presenze) -->
+            {% if cfg.get('modulo_presenze', True) %}
+            <div class="col-12 col-md-6 col-lg-3">
+                <div class="card h-100 shadow-sm admin-card border-0">
+                    <div class="card-body text-center d-flex flex-column">
+                        <h5 class="card-title fw-bold">🗓️ Festività</h5>
+                        <p class="card-text text-muted mb-3 small flex-grow-1">Calendario giorni festivi e patroni territoriali</p>
+                        <a href="/admin/festivita" class="btn btn-primary btn-sm px-3">Accedi</a>
+                    </div>
+                </div>
+            </div>
+            {% endif %}
+        </div>
     </div>
-  </div>
 
-  <!-- 4. Reparti -->
-  <div class="col-12 col-md-6 col-lg-3">
-    <div class="card h-100 shadow-sm admin-card border-0">
-      <div class="card-body text-center d-flex flex-column">
-        <h5 class="card-title fw-bold">🏢 Reparti</h5>
-        <p class="card-text text-muted mb-3 small flex-grow-1">Gestisci i reparti e uffici aziendali</p>
-        <a href="/admin/reparti" class="btn btn-primary btn-sm px-3">Accedi</a>
-      </div>
+    <!-- 3. MAGAZZINO, MATERIALI E SCORTE -->
+    <div class="mb-5">
+        <div class="section-header">
+            <span class="badge bg-success bg-opacity-10 text-success p-2 fs-6 rounded">
+                <i class="bi bi-box-seam"></i>
+            </span>
+            <h4 class="h5 fw-bold mb-0 text-dark">Magazzino & Materiali</h4>
+            <span class="text-muted small ms-2 d-none d-md-inline">— Magazzini di reparto, anagrafica articoli e categorie merceologiche</span>
+        </div>
+        <div class="row g-3">
+            <!-- Magazzini -->
+            <div class="col-12 col-md-6 col-lg-4">
+                <div class="card h-100 shadow-sm admin-card border-0">
+                    <div class="card-body text-center d-flex flex-column">
+                        <h5 class="card-title fw-bold">📦 Magazzini</h5>
+                        <p class="card-text text-muted mb-3 small flex-grow-1">Configurazione magazzini di reparto e responsabili</p>
+                        <a href="/admin/magazzini" class="btn btn-primary btn-sm px-3">Accedi</a>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Materiali / Prodotti -->
+            <div class="col-12 col-md-6 col-lg-4">
+                <div class="card h-100 shadow-sm admin-card border-0">
+                    <div class="card-body text-center d-flex flex-column">
+                        <h5 class="card-title fw-bold">🛒 Materiali & Prodotti</h5>
+                        <p class="card-text text-muted mb-3 small flex-grow-1">Anagrafica articoli, codici prodotto e soglie di scorta</p>
+                        <a href="/admin/materiali" class="btn btn-primary btn-sm px-3">Accedi</a>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Categorie Materiali -->
+            <div class="col-12 col-md-6 col-lg-4">
+                <div class="card h-100 shadow-sm admin-card border-0">
+                    <div class="card-body text-center d-flex flex-column">
+                        <h5 class="card-title fw-bold">🏷️ Categorie Materiali</h5>
+                        <p class="card-text text-muted mb-3 small flex-grow-1">Classificazione merceologica per i prodotti di magazzino</p>
+                        <a href="/admin/categorie" class="btn btn-primary btn-sm px-3">Accedi</a>
+                    </div>
+                </div>
+            </div>
+        </div>
     </div>
-  </div>
 
-  <!-- 5. Servizi -->
-  <div class="col-12 col-md-6 col-lg-3">
-    <div class="card h-100 shadow-sm admin-card border-0">
-      <div class="card-body text-center d-flex flex-column">
-        <h5 class="card-title fw-bold">🛠️ Servizi</h5>
-        <p class="card-text text-muted mb-3 small flex-grow-1">Gestisci i servizi disponibili per i ticket</p>
-        <a href="/admin/servizi" class="btn btn-primary btn-sm px-3">Accedi</a>
-      </div>
+    <!-- 4. FORNITORI E CONTRATTI -->
+    <div class="mb-5">
+        <div class="section-header">
+            <span class="badge bg-warning bg-opacity-10 text-dark p-2 fs-6 rounded">
+                <i class="bi bi-file-earmark-text"></i>
+            </span>
+            <h4 class="h5 fw-bold mb-0 text-dark">Fornitori & Contratti</h4>
+            <span class="text-muted small ms-2 d-none d-md-inline">— Contratti di fornitura, ditte fornitrici e rubrica contatti</span>
+        </div>
+        <div class="row g-3">
+            <!-- Contratti -->
+            <div class="col-12 col-md-6 col-lg-4">
+                <div class="card h-100 shadow-sm admin-card border-0">
+                    <div class="card-body text-center d-flex flex-column">
+                        <h5 class="card-title fw-bold">📄 Contratti</h5>
+                        <p class="card-text text-muted mb-3 small flex-grow-1">Elenco contratti attivi, scadenze, rinnovi e documenti</p>
+                        <a href="/contratti" class="btn btn-primary btn-sm px-3">Accedi</a>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Gestione Fornitori -->
+            <div class="col-12 col-md-6 col-lg-4">
+                <div class="card h-100 shadow-sm admin-card border-0">
+                    <div class="card-body text-center d-flex flex-column">
+                        <h5 class="card-title fw-bold">🏭 Fornitori</h5>
+                        <p class="card-text text-muted mb-3 small flex-grow-1">Anagrafica ditte fornitrici e contratti collegati</p>
+                        <a href="/admin/fornitori" class="btn btn-primary btn-sm px-3">Accedi</a>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Rubrica Fornitori -->
+            <div class="col-12 col-md-6 col-lg-4">
+                <div class="card h-100 shadow-sm admin-card border-0">
+                    <div class="card-body text-center d-flex flex-column">
+                        <h5 class="card-title fw-bold">📖 Rubrica Fornitori</h5>
+                        <p class="card-text text-muted mb-3 small flex-grow-1">Contatti rapidi, PEC, telefoni e referenti ditte</p>
+                        <a href="/fornitori" class="btn btn-primary btn-sm px-3">Accedi</a>
+                    </div>
+                </div>
+            </div>
+        </div>
     </div>
-  </div>
 
-  <!-- 6. Operatori -->
-  <div class="col-12 col-md-6 col-lg-3">
-    <div class="card h-100 shadow-sm admin-card border-0">
-      <div class="card-body text-center d-flex flex-column">
-        <h5 class="card-title fw-bold position-relative d-inline-block">
-          👥 Operatori
-          {% set cnt_ops = get_operators_count(user) %}
-          {% if cnt_ops > 0 %}
-          <span class="position-absolute top-0 start-100 translate-middle badge rounded-pill bg-warning text-dark" style="font-size: 0.65rem;">{{ cnt_ops }}</span>
-          {% endif %}
-        </h5>
-        <p class="card-text text-muted mb-3 small flex-grow-1">Gestisci gli account degli operatori</p>
-        <a href="/admin/operatori" class="btn btn-primary btn-sm px-3">Accedi</a>
-      </div>
+    <!-- 5. MODULI E SERVIZI AGGIUNTIVI -->
+    <div class="mb-5">
+        <div class="section-header">
+            <span class="badge bg-secondary bg-opacity-10 text-secondary p-2 fs-6 rounded">
+                <i class="bi bi-puzzle"></i>
+            </span>
+            <h4 class="h5 fw-bold mb-0 text-dark">Moduli & Servizi Aggiuntivi</h4>
+            <span class="text-muted small ms-2 d-none d-md-inline">— Carpooling parco mezzi, reperibilità H24 e formazione</span>
+        </div>
+        <div class="row g-3">
+            <!-- Carpooling (se modulo_autopark) -->
+            {% if cfg.get('modulo_autopark', True) %}
+            <div class="col-12 col-md-6 col-lg-3">
+                <div class="card h-100 shadow-sm admin-card border-0">
+                    <div class="card-body text-center d-flex flex-column">
+                        <h5 class="card-title fw-bold">🚗 Carpooling</h5>
+                        <p class="card-text text-muted mb-3 small flex-grow-1">Gestione parco automezzi e veicoli aziendali</p>
+                        <a href="/admin/automezzi/gestione" class="btn btn-primary btn-sm px-3">Accedi</a>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Marche Mezzi (se modulo_autopark) -->
+            <div class="col-12 col-md-6 col-lg-3">
+                <div class="card h-100 shadow-sm admin-card border-0">
+                    <div class="card-body text-center d-flex flex-column">
+                        <h5 class="card-title fw-bold">🚘 Marche Mezzi</h5>
+                        <p class="card-text text-muted mb-3 small flex-grow-1">Anagrafica case costruttrici del parco veicoli</p>
+                        <a href="/admin/automezzi/marche" class="btn btn-primary btn-sm px-3">Accedi</a>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Tag Automezzi (se modulo_autopark) -->
+            <div class="col-12 col-md-6 col-lg-3">
+                <div class="card h-100 shadow-sm admin-card border-0">
+                    <div class="card-body text-center d-flex flex-column">
+                        <h5 class="card-title fw-bold">🏷️ Tag Automezzi</h5>
+                        <p class="card-text text-muted mb-3 small flex-grow-1">Allestimenti speciali, dotazioni e tag flotta</p>
+                        <a href="/admin/automezzi/tag" class="btn btn-primary btn-sm px-3">Accedi</a>
+                    </div>
+                </div>
+            </div>
+            {% endif %}
+
+            <!-- Reperibilità -->
+            <div class="col-12 col-md-6 col-lg-3">
+                <div class="card h-100 shadow-sm admin-card border-0">
+                    <div class="card-body text-center d-flex flex-column">
+                        <h5 class="card-title fw-bold">🌙 Reperibilità</h5>
+                        <p class="card-text text-muted mb-3 small flex-grow-1">Impostazioni turni H24 e banner in home page</p>
+                        <a href="/admin/reperibilita/impostazioni" class="btn btn-primary btn-sm px-3">Accedi</a>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Formazione (se modulo_formazione) -->
+            {% if cfg.get('modulo_formazione', False) %}
+            <div class="col-12 col-md-6 col-lg-3">
+                <div class="card h-100 shadow-sm admin-card border-0">
+                    <div class="card-body text-center d-flex flex-column">
+                        <h5 class="card-title fw-bold">🎓 Formazione</h5>
+                        <p class="card-text text-muted mb-3 small flex-grow-1">Gestione corsi ed attestati formativi</p>
+                        <a href="/formazione" class="btn btn-primary btn-sm px-3">Accedi</a>
+                    </div>
+                </div>
+            </div>
+            {% endif %}
+        </div>
     </div>
-  </div>
 
-  <!-- 7. Tag Operatori -->
-  <div class="col-12 col-md-6 col-lg-3">
-    <div class="card h-100 shadow-sm admin-card border-0">
-      <div class="card-body text-center d-flex flex-column">
-        <h5 class="card-title fw-bold">🏷️ Tag Operatori</h5>
-        <p class="card-text text-muted mb-3 small flex-grow-1">Competenze, ruoli speciali e tag</p>
-        <a href="/admin/operatori/tag" class="btn btn-primary btn-sm px-3">Accedi</a>
-      </div>
+    <!-- 6. SISTEMA, CONFIGURAZIONE E AUDIT -->
+    <div class="mb-4">
+        <div class="section-header">
+            <span class="badge bg-dark bg-opacity-10 text-dark p-2 fs-6 rounded">
+                <i class="bi bi-sliders"></i>
+            </span>
+            <h4 class="h5 fw-bold mb-0 text-dark">Configurazione Sistema & Manutenzione</h4>
+            <span class="text-muted small ms-2 d-none d-md-inline">— Parametri globali, attivazione moduli, backup e tracciamento log</span>
+        </div>
+        <div class="row g-3">
+            <!-- Impostazioni Globali -->
+            <div class="col-12 col-md-6 col-lg-3">
+                <div class="card h-100 shadow-sm admin-card border-0">
+                    <div class="card-body text-center d-flex flex-column">
+                        <h5 class="card-title fw-bold">⚙️ Impostazioni</h5>
+                        <p class="card-text text-muted mb-3 small flex-grow-1">Parametri tecnici, database e server SMTP</p>
+                        <a href="/admin/impostazioni" class="btn btn-primary btn-sm px-3">Accedi</a>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Moduli Applicativi -->
+            <div class="col-12 col-md-6 col-lg-3">
+                <div class="card h-100 shadow-sm admin-card border-0">
+                    <div class="card-body text-center d-flex flex-column">
+                        <h5 class="card-title fw-bold">🧩 Moduli</h5>
+                        <p class="card-text text-muted mb-3 small flex-grow-1">Abilitazione e disattivazione moduli app</p>
+                        <a href="/admin/moduli" class="btn btn-primary btn-sm px-3">Accedi</a>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Import / Export -->
+            <div class="col-12 col-md-6 col-lg-3">
+                <div class="card h-100 shadow-sm admin-card border-0">
+                    <div class="card-body text-center d-flex flex-column">
+                        <h5 class="card-title fw-bold">🔄 Import / Export</h5>
+                        <p class="card-text text-muted mb-3 small flex-grow-1">Backup e importazione massiva tabelle JSON</p>
+                        <a href="/admin/import-export" class="btn btn-primary btn-sm px-3">Accedi</a>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Registro Log Operazioni Admin -->
+            <div class="col-12 col-md-6 col-lg-3">
+                <div class="card h-100 shadow-sm admin-card border-0">
+                    <div class="card-body text-center d-flex flex-column">
+                        <h5 class="card-title fw-bold text-danger">🛡️ Registro Log</h5>
+                        <p class="card-text text-muted mb-3 small flex-grow-1">Audit trail e storico modifiche amministrative</p>
+                        <a href="/admin/log" class="btn btn-outline-danger btn-sm px-3">Visualizza Log</a>
+                    </div>
+                </div>
+            </div>
+        </div>
     </div>
-  </div>
-
-  <!-- 8. Utenti -->
-  <div class="col-12 col-md-6 col-lg-3">
-    <div class="card h-100 shadow-sm admin-card border-0">
-      <div class="card-body text-center d-flex flex-column">
-        <h5 class="card-title fw-bold position-relative d-inline-block">
-          👤 Utenti
-          {% set cnt_uts = get_users_count(user) %}
-          {% if cnt_uts > 0 %}
-          <span class="position-absolute top-0 start-100 translate-middle badge rounded-pill bg-danger" style="font-size: 0.65rem;">{{ cnt_uts }}</span>
-          {% endif %}
-        </h5>
-        <p class="card-text text-muted mb-3 small flex-grow-1">Gestisci gli account degli utenti aziendali</p>
-        <a href="/admin/utenti" class="btn btn-primary btn-sm px-3">Accedi</a>
-      </div>
-    </div>
-  </div>
-
-  <!-- 9. Sedi -->
-  <div class="col-12 col-md-6 col-lg-3">
-    <div class="card h-100 shadow-sm admin-card border-0">
-      <div class="card-body text-center d-flex flex-column">
-        <h5 class="card-title fw-bold">📍 Sedi</h5>
-        <p class="card-text text-muted mb-3 small flex-grow-1">Anagrafica sedi e presidi territoriali</p>
-        <a href="/admin/sedi" class="btn btn-primary btn-sm px-3">Accedi</a>
-      </div>
-    </div>
-  </div>
-
-  <!-- 10. Magazzini -->
-  <div class="col-12 col-md-6 col-lg-3">
-    <div class="card h-100 shadow-sm admin-card border-0">
-      <div class="card-body text-center d-flex flex-column">
-        <h5 class="card-title fw-bold">📦 Magazzini</h5>
-        <p class="card-text text-muted mb-3 small flex-grow-1">Magazzini di reparto e scorte materiali</p>
-        <a href="/admin/magazzini" class="btn btn-primary btn-sm px-3">Accedi</a>
-      </div>
-    </div>
-  </div>
-
-  <!-- 11. Comuni -->
-  <div class="col-12 col-md-6 col-lg-3">
-    <div class="card h-100 shadow-sm admin-card border-0">
-      <div class="card-body text-center d-flex flex-column">
-        <h5 class="card-title fw-bold">🏛️ Comuni</h5>
-        <p class="card-text text-muted mb-3 small flex-grow-1">Gestisci i comuni del bacino territoriale</p>
-        <a href="/admin/comuni" class="btn btn-primary btn-sm px-3">Accedi</a>
-      </div>
-    </div>
-  </div>
-
-  <!-- 12. Festività (se modulo_presenze) -->
-  {% if cfg.get('modulo_presenze', True) %}
-  <div class="col-12 col-md-6 col-lg-3">
-    <div class="card h-100 shadow-sm admin-card border-0">
-      <div class="card-body text-center d-flex flex-column">
-        <h5 class="card-title fw-bold">🗓️ Festività</h5>
-        <p class="card-text text-muted mb-3 small flex-grow-1">Calendario giorni festivi e patroni</p>
-        <a href="/admin/festivita" class="btn btn-primary btn-sm px-3">Accedi</a>
-      </div>
-    </div>
-  </div>
-  {% endif %}
-
-  <!-- 13. Contratti di Fornitura -->
-  <div class="col-12 col-md-6 col-lg-3">
-    <div class="card h-100 shadow-sm admin-card border-0">
-      <div class="card-body text-center d-flex flex-column">
-        <h5 class="card-title fw-bold">📄 Contratti</h5>
-        <p class="card-text text-muted mb-3 small flex-grow-1">Contratti attivi, scadenze e rinnovi</p>
-        <a href="/contratti" class="btn btn-primary btn-sm px-3">Accedi</a>
-      </div>
-    </div>
-  </div>
-
-  <!-- 14. Riepilogo Economico Contratti -->
-  <div class="col-12 col-md-6 col-lg-3">
-    <div class="card h-100 shadow-sm admin-card border-0">
-      <div class="card-body text-center d-flex flex-column">
-        <h5 class="card-title fw-bold">💰 Economico Contratti</h5>
-        <p class="card-text text-muted mb-3 small flex-grow-1">Riepilogo spesa contratti e budget</p>
-        <a href="/contratti/riepilogo-economico" class="btn btn-primary btn-sm px-3">Accedi</a>
-      </div>
-    </div>
-  </div>
-
-  <!-- 15. Gestione Fornitori -->
-  <div class="col-12 col-md-6 col-lg-3">
-    <div class="card h-100 shadow-sm admin-card border-0">
-      <div class="card-body text-center d-flex flex-column">
-        <h5 class="card-title fw-bold">🏭 Fornitori</h5>
-        <p class="card-text text-muted mb-3 small flex-grow-1">Anagrafica ditte e contratti collegati</p>
-        <a href="/admin/fornitori" class="btn btn-primary btn-sm px-3">Accedi</a>
-      </div>
-    </div>
-  </div>
-
-  <!-- 16. Rubrica Fornitori -->
-  <div class="col-12 col-md-6 col-lg-3">
-    <div class="card h-100 shadow-sm admin-card border-0">
-      <div class="card-body text-center d-flex flex-column">
-        <h5 class="card-title fw-bold">📖 Rubrica Fornitori</h5>
-        <p class="card-text text-muted mb-3 small flex-grow-1">Contatti rapidi, PEC, referenti ditte</p>
-        <a href="/fornitori" class="btn btn-primary btn-sm px-3">Accedi</a>
-      </div>
-    </div>
-  </div>
-
-  <!-- 17. Categorie Materiali -->
-  <div class="col-12 col-md-6 col-lg-3">
-    <div class="card h-100 shadow-sm admin-card border-0">
-      <div class="card-body text-center d-flex flex-column">
-        <h5 class="card-title fw-bold">🏷️ Categorie</h5>
-        <p class="card-text text-muted mb-3 small flex-grow-1">Categorie merceologiche dei materiali</p>
-        <a href="/admin/categorie" class="btn btn-primary btn-sm px-3">Accedi</a>
-      </div>
-    </div>
-  </div>
-
-  <!-- 18. Anagrafica Materiali / Prodotti -->
-  <div class="col-12 col-md-6 col-lg-3">
-    <div class="card h-100 shadow-sm admin-card border-0">
-      <div class="card-body text-center d-flex flex-column">
-        <h5 class="card-title fw-bold">🛒 Materiali</h5>
-        <p class="card-text text-muted mb-3 small flex-grow-1">Anagrafica prodotti, codici e soglie scorta</p>
-        <a href="/admin/materiali" class="btn btn-primary btn-sm px-3">Accedi</a>
-      </div>
-    </div>
-  </div>
-
-  <!-- 19. Carpooling - Gestione Parco Auto (se modulo_autopark) -->
-  {% if cfg.get('modulo_autopark', True) %}
-  <div class="col-12 col-md-6 col-lg-3">
-    <div class="card h-100 shadow-sm admin-card border-0">
-      <div class="card-body text-center d-flex flex-column">
-        <h5 class="card-title fw-bold">🚗 Carpooling</h5>
-        <p class="card-text text-muted mb-3 small flex-grow-1">Gestione parco automezzi e veicoli</p>
-        <a href="/admin/automezzi/gestione" class="btn btn-primary btn-sm px-3">Accedi</a>
-      </div>
-    </div>
-  </div>
-
-  <!-- 20. Marche Automezzi (se modulo_autopark) -->
-  <div class="col-12 col-md-6 col-lg-3">
-    <div class="card h-100 shadow-sm admin-card border-0">
-      <div class="card-body text-center d-flex flex-column">
-        <h5 class="card-title fw-bold">🚘 Marche Mezzi</h5>
-        <p class="card-text text-muted mb-3 small flex-grow-1">Anagrafica case costruttrici veicoli</p>
-        <a href="/admin/automezzi/marche" class="btn btn-primary btn-sm px-3">Accedi</a>
-      </div>
-    </div>
-  </div>
-
-  <!-- 21. Tag Automezzi (se modulo_autopark) -->
-  <div class="col-12 col-md-6 col-lg-3">
-    <div class="card h-100 shadow-sm admin-card border-0">
-      <div class="card-body text-center d-flex flex-column">
-        <h5 class="card-title fw-bold">🏷️ Tag Automezzi</h5>
-        <p class="card-text text-muted mb-3 small flex-grow-1">Classificazione e tag parco veicoli</p>
-        <a href="/admin/automezzi/tag" class="btn btn-primary btn-sm px-3">Accedi</a>
-      </div>
-    </div>
-  </div>
-  {% endif %}
-
-  <!-- 22. Modulo Formazione (se modulo_formazione) -->
-  {% if cfg.get('modulo_formazione', False) %}
-  <div class="col-12 col-md-6 col-lg-3">
-    <div class="card h-100 shadow-sm admin-card border-0">
-      <div class="card-body text-center d-flex flex-column">
-        <h5 class="card-title fw-bold">🎓 Formazione</h5>
-        <p class="card-text text-muted mb-3 small flex-grow-1">Gestione corsi ed attestati formativi</p>
-        <a href="/formazione" class="btn btn-primary btn-sm px-3">Accedi</a>
-      </div>
-    </div>
-  </div>
-  {% endif %}
-
-  <!-- 23. Report Copertura (se modulo_presenze) -->
-  {% if cfg.get('modulo_presenze', True) %}
-  <div class="col-12 col-md-6 col-lg-3">
-    <div class="card h-100 shadow-sm admin-card border-0">
-      <div class="card-body text-center d-flex flex-column">
-        <h5 class="card-title fw-bold">📊 Report Copertura</h5>
-        <p class="card-text text-muted mb-3 small flex-grow-1">Copertura personale e fasce orarie</p>
-        <a href="/admin/report-copertura" class="btn btn-primary btn-sm px-3">Accedi</a>
-      </div>
-    </div>
-  </div>
-  {% endif %}
-
-  <!-- 24. Report Magazzini -->
-  <div class="col-12 col-md-6 col-lg-3">
-    <div class="card h-100 shadow-sm admin-card border-0">
-      <div class="card-body text-center d-flex flex-column">
-        <h5 class="card-title fw-bold">📦 Report Magazzini</h5>
-        <p class="card-text text-muted mb-3 small flex-grow-1">Giacenze, movimentazioni e scarichi</p>
-        <a href="/magazzini/report" class="btn btn-primary btn-sm px-3">Accedi</a>
-      </div>
-    </div>
-  </div>
-
-  <!-- 25. Import / Export -->
-  <div class="col-12 col-md-6 col-lg-3">
-    <div class="card h-100 shadow-sm admin-card border-0">
-      <div class="card-body text-center d-flex flex-column">
-        <h5 class="card-title fw-bold">🔄 Import / Export</h5>
-        <p class="card-text text-muted mb-3 small flex-grow-1">Backup e importazione massiva tabelle</p>
-        <a href="/admin/import-export" class="btn btn-primary btn-sm px-3">Accedi</a>
-      </div>
-    </div>
-  </div>
-
-  <!-- 26. Registro Log Operazioni Admin -->
-  <div class="col-12 col-md-6 col-lg-3">
-    <div class="card h-100 shadow-sm admin-card border-0">
-      <div class="card-body text-center d-flex flex-column">
-        <h5 class="card-title fw-bold text-danger">🛡️ Registro Log</h5>
-        <p class="card-text text-muted mb-3 small flex-grow-1">Audit trail e storico modifiche amministrative</p>
-        <a href="/admin/log" class="btn btn-outline-danger btn-sm px-3">Visualizza Log</a>
-      </div>
-    </div>
-  </div>
-</div>
-
-<div class="alert alert-info mt-4 small shadow-sm d-flex align-items-center gap-2">
-  <i class="bi bi-info-circle-fill text-primary fs-5"></i>
-  <div><strong>Guida Pannello Admin:</strong> Da questo pannello hai accesso completo a tutte le sezioni amministrative dell'applicazione. Puoi gestire anagrafiche, struttura organizzativa, contratti, logistica e configurare i moduli attivi.</div>
-</div>
 
 </div>
 <footer class="bg-dark text-white text-center py-3 mt-auto">

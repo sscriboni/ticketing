@@ -209,63 +209,37 @@
             </a>
           </li>
 
-          <!-- Amministrazione Dropdown -->
+          <!-- Reportistiche Dropdown (Admin) -->
           <li class="nav-item dropdown">
-            <a class="nav-link dropdown-toggle {% if request.url.path.startswith('/admin') and request.url.path != '/admin/report-copertura' and not request.url.path.startswith('/admin/operatori') %}active fw-bold{% endif %}" href="#" id="adminDropdown" role="button" data-bs-toggle="dropdown" aria-expanded="false">
+            <a class="nav-link dropdown-toggle {% if request.url.path == '/report' or request.url.path.startswith('/admin/report') or request.url.path == '/admin/report-copertura' or request.url.path == '/report-copertura' or request.url.path == '/magazzini/report' or request.url.path == '/magazzini/report-movimentazione' or request.url.path == '/contratti/riepilogo-economico' %}active fw-bold{% endif %}" href="#" id="reportDropdownAdmin" role="button" data-bs-toggle="dropdown" aria-expanded="false">
+              <i class="bi bi-bar-chart-line"></i> Report
+            </a>
+            <ul class="dropdown-menu shadow" aria-labelledby="reportDropdownAdmin">
+              <li><a class="dropdown-item fw-semibold" href="/report"><i class="bi bi-grid-fill me-2 text-primary"></i>Tutti i Report</a></li>
+              <li><hr class="dropdown-divider"></li>
+              {% if cfg.get('modulo_presenze', True) %}
+              <li><h6 class="dropdown-header text-uppercase fw-bold text-primary small"><i class="bi bi-people me-1"></i> Presenze & Personale</h6></li>
+              <li><a class="dropdown-item" href="/admin/report-copertura"><i class="bi bi-grid-3x3-gap me-2 text-primary"></i>Report Copertura Personale</a></li>
+              <li><hr class="dropdown-divider"></li>
+              {% endif %}
+              <li><h6 class="dropdown-header text-uppercase fw-bold text-success small"><i class="bi bi-boxes me-1"></i> Magazzini & Materiali</h6></li>
+              <li><a class="dropdown-item" href="/magazzini/report"><i class="bi bi-box-seam me-2 text-success"></i>Stato Magazzini e Giacenze</a></li>
+              <li><a class="dropdown-item" href="/magazzini/report-movimentazione"><i class="bi bi-clock-history me-2 text-info"></i>Report Movimentazione Scarichi</a></li>
+              <li><hr class="dropdown-divider"></li>
+              <li><h6 class="dropdown-header text-uppercase fw-bold text-warning small"><i class="bi bi-file-earmark-text me-1"></i> Contratti & Spese</h6></li>
+              <li><a class="dropdown-item" href="/contratti/riepilogo-economico"><i class="bi bi-cash-stack me-2 text-success"></i>Riepilogo Economico Contratti</a></li>
+            </ul>
+          </li>
+
+          <!-- Amministrazione Link -->
+          <li class="nav-item">
+            <a class="nav-link {% if request.url.path == '/admin' or (request.url.path.startswith('/admin') and not request.url.path.startswith('/admin/report') and not request.url.path.startswith('/admin/operatori') and not request.url.path.startswith('/admin/automezzi')) %}active fw-bold{% endif %}" href="/admin">
               <i class="bi bi-gear"></i> Amministrazione
               {% set total_pending = get_operators_count(user) + get_users_count(user) %}
               {% if total_pending > 0 %}
-              <span class="badge bg-danger rounded-pill ms-1">{{ total_pending }}</span>
+              <span class="badge bg-danger rounded-pill ms-1" title="Elementi in attesa di approvazione">{{ total_pending }}</span>
               {% endif %}
             </a>
-            <ul class="dropdown-menu shadow" aria-labelledby="adminDropdown">
-              <li><a class="dropdown-item" href="/admin">Dashboard Admin</a></li>
-              <li><hr class="dropdown-divider"></li>
-              <li>
-                <a class="dropdown-item d-flex justify-content-between align-items-center" href="/admin/operatori">
-                  <span>Gestione Operatori</span>
-                  {% set cnt_ops = get_operators_count(user) %}
-                  {% if cnt_ops > 0 %}
-                  <span class="badge bg-warning text-dark rounded-pill ms-2">{{ cnt_ops }}</span>
-                  {% endif %}
-                </a>
-              </li>
-              <li><a class="dropdown-item" href="/admin/operatori/tag">Gestione Tag Operatori</a></li>
-              <li>
-                <a class="dropdown-item d-flex justify-content-between align-items-center" href="/admin/utenti">
-                  <span>Gestione Utenti</span>
-                  {% set cnt_uts = get_users_count(user) %}
-                  {% if cnt_uts > 0 %}
-                  <span class="badge bg-danger rounded-pill ms-2">{{ cnt_uts }}</span>
-                  {% endif %}
-                </a>
-              </li>
-              <li><a class="dropdown-item" href="/admin/reparti">Gestione Reparti</a></li>
-              <li><a class="dropdown-item" href="/admin/servizi">Gestione Servizi</a></li>
-              <li><a class="dropdown-item" href="/contratti"><i class="bi bi-file-earmark-text me-2"></i>Contratti di Fornitura</a></li>
-              <li><a class="dropdown-item" href="/contratti/riepilogo-economico"><i class="bi bi-cash-stack me-2 text-success"></i>Riepilogo Economico Contratti</a></li>
-              <li><a class="dropdown-item" href="/admin/fornitori"><i class="bi bi-building-gear me-2"></i>Gestione Fornitori</a></li>
-              <li><a class="dropdown-item" href="/fornitori"><i class="bi bi-journal-bookmark me-2"></i>Rubrica Fornitori</a></li>
-              <li><a class="dropdown-item" href="/admin/sedi">Gestione Sedi</a></li>
-              <li><a class="dropdown-item" href="/admin/magazzini">Gestione Magazzini</a></li>
-              <li><a class="dropdown-item" href="/admin/comuni">Gestione Comuni</a></li>
-              {% if cfg.get('modulo_presenze', True) %}
-              <li><a class="dropdown-item" href="/admin/festivita">Gestione Festività</a></li>
-              {% endif %}
-              <li><hr class="dropdown-divider"></li>
-              <li><a class="dropdown-item" href="/admin/categorie">Categorie Materiali</a></li>
-              <li><a class="dropdown-item" href="/admin/materiali">Anagrafica Materiali</a></li>
-              {% if cfg.get('modulo_autopark', True) %}
-              <li><a class="dropdown-item" href="/admin/automezzi/gestione">Gestione Carpooling</a></li>
-              <li><a class="dropdown-item" href="/admin/automezzi/marche">Gestione Marche Automezzi</a></li>
-              <li><a class="dropdown-item" href="/admin/automezzi/tag">Gestione Tag Automezzi</a></li>
-              {% endif %}
-              <li><hr class="dropdown-divider"></li>
-              <li><a class="dropdown-item" href="/admin/reperibilita/impostazioni"><i class="bi bi-clock-history me-2 text-warning"></i>Impostazioni Reperibilità</a></li>
-              <li><a class="dropdown-item" href="/admin/moduli"><i class="bi bi-grid-fill me-2 text-primary"></i>Moduli Applicativi</a></li>
-              <li><a class="dropdown-item" href="/admin/import-export">Import / Export</a></li>
-              <li><a class="dropdown-item" href="/admin/impostazioni">Impostazioni Globali</a></li>
-            </ul>
           </li>
 
         <!-- NAVBAR RESPONSABILE REPARTO -->
@@ -381,12 +355,23 @@
           </li>
 
           <li class="nav-item dropdown">
-            <a class="nav-link dropdown-toggle {% if request.url.path == '/magazzini/report' or request.url.path == '/magazzini/report-movimentazione' %}active fw-bold{% endif %}" href="#" id="reportDropdown" role="button" data-bs-toggle="dropdown" aria-expanded="false">
-              <i class="bi bi-bar-chart"></i> Report
+            <a class="nav-link dropdown-toggle {% if request.url.path == '/report' or request.url.path.startswith('/admin/report') or request.url.path == '/admin/report-copertura' or request.url.path == '/report-copertura' or request.url.path == '/magazzini/report' or request.url.path == '/magazzini/report-movimentazione' or request.url.path == '/contratti/riepilogo-economico' %}active fw-bold{% endif %}" href="#" id="reportDropdown" role="button" data-bs-toggle="dropdown" aria-expanded="false">
+              <i class="bi bi-bar-chart-line"></i> Report
             </a>
             <ul class="dropdown-menu shadow" aria-labelledby="reportDropdown">
-              <li><a class="dropdown-item" href="/magazzini/report">Stato Magazzini</a></li>
-              <li><a class="dropdown-item" href="/magazzini/report-movimentazione">Report Movimentazione Scarichi</a></li>
+              <li><a class="dropdown-item fw-semibold" href="/report"><i class="bi bi-grid-fill me-2 text-primary"></i>Tutti i Report</a></li>
+              <li><hr class="dropdown-divider"></li>
+              {% if cfg.get('modulo_presenze', True) %}
+              <li><h6 class="dropdown-header text-uppercase fw-bold text-primary small"><i class="bi bi-people me-1"></i> Presenze & Personale</h6></li>
+              <li><a class="dropdown-item" href="/admin/report-copertura"><i class="bi bi-grid-3x3-gap me-2 text-primary"></i>Report Copertura Personale</a></li>
+              <li><hr class="dropdown-divider"></li>
+              {% endif %}
+              <li><h6 class="dropdown-header text-uppercase fw-bold text-success small"><i class="bi bi-boxes me-1"></i> Magazzini & Materiali</h6></li>
+              <li><a class="dropdown-item" href="/magazzini/report"><i class="bi bi-box-seam me-2 text-success"></i>Stato Magazzini</a></li>
+              <li><a class="dropdown-item" href="/magazzini/report-movimentazione"><i class="bi bi-clock-history me-2 text-info"></i>Report Movimentazione Scarichi</a></li>
+              <li><hr class="dropdown-divider"></li>
+              <li><h6 class="dropdown-header text-uppercase fw-bold text-warning small"><i class="bi bi-file-earmark-text me-1"></i> Contratti & Spese</h6></li>
+              <li><a class="dropdown-item" href="/contratti/riepilogo-economico"><i class="bi bi-cash-stack me-2 text-success"></i>Riepilogo Economico</a></li>
             </ul>
           </li>
 
