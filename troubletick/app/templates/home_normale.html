@@ -197,8 +197,7 @@
             <div class="list-group-item border-0 px-1 py-3 d-flex justify-content-between align-items-center">
               <div>
                 <strong class="text-primary">{{ ticket.codice_ticket or '#' ~ ticket.ticket_id }}</strong> -
-                <span class="fw-bold text-dark">{{ ticket.descrizione[:60] }}{% if ticket.descrizione|length > 60
-                  %}...{% endif %}</span>
+                <span class="fw-bold text-dark">{{ ticket.descrizione[:60] }}{% if ticket.descrizione|length > 60 %}... <i class="bi bi-info-circle-fill text-primary ms-1" role="button" tabindex="0" data-bs-toggle="tooltip" data-bs-placement="top" title="{{ ticket.descrizione }}" style="cursor: pointer;" aria-label="Visualizza descrizione completa"></i>{% endif %}</span>
                 <div class="small text-muted mt-1">
                   <span>Creato il: {{ ticket.creato_il[:16] }}</span> |
                   <span>Servizio: {{ ticket.servizio_desc or 'N/D' }}</span>
