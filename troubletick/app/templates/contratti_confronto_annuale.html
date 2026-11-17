@@ -1,0 +1,493 @@
+<!doctype html>
+<html lang="it">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Confronto Annuale Contratti — {{ cfg.app_title }}</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css">
+    <style>
+        .kpi-card {
+            border-radius: 12px;
+            transition: transform 0.15s ease-in-out;
+        }
+        .kpi-card:hover {
+            transform: translateY(-2px);
+        }
+        .fornitore-subtotal-row {
+            background-color: #eaf2fd !important;
+            font-weight: 600;
+            border-top: 2px solid #b6d4fe !important;
+        }
+        .table-pivot th {
+            white-space: nowrap;
+            vertical-align: middle;
+            font-size: 0.85rem;
+        }
+        .table-pivot td {
+            vertical-align: middle;
+            font-size: 0.85rem;
+        }
+        .delta-pill {
+            font-size: 0.75rem;
+            padding: 0.2rem 0.45rem;
+            border-radius: 0.35rem;
+            display: inline-block;
+            white-space: nowrap;
+            font-weight: 600;
+        }
+        .delta-aumento {
+            background-color: #f8d7da;
+            color: #842029;
+            border: 1px solid #f5c2c7;
+        }
+        .delta-risparmio {
+            background-color: #d1e7dd;
+            color: #0f5132;
+            border: 1px solid #badbcc;
+        }
+        .delta-invariato {
+            background-color: #e2e3e5;
+            color: #41464b;
+            border: 1px solid #d3d6d8;
+        }
+        .delta-nuovo {
+            background-color: #cff4fc;
+            color: #055160;
+            border: 1px solid #b6effb;
+        }
+        .delta-cessato {
+            background-color: #f8f9fa;
+            color: #6c757d;
+            border: 1px dashed #ced4da;
+            text-decoration: line-through;
+        }
+        @media print {
+            .no-print { display: none !important; }
+            .card { border: 1px solid #dee2e6 !important; box-shadow: none !important; }
+            body { background-color: white !important; font-size: 0.8rem; }
+            .container-fluid { padding: 0 !important; }
+        }
+    </style>
+</head>
+<body class="bg-light d-flex flex-column min-vh-100">
+<div class="no-print">
+    {% include 'navbar.html' %}
+</div>
+
+<div class="container-fluid px-4 py-3 flex-grow-1">
+
+    <!-- Intestazione Pagina -->
+    <div class="d-flex justify-content-between align-items-center mb-3 flex-wrap gap-2">
+        <div>
+            <div class="d-flex align-items-center gap-2">
+                <h2 class="h3 mb-0 fw-bold text-dark">
+                    <i class="bi bi-graph-up-arrow text-primary me-2"></i>Confronto Economico Annuale Contratti
+                </h2>
+                <span class="badge bg-primary fs-6 px-3 py-1 rounded-pill">
+                    {% if anni_colonne|length > 1 %}
+                        Anni {{ anni_colonne[0] }} &ndash; {{ anni_colonne[-1] }}
+                    {% elif anni_colonne|length == 1 %}
+                        Anno {{ anni_colonne[0] }}
+                    {% endif %}
+                </span>
+            </div>
+            <p class="text-muted small mb-0 mt-1">
+                Analisi evolutiva della spesa contrattuale per fornitore e contratto: monitoraggio continuo di <strong>aumenti</strong> e <strong>risparmi</strong> (importi IVA esclusa).
+            </p>
+        </div>
+        <div class="d-flex gap-2 no-print flex-wrap">
+            <a href="/contratti/confronto-annuale/export/excel{% if request.query_params %}?{{ request.query_params }}{% endif %}" class="btn btn-success btn-sm shadow-sm" title="Esporta la matrice pivot in formato Excel (.xlsx)">
+                <i class="bi bi-file-earmark-excel me-1"></i>Esporta Excel
+            </a>
+            <a href="/contratti/confronto-annuale/export/csv{% if request.query_params %}?{{ request.query_params }}{% endif %}" class="btn btn-outline-success btn-sm" title="Esporta la matrice pivot in formato CSV">
+                <i class="bi bi-file-earmark-spreadsheet me-1"></i>Esporta CSV
+            </a>
+            <button onclick="window.print()" class="btn btn-outline-dark btn-sm shadow-sm">
+                <i class="bi bi-printer me-1"></i>Stampa
+            </button>
+            <a href="/contratti/riepilogo-economico" class="btn btn-outline-secondary btn-sm">
+                <i class="bi bi-cash-stack me-1"></i>Riepilogo Economico
+            </a>
+            <a href="/contratti" class="btn btn-outline-secondary btn-sm">
+                <i class="bi bi-list-ul me-1"></i>Elenco Contratti
+            </a>
+            <a href="/report" class="btn btn-outline-info btn-sm">
+                <i class="bi bi-grid me-1"></i>Tutti i Report
+            </a>
+        </div>
+    </div>
+
+    <!-- Barra Filtri -->
+    <div class="card border-0 shadow-sm mb-4 no-print">
+        <div class="card-body p-3">
+            <form method="get" action="/contratti/confronto-annuale" class="row g-2 align-items-end">
+                <!-- Filtro Reparto -->
+                <div class="col-12 col-md-3">
+                    <label class="form-label small fw-bold text-muted mb-1"><i class="bi bi-building me-1"></i>Reparto</label>
+                    <select name="reparto_id" class="form-select form-select-sm" onchange="this.form.submit()">
+                        <option value="">-- Tutti i Reparti --</option>
+                        {% for rep in reparti %}
+                        <option value="{{ rep.reparto_id }}" {% if reparto_selezionato == rep.reparto_id %}selected{% endif %}>
+                            {{ rep.nome }}
+                        </option>
+                        {% endfor %}
+                    </select>
+                </div>
+
+                <!-- Filtro Fornitore -->
+                <div class="col-12 col-md-3">
+                    <label class="form-label small fw-bold text-muted mb-1"><i class="bi bi-shop me-1"></i>Fornitore</label>
+                    <select name="fornitore_id" class="form-select form-select-sm" onchange="this.form.submit()">
+                        <option value="">-- Tutti i Fornitori --</option>
+                        {% for f in fornitori %}
+                        <option value="{{ f.fornitore_id }}" {% if fornitore_selezionato == f.fornitore_id %}selected{% endif %}>
+                            {{ f.ragione_sociale }}
+                        </option>
+                        {% endfor %}
+                    </select>
+                </div>
+
+                <!-- Filtro Stato -->
+                <div class="col-12 col-md-2">
+                    <label class="form-label small fw-bold text-muted mb-1"><i class="bi bi-flag me-1"></i>Stato Contratto</label>
+                    <select name="stato" class="form-select form-select-sm" onchange="this.form.submit()">
+                        <option value="" {% if not stato_selezionato %}selected{% endif %}>-- Tutti gli Stati --</option>
+                        <option value="attivo" {% if stato_selezionato == 'attivo' %}selected{% endif %}>Solo Attivi</option>
+                        <option value="in_trattativa" {% if stato_selezionato == 'in_trattativa' %}selected{% endif %}>In Trattativa</option>
+                        <option value="perfezionato" {% if stato_selezionato == 'perfezionato' %}selected{% endif %}>Perfezionati</option>
+                        <option value="concluso" {% if stato_selezionato == 'concluso' %}selected{% endif %}>Conclusi</option>
+                        <option value="scaduto" {% if stato_selezionato == 'scaduto' %}selected{% endif %}>Scaduti</option>
+                    </select>
+                </div>
+
+                <!-- Anno Da -->
+                <div class="col-6 col-md-1">
+                    <label class="form-label small fw-bold text-muted mb-1">Da Anno</label>
+                    <select name="anno_da" class="form-select form-select-sm">
+                        {% for y in tutti_gli_anni %}
+                        <option value="{{ y }}" {% if anno_da_selezionato == y %}selected{% endif %}>{{ y }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+
+                <!-- Anno A -->
+                <div class="col-6 col-md-1">
+                    <label class="form-label small fw-bold text-muted mb-1">A Anno</label>
+                    <select name="anno_a" class="form-select form-select-sm">
+                        {% for y in tutti_gli_anni %}
+                        <option value="{{ y }}" {% if anno_a_selezionato == y %}selected{% endif %}>{{ y }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+
+                <!-- Pulsanti Azione -->
+                <div class="col-12 col-md-2 d-flex gap-2">
+                    <button type="submit" class="btn btn-primary btn-sm flex-grow-1">
+                        <i class="bi bi-funnel-fill me-1"></i>Filtra
+                    </button>
+                    <a href="/contratti/confronto-annuale" class="btn btn-outline-secondary btn-sm" title="Ripristina filtri predefiniti">
+                        <i class="bi bi-arrow-counterclockwise"></i>
+                    </a>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- Indicatori KPI / Summary Cards -->
+    <div class="row g-3 mb-4">
+        <!-- Spesa Ultimo Anno -->
+        <div class="col-12 col-sm-6 col-xl-3">
+            <div class="card h-100 border-0 shadow-sm kpi-card bg-white">
+                <div class="card-body p-3">
+                    <div class="d-flex justify-content-between align-items-center mb-1">
+                        <span class="text-muted small fw-bold text-uppercase">Spesa Contrattuale {{ ultimo_anno }}</span>
+                        <div class="bg-primary bg-opacity-10 text-primary p-2 rounded-circle">
+                            <i class="bi bi-cash-stack"></i>
+                        </div>
+                    </div>
+                    <h3 class="fw-bold mb-0 text-dark">
+                        {{ "€ {:,.2f}".format(totale_spesa_ultimo_anno).replace(',', 'X').replace('.', ',').replace('X', '.') }}
+                    </h3>
+                    <div class="small text-muted mt-1">Valore pattuito complessivo</div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Delta Ultimo Anno vs Precedente -->
+        <div class="col-12 col-sm-6 col-xl-3">
+            <div class="card h-100 border-0 shadow-sm kpi-card bg-white">
+                <div class="card-body p-3">
+                    <div class="d-flex justify-content-between align-items-center mb-1">
+                        <span class="text-muted small fw-bold text-uppercase">
+                            Variazione vs {{ penultimo_anno if penultimo_anno else 'Precedente' }}
+                        </span>
+                        {% if trend_ultimo_anno == 'risparmio' %}
+                        <div class="bg-success bg-opacity-10 text-success p-2 rounded-circle">
+                            <i class="bi bi-arrow-down-right"></i>
+                        </div>
+                        {% elif trend_ultimo_anno == 'aumento' %}
+                        <div class="bg-danger bg-opacity-10 text-danger p-2 rounded-circle">
+                            <i class="bi bi-arrow-up-right"></i>
+                        </div>
+                        {% else %}
+                        <div class="bg-secondary bg-opacity-10 text-secondary p-2 rounded-circle">
+                            <i class="bi bi-dash"></i>
+                        </div>
+                        {% endif %}
+                    </div>
+                    {% if penultimo_anno %}
+                    <h3 class="fw-bold mb-0 {% if trend_ultimo_anno == 'risparmio' %}text-success{% elif trend_ultimo_anno == 'aumento' %}text-danger{% else %}text-muted{% endif %}">
+                        {% if variazione_ultimo_anno_euro > 0 %}+{% endif %}{{ "€ {:,.2f}".format(variazione_ultimo_anno_euro).replace(',', 'X').replace('.', ',').replace('X', '.') }}
+                    </h3>
+                    <div class="small mt-1">
+                        {% if trend_ultimo_anno == 'risparmio' %}
+                        <span class="badge bg-success"><i class="bi bi-arrow-down me-1"></i>Risparmio {{ "{:+.1f}%".format(variazione_ultimo_anno_perc) }}</span>
+                        {% elif trend_ultimo_anno == 'aumento' %}
+                        <span class="badge bg-danger"><i class="bi bi-arrow-up me-1"></i>Aumento {{ "{:+.1f}%".format(variazione_ultimo_anno_perc) }}</span>
+                        {% else %}
+                        <span class="badge bg-secondary">Invariato</span>
+                        {% endif %}
+                    </div>
+                    {% else %}
+                    <h3 class="fw-bold mb-0 text-muted">—</h3>
+                    <div class="small text-muted mt-1">Dato storico non sufficiente</div>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+
+        <!-- Fornitori Coinvolti -->
+        <div class="col-12 col-sm-6 col-xl-3">
+            <div class="card h-100 border-0 shadow-sm kpi-card bg-white">
+                <div class="card-body p-3">
+                    <div class="d-flex justify-content-between align-items-center mb-1">
+                        <span class="text-muted small fw-bold text-uppercase">Fornitori a Contratto</span>
+                        <div class="bg-info bg-opacity-10 text-info p-2 rounded-circle">
+                            <i class="bi bi-building"></i>
+                        </div>
+                    </div>
+                    <h3 class="fw-bold mb-0 text-dark">{{ totale_fornitori }}</h3>
+                    <div class="small text-muted mt-1">Ditte attive nell'intervallo analizzato</div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Contratti Totali Censiti -->
+        <div class="col-12 col-sm-6 col-xl-3">
+            <div class="card h-100 border-0 shadow-sm kpi-card bg-white">
+                <div class="card-body p-3">
+                    <div class="d-flex justify-content-between align-items-center mb-1">
+                        <span class="text-muted small fw-bold text-uppercase">Contratti Totali</span>
+                        <div class="bg-warning bg-opacity-10 text-warning p-2 rounded-circle">
+                            <i class="bi bi-file-earmark-text"></i>
+                        </div>
+                    </div>
+                    <h3 class="fw-bold mb-0 text-dark">{{ totale_contratti_censiti }}</h3>
+                    <div class="small text-muted mt-1">Atti contrattuali registrati</div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Tabella Pivot Annuale -->
+    <div class="card border-0 shadow-sm mb-4">
+        <div class="card-header bg-white py-3 d-flex justify-content-between align-items-center flex-wrap gap-2">
+            <div>
+                <h5 class="mb-0 fw-bold text-dark d-flex align-items-center gap-2">
+                    <i class="bi bi-table text-primary"></i>Matrice Comparativa Annuale dei Contratti
+                </h5>
+                <span class="text-muted small">Raggruppamento per fornitore e contratto con evidenza di aumenti (🔴) e risparmi (🟢)</span>
+            </div>
+            <div class="d-flex align-items-center gap-2 small">
+                <span class="badge bg-success bg-opacity-10 text-success border border-success-subtle px-2 py-1">
+                    <i class="bi bi-arrow-down-circle-fill me-1"></i>Risparmio (&lt; 0)
+                </span>
+                <span class="badge bg-danger bg-opacity-10 text-danger border border-danger-subtle px-2 py-1">
+                    <i class="bi bi-arrow-up-circle-fill me-1"></i>Aumento (&gt; 0)
+                </span>
+                <span class="badge bg-secondary bg-opacity-10 text-secondary border border-secondary-subtle px-2 py-1">
+                    <i class="bi bi-dash-circle me-1"></i>Invariato
+                </span>
+            </div>
+        </div>
+        <div class="table-responsive">
+            <table class="table table-hover table-bordered table-pivot align-middle mb-0">
+                <thead class="table-dark text-center">
+                    <tr>
+                        <th class="text-start" style="min-width: 240px;">Fornitore / Oggetto del Contratto</th>
+                        <th style="min-width: 90px;">CIG / Cod.</th>
+                        <th style="min-width: 110px;">Reparto</th>
+                        <th style="min-width: 100px;">DEC</th>
+                        {% for y in anni_colonne %}
+                            <th style="min-width: 110px;">Anno {{ y }} (€)</th>
+                            {% if not loop.first %}
+                                <th style="min-width: 140px;" class="table-secondary text-dark">Var. vs {{ anni_colonne[loop.index0 - 1] }}</th>
+                            {% endif %}
+                        {% endfor %}
+                    </tr>
+                </thead>
+                <tbody>
+                    {% if fornitori_pivot %}
+                        {% for f in fornitori_pivot %}
+                            <!-- Riga Intestazione / Subtotale Fornitore -->
+                            <tr class="fornitore-subtotal-row">
+                                <td colspan="4" class="py-2">
+                                    <div class="d-flex align-items-center gap-2">
+                                        <i class="bi bi-building text-primary"></i>
+                                        <strong class="text-primary fs-6">{{ f.fornitore_nome }}</strong>
+                                        {% if f.fornitore_piva %}
+                                            <span class="badge bg-light text-muted border small">P.IVA: {{ f.fornitore_piva }}</span>
+                                        {% endif %}
+                                        <span class="badge bg-secondary rounded-pill ms-auto small">{{ f.serie_list|length }} contratti</span>
+                                    </div>
+                                </td>
+                                {% for y in anni_colonne %}
+                                    {% set cf = f.confronto_anni[y] %}
+                                    <td class="text-end fw-bold">
+                                        {{ "€ {:,.2f}".format(cf.importo).replace(',', 'X').replace('.', ',').replace('X', '.') }}
+                                    </td>
+                                    {% if not loop.first %}
+                                        <td class="text-end">
+                                            {% if cf.trend == 'risparmio' %}
+                                                <span class="delta-pill delta-risparmio">
+                                                    <i class="bi bi-arrow-down-short"></i>{{ "{:,.2f} €".format(cf.diff_euro).replace(',', 'X').replace('.', ',').replace('X', '.') }} ({{ "{:+.1f}%".format(cf.diff_perc) }})
+                                                </span>
+                                            {% elif cf.trend == 'aumento' %}
+                                                <span class="delta-pill delta-aumento">
+                                                    <i class="bi bi-arrow-up-short"></i>+{{ "{:,.2f} €".format(cf.diff_euro).replace(',', 'X').replace('.', ',').replace('X', '.') }} ({{ "{:+.1f}%".format(cf.diff_perc) }})
+                                                </span>
+                                            {% else %}
+                                                <span class="delta-pill delta-invariato">0,00 € (0.0%)</span>
+                                            {% endif %}
+                                        </td>
+                                    {% endif %}
+                                {% endfor %}
+                            </tr>
+
+                            <!-- Righe di Dettaglio delle Serie Contrattuali del Fornitore -->
+                            {% for s in f.serie_list %}
+                            <tr>
+                                <td class="ps-4">
+                                    <a href="/contratto/{{ s.ultimo_contratto_id }}" class="fw-semibold text-decoration-none text-dark" title="Visualizza scheda contratto">
+                                        <i class="bi bi-file-earmark-text text-secondary me-1"></i>{{ s.titolo_base }}
+                                    </a>
+                                </td>
+                                <td class="text-center font-monospace small">
+                                    {{ s.cig or s.codice_contratto or '—' }}
+                                </td>
+                                <td class="text-center small text-muted">
+                                    {{ s.reparto_nome }}
+                                </td>
+                                <td class="text-center small text-muted">
+                                    {{ s.dec_nome }}
+                                </td>
+                                {% for y in anni_colonne %}
+                                    {% set cs = s.confronto[y] %}
+                                    <td class="text-end">
+                                        {% if cs.ha_dato %}
+                                            <a href="/contratto/{{ cs.contratto_id }}" class="text-decoration-none fw-semibold text-primary" title="{{ cs.titolo }} (Stato: {{ cs.stato }})">
+                                                {{ "€ {:,.2f}".format(cs.importo).replace(',', 'X').replace('.', ',').replace('X', '.') }}
+                                            </a>
+                                        {% else %}
+                                            <span class="text-muted">—</span>
+                                        {% endif %}
+                                    </td>
+                                    {% if not loop.first %}
+                                        <td class="text-end">
+                                            {% if cs.trend == 'risparmio' %}
+                                                <span class="delta-pill delta-risparmio" title="Risparmio rispetto all'anno precedente">
+                                                    <i class="bi bi-arrow-down-short"></i>{{ "{:,.2f} €".format(cs.diff_euro).replace(',', 'X').replace('.', ',').replace('X', '.') }} ({{ "{:+.1f}%".format(cs.diff_perc) }})
+                                                </span>
+                                            {% elif cs.trend == 'aumento' %}
+                                                <span class="delta-pill delta-aumento" title="Aumento rispetto all'anno precedente">
+                                                    <i class="bi bi-arrow-up-short"></i>+{{ "{:,.2f} €".format(cs.diff_euro).replace(',', 'X').replace('.', ',').replace('X', '.') }} ({{ "{:+.1f}%".format(cs.diff_perc) }})
+                                                </span>
+                                            {% elif cs.trend == 'invariato' %}
+                                                <span class="delta-pill delta-invariato" title="Nessuna variazione">
+                                                    0,00 € (0.0%)
+                                                </span>
+                                            {% elif cs.trend == 'nuovo' %}
+                                                <span class="delta-pill delta-nuovo" title="Nuova attivazione nell'anno">
+                                                    <i class="bi bi-plus-circle me-1"></i>Nuovo
+                                                </span>
+                                            {% elif cs.trend == 'cessato' %}
+                                                <span class="delta-pill delta-cessato" title="Contratto concluso/non rinnovato">
+                                                    <i class="bi bi-x-circle me-1"></i>Non rinnovato
+                                                </span>
+                                            {% else %}
+                                                <span class="text-muted small">—</span>
+                                            {% endif %}
+                                        </td>
+                                    {% endif %}
+                                {% endfor %}
+                            </tr>
+                            {% endfor %}
+                        {% endfor %}
+                    {% else %}
+                        <tr>
+                            <td colspan="{{ 4 + (anni_colonne|length * 2) - 1 }}" class="text-center py-5 text-muted">
+                                <i class="bi bi-inbox fs-1 d-block mb-2 text-secondary"></i>
+                                Nessun contratto trovato con i parametri di filtro selezionati.
+                            </td>
+                        </tr>
+                    {% endif %}
+                </tbody>
+                <!-- Riga Totale Generale Aziendale -->
+                {% if fornitori_pivot %}
+                <tfoot class="table-dark">
+                    <tr class="fw-bold">
+                        <td colspan="4" class="py-3 text-uppercase">
+                            <i class="bi bi-calculator me-2"></i>Totale Generale Aziendale
+                        </td>
+                        {% for y in anni_colonne %}
+                            {% set cg = totale_generale_confronto[y] %}
+                            <td class="text-end fs-6 py-3">
+                                {{ "€ {:,.2f}".format(cg.importo).replace(',', 'X').replace('.', ',').replace('X', '.') }}
+                            </td>
+                            {% if not loop.first %}
+                                <td class="text-end py-3">
+                                    {% if cg.trend == 'risparmio' %}
+                                        <span class="badge bg-success fs-6">
+                                            <i class="bi bi-arrow-down-short"></i>{{ "{:,.2f} €".format(cg.diff_euro).replace(',', 'X').replace('.', ',').replace('X', '.') }} ({{ "{:+.1f}%".format(cg.diff_perc) }})
+                                        </span>
+                                    {% elif cg.trend == 'aumento' %}
+                                        <span class="badge bg-danger fs-6">
+                                            <i class="bi bi-arrow-up-short"></i>+{{ "{:,.2f} €".format(cg.diff_euro).replace(',', 'X').replace('.', ',').replace('X', '.') }} ({{ "{:+.1f}%".format(cg.diff_perc) }})
+                                        </span>
+                                    {% else %}
+                                        <span class="badge bg-secondary fs-6">0,00 € (0.0%)</span>
+                                    {% endif %}
+                                </td>
+                            {% endif %}
+                        {% endfor %}
+                    </tr>
+                </tfoot>
+                {% endif %}
+            </table>
+        </div>
+    </div>
+
+    <!-- Guida e Note Metodologiche -->
+    <div class="card border-0 shadow-sm bg-white mb-4">
+        <div class="card-body p-3 small text-muted">
+            <h6 class="fw-bold text-dark mb-2"><i class="bi bi-info-circle me-1 text-primary"></i>Nota Metodologica di Calcolo</h6>
+            <ul class="mb-0 ps-3">
+                <li><strong>Importo di Riferimento:</strong> il valore confrontato corrisponde all'importo pattuito a contratto (somma dei moduli contrattuali o importo esplicito dell'affidamento).</li>
+                <li><strong>Associazione Pluriennale:</strong> i contratti continuativi rinnovati da un anno all'altro vengono identificati per fornitore e codice/titolo omogeneo, permettendo l'analisi storica lineare.</li>
+                <li><strong>Variazioni e Risparmi:</strong> le differenze percentuali e assolute sono calcolate rispetto all'anno cronologicamente precedente ($Anno_N - Anno_{N-1}$). Un delta negativo evidenzia un'effettiva riduzione di spesa contrattuale (risparmio).</li>
+            </ul>
+        </div>
+    </div>
+
+</div>
+
+<footer class="bg-dark text-white text-center py-3 mt-auto no-print">
+    <div class="container">
+        <p class="mb-0 small">{{ cfg.footer_text }}</p>
+    </div>
+</footer>
+
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
+</body>
+</html>

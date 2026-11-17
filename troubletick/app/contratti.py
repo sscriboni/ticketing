@@ -1,5 +1,6 @@
 import os
 import io
+import re
 import csv
 from datetime import datetime
 from typing import Optional, List
@@ -11,7 +12,7 @@ from openpyxl.styles import Font, PatternFill, Alignment, Border, Side
 from openpyxl.utils import get_column_letter
 
 from core import engine, CFG, templates, DB_PK, DB_DRIVER
-from utils import current_user, user_has_tag_dec, user_can_manage_fornitori, safe_int, safe_float
+from utils import current_user, user_has_tag_dec, user_has_tag_amministrazione, user_can_manage_fornitori, safe_int, safe_float
 
 
 
@@ -157,7 +158,7 @@ def user_can_access_contratti(user: dict) -> bool:
     ruolo = user.get("ruolo", "normale")
     if ruolo in ("admin", "responsabile", "amministrativo"):
         return True
-    return user_has_tag_dec(user)
+    return user_has_tag_dec(user) or user_has_tag_amministrazione(user)
 
 def check_contratti_access(r: Request):
     """
@@ -165,7 +166,7 @@ def check_contratti_access(r: Request):
     - Ruolo admin
     - Ruolo responsabile
     - Ruolo amministrativo
-    - Operatore/Utente con tag DEC
+    - Operatore/Utente con tag DEC o AMMINISTRAZIONE
     """
     user = current_user(r)
     if not user:
@@ -175,7 +176,7 @@ def check_contratti_access(r: Request):
     if ruolo in ("admin", "responsabile", "amministrativo"):
         return user
 
-    if user_has_tag_dec(user):
+    if user_has_tag_dec(user) or user_has_tag_amministrazione(user):
         return user
 
     # Nessun permesso
@@ -1255,6 +1256,732 @@ def contratti_riepilogo_economico(
         "stato_selezionato": stato or "",
         "current_year": current_year
     })
+
+
+# ==========================================
+# REPORT CONFRONTO ANNUALE CONTRATTI
+# ==========================================
+
+def _normalizza_titolo_contratto(titolo: str) -> str:
+    if not titolo:
+        return "Senza Oggetto"
+    # Rimuove anni tipo '(2025)', 'anno 2024', '- 2026' per raggruppare i contratti continuativi
+    s = re.sub(r'[\(\[\{]?(?:anno\s*)?(?:19|20)\d{2}[\)\]\}]?', '', titolo, flags=re.IGNORECASE)
+    s = re.sub(r'\s*[-–—/]\s*$', '', s)
+    s = re.sub(r'^\s*[-–—/]\s*', '', s)
+    s = re.sub(r'\s+', ' ', s).strip()
+    return s if s else titolo.strip()
+
+
+def get_confronto_annuale_data(
+    user: dict,
+    reparto_id_val: Optional[int] = None,
+    fornitore_id_val: Optional[int] = None,
+    stato_filtro: Optional[str] = None,
+    anno_da_val: Optional[int] = None,
+    anno_a_val: Optional[int] = None
+):
+    """
+    Estrae ed elabora i dati per la tabella pivot annuale dei contratti,
+    confrontando i valori economici anno su anno ed evidenziando aumenti e risparmi.
+    """
+    current_year = datetime.now().year
+
+    scope_sql, scope_params = get_contratto_scope_filter(user)
+    where_clauses = [scope_sql]
+    params = dict(scope_params)
+
+    if fornitore_id_val:
+        where_clauses.append("c.fornitore_id = :fornitore_id")
+        params["fornitore_id"] = fornitore_id_val
+
+    if reparto_id_val:
+        where_clauses.append("c.reparto_id = :reparto_id")
+        params["reparto_id"] = reparto_id_val
+
+    if stato_filtro and stato_filtro.strip():
+        where_clauses.append("c.stato = :stato")
+        params["stato"] = stato_filtro.strip()
+
+    where_sql = " AND ".join(where_clauses)
+
+    with engine.connect() as conn:
+        # 1. Recupero lista anni censiti a sistema
+        all_years = [r[0] for r in conn.execute(text("SELECT DISTINCT anno FROM contratti WHERE anno IS NOT NULL AND anno > 0 ORDER BY anno ASC")).fetchall()]
+        if not all_years:
+            all_years = [current_year - 1, current_year]
+        elif len(all_years) == 1:
+            all_years = sorted(list(set([all_years[0] - 1, all_years[0]])))
+
+        min_system_year = all_years[0]
+        max_system_year = all_years[-1]
+
+        # Intervallo effettivo richiesto dal filtro
+        start_year = anno_da_val if anno_da_val else max(min_system_year, max_system_year - 4)
+        end_year = anno_a_val if anno_a_val else max_system_year
+        if start_year > end_year:
+            start_year, end_year = end_year, start_year
+
+        anni_colonne = [y for y in range(start_year, end_year + 1)]
+
+        # 2. Query estrazione contratti con moduli aggregati
+        contratti_raw = conn.execute(text(f"""
+            SELECT c.*,
+                   f.ragione_sociale AS fornitore_nome,
+                   f.partita_iva AS fornitore_piva,
+                   rep.nome AS reparto_nome,
+                   u_dec.nome AS dec_nome,
+                   u_dec.cognome AS dec_cognome,
+                   COALESCE((SELECT SUM(cm.costo) FROM contratti_moduli cm WHERE cm.contratto_id = c.contratto_id), 0.0) AS tot_moduli
+            FROM contratti c
+            JOIN fornitori f ON c.fornitore_id = f.fornitore_id
+            LEFT JOIN reparti rep ON c.reparto_id = rep.reparto_id
+            LEFT JOIN users u_dec ON c.dec_user_id = u_dec.user_id
+            WHERE {where_sql}
+            ORDER BY f.ragione_sociale ASC, c.anno ASC, c.contratto_id ASC
+        """), params).mappings().all()
+
+        fornitori = conn.execute(text("SELECT fornitore_id, ragione_sociale FROM fornitori ORDER BY ragione_sociale ASC")).mappings().all()
+        reparti = conn.execute(text("SELECT reparto_id, nome FROM reparti ORDER BY nome ASC")).mappings().all()
+
+    # 3. Costruzione struttura Fornitore -> Serie Contrattuale -> Anno
+    # Raggruppiamo per fornitore
+    fornitori_dict = {}
+
+    for row in contratti_raw:
+        c_year = row["anno"]
+        if c_year not in anni_colonne:
+            continue
+
+        fid = row["fornitore_id"]
+        if fid not in fornitori_dict:
+            fornitori_dict[fid] = {
+                "fornitore_id": fid,
+                "fornitore_nome": row["fornitore_nome"],
+                "fornitore_piva": row["fornitore_piva"],
+                "serie_contratti": {},
+                "totali_anni": {y: 0.0 for y in anni_colonne},
+                "confronto_anni": {}
+            }
+
+        importo_esplicito = float(row["importo"] or 0.0)
+        tot_moduli = float(row["tot_moduli"] or 0.0)
+        importo_contratto = max(tot_moduli, importo_esplicito) if tot_moduli > 0 else importo_esplicito
+
+        # Chiave di identificazione della serie continuativa
+        codice = (row["codice_contratto"] or "").strip()
+        titolo_norm = _normalizza_titolo_contratto(row["titolo"])
+        reparto_key = row["reparto_id"] or 0
+        if codice:
+            serie_key = f"COD_{codice}_{reparto_key}"
+        else:
+            serie_key = f"TIT_{titolo_norm.lower()}_{reparto_key}"
+
+        f_data = fornitori_dict[fid]
+        if serie_key not in f_data["serie_contratti"]:
+            f_data["serie_contratti"][serie_key] = {
+                "serie_key": serie_key,
+                "titolo_base": titolo_norm,
+                "titolo_ultimo": row["titolo"],
+                "codice_contratto": codice,
+                "cig": row["cig"] or "",
+                "cup": row["cup"] or "",
+                "reparto_id": row["reparto_id"],
+                "reparto_nome": row["reparto_nome"] or "—",
+                "dec_nome": f"{row['dec_nome'] or ''} {row['dec_cognome'] or ''}".strip() or "—",
+                "anni_data": {y: None for y in anni_colonne},
+                "ultimo_contratto_id": row["contratto_id"]
+            }
+
+        serie = f_data["serie_contratti"][serie_key]
+        serie["ultimo_contratto_id"] = row["contratto_id"]
+        serie["titolo_ultimo"] = row["titolo"]
+        if row["cig"]:
+            serie["cig"] = row["cig"]
+        if row["reparto_nome"]:
+            serie["reparto_nome"] = row["reparto_nome"]
+        if row["dec_nome"] or row["dec_cognome"]:
+            serie["dec_nome"] = f"{row['dec_nome'] or ''} {row['dec_cognome'] or ''}".strip()
+
+        # Inseriamo i dati per l'anno
+        serie["anni_data"][c_year] = {
+            "contratto_id": row["contratto_id"],
+            "titolo": row["titolo"],
+            "codice": row["codice_contratto"] or "",
+            "cig": row["cig"] or "",
+            "importo": importo_contratto,
+            "stato": row["stato"] or "attivo"
+        }
+
+        f_data["totali_anni"][c_year] += importo_contratto
+
+    # 4. Calcolo variazioni (delta € e %) per ciascun contratto, fornitore e generale
+    totale_generale_anni = {y: 0.0 for y in anni_colonne}
+    for fid, f_data in fornitori_dict.items():
+        for y in anni_colonne:
+            totale_generale_anni[y] += f_data["totali_anni"][y]
+
+    # Delta per ciascuna serie di contratto
+    totale_contratti_attivi = 0
+    for fid, f_data in fornitori_dict.items():
+        serie_list = []
+        for sk, s_data in f_data["serie_contratti"].items():
+            totale_contratti_attivi += 1
+            anni_confronto = {}
+            for idx, y in enumerate(anni_colonne):
+                cur_item = s_data["anni_data"].get(y)
+                cur_imp = cur_item["importo"] if cur_item else 0.0
+                ha_dato = (cur_item is not None)
+
+                diff_euro = 0.0
+                diff_perc = 0.0
+                trend = "invariato"
+
+                if idx > 0:
+                    prev_year = anni_colonne[idx - 1]
+                    prev_item = s_data["anni_data"].get(prev_year)
+                    prev_imp = prev_item["importo"] if prev_item else 0.0
+
+                    if ha_dato and (prev_item is not None):
+                        diff_euro = cur_imp - prev_imp
+                        if prev_imp > 0:
+                            diff_perc = (diff_euro / prev_imp) * 100.0
+                        elif cur_imp > 0:
+                            diff_perc = 100.0
+                        else:
+                            diff_perc = 0.0
+
+                        if diff_euro > 0.01:
+                            trend = "aumento"
+                        elif diff_euro < -0.01:
+                            trend = "risparmio"
+                        else:
+                            trend = "invariato"
+                    elif ha_dato and (prev_item is None):
+                        trend = "nuovo"
+                        diff_euro = cur_imp
+                        diff_perc = 100.0
+                    elif (not ha_dato) and (prev_item is not None):
+                        trend = "cessato"
+                        diff_euro = -prev_imp
+                        diff_perc = -100.0
+                    else:
+                        trend = "assente"
+                else:
+                    trend = "base" if ha_dato else "assente"
+
+                anni_confronto[y] = {
+                    "ha_dato": ha_dato,
+                    "contratto_id": cur_item["contratto_id"] if cur_item else None,
+                    "titolo": cur_item["titolo"] if cur_item else "",
+                    "codice": cur_item["codice"] if cur_item else "",
+                    "cig": cur_item["cig"] if cur_item else "",
+                    "stato": cur_item["stato"] if cur_item else "",
+                    "importo": cur_imp,
+                    "diff_euro": diff_euro,
+                    "diff_perc": diff_perc,
+                    "trend": trend
+                }
+            s_data["confronto"] = anni_confronto
+            serie_list.append(s_data)
+
+        serie_list.sort(key=lambda s: s["titolo_base"].lower())
+        f_data["serie_list"] = serie_list
+
+        # Calcolo delta del Fornitore anno su anno
+        f_confronto = {}
+        for idx, y in enumerate(anni_colonne):
+            cur_tot = f_data["totali_anni"][y]
+            diff_euro = 0.0
+            diff_perc = 0.0
+            trend = "invariato"
+
+            if idx > 0:
+                prev_y = anni_colonne[idx - 1]
+                prev_tot = f_data["totali_anni"][prev_y]
+                diff_euro = cur_tot - prev_tot
+                if prev_tot > 0:
+                    diff_perc = (diff_euro / prev_tot) * 100.0
+                elif cur_tot > 0:
+                    diff_perc = 100.0
+                else:
+                    diff_perc = 0.0
+
+                if diff_euro > 0.01:
+                    trend = "aumento"
+                elif diff_euro < -0.01:
+                    trend = "risparmio"
+                else:
+                    trend = "invariato"
+            else:
+                trend = "base"
+
+            f_confronto[y] = {
+                "importo": cur_tot,
+                "diff_euro": diff_euro,
+                "diff_perc": diff_perc,
+                "trend": trend
+            }
+        f_data["confronto_anni"] = f_confronto
+
+    # Ordinamento fornitori
+    fornitori_list = list(fornitori_dict.values())
+    fornitori_list.sort(key=lambda f: f["fornitore_nome"].lower())
+
+    # Totale generale delta anno su anno
+    totale_generale_confronto = {}
+    for idx, y in enumerate(anni_colonne):
+        cur_gen = totale_generale_anni[y]
+        diff_euro = 0.0
+        diff_perc = 0.0
+        trend = "invariato"
+
+        if idx > 0:
+            prev_y = anni_colonne[idx - 1]
+            prev_gen = totale_generale_anni[prev_y]
+            diff_euro = cur_gen - prev_gen
+            if prev_gen > 0:
+                diff_perc = (diff_euro / prev_gen) * 100.0
+            elif cur_gen > 0:
+                diff_perc = 100.0
+            else:
+                diff_perc = 0.0
+
+            if diff_euro > 0.01:
+                trend = "aumento"
+            elif diff_euro < -0.01:
+                trend = "risparmio"
+            else:
+                trend = "invariato"
+        else:
+            trend = "base"
+
+        totale_generale_confronto[y] = {
+            "importo": cur_gen,
+            "diff_euro": diff_euro,
+            "diff_perc": diff_perc,
+            "trend": trend
+        }
+
+    # KPI riepilogativi
+    ultimo_anno = anni_colonne[-1] if anni_colonne else current_year
+    penultimo_anno = anni_colonne[-2] if len(anni_colonne) >= 2 else None
+
+    totale_spesa_ultimo_anno = totale_generale_anni.get(ultimo_anno, 0.0)
+    variazione_ultimo_anno_euro = totale_generale_confronto.get(ultimo_anno, {}).get("diff_euro", 0.0) if penultimo_anno else 0.0
+    variazione_ultimo_anno_perc = totale_generale_confronto.get(ultimo_anno, {}).get("diff_perc", 0.0) if penultimo_anno else 0.0
+    trend_ultimo_anno = totale_generale_confronto.get(ultimo_anno, {}).get("trend", "invariato") if penultimo_anno else "invariato"
+
+    return {
+        "fornitori_pivot": fornitori_list,
+        "anni_colonne": anni_colonne,
+        "tutti_gli_anni": all_years,
+        "totale_generale_anni": totale_generale_anni,
+        "totale_generale_confronto": totale_generale_confronto,
+        "totale_spesa_ultimo_anno": totale_spesa_ultimo_anno,
+        "variazione_ultimo_anno_euro": variazione_ultimo_anno_euro,
+        "variazione_ultimo_anno_perc": variazione_ultimo_anno_perc,
+        "trend_ultimo_anno": trend_ultimo_anno,
+        "totale_fornitori": len(fornitori_list),
+        "totale_contratti_censiti": len(contratti_raw),
+        "ultimo_anno": ultimo_anno,
+        "penultimo_anno": penultimo_anno,
+        "fornitori": fornitori,
+        "reparti": reparti,
+        "reparto_selezionato": reparto_id_val,
+        "fornitore_selezionato": fornitore_id_val,
+        "stato_selezionato": stato_filtro or "",
+        "anno_da_selezionato": start_year,
+        "anno_a_selezionato": end_year
+    }
+
+
+@router.get("/contratti/confronto-annuale", response_class=HTMLResponse)
+@router.get("/contratto/confronto-annuale", response_class=HTMLResponse)
+@router.get("/contratti/report-confronto-annuale", response_class=HTMLResponse)
+def contratti_confronto_annuale(
+    r: Request,
+    reparto_id: Optional[str] = None,
+    fornitore_id: Optional[str] = None,
+    stato: Optional[str] = None,
+    anno_da: Optional[str] = None,
+    anno_a: Optional[str] = None
+):
+    user = check_contratti_access(r)
+    if isinstance(user, RedirectResponse):
+        return user
+
+    data = get_confronto_annuale_data(
+        user=user,
+        reparto_id_val=safe_int(reparto_id),
+        fornitore_id_val=safe_int(fornitore_id),
+        stato_filtro=stato,
+        anno_da_val=safe_int(anno_da),
+        anno_a_val=safe_int(anno_a)
+    )
+
+    return templates.TemplateResponse(r, "contratti_confronto_annuale.html", {
+        "request": r,
+        "cfg": CFG,
+        "user": user,
+        **data
+    })
+
+
+@router.get("/contratti/confronto-annuale/export/excel")
+@router.get("/contratto/confronto-annuale/export/excel")
+def contratti_confronto_annuale_excel(
+    r: Request,
+    reparto_id: Optional[str] = None,
+    fornitore_id: Optional[str] = None,
+    stato: Optional[str] = None,
+    anno_da: Optional[str] = None,
+    anno_a: Optional[str] = None
+):
+    user = check_contratti_access(r)
+    if isinstance(user, RedirectResponse):
+        return user
+
+    data = get_confronto_annuale_data(
+        user=user,
+        reparto_id_val=safe_int(reparto_id),
+        fornitore_id_val=safe_int(fornitore_id),
+        stato_filtro=stato,
+        anno_da_val=safe_int(anno_da),
+        anno_a_val=safe_int(anno_a)
+    )
+
+    anni = data["anni_colonne"]
+
+    wb = openpyxl.Workbook()
+    ws = wb.active
+    ws.title = "Confronto Annuale Contratti"
+    ws.views.sheetView[0].showGridLines = True
+
+    # Stili
+    title_font = Font(name="Calibri", size=14, bold=True, color="1F4E78")
+    header_fill = PatternFill(start_color="1F4E78", end_color="1F4E78", fill_type="solid")
+    header_font = Font(name="Calibri", size=10, bold=True, color="FFFFFF")
+    
+    forn_fill = PatternFill(start_color="D9E1F2", end_color="D9E1F2", fill_type="solid")
+    forn_font = Font(name="Calibri", size=10, bold=True, color="1F4E78")
+    
+    total_fill = PatternFill(start_color="2F5597", end_color="2F5597", fill_type="solid")
+    total_font = Font(name="Calibri", size=11, bold=True, color="FFFFFF")
+
+    thin_border = Border(
+        left=Side(style="thin", color="D9D9D9"),
+        right=Side(style="thin", color="D9D9D9"),
+        top=Side(style="thin", color="D9D9D9"),
+        bottom=Side(style="thin", color="D9D9D9")
+    )
+    
+    green_font = Font(name="Calibri", size=9, bold=True, color="008000")
+    red_font = Font(name="Calibri", size=9, bold=True, color="C00000")
+    regular_font = Font(name="Calibri", size=9)
+    bold_font = Font(name="Calibri", size=9, bold=True)
+
+    align_center = Alignment(horizontal="center", vertical="center")
+    align_left = Alignment(horizontal="left", vertical="center")
+    align_right = Alignment(horizontal="right", vertical="center")
+
+    # Titolo del report
+    ws.cell(row=1, column=1, value=f"CONFRONTO ECONOMICO ANNUALE CONTRATTI DI FORNITURA").font = title_font
+    ws.cell(row=2, column=1, value=f"Generato il {datetime.now().strftime('%d/%m/%Y %H:%M')} — Importi in Euro IVA esclusa").font = Font(name="Calibri", size=9, italic=True)
+
+    # Costruzione intestazioni colonne
+    # Colonne fisse: Fornitore, Contratto/Oggetto, Reparto, CIG
+    col_idx = 1
+    row_idx = 4
+
+    headers = [
+        "Fornitore", "P.IVA", "Oggetto / Serie Contratto", "Codice", "CIG", "Reparto", "DEC"
+    ]
+    for h in headers:
+        cell = ws.cell(row=row_idx, column=col_idx, value=h)
+        cell.fill = header_fill
+        cell.font = header_font
+        cell.alignment = align_center
+        cell.border = thin_border
+        col_idx += 1
+
+    for idx, y in enumerate(anni):
+        cell_y = ws.cell(row=row_idx, column=col_idx, value=f"Anno {y} (€)")
+        cell_y.fill = header_fill
+        cell_y.font = header_font
+        cell_y.alignment = align_center
+        cell_y.border = thin_border
+        col_idx += 1
+
+        if idx > 0:
+            cell_diff = ws.cell(row=row_idx, column=col_idx, value=f"Var. vs {anni[idx-1]} (€)")
+            cell_diff.fill = header_fill
+            cell_diff.font = header_font
+            cell_diff.alignment = align_center
+            cell_diff.border = thin_border
+            col_idx += 1
+
+            cell_p = ws.cell(row=row_idx, column=col_idx, value=f"Var. %")
+            cell_p.fill = header_fill
+            cell_p.font = header_font
+            cell_p.alignment = align_center
+            cell_p.border = thin_border
+            col_idx += 1
+
+    row_idx = 5
+    for f in data["fornitori_pivot"]:
+        # Riga Fornitore (Subtotale)
+        c_col = 1
+        ws.cell(row=row_idx, column=1, value=f["fornitore_nome"]).font = forn_font
+        ws.cell(row=row_idx, column=2, value=f["fornitore_piva"] or "").font = forn_font
+        ws.cell(row=row_idx, column=3, value=f"[SUBTOTALE FORNITORE - {len(f['serie_list'])} contratti]").font = forn_font
+        ws.cell(row=row_idx, column=4, value="").font = forn_font
+        ws.cell(row=row_idx, column=5, value="").font = forn_font
+        ws.cell(row=row_idx, column=6, value="").font = forn_font
+        ws.cell(row=row_idx, column=7, value="").font = forn_font
+
+        for col_i in range(1, 8):
+            c_cell = ws.cell(row=row_idx, column=col_i)
+            c_cell.fill = forn_fill
+            c_cell.border = thin_border
+
+        curr_c = 8
+        for idx, y in enumerate(anni):
+            cf = f["confronto_anni"][y]
+            cell_imp = ws.cell(row=row_idx, column=curr_c, value=cf["importo"])
+            cell_imp.fill = forn_fill
+            cell_imp.font = forn_font
+            cell_imp.number_format = "#,##0.00 €"
+            cell_imp.alignment = align_right
+            cell_imp.border = thin_border
+            curr_c += 1
+
+            if idx > 0:
+                cell_d = ws.cell(row=row_idx, column=curr_c, value=cf["diff_euro"])
+                cell_d.fill = forn_fill
+                cell_d.font = green_font if cf["diff_euro"] < -0.01 else (red_font if cf["diff_euro"] > 0.01 else bold_font)
+                cell_d.number_format = "+#,##0.00 €;-#,##0.00 €;0.00 €"
+                cell_d.alignment = align_right
+                cell_d.border = thin_border
+                curr_c += 1
+
+                cell_pct = ws.cell(row=row_idx, column=curr_c, value=cf["diff_perc"] / 100.0)
+                cell_pct.fill = forn_fill
+                cell_pct.font = green_font if cf["diff_euro"] < -0.01 else (red_font if cf["diff_euro"] > 0.01 else bold_font)
+                cell_pct.number_format = "+0.0%;-0.0%;0.0%"
+                cell_pct.alignment = align_right
+                cell_pct.border = thin_border
+                curr_c += 1
+
+        row_idx += 1
+
+        # Righe di dettaglio per ciascuna serie di contratto
+        for s in f["serie_list"]:
+            ws.cell(row=row_idx, column=1, value="").font = regular_font
+            ws.cell(row=row_idx, column=2, value="").font = regular_font
+            ws.cell(row=row_idx, column=3, value=s["titolo_base"]).font = bold_font
+            ws.cell(row=row_idx, column=4, value=s["codice_contratto"]).font = regular_font
+            ws.cell(row=row_idx, column=5, value=s["cig"]).font = regular_font
+            ws.cell(row=row_idx, column=6, value=s["reparto_nome"]).font = regular_font
+            ws.cell(row=row_idx, column=7, value=s["dec_nome"]).font = regular_font
+
+            for col_i in range(1, 8):
+                ws.cell(row=row_idx, column=col_i).border = thin_border
+
+            curr_c = 8
+            for idx, y in enumerate(anni):
+                cs = s["confronto"][y]
+                if cs["ha_dato"]:
+                    cell_imp = ws.cell(row=row_idx, column=curr_c, value=cs["importo"])
+                    cell_imp.number_format = "#,##0.00 €"
+                else:
+                    cell_imp = ws.cell(row=row_idx, column=curr_c, value="—")
+                cell_imp.font = regular_font
+                cell_imp.alignment = align_right
+                cell_imp.border = thin_border
+                curr_c += 1
+
+                if idx > 0:
+                    if cs["ha_dato"] or cs["trend"] == "cessato":
+                        cell_d = ws.cell(row=row_idx, column=curr_c, value=cs["diff_euro"])
+                        cell_d.number_format = "+#,##0.00 €;-#,##0.00 €;0.00 €"
+                        cell_d.font = green_font if cs["diff_euro"] < -0.01 else (red_font if cs["diff_euro"] > 0.01 else regular_font)
+
+                        cell_pct = ws.cell(row=row_idx, column=curr_c, value=cs["diff_perc"] / 100.0)
+                        cell_pct.number_format = "+0.0%;-0.0%;0.0%"
+                        cell_pct.font = green_font if cs["diff_euro"] < -0.01 else (red_font if cs["diff_euro"] > 0.01 else regular_font)
+                    else:
+                        cell_d = ws.cell(row=row_idx, column=curr_c, value="—")
+                        cell_d.font = regular_font
+                        cell_pct = ws.cell(row=row_idx, column=curr_c, value="—")
+                        cell_pct.font = regular_font
+
+                    cell_d.alignment = align_right
+                    cell_d.border = thin_border
+                    curr_c += 1
+
+                    cell_pct.alignment = align_right
+                    cell_pct.border = thin_border
+                    curr_c += 1
+
+            row_idx += 1
+
+    # Riga Totale Generale
+    row_idx += 1
+    ws.cell(row=row_idx, column=1, value="TOTALE GENERALE AZIENDALE").font = total_font
+    ws.cell(row=row_idx, column=2, value="").font = total_font
+    ws.cell(row=row_idx, column=3, value=f"{data['totale_fornitori']} fornitori / {data['totale_contratti_censiti']} contratti").font = total_font
+    ws.cell(row=row_idx, column=4, value="").font = total_font
+    ws.cell(row=row_idx, column=5, value="").font = total_font
+    ws.cell(row=row_idx, column=6, value="").font = total_font
+    ws.cell(row=row_idx, column=7, value="").font = total_font
+
+    for col_i in range(1, 8):
+        c_cell = ws.cell(row=row_idx, column=col_i)
+        c_cell.fill = total_fill
+        c_cell.border = thin_border
+
+    curr_c = 8
+    for idx, y in enumerate(anni):
+        cg = data["totale_generale_confronto"][y]
+        cell_imp = ws.cell(row=row_idx, column=curr_c, value=cg["importo"])
+        cell_imp.fill = total_fill
+        cell_imp.font = total_font
+        cell_imp.number_format = "#,##0.00 €"
+        cell_imp.alignment = align_right
+        cell_imp.border = thin_border
+        curr_c += 1
+
+        if idx > 0:
+            cell_d = ws.cell(row=row_idx, column=curr_c, value=cg["diff_euro"])
+            cell_d.fill = total_fill
+            cell_d.font = Font(name="Calibri", size=10, bold=True, color="90EE90" if cg["diff_euro"] < -0.01 else ("FFB6C1" if cg["diff_euro"] > 0.01 else "FFFFFF"))
+            cell_d.number_format = "+#,##0.00 €;-#,##0.00 €;0.00 €"
+            cell_d.alignment = align_right
+            cell_d.border = thin_border
+            curr_c += 1
+
+            cell_pct = ws.cell(row=row_idx, column=curr_c, value=cg["diff_perc"] / 100.0)
+            cell_pct.fill = total_fill
+            cell_pct.font = Font(name="Calibri", size=10, bold=True, color="90EE90" if cg["diff_euro"] < -0.01 else ("FFB6C1" if cg["diff_euro"] > 0.01 else "FFFFFF"))
+            cell_pct.number_format = "+0.0%;-0.0%;0.0%"
+            cell_pct.alignment = align_right
+            cell_pct.border = thin_border
+            curr_c += 1
+
+    # Larghezza colonne automatica
+    for col in ws.columns:
+        max_len = 0
+        col_letter = get_column_letter(col[0].column)
+        for cell in col:
+            v_str = str(cell.value or "")
+            if len(v_str) > max_len:
+                max_len = len(v_str)
+        ws.column_dimensions[col_letter].width = max(max_len + 3, 12)
+
+    output = io.BytesIO()
+    wb.save(output)
+    output.seek(0)
+
+    filename = f"confronto_annuale_contratti_{datetime.now().strftime('%Y%m%d_%H%M%S')}.xlsx"
+    headers_resp = {
+        "Content-Disposition": f'attachment; filename="{filename}"',
+        "Content-Type": "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+    }
+    return Response(content=output.getvalue(), headers=headers_resp, media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
+
+
+@router.get("/contratti/confronto-annuale/export/csv")
+@router.get("/contratto/confronto-annuale/export/csv")
+def contratti_confronto_annuale_csv(
+    r: Request,
+    reparto_id: Optional[str] = None,
+    fornitore_id: Optional[str] = None,
+    stato: Optional[str] = None,
+    anno_da: Optional[str] = None,
+    anno_a: Optional[str] = None
+):
+    user = check_contratti_access(r)
+    if isinstance(user, RedirectResponse):
+        return user
+
+    data = get_confronto_annuale_data(
+        user=user,
+        reparto_id_val=safe_int(reparto_id),
+        fornitore_id_val=safe_int(fornitore_id),
+        stato_filtro=stato,
+        anno_da_val=safe_int(anno_da),
+        anno_a_val=safe_int(anno_a)
+    )
+
+    anni = data["anni_colonne"]
+
+    output = io.StringIO()
+    writer = csv.writer(output, delimiter=';')
+
+    # Intestazioni
+    headers = ["Fornitore", "P.IVA", "Oggetto Contratto", "Codice", "CIG", "Reparto", "DEC"]
+    for idx, y in enumerate(anni):
+        headers.append(f"Importo {y} (€)")
+        if idx > 0:
+            headers.append(f"Diff vs {anni[idx-1]} (€)")
+            headers.append(f"Var % vs {anni[idx-1]}")
+    writer.writerow(headers)
+
+    for f in data["fornitori_pivot"]:
+        # Subtotale Fornitore
+        row_f = [f["fornitore_nome"], f["fornitore_piva"] or "", f"[SUBTOTALE FORNITORE]", "", "", "", ""]
+        for idx, y in enumerate(anni):
+            cf = f["confronto_anni"][y]
+            row_f.append(f"{cf['importo']:.2f}")
+            if idx > 0:
+                row_f.append(f"{cf['diff_euro']:+.2f}")
+                row_f.append(f"{cf['diff_perc']:+.1f}%")
+        writer.writerow(row_f)
+
+        for s in f["serie_list"]:
+            row_s = [
+                f["fornitore_nome"],
+                f["fornitore_piva"] or "",
+                s["titolo_base"],
+                s["codice_contratto"],
+                s["cig"],
+                s["reparto_nome"],
+                s["dec_nome"]
+            ]
+            for idx, y in enumerate(anni):
+                cs = s["confronto"][y]
+                if cs["ha_dato"]:
+                    row_s.append(f"{cs['importo']:.2f}")
+                else:
+                    row_s.append("")
+
+                if idx > 0:
+                    if cs["ha_dato"] or cs["trend"] == "cessato":
+                        row_s.append(f"{cs['diff_euro']:+.2f}")
+                        row_s.append(f"{cs['diff_perc']:+.1f}%")
+                    else:
+                        row_s.append("")
+                        row_s.append("")
+            writer.writerow(row_s)
+
+    # Totale generale
+    row_tot = ["TOTALE GENERALE AZIENDALE", "", f"{data['totale_fornitori']} fornitori", "", "", "", ""]
+    for idx, y in enumerate(anni):
+        cg = data["totale_generale_confronto"][y]
+        row_tot.append(f"{cg['importo']:.2f}")
+        if idx > 0:
+            row_tot.append(f"{cg['diff_euro']:+.2f}")
+            row_tot.append(f"{cg['diff_perc']:+.1f}%")
+    writer.writerow(row_tot)
+
+    csv_data = "\ufeff" + output.getvalue()
+    filename = f"confronto_annuale_contratti_{datetime.now().strftime('%Y%m%d_%H%M%S')}.csv"
+    headers_resp = {
+        "Content-Disposition": f'attachment; filename="{filename}"',
+        "Content-Type": "text/csv; charset=utf-8"
+    }
+    return Response(content=csv_data.encode("utf-8"), headers=headers_resp, media_type="text/csv")
 
 
 @router.get("/contratti/fornitori")
