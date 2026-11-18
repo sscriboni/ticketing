@@ -127,7 +127,7 @@
         <div class="card-body p-3">
             <form method="get" action="/contratti/confronto-annuale" class="row g-2 align-items-end">
                 <!-- Filtro Reparto -->
-                <div class="col-12 col-md-3">
+                <div class="col-12 col-md-2">
                     <label class="form-label small fw-bold text-muted mb-1"><i class="bi bi-building me-1"></i>Reparto</label>
                     <select name="reparto_id" class="form-select form-select-sm" onchange="this.form.submit()">
                         <option value="">-- Tutti i Reparti --</option>
@@ -140,13 +140,26 @@
                 </div>
 
                 <!-- Filtro Fornitore -->
-                <div class="col-12 col-md-3">
+                <div class="col-12 col-md-2">
                     <label class="form-label small fw-bold text-muted mb-1"><i class="bi bi-shop me-1"></i>Fornitore</label>
                     <select name="fornitore_id" class="form-select form-select-sm" onchange="this.form.submit()">
                         <option value="">-- Tutti i Fornitori --</option>
                         {% for f in fornitori %}
                         <option value="{{ f.fornitore_id }}" {% if fornitore_selezionato == f.fornitore_id %}selected{% endif %}>
                             {{ f.ragione_sociale }}
+                        </option>
+                        {% endfor %}
+                    </select>
+                </div>
+
+                <!-- Filtro Tag Contratto -->
+                <div class="col-12 col-md-2">
+                    <label class="form-label small fw-bold text-muted mb-1"><i class="bi bi-tag-fill me-1"></i>Tag Contratto</label>
+                    <select name="tag_id" class="form-select form-select-sm" onchange="this.form.submit()">
+                        <option value="">-- Tutti i Tag --</option>
+                        {% for t in tags %}
+                        <option value="{{ t.tag_id }}" {% if tag_selezionato == t.tag_id %}selected{% endif %}>
+                            {{ t.nome }}
                         </option>
                         {% endfor %}
                     </select>
@@ -375,9 +388,18 @@
                             {% for s in f.serie_list %}
                             <tr>
                                 <td class="ps-4">
-                                    <a href="/contratto/{{ s.ultimo_contratto_id }}" class="fw-semibold text-decoration-none text-dark" title="Visualizza scheda contratto">
-                                        <i class="bi bi-file-earmark-text text-secondary me-1"></i>{{ s.titolo_base }}
-                                    </a>
+                                    <div class="d-flex align-items-center gap-1.5 flex-wrap">
+                                        <a href="/contratto/{{ s.ultimo_contratto_id }}" class="fw-semibold text-decoration-none text-dark" title="Visualizza scheda contratto">
+                                            <i class="bi bi-file-earmark-text text-secondary me-1"></i>{{ s.titolo_base }}
+                                        </a>
+                                        {% if s.tags %}
+                                            {% for t in s.tags %}
+                                            <span class="badge shadow-sm" style="background-color: {{ t.colore or '#0d6efd' }}; color: #ffffff; font-size: 0.68rem; font-weight: 700;">
+                                                <i class="bi bi-tag-fill me-0.5"></i>{{ t.nome }}
+                                            </span>
+                                            {% endfor %}
+                                        {% endif %}
+                                    </div>
                                 </td>
                                 <td class="text-center font-monospace small">
                                     {{ s.cig or s.codice_contratto or '—' }}

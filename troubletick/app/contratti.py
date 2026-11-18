@@ -1430,6 +1430,7 @@ def get_confronto_annuale_data(
     reparto_id_val: Optional[int] = None,
     fornitore_id_val: Optional[int] = None,
     stato_filtro: Optional[str] = None,
+    tag_id_val: Optional[int] = None,
     anno_da_val: Optional[int] = None,
     anno_a_val: Optional[int] = None
 ):
@@ -1455,9 +1456,16 @@ def get_confronto_annuale_data(
         where_clauses.append("c.stato = :stato")
         params["stato"] = stato_filtro.strip()
 
+    if tag_id_val:
+        where_clauses.append("EXISTS (SELECT 1 FROM contratti_tag ct WHERE ct.contratto_id = c.contratto_id AND ct.tag_id = :tag_id)")
+        params["tag_id"] = tag_id_val
+
     where_sql = " AND ".join(where_clauses)
 
     with engine.connect() as conn:
+        all_tags = _get_all_contratti_tags(conn)
+        tags_map = _get_tags_map_for_contratti(conn)
+
         # 1. Recupero lista anni censiti a sistema
         all_years = [r[0] for r in conn.execute(text("SELECT DISTINCT anno FROM contratti WHERE anno IS NOT NULL AND anno > 0 ORDER BY anno ASC")).fetchall()]
         if not all_years:
@@ -1542,7 +1550,8 @@ def get_confronto_annuale_data(
                 "reparto_nome": row["reparto_nome"] or "—",
                 "dec_nome": f"{row['dec_nome'] or ''} {row['dec_cognome'] or ''}".strip() or "—",
                 "anni_data": {y: None for y in anni_colonne},
-                "ultimo_contratto_id": row["contratto_id"]
+                "ultimo_contratto_id": row["contratto_id"],
+                "tags": []
             }
 
         serie = f_data["serie_contratti"][serie_key]
@@ -1554,6 +1563,15 @@ def get_confronto_annuale_data(
             serie["reparto_nome"] = row["reparto_nome"]
         if row["dec_nome"] or row["dec_cognome"]:
             serie["dec_nome"] = f"{row['dec_nome'] or ''} {row['dec_cognome'] or ''}".strip()
+
+        # Collega i tag del contratto alla serie
+        row_tags = tags_map.get(row["contratto_id"], [])
+        if row_tags:
+            existing_tag_ids = {t["tag_id"] for t in serie["tags"]}
+            for t in row_tags:
+                if t["tag_id"] not in existing_tag_ids:
+                    serie["tags"].append(t)
+                    existing_tag_ids.add(t["tag_id"])
 
         # Inseriamo i dati per l'anno
         serie["anni_data"][c_year] = {
@@ -1740,9 +1758,11 @@ def get_confronto_annuale_data(
         "penultimo_anno": penultimo_anno,
         "fornitori": fornitori,
         "reparti": reparti,
+        "tags": all_tags,
         "reparto_selezionato": reparto_id_val,
         "fornitore_selezionato": fornitore_id_val,
         "stato_selezionato": stato_filtro or "",
+        "tag_selezionato": tag_id_val,
         "anno_da_selezionato": start_year,
         "anno_a_selezionato": end_year
     }
@@ -1756,6 +1776,7 @@ def contratti_confronto_annuale(
     reparto_id: Optional[str] = None,
     fornitore_id: Optional[str] = None,
     stato: Optional[str] = None,
+    tag_id: Optional[str] = None,
     anno_da: Optional[str] = None,
     anno_a: Optional[str] = None
 ):
@@ -1768,6 +1789,7 @@ def contratti_confronto_annuale(
         reparto_id_val=safe_int(reparto_id),
         fornitore_id_val=safe_int(fornitore_id),
         stato_filtro=stato,
+        tag_id_val=safe_int(tag_id),
         anno_da_val=safe_int(anno_da),
         anno_a_val=safe_int(anno_a)
     )
@@ -1787,6 +1809,7 @@ def contratti_confronto_annuale_excel(
     reparto_id: Optional[str] = None,
     fornitore_id: Optional[str] = None,
     stato: Optional[str] = None,
+    tag_id: Optional[str] = None,
     anno_da: Optional[str] = None,
     anno_a: Optional[str] = None
 ):
@@ -1799,6 +1822,7 @@ def contratti_confronto_annuale_excel(
         reparto_id_val=safe_int(reparto_id),
         fornitore_id_val=safe_int(fornitore_id),
         stato_filtro=stato,
+        tag_id_val=safe_int(tag_id),
         anno_da_val=safe_int(anno_da),
         anno_a_val=safe_int(anno_a)
     )
@@ -2050,6 +2074,7 @@ def contratti_confronto_annuale_csv(
     reparto_id: Optional[str] = None,
     fornitore_id: Optional[str] = None,
     stato: Optional[str] = None,
+    tag_id: Optional[str] = None,
     anno_da: Optional[str] = None,
     anno_a: Optional[str] = None
 ):
@@ -2062,6 +2087,7 @@ def contratti_confronto_annuale_csv(
         reparto_id_val=safe_int(reparto_id),
         fornitore_id_val=safe_int(fornitore_id),
         stato_filtro=stato,
+        tag_id_val=safe_int(tag_id),
         anno_da_val=safe_int(anno_da),
         anno_a_val=safe_int(anno_a)
     )
