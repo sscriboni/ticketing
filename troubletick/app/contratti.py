@@ -143,61 +143,72 @@ def init_contratti_db():
         # Tabelle e tag predefiniti gestione contratti
         _ensure_contratti_tag_tables(c)
 
-def _ensure_contratti_tag_tables(conn):
+def _ensure_contratti_tag_tables(conn=None):
     try:
-        conn.execute(text(f"""
-            CREATE TABLE IF NOT EXISTS tag_contratti (
-                tag_id {DB_PK},
-                nome TEXT UNIQUE NOT NULL,
-                colore TEXT DEFAULT '#0d6efd',
-                descrizione TEXT
-            )
-        """))
-        conn.execute(text(f"""
-            CREATE TABLE IF NOT EXISTS contratti_tag (
-                contratto_id INTEGER NOT NULL,
-                tag_id INTEGER NOT NULL,
-                PRIMARY KEY(contratto_id, tag_id),
-                FOREIGN KEY(contratto_id) REFERENCES contratti(contratto_id) ON DELETE CASCADE,
-                FOREIGN KEY(tag_id) REFERENCES tag_contratti(tag_id) ON DELETE CASCADE
-            )
-        """))
-        try:
+        def _execute_ensure(c):
+            # Tabella tag_contratti con VARCHAR(100) per compatibilità piena MySQL/MariaDB/PostgreSQL/SQLite
+            c.execute(text(f"""
+                CREATE TABLE IF NOT EXISTS tag_contratti (
+                    tag_id {DB_PK},
+                    nome VARCHAR(100) UNIQUE NOT NULL,
+                    colore VARCHAR(50) DEFAULT '#0d6efd',
+                    descrizione TEXT
+                )
+            """))
+            c.execute(text(f"""
+                CREATE TABLE IF NOT EXISTS contratti_tag (
+                    contratto_id INTEGER NOT NULL,
+                    tag_id INTEGER NOT NULL,
+                    PRIMARY KEY(contratto_id, tag_id),
+                    FOREIGN KEY(contratto_id) REFERENCES contratti(contratto_id) ON DELETE CASCADE,
+                    FOREIGN KEY(tag_id) REFERENCES tag_contratti(tag_id) ON DELETE CASCADE
+                )
+            """))
             if DB_DRIVER.startswith("sqlite") or "sqlite" in DB_DRIVER:
-                conn.execute(text("CREATE INDEX IF NOT EXISTS idx_contratti_tag_cid ON contratti_tag (contratto_id)"))
-                conn.execute(text("CREATE INDEX IF NOT EXISTS idx_contratti_tag_tid ON contratti_tag (tag_id)"))
-            else:
-                conn.execute(text("CREATE INDEX idx_contratti_tag_cid ON contratti_tag (contratto_id)"))
-                conn.execute(text("CREATE INDEX idx_contratti_tag_tid ON contratti_tag (tag_id)"))
-        except Exception:
-            pass
+                try:
+                    c.execute(text("CREATE INDEX IF NOT EXISTS idx_contratti_tag_cid ON contratti_tag (contratto_id)"))
+                    c.execute(text("CREATE INDEX IF NOT EXISTS idx_contratti_tag_tid ON contratti_tag (tag_id)"))
+                except Exception:
+                    pass
 
-        # Tag predefiniti: SANITARI, AMMINISTRATIVI, RETI
-        default_tags = [
-            ("SANITARI", "#198754", "Contratti e forniture ambito sanitario, presidi e apparecchiature biomedicali"),
-            ("AMMINISTRATIVI", "#0d6efd", "Contratti e servizi amministrativi, contabili, gestionali e legali"),
-            ("RETI", "#6f42c1", "Contratti reti, infrastruttura IT, connettività, fonia e sistemi")
-        ]
-        for t_nome, t_col, t_desc in default_tags:
-            exists = conn.execute(text("SELECT COUNT(*) FROM tag_contratti WHERE UPPER(nome) = UPPER(:nome)"), {"nome": t_nome}).scalar() or 0
-            if exists == 0:
-                conn.execute(text("""
-                    INSERT INTO tag_contratti (nome, colore, descrizione)
-                    VALUES (:nome, :colore, :desc)
-                """), {"nome": t_nome, "colore": t_col, "desc": t_desc})
+            # Tag predefiniti: SANITARI, AMMINISTRATIVI, RETI
+            default_tags = [
+                ("SANITARI", "#198754", "Contratti e forniture ambito sanitario, presidi e apparecchiature biomedicali"),
+                ("AMMINISTRATIVI", "#0d6efd", "Contratti e servizi amministrativi, contabili, gestionali e legali"),
+                ("RETI", "#6f42c1", "Contratti reti, infrastruttura IT, connettività, fonia e sistemi")
+            ]
+            for t_nome, t_col, t_desc in default_tags:
+                exists = c.execute(text("SELECT COUNT(*) FROM tag_contratti WHERE UPPER(nome) = UPPER(:nome)"), {"nome": t_nome}).scalar() or 0
+                if exists == 0:
+                    c.execute(text("""
+                        INSERT INTO tag_contratti (nome, colore, descrizione)
+                        VALUES (:nome, :colore, :desc)
+                    """), {"nome": t_nome, "colore": t_col, "desc": t_desc})
+
+        if conn is not None and hasattr(conn, "in_transaction") and conn.in_transaction():
+            _execute_ensure(conn)
+        else:
+            with engine.begin() as b_conn:
+                _execute_ensure(b_conn)
     except Exception as e:
         print(f"Error in _ensure_contratti_tag_tables: {e}")
 
 
-def _get_tags_map_for_contratti(conn):
+def _get_tags_map_for_contratti(conn=None):
     try:
         _ensure_contratti_tag_tables(conn)
-        rows = conn.execute(text("""
+        query = text("""
             SELECT ct.contratto_id, t.tag_id, t.nome, t.colore, t.descrizione
             FROM contratti_tag ct
             JOIN tag_contratti t ON ct.tag_id = t.tag_id
             ORDER BY t.nome
-        """)).mappings().all()
+        """)
+        rows = []
+        if conn is not None and not getattr(conn, "closed", False):
+            rows = conn.execute(query).mappings().all()
+        if not rows:
+            with engine.connect() as fresh_conn:
+                rows = fresh_conn.execute(query).mappings().all()
         tags_map = {}
         for r in rows:
             cid = r["contratto_id"]
@@ -210,15 +221,21 @@ def _get_tags_map_for_contratti(conn):
         return {}
 
 
-def _get_all_contratti_tags(conn):
+def _get_all_contratti_tags(conn=None):
     try:
         _ensure_contratti_tag_tables(conn)
-        rows = conn.execute(text("""
+        query = text("""
             SELECT t.tag_id, t.nome, t.colore, t.descrizione,
                    (SELECT COUNT(*) FROM contratti_tag ct WHERE ct.tag_id = t.tag_id) AS count_contratti
             FROM tag_contratti t
             ORDER BY t.nome
-        """)).mappings().all()
+        """)
+        rows = []
+        if conn is not None and not getattr(conn, "closed", False):
+            rows = conn.execute(query).mappings().all()
+        if not rows:
+            with engine.connect() as fresh_conn:
+                rows = fresh_conn.execute(query).mappings().all()
         return [dict(r) for r in rows]
     except Exception as e:
         print(f"Error in _get_all_contratti_tags: {e}")
@@ -1759,6 +1776,7 @@ def get_confronto_annuale_data(
         "fornitori": fornitori,
         "reparti": reparti,
         "tags": all_tags,
+        "all_tags": all_tags,
         "reparto_selezionato": reparto_id_val,
         "fornitore_selezionato": fornitore_id_val,
         "stato_selezionato": stato_filtro or "",
