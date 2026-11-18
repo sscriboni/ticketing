@@ -14,10 +14,20 @@
         .kpi-card:hover {
             transform: translateY(-2px);
         }
-        .fornitore-subtotal-row {
-            background-color: #eaf2fd !important;
+        .table-pivot tr.fornitore-subtotal-row > td {
+            background-color: #edf4fe !important;
+            border-top: 2px solid #9ec5fe !important;
+            border-bottom: 1px solid #b6d4fe !important;
             font-weight: 600;
-            border-top: 2px solid #b6d4fe !important;
+        }
+        .table-pivot tr.fornitore-subtotal-row:hover > td {
+            background-color: #dbe7fc !important;
+        }
+        .fornitore-badge {
+            font-size: 0.72rem;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            font-weight: 700;
         }
         .table-pivot th {
             white-space: nowrap;
@@ -334,17 +344,21 @@
                             <tr class="fornitore-subtotal-row">
                                 <td colspan="4" class="py-2">
                                     <div class="d-flex align-items-center gap-2">
-                                        <i class="bi bi-building text-primary"></i>
-                                        <strong class="text-primary fs-6">{{ f.fornitore_nome }}</strong>
+                                        <span class="badge bg-primary bg-opacity-15 text-primary border border-primary-subtle px-2 py-1 fornitore-badge">
+                                            <i class="bi bi-building me-1"></i>Fornitore
+                                        </span>
+                                        <strong class="text-dark fs-6">{{ f.fornitore_nome }}</strong>
                                         {% if f.fornitore_piva %}
-                                            <span class="badge bg-light text-muted border small">P.IVA: {{ f.fornitore_piva }}</span>
+                                            <span class="badge bg-white text-muted border small">P.IVA: {{ f.fornitore_piva }}</span>
                                         {% endif %}
-                                        <span class="badge bg-secondary rounded-pill ms-auto small">{{ f.serie_list|length }} contratti</span>
+                                        <span class="badge bg-white text-secondary border rounded-pill ms-auto small">
+                                            {{ f.serie_list|length }} {% if f.serie_list|length == 1 %}contratto{% else %}contratti{% endif %}
+                                        </span>
                                     </div>
                                 </td>
                                 {% for y in anni_colonne %}
                                     {% set cf = f.confronto_anni[y] %}
-                                    <td class="text-end fw-bold">
+                                    <td class="text-end fw-bold text-dark">
                                         {{ "€ {:,.2f}".format(cf.importo).replace(',', 'X').replace('.', ',').replace('X', '.') }}
                                     </td>
                                     {% if not loop.first %}
