@@ -273,16 +273,18 @@
                                 <span class="badge bg-light text-dark border">{{ c.anno }}</span>
                             </td>
                             <td data-sort="{{ c.titolo|lower }}">
-                                <div class="d-flex align-items-center gap-1.5 flex-wrap">
-                                    <a href="/contratto/{{ c.contratto_id }}" class="fw-bold text-decoration-none text-primary">
+                                <div class="d-flex align-items-center flex-wrap gap-2">
+                                    <a href="/contratto/{{ c.contratto_id }}" class="fw-bold text-decoration-none text-primary me-2">
                                         {{ c.titolo }}
                                     </a>
                                     {% if c.tags %}
-                                        {% for tag in c.tags %}
-                                        <a href="/contratti?tag_id={{ tag.tag_id }}" class="badge shadow-sm text-decoration-none" style="background-color: {{ tag.colore or '#0d6efd' }}; color: #ffffff; font-size: 0.72rem; font-weight: 700;" title="Filtra per tag {{ tag.nome }}">
-                                            <i class="bi bi-tag-fill me-0.5"></i>{{ tag.nome }}
-                                        </a>
-                                        {% endfor %}
+                                        <span class="d-inline-flex align-items-center gap-1 flex-wrap">
+                                            {% for tag in c.tags %}
+                                            <a href="/contratti?tag_id={{ tag.tag_id }}" class="badge shadow-sm text-decoration-none" style="background-color: {{ tag.colore or '#0d6efd' }}; color: #ffffff; font-size: 0.72rem; font-weight: 700;" title="Filtra per tag {{ tag.nome }}">
+                                                <i class="bi bi-tag-fill me-0.5"></i>{{ tag.nome }}
+                                            </a>
+                                            {% endfor %}
+                                        </span>
                                     {% endif %}
                                 </div>
                                 <div class="small text-muted">

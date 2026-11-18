@@ -388,16 +388,18 @@
                             {% for s in f.serie_list %}
                             <tr>
                                 <td class="ps-4">
-                                    <div class="d-flex align-items-center gap-1.5 flex-wrap">
-                                        <a href="/contratto/{{ s.ultimo_contratto_id }}" class="fw-semibold text-decoration-none text-dark" title="Visualizza scheda contratto">
+                                    <div class="d-flex align-items-center flex-wrap gap-2">
+                                        <a href="/contratto/{{ s.ultimo_contratto_id }}" class="fw-semibold text-decoration-none text-dark me-2" title="Visualizza scheda contratto">
                                             <i class="bi bi-file-earmark-text text-secondary me-1"></i>{{ s.titolo_base }}
                                         </a>
                                         {% if s.tags %}
-                                            {% for t in s.tags %}
-                                            <span class="badge shadow-sm" style="background-color: {{ t.colore or '#0d6efd' }}; color: #ffffff; font-size: 0.68rem; font-weight: 700;">
-                                                <i class="bi bi-tag-fill me-0.5"></i>{{ t.nome }}
+                                            <span class="d-inline-flex align-items-center gap-1 flex-wrap">
+                                                {% for t in s.tags %}
+                                                <span class="badge shadow-sm" style="background-color: {{ t.colore or '#0d6efd' }}; color: #ffffff; font-size: 0.68rem; font-weight: 700;">
+                                                    <i class="bi bi-tag-fill me-0.5"></i>{{ t.nome }}
+                                                </span>
+                                                {% endfor %}
                                             </span>
-                                            {% endfor %}
                                         {% endif %}
                                     </div>
                                 </td>
