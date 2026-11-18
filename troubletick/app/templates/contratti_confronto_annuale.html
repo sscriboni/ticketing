@@ -23,12 +23,6 @@
         .table-pivot tr.fornitore-subtotal-row:hover > td {
             background-color: #dbe7fc !important;
         }
-        .fornitore-badge {
-            font-size: 0.72rem;
-            text-transform: uppercase;
-            letter-spacing: 0.5px;
-            font-weight: 700;
-        }
         .table-pivot th {
             white-space: nowrap;
             vertical-align: middle;
@@ -344,9 +338,7 @@
                             <tr class="fornitore-subtotal-row">
                                 <td colspan="4" class="py-2">
                                     <div class="d-flex align-items-center gap-2">
-                                        <span class="badge bg-primary bg-opacity-15 text-primary border border-primary-subtle px-2 py-1 fornitore-badge">
-                                            <i class="bi bi-building me-1"></i>Fornitore
-                                        </span>
+                                        <i class="bi bi-building text-primary"></i>
                                         <strong class="text-dark fs-6">{{ f.fornitore_nome }}</strong>
                                         {% if f.fornitore_piva %}
                                             <span class="badge bg-white text-muted border small">P.IVA: {{ f.fornitore_piva }}</span>
