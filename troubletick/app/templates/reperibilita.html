@@ -137,13 +137,13 @@
     @media print {
       @page {
         size: A4 portrait;
-        margin: 8mm 8mm 6mm 8mm;
+        margin: 6mm 7mm 6mm 7mm;
       }
       body {
         background: #fff !important;
         font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Arial, sans-serif !important;
-        font-size: 8pt !important;
-        line-height: 1.15 !important;
+        font-size: 10pt !important;
+        line-height: 1.2 !important;
         color: #111 !important;
       }
       .container-fluid {
@@ -159,37 +159,40 @@
         display: block !important;
         margin-bottom: 0 !important;
       }
+      .table-responsive {
+        overflow: visible !important;
+      }
       .print-header-doc {
         display: block !important;
-        margin-top: 3mm !important;
-        margin-bottom: 12mm !important;
+        margin-top: 1mm !important;
+        margin-bottom: 3mm !important;
       }
       .print-header-doc h1 {
-        font-size: 12pt !important;
-        margin-bottom: 2mm !important;
+        font-size: 13pt !important;
+        margin-bottom: 1mm !important;
       }
       .print-header-doc h2 {
-        font-size: 10pt !important;
-        margin-bottom: 2mm !important;
+        font-size: 11pt !important;
+        margin-bottom: 1mm !important;
       }
       .print-header-doc .small, .print-header-doc div {
-        font-size: 8pt !important;
-        line-height: 1.3 !important;
+        font-size: 9.5pt !important;
+        line-height: 1.25 !important;
       }
       .print-header-doc .border-bottom {
-        padding-bottom: 3mm !important;
-        margin-bottom: 2mm !important;
+        padding-bottom: 2mm !important;
+        margin-bottom: 0 !important;
       }
       .print-table-custom {
         width: 100% !important;
         border-collapse: collapse !important;
-        margin-top: 4px !important;
+        margin-top: 2px !important;
       }
       .print-table-custom th, .print-table-custom td {
         border: 1px solid #333 !important;
-        padding: 2px 5px !important;
-        font-size: 8pt !important;
-        line-height: 1.15 !important;
+        padding: 2.5px 5px !important;
+        font-size: 10pt !important;
+        line-height: 1.2 !important;
         color: #000 !important;
       }
       .print-table-custom thead th {
@@ -198,13 +201,13 @@
         border-bottom: 2px solid #000 !important;
         font-weight: bold !important;
         padding: 3px 5px !important;
-        font-size: 8pt !important;
+        font-size: 10pt !important;
         -webkit-print-color-adjust: exact;
         print-color-adjust: exact;
       }
       .print-table-custom .badge {
-        padding: 1px 3px !important;
-        font-size: 6.5pt !important;
+        padding: 1.5px 4px !important;
+        font-size: 8pt !important;
         line-height: 1 !important;
       }
       .print-festivo-row,
@@ -221,15 +224,15 @@
       .print-fascia {
         border: none !important;
         background: transparent !important;
-        font-size: 7.5pt !important;
-        line-height: 1.15 !important;
+        font-size: 9.5pt !important;
+        line-height: 1.2 !important;
         color: #000 !important;
         padding: 0 !important;
       }
       .print-note-reperibilita {
         display: block !important;
-        margin-top: 6px !important;
-        padding: 5px 8px !important;
+        margin-top: 3mm !important;
+        padding: 4px 8px !important;
         border: 1px solid #444 !important;
         border-radius: 4px !important;
         background: #f8fafc !important;
@@ -238,13 +241,13 @@
         print-color-adjust: exact !important;
       }
       .print-note-reperibilita h6 {
-        font-size: 8.5pt !important;
+        font-size: 9.5pt !important;
         font-weight: bold !important;
         color: #000 !important;
         margin-bottom: 2px !important;
       }
       .print-note-reperibilita div {
-        font-size: 7.5pt !important;
+        font-size: 9pt !important;
         line-height: 1.25 !important;
         color: #222 !important;
       }
@@ -456,9 +459,6 @@
           <div class="fw-bold text-dark">{{ cfg.app_title }}</div>
           <div>Stampato il: {{ data_stampa }}</div>
         </div>
-      </div>
-      <div class="small text-muted mt-1">
-        Orari standard: Feriali dalle <strong>{{ sel_reparto.reperibilita_orario_inizio or '18:00' }}</strong> &bull; Festivi dalle <strong>{{ sel_reparto.reperibilita_festivo_inizio or '08:00' }}</strong>
       </div>
     </div>
 
