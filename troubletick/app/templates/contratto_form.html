@@ -165,6 +165,19 @@
                         <label class="form-label small fw-bold">Descrizione / Note sul Contratto</label>
                         <textarea name="descrizione" class="form-control" rows="3" placeholder="Specificare dettagli del capitolato, accordi sui livelli di servizio (SLA), note di fatturazione o scadenze...">{{ contratto.descrizione if contratto and contratto.descrizione else '' }}</textarea>
                     </div>
+
+                    {% if can_see_note_amministrative %}
+                    <div class="col-12" id="box_note_amministrative">
+                        <div class="d-flex align-items-center gap-2 mb-1">
+                            <label class="form-label small fw-bold mb-0 text-primary" for="note_amministrative">
+                                <i class="bi bi-shield-lock-fill me-1"></i>Note Amministrative
+                            </label>
+                            <span class="badge bg-primary-subtle text-primary border border-primary-subtle" style="font-size: 0.72rem;">Visibile solo a DEC e Amministrazione</span>
+                        </div>
+                        <textarea name="note_amministrative" id="note_amministrative" class="form-control" rows="3" placeholder="Note riservate, comunicazioni interne, riferimenti contabili, determine, CIG/CUP interni, annotazioni per la gestione amministrativa...">{{ contratto.note_amministrative if contratto and contratto.note_amministrative else '' }}</textarea>
+                        <div class="form-text small text-muted">Questo campo è riservato ed utilizzabile esclusivamente dai profili DEC e Amministrativi.</div>
+                    </div>
+                    {% endif %}
                 </div>
 
                 <!-- Tag e Classificazione Contratto -->

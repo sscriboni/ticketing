@@ -286,6 +286,11 @@
                                             {% endfor %}
                                         </span>
                                     {% endif %}
+                                    {% if (can_see_note_amministrative or c.can_see_note_amministrative) and c.note_amministrative %}
+                                    <span class="text-primary d-inline-flex align-items-center" data-bs-toggle="tooltip" data-bs-placement="top" title="Note Amministrative: {{ c.note_amministrative|e }}" style="cursor: help;">
+                                        <i class="bi bi-shield-lock-fill fs-6" title="Note Amministrative: {{ c.note_amministrative|e }}"></i>
+                                    </span>
+                                    {% endif %}
                                 </div>
                                 <div class="small text-muted">
                                     {% if c.codice_contratto %}
@@ -572,7 +577,7 @@ function updateUrlSort(sortKey, dir) {
     if (fsd) fsd.value = dir;
 }
 
-// Inizializza l'icona della colonna ordinata al caricamento
+// Inizializza l'icona della colonna ordinata e i tooltip al caricamento
 document.addEventListener('DOMContentLoaded', () => {
     const colMap = { 'anno': 0, 'titolo': 1, 'fornitore': 2, 'dec': 3, 'moduli': 4, 'importo': 5, 'stato': 6 };
     const typeMap = { 'anno': 'number', 'titolo': 'text', 'fornitore': 'text', 'dec': 'text', 'moduli': 'number', 'importo': 'number', 'stato': 'text' };
@@ -581,6 +586,8 @@ document.addEventListener('DOMContentLoaded', () => {
         currentSortCol = col;
         updateSortIcons(col, currentSortDir, typeMap[currentSortKey] || 'text');
     }
+    const tooltipTriggerList = [].slice.call(document.querySelectorAll('[data-bs-toggle="tooltip"]'));
+    tooltipTriggerList.forEach(el => new bootstrap.Tooltip(el));
 });
 </script>
 <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>

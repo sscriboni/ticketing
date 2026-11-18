@@ -37,6 +37,7 @@ def init_contratti_db():
             dec_user_id INTEGER,
             reparto_id INTEGER,
             descrizione TEXT,
+            note_amministrative TEXT,
             creato_da_id INTEGER,
             creato_il TEXT DEFAULT CURRENT_TIMESTAMP,
             aggiornato_il TEXT,
@@ -75,6 +76,12 @@ def init_contratti_db():
             pass
         try:
             c.execute(text("UPDATE contratti SET aliquota_iva = 22.0 WHERE aliquota_iva IS NULL"))
+        except Exception:
+            pass
+
+        # Colonna note_amministrative su contratti se non ancora presente
+        try:
+            c.execute(text("ALTER TABLE contratti ADD COLUMN note_amministrative TEXT"))
         except Exception:
             pass
 
@@ -307,6 +314,30 @@ def check_contratti_access(r: Request):
 
     # Nessun permesso
     return RedirectResponse(url="/tickets?error=accesso_non_autorizzato", status_code=303)
+
+
+def user_can_see_note_amministrative(user: dict, contratto_row: Optional[dict] = None) -> bool:
+    """
+    Verifica se l'utente ha i permessi per visualizzare e modificare il campo 'note amministrative':
+    - Ruolo admin o amministrativo
+    - Utente/operatore con tag AMMINISTRAZIONE
+    - Utente/operatore con tag DEC
+    - Operatore designato come DEC per lo specifico contratto (dec_user_id)
+    """
+    if not user:
+        return False
+    ruolo = user.get("ruolo", "normale")
+    if ruolo in ("admin", "amministrativo"):
+        return True
+    if user_has_tag_amministrazione(user):
+        return True
+    if user_has_tag_dec(user):
+        return True
+    if contratto_row:
+        uid = user.get("id") or user.get("user_id")
+        if uid and contratto_row.get("dec_user_id") and contratto_row.get("dec_user_id") == uid:
+            return True
+    return False
 
 
 def get_contratto_scope_filter(user: dict):
@@ -682,6 +713,7 @@ def contratti_list(
         for c_item in contratti:
             c_dict = dict(c_item)
             c_dict["can_edit"] = True if (user.get("ruolo") in ("admin", "amministrativo") or (editable_ids_set is not None and c_dict["contratto_id"] in editable_ids_set)) else False
+            c_dict["can_see_note_amministrative"] = user_can_see_note_amministrative(user, c_dict)
             aliquota = float(c_dict.get("aliquota_iva") if c_dict.get("aliquota_iva") is not None else 22.0)
             c_costo = float(c_dict.get("totale_costo") or 0.0)
             c_dict["aliquota_iva"] = aliquota
@@ -702,6 +734,7 @@ def contratti_list(
         "cfg": CFG,
         "user": user,
         "is_dec": is_dec,
+        "can_see_note_amministrative": user_can_see_note_amministrative(user),
         "contratti": contratti_augmented,
         "fornitori": fornitori,
         "reparti": reparti,
@@ -1404,6 +1437,7 @@ def contratti_riepilogo_economico(
         "request": r,
         "cfg": CFG,
         "user": user,
+        "can_see_note_amministrative": user_can_see_note_amministrative(user),
         "contratti": contratti_list,
         "totale_costo_generale": totale_costo_generale,
         "totale_giornate_generale": totale_giornate_generale,
@@ -1568,12 +1602,15 @@ def get_confronto_annuale_data(
                 "dec_nome": f"{row['dec_nome'] or ''} {row['dec_cognome'] or ''}".strip() or "—",
                 "anni_data": {y: None for y in anni_colonne},
                 "ultimo_contratto_id": row["contratto_id"],
+                "note_amministrative": row.get("note_amministrative") or "",
                 "tags": []
             }
 
         serie = f_data["serie_contratti"][serie_key]
         serie["ultimo_contratto_id"] = row["contratto_id"]
         serie["titolo_ultimo"] = row["titolo"]
+        if row.get("note_amministrative"):
+            serie["note_amministrative"] = row["note_amministrative"]
         if row["cig"]:
             serie["cig"] = row["cig"]
         if row["reparto_nome"]:
@@ -1777,6 +1814,7 @@ def get_confronto_annuale_data(
         "reparti": reparti,
         "tags": all_tags,
         "all_tags": all_tags,
+        "can_see_note_amministrative": user_can_see_note_amministrative(user),
         "reparto_selezionato": reparto_id_val,
         "fornitore_selezionato": fornitore_id_val,
         "stato_selezionato": stato_filtro or "",
@@ -2396,6 +2434,7 @@ def contratto_nuovo_form(r: Request, error: Optional[str] = None):
         "tags": tags,
         "contratto_tag_ids": [],
         "current_year": current_year,
+        "can_see_note_amministrative": user_can_see_note_amministrative(user),
         "error": error
     })
 
@@ -2418,6 +2457,7 @@ def contratto_nuovo_save(
     dec_user_id: Optional[str] = Form(None),
     reparto_id: Optional[str] = Form(None),
     descrizione: Optional[str] = Form(None),
+    note_amministrative: Optional[str] = Form(None),
     tag_ids: list[int] = Form(None),
     # Modulo iniziale opzionale
     modulo_descrizione: Optional[str] = Form(None),
@@ -2452,16 +2492,20 @@ def contratto_nuovo_save(
     if not reparto_id_val and user.get("reparto_id"):
         reparto_id_val = user.get("reparto_id")
 
+    note_amm_val = None
+    if user_can_see_note_amministrative(user) and note_amministrative and note_amministrative.strip():
+        note_amm_val = note_amministrative.strip()
+
     with engine.begin() as conn:
         result = conn.execute(text("""
             INSERT INTO contratti (
                 titolo, codice_contratto, cig, cup, fornitore_id, anno,
                 aliquota_iva, data_inizio, data_fine, stato, dec_user_id, reparto_id,
-                descrizione, creato_da_id, creato_il
+                descrizione, note_amministrative, creato_da_id, creato_il
             ) VALUES (
                 :titolo, :codice, :cig, :cup, :fornitore_id, :anno,
                 :aliquota_iva, :data_inizio, :data_fine, :stato, :dec_user_id, :reparto_id,
-                :descrizione, :creato_da_id, :creato_il
+                :descrizione, :note_amministrative, :creato_da_id, :creato_il
             )
         """), {
             "titolo": titolo,
@@ -2477,6 +2521,7 @@ def contratto_nuovo_save(
             "dec_user_id": dec_user_id_val,
             "reparto_id": reparto_id_val,
             "descrizione": descrizione.strip() if descrizione else None,
+            "note_amministrative": note_amm_val,
             "creato_da_id": user["id"],
             "creato_il": datetime.now().strftime("%Y-%m-%d %H:%M:%S")
         })
@@ -2627,11 +2672,11 @@ def contratto_detail(
         "user": user,
         "is_dec": is_dec,
         "can_edit": can_edit,
+        "can_see_note_amministrative": user_can_see_note_amministrative(user, dict(contratto)),
         "contratto": contratto,
         "moduli": moduli,
         "ordini": ordini,
         "financials": financials,
-        "tags": tags,
         "tags": tags,
         "servizi": servizi,
         "contatti_fornitore": contatti_fornitore,
@@ -2700,6 +2745,7 @@ def contratto_edit_form(r: Request, contratto_id: int, error: Optional[str] = No
         "tags": tags,
         "contratto_tag_ids": contratto_tag_ids,
         "current_year": current_year,
+        "can_see_note_amministrative": user_can_see_note_amministrative(user, dict(contratto)),
         "error": error
     })
 
@@ -2723,6 +2769,7 @@ def contratto_edit_save(
     dec_user_id: Optional[str] = Form(None),
     reparto_id: Optional[str] = Form(None),
     descrizione: Optional[str] = Form(None),
+    note_amministrative: Optional[str] = Form(None),
     tag_ids: list[int] = Form(None)
 ):
     user = check_contratti_access(r)
@@ -2747,6 +2794,12 @@ def contratto_edit_save(
         if not can_manage_single_contratto(user, dict(contratto)):
             return RedirectResponse(url=f"/contratto/{contratto_id}?error=permesso_negato", status_code=303)
 
+        # Se l'utente ha diritto a gestire le note amministrative, aggiorniamo il campo; altrimenti preserviamo il valore esistente
+        if user_can_see_note_amministrative(user, dict(contratto)):
+            note_amm_val = note_amministrative.strip() if note_amministrative else None
+        else:
+            note_amm_val = contratto["note_amministrative"]
+
         conn.execute(text("""
             UPDATE contratti SET
                 titolo = :titolo,
@@ -2762,6 +2815,7 @@ def contratto_edit_save(
                 dec_user_id = :dec_user_id,
                 reparto_id = :reparto_id,
                 descrizione = :descrizione,
+                note_amministrative = :note_amministrative,
                 aggiornato_il = :aggiornato_il
             WHERE contratto_id = :cid
         """), {
@@ -2778,6 +2832,7 @@ def contratto_edit_save(
             "dec_user_id": dec_user_id_val,
             "reparto_id": reparto_id_val,
             "descrizione": descrizione.strip() if descrizione else None,
+            "note_amministrative": note_amm_val,
             "aggiornato_il": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
             "cid": contratto_id
         })
@@ -2792,6 +2847,40 @@ def contratto_edit_save(
                     pass
 
     return RedirectResponse(url=f"/contratto/{contratto_id}?success=modificato", status_code=303)
+
+
+@router.post("/contratto/{contratto_id}/note-amministrative")
+@router.post("/contratti/{contratto_id}/note-amministrative")
+@router.post("/contratti/contratto/{contratto_id}/note-amministrative")
+def contratto_note_amministrative_save(
+    r: Request,
+    contratto_id: int,
+    note_amministrative: Optional[str] = Form(None)
+):
+    user = check_contratti_access(r)
+    if isinstance(user, RedirectResponse):
+        return user
+
+    with engine.begin() as conn:
+        contratto = conn.execute(text("SELECT * FROM contratti WHERE contratto_id = :cid"), {"cid": contratto_id}).mappings().first()
+        if not contratto:
+            return RedirectResponse(url="/contratti?error=non_trovato", status_code=303)
+
+        if not user_can_see_note_amministrative(user, dict(contratto)):
+            return RedirectResponse(url=f"/contratto/{contratto_id}?error=permesso_negato", status_code=303)
+
+        note_clean = note_amministrative.strip() if note_amministrative else None
+        conn.execute(text("""
+            UPDATE contratti 
+            SET note_amministrative = :note, aggiornato_il = :aggiornato_il 
+            WHERE contratto_id = :cid
+        """), {
+            "note": note_clean,
+            "aggiornato_il": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+            "cid": contratto_id
+        })
+
+    return RedirectResponse(url=f"/contratto/{contratto_id}?success=note_aggiornate", status_code=303)
 
 
 @router.post("/contratto/{contratto_id}/elimina")
@@ -2864,11 +2953,11 @@ def contratto_duplica(
             INSERT INTO contratti (
                 titolo, codice_contratto, cig, cup, fornitore_id, anno,
                 aliquota_iva, data_inizio, data_fine, stato, dec_user_id, reparto_id,
-                descrizione, creato_da_id, creato_il
+                descrizione, note_amministrative, creato_da_id, creato_il
             ) VALUES (
                 :titolo, :codice, :cig, :cup, :fornitore_id, :anno,
                 :aliquota_iva, NULL, NULL, :stato, :dec_user_id, :reparto_id,
-                :descrizione, :creato_da_id, :creato_il
+                :descrizione, :note_amministrative, :creato_da_id, :creato_il
             )
         """), {
             "titolo": target_titolo,
@@ -2882,6 +2971,7 @@ def contratto_duplica(
             "dec_user_id": contratto["dec_user_id"],
             "reparto_id": contratto["reparto_id"],
             "descrizione": contratto["descrizione"],
+            "note_amministrative": contratto.get("note_amministrative"),
             "creato_da_id": user["id"],
             "creato_il": now
         })
@@ -3674,6 +3764,7 @@ def contratto_stampa(r: Request, contratto_id: int):
         "cfg": CFG,
         "user": user,
         "contratto": contratto,
+        "can_see_note_amministrative": user_can_see_note_amministrative(user, dict(contratto)),
         "moduli": moduli,
         "ordini": ordini,
         "financials": financials,

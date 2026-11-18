@@ -103,6 +103,11 @@
         <i class="bi bi-check-circle-fill me-2"></i>Ordine al fornitore e relative attività eliminati con successo.
         <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
     </div>
+    {% elif success == 'note_aggiornate' %}
+    <div class="alert alert-success alert-dismissible fade show" role="alert">
+        <i class="bi bi-check-circle-fill me-2"></i>Note amministrative del contratto aggiornate con successo.
+        <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+    </div>
     {% elif error == 'superamento_importo_contratto' %}
     <div class="alert alert-danger alert-dismissible fade show" role="alert">
         <i class="bi bi-exclamation-triangle-fill me-2"></i>
@@ -233,6 +238,31 @@
                         <div class="col-12 mt-3">
                             <div class="info-label mb-1">Descrizione / Note Capitolato</div>
                             <div class="p-3 bg-light rounded text-secondary small" style="white-space: pre-line;">{{ contratto.descrizione }}</div>
+                        </div>
+                        {% endif %}
+
+                        {% if can_see_note_amministrative %}
+                        <div class="col-12 mt-3">
+                            <div class="d-flex justify-content-between align-items-center mb-1">
+                                <div class="info-label text-primary d-flex align-items-center gap-1">
+                                    <i class="bi bi-shield-lock-fill text-primary"></i>
+                                    <span>Note Amministrative</span>
+                                    <span class="badge bg-primary-subtle text-primary border border-primary-subtle ms-1" style="font-size: 0.68rem;">DEC & Amministrazione</span>
+                                </div>
+                                <button type="button" class="btn btn-outline-primary btn-sm py-0 px-2" style="font-size: 0.78rem;" data-bs-toggle="modal" data-bs-target="#modalNoteAmministrative">
+                                    <i class="bi bi-pencil-square me-1"></i>Modifica Note
+                                </button>
+                            </div>
+                            {% if contratto.note_amministrative %}
+                            <div class="p-3 rounded border border-primary-subtle small text-dark" style="white-space: pre-line; background-color: #f0f7ff;">{{ contratto.note_amministrative }}</div>
+                            {% else %}
+                            <div class="p-2 px-3 bg-light rounded text-muted fst-italic small d-flex justify-content-between align-items-center">
+                                <span>Nessuna nota amministrativa inserita.</span>
+                                <a href="javascript:void(0)" data-bs-toggle="modal" data-bs-target="#modalNoteAmministrative" class="small text-decoration-none">
+                                    <i class="bi bi-plus-circle me-1"></i>Aggiungi nota
+                                </a>
+                            </div>
+                            {% endif %}
                         </div>
                         {% endif %}
                     </div>
@@ -960,6 +990,40 @@
                 <div class="modal-footer">
                     <button type="button" class="btn btn-outline-secondary btn-sm" data-bs-dismiss="modal">Annulla</button>
                     <button type="submit" class="btn btn-primary btn-sm"><i class="bi bi-check-lg me-1"></i>Aggiorna Ordine</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+{% endif %}
+
+{% if can_see_note_amministrative %}
+<!-- Modal Modifica Note Amministrative -->
+<div class="modal fade" id="modalNoteAmministrative" tabindex="-1" aria-labelledby="modalNoteAmministrativeLabel" aria-hidden="true">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content border-0 shadow">
+            <form method="post" action="/contratto/{{ contratto.contratto_id }}/note-amministrative">
+                <div class="modal-header bg-primary text-white">
+                    <h5 class="modal-title h6 fw-bold" id="modalNoteAmministrativeLabel">
+                        <i class="bi bi-shield-lock-fill me-2"></i>Note Amministrative Contratto
+                    </h5>
+                    <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Chiudi"></button>
+                </div>
+                <div class="modal-body p-4">
+                    <div class="alert alert-info py-2 small d-flex align-items-center gap-2 mb-3">
+                        <i class="bi bi-info-circle-fill fs-5"></i>
+                        <div>Questo campo è ad uso esclusivo del <strong>DEC</strong> e dell'<strong>Ufficio Amministrativo</strong> per annotazioni interne, determine, protocolli, impegni di spesa o disposizioni.</div>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label fw-bold small text-muted">Testo Note Amministrative</label>
+                        <textarea name="note_amministrative" class="form-control" rows="6" placeholder="Inserisci qui le note amministrative riservate...">{{ contratto.note_amministrative if contratto and contratto.note_amministrative else '' }}</textarea>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-outline-secondary btn-sm" data-bs-dismiss="modal">Annulla</button>
+                    <button type="submit" class="btn btn-primary btn-sm px-3">
+                        <i class="bi bi-check-lg me-1"></i>Salva Note Amministrative
+                    </button>
                 </div>
             </form>
         </div>

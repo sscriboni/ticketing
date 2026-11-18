@@ -120,7 +120,12 @@
 
         {% if contratto.descrizione %}
         <div class="section-title">3. Descrizione e Oggetto della Fornitura</div>
-        <div class="p-3 bg-light border rounded small" style="white-space: pre-line;">{{ contratto.descrizione }}</div>
+        <div class="p-3 bg-light border rounded small mb-3" style="white-space: pre-line;">{{ contratto.descrizione }}</div>
+        {% endif %}
+
+        {% if can_see_note_amministrative and contratto.note_amministrative %}
+        <div class="section-title">Note Amministrative (Riservate DEC & Amministrazione)</div>
+        <div class="p-3 bg-light border rounded small mb-3" style="white-space: pre-line;">{{ contratto.note_amministrative }}</div>
         {% endif %}
 
         <!-- Modules Breakdown -->
