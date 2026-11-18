@@ -133,6 +133,16 @@
                 {% endif %}
 
                 <div class="col-12 col-lg-2 col-md-4">
+                    <label class="form-label small fw-bold text-muted mb-1">Tag / Settore</label>
+                    <select name="tag_id" class="form-select form-select-sm" onchange="this.form.submit()">
+                        <option value="">-- Tutti i Tag --</option>
+                        {% for t in tags %}
+                        <option value="{{ t.tag_id }}" {% if tag_selezionato == t.tag_id %}selected{% endif %}>{{ t.nome }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+
+                <div class="col-12 col-lg-2 col-md-4">
                     <label class="form-label small fw-bold text-muted mb-1">Stato</label>
                     <select name="stato" class="form-select form-select-sm" onchange="this.form.submit()">
                         <option value="">-- Tutti gli Stati --</option>

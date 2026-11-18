@@ -177,6 +177,7 @@
               <li><a class="dropdown-item" href="/contratti/confronto-annuale"><i class="bi bi-graph-up-arrow me-2 text-primary"></i>Confronto Annuale</a></li>
               <li><hr class="dropdown-divider"></li>
               <li><a class="dropdown-item" href="/contratto/nuovo"><i class="bi bi-plus-circle me-2 text-primary"></i>Nuovo Contratto</a></li>
+              <li><a class="dropdown-item" href="/admin/contratti/tag"><i class="bi bi-tags me-2"></i>Gestione Tag Contratti</a></li>
               <li><a class="dropdown-item" href="/admin/fornitori"><i class="bi bi-building-gear me-2"></i>Gestione Fornitori</a></li>
               <li><a class="dropdown-item" href="/fornitori"><i class="bi bi-journal-bookmark me-2"></i>Rubrica Fornitori</a></li>
             </ul>
@@ -350,6 +351,9 @@
               <li><a class="dropdown-item" href="/contratti/confronto-annuale"><i class="bi bi-graph-up-arrow me-2 text-primary"></i>Confronto Annuale</a></li>
               <li><hr class="dropdown-divider"></li>
               <li><a class="dropdown-item" href="/contratto/nuovo"><i class="bi bi-plus-circle me-2 text-primary"></i>Nuovo Contratto</a></li>
+              {% if user.ruolo in ('admin', 'amministrativo') or user_has_tag_amministrazione(user) %}
+              <li><a class="dropdown-item" href="/admin/contratti/tag"><i class="bi bi-tags me-2"></i>Gestione Tag Contratti</a></li>
+              {% endif %}
               {% if user_can_manage_fornitori(user) %}
               <li><a class="dropdown-item" href="/admin/fornitori"><i class="bi bi-building-gear me-2"></i>Gestione Fornitori</a></li>
               {% endif %}
@@ -508,6 +512,9 @@
               <li><a class="dropdown-item" href="/contratti/confronto-annuale"><i class="bi bi-graph-up-arrow me-2 text-primary"></i>Confronto Annuale</a></li>
               <li><hr class="dropdown-divider"></li>
               <li><a class="dropdown-item" href="/contratto/nuovo"><i class="bi bi-plus-circle me-2 text-primary"></i>Nuovo Contratto</a></li>
+              {% if user.ruolo in ('admin', 'amministrativo') or user_has_tag_amministrazione(user) %}
+              <li><a class="dropdown-item" href="/admin/contratti/tag"><i class="bi bi-tags me-2"></i>Gestione Tag Contratti</a></li>
+              {% endif %}
               {% if user_can_manage_fornitori(user) %}
               <li><a class="dropdown-item" href="/admin/fornitori"><i class="bi bi-building-gear me-2"></i>Gestione Fornitori</a></li>
               {% endif %}

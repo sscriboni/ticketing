@@ -49,6 +49,11 @@
             <a href="/fornitori" class="btn btn-outline-secondary btn-sm" title="Rubrica fornitori">
                 <i class="bi bi-journal-bookmark me-1"></i>Rubrica Fornitori
             </a>
+            {% if user.ruolo in ('admin', 'amministrativo') or user_has_tag_amministrazione(user) %}
+            <a href="/admin/contratti/tag" class="btn btn-outline-primary btn-sm" title="Gestione Tag Contratti (es. Sanitari, Amministrativi, Reti)">
+                <i class="bi bi-tags me-1"></i>Tag Contratti
+            </a>
+            {% endif %}
             <a href="/contratto/nuovo" class="btn btn-primary btn-sm shadow-sm">
                 <i class="bi bi-plus-circle me-1"></i>Nuovo Contratto
             </a>
@@ -152,8 +157,8 @@
             <form method="get" action="/contratti" class="row g-2 align-items-end">
                 <input type="hidden" name="sort_by" id="formSortBy" value="{{ sort_by or '' }}">
                 <input type="hidden" name="sort_dir" id="formSortDir" value="{{ sort_dir or '' }}">
-                <div class="col-12 col-lg-3 col-md-4">
-                    <label class="form-label small fw-bold text-muted mb-1">Cerca (Titolo, CIG, Fornitore, DEC...)</label>
+                <div class="col-12 col-lg-2 col-md-3">
+                    <label class="form-label small fw-bold text-muted mb-1">Cerca</label>
                     <div class="input-group input-group-sm">
                         <span class="input-group-text bg-light"><i class="bi bi-search"></i></span>
                         <input type="text" name="q" class="form-control" placeholder="Cerca..." value="{{ q }}">
@@ -180,7 +185,16 @@
                         <option value="concluso" {% if stato_selezionato == 'concluso' %}selected{% endif %}>Concluso</option>
                     </select>
                 </div>
-                <div class="col-6 col-lg-2 col-md-4">
+                <div class="col-6 col-lg-2 col-md-3">
+                    <label class="form-label small fw-bold text-muted mb-1">Tag / Settore</label>
+                    <select name="tag_id" class="form-select form-select-sm">
+                        <option value="">Tutti i tag</option>
+                        {% for t in tags %}
+                        <option value="{{ t.tag_id }}" {% if tag_selezionato == t.tag_id %}selected{% endif %}>{{ t.nome }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+                <div class="col-6 col-lg-2 col-md-3">
                     <label class="form-label small fw-bold text-muted mb-1">Fornitore</label>
                     <select name="fornitore_id" class="form-select form-select-sm">
                         <option value="">Tutti i fornitori</option>
@@ -189,7 +203,7 @@
                         {% endfor %}
                     </select>
                 </div>
-                <div class="col-6 col-lg-2 col-md-4">
+                <div class="col-6 col-lg-2 col-md-3">
                     <label class="form-label small fw-bold text-muted mb-1">Operatore DEC</label>
                     <select name="operatore_id" class="form-select form-select-sm">
                         <option value="">Tutti i DEC</option>
@@ -201,10 +215,10 @@
                     </select>
                 </div>
                 {% if user.ruolo == 'admin' %}
-                <div class="col-6 col-lg-2 col-md-4">
+                <div class="col-6 col-lg-1 col-md-2">
                     <label class="form-label small fw-bold text-muted mb-1">Reparto</label>
                     <select name="reparto_id" class="form-select form-select-sm">
-                        <option value="">Tutti i reparti</option>
+                        <option value="">Tutti</option>
                         {% for rep in reparti %}
                         <option value="{{ rep.reparto_id }}" {% if reparto_selezionato == rep.reparto_id %}selected{% endif %}>{{ rep.nome }}</option>
                         {% endfor %}
@@ -259,9 +273,18 @@
                                 <span class="badge bg-light text-dark border">{{ c.anno }}</span>
                             </td>
                             <td data-sort="{{ c.titolo|lower }}">
-                                <a href="/contratto/{{ c.contratto_id }}" class="fw-bold text-decoration-none text-primary d-block">
-                                    {{ c.titolo }}
-                                </a>
+                                <div class="d-flex align-items-center gap-1.5 flex-wrap">
+                                    <a href="/contratto/{{ c.contratto_id }}" class="fw-bold text-decoration-none text-primary">
+                                        {{ c.titolo }}
+                                    </a>
+                                    {% if c.tags %}
+                                        {% for tag in c.tags %}
+                                        <a href="/contratti?tag_id={{ tag.tag_id }}" class="badge shadow-sm text-decoration-none" style="background-color: {{ tag.colore or '#0d6efd' }}; color: #ffffff; font-size: 0.72rem; font-weight: 700;" title="Filtra per tag {{ tag.nome }}">
+                                            <i class="bi bi-tag-fill me-0.5"></i>{{ tag.nome }}
+                                        </a>
+                                        {% endfor %}
+                                    {% endif %}
+                                </div>
                                 <div class="small text-muted">
                                     {% if c.codice_contratto %}
                                     <span class="me-2"><i class="bi bi-upc-scan me-1"></i>Cod: {{ c.codice_contratto }}</span>

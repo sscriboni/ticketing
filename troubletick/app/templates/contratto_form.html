@@ -167,6 +167,41 @@
                     </div>
                 </div>
 
+                <!-- Tag e Classificazione Contratto -->
+                <div class="row g-3 mb-4">
+                    <div class="col-12">
+                        <div class="d-flex justify-content-between align-items-center border-bottom pb-2">
+                            <h6 class="text-uppercase fw-bold text-primary small mb-0">
+                                <i class="bi bi-tags-fill me-1"></i>Tag & Classificazione (es. SANITARI, AMMINISTRATIVI, RETI)
+                            </h6>
+                            {% if user.ruolo in ('admin', 'amministrativo') or user_has_tag_amministrazione(user) %}
+                            <a href="/admin/contratti/tag" target="_blank" class="small text-decoration-none">
+                                <i class="bi bi-gear me-1"></i>Gestisci Elenco Tag
+                            </a>
+                            {% endif %}
+                        </div>
+                        <p class="text-muted small mb-2 mt-1">Seleziona i tag per classificare l'ambito di questo contratto:</p>
+                        <div class="d-flex flex-wrap gap-3 p-3 bg-white border rounded">
+                            {% for t in tags %}
+                            <div class="form-check form-check-inline m-0">
+                                <input class="form-check-input" type="checkbox" name="tag_ids" value="{{ t.tag_id }}" id="tag_check_{{ t.tag_id }}"
+                                       {% if contratto_tag_ids and t.tag_id in contratto_tag_ids %}checked{% endif %}>
+                                <label class="form-check-label d-inline-flex align-items-center gap-1" for="tag_check_{{ t.tag_id }}">
+                                    <span class="badge shadow-sm" style="background-color: {{ t.colore or '#0d6efd' }}; color: #ffffff; font-size: 0.85rem; font-weight: 700;">
+                                        <i class="bi bi-tag-fill me-1"></i>{{ t.nome }}
+                                    </span>
+                                    {% if t.descrizione %}
+                                    <small class="text-muted d-none d-sm-inline" title="{{ t.descrizione }}">({{ t.descrizione }})</small>
+                                    {% endif %}
+                                </label>
+                            </div>
+                            {% else %}
+                            <span class="text-muted small">Nessun tag contratti configurato nel sistema.</span>
+                            {% endfor %}
+                        </div>
+                    </div>
+                </div>
+
                 {% if not contratto %}
                 <!-- Primo Modulo / Voce di Fornitura (Opzionale alla creazione) -->
                 <div class="row g-3 mb-4 p-3 bg-light rounded border">

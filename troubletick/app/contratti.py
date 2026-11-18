@@ -2,6 +2,7 @@ import os
 import io
 import re
 import csv
+import urllib.parse
 from datetime import datetime
 from typing import Optional, List
 from fastapi import APIRouter, Request, Form, Query
@@ -138,6 +139,114 @@ def init_contratti_db():
                 """))
         except Exception as ex_tag:
             print(f"[CONTRATTI TAG INIT NOTE] {ex_tag}")
+
+        # Tabelle e tag predefiniti gestione contratti
+        _ensure_contratti_tag_tables(c)
+
+def _ensure_contratti_tag_tables(conn):
+    try:
+        conn.execute(text(f"""
+            CREATE TABLE IF NOT EXISTS tag_contratti (
+                tag_id {DB_PK},
+                nome TEXT UNIQUE NOT NULL,
+                colore TEXT DEFAULT '#0d6efd',
+                descrizione TEXT
+            )
+        """))
+        conn.execute(text(f"""
+            CREATE TABLE IF NOT EXISTS contratti_tag (
+                contratto_id INTEGER NOT NULL,
+                tag_id INTEGER NOT NULL,
+                PRIMARY KEY(contratto_id, tag_id),
+                FOREIGN KEY(contratto_id) REFERENCES contratti(contratto_id) ON DELETE CASCADE,
+                FOREIGN KEY(tag_id) REFERENCES tag_contratti(tag_id) ON DELETE CASCADE
+            )
+        """))
+        try:
+            if DB_DRIVER.startswith("sqlite") or "sqlite" in DB_DRIVER:
+                conn.execute(text("CREATE INDEX IF NOT EXISTS idx_contratti_tag_cid ON contratti_tag (contratto_id)"))
+                conn.execute(text("CREATE INDEX IF NOT EXISTS idx_contratti_tag_tid ON contratti_tag (tag_id)"))
+            else:
+                conn.execute(text("CREATE INDEX idx_contratti_tag_cid ON contratti_tag (contratto_id)"))
+                conn.execute(text("CREATE INDEX idx_contratti_tag_tid ON contratti_tag (tag_id)"))
+        except Exception:
+            pass
+
+        # Tag predefiniti: SANITARI, AMMINISTRATIVI, RETI
+        default_tags = [
+            ("SANITARI", "#198754", "Contratti e forniture ambito sanitario, presidi e apparecchiature biomedicali"),
+            ("AMMINISTRATIVI", "#0d6efd", "Contratti e servizi amministrativi, contabili, gestionali e legali"),
+            ("RETI", "#6f42c1", "Contratti reti, infrastruttura IT, connettività, fonia e sistemi")
+        ]
+        for t_nome, t_col, t_desc in default_tags:
+            exists = conn.execute(text("SELECT COUNT(*) FROM tag_contratti WHERE UPPER(nome) = UPPER(:nome)"), {"nome": t_nome}).scalar() or 0
+            if exists == 0:
+                conn.execute(text("""
+                    INSERT INTO tag_contratti (nome, colore, descrizione)
+                    VALUES (:nome, :colore, :desc)
+                """), {"nome": t_nome, "colore": t_col, "desc": t_desc})
+    except Exception as e:
+        print(f"Error in _ensure_contratti_tag_tables: {e}")
+
+
+def _get_tags_map_for_contratti(conn):
+    try:
+        _ensure_contratti_tag_tables(conn)
+        rows = conn.execute(text("""
+            SELECT ct.contratto_id, t.tag_id, t.nome, t.colore, t.descrizione
+            FROM contratti_tag ct
+            JOIN tag_contratti t ON ct.tag_id = t.tag_id
+            ORDER BY t.nome
+        """)).mappings().all()
+        tags_map = {}
+        for r in rows:
+            cid = r["contratto_id"]
+            if cid not in tags_map:
+                tags_map[cid] = []
+            tags_map[cid].append(dict(r))
+        return tags_map
+    except Exception as e:
+        print(f"Error in _get_tags_map_for_contratti: {e}")
+        return {}
+
+
+def _get_all_contratti_tags(conn):
+    try:
+        _ensure_contratti_tag_tables(conn)
+        rows = conn.execute(text("""
+            SELECT t.tag_id, t.nome, t.colore, t.descrizione,
+                   (SELECT COUNT(*) FROM contratti_tag ct WHERE ct.tag_id = t.tag_id) AS count_contratti
+            FROM tag_contratti t
+            ORDER BY t.nome
+        """)).mappings().all()
+        return [dict(r) for r in rows]
+    except Exception as e:
+        print(f"Error in _get_all_contratti_tags: {e}")
+        return []
+
+
+def _get_tags_for_contratto(conn, contratto_id: int):
+    try:
+        _ensure_contratti_tag_tables(conn)
+        rows = conn.execute(text("""
+            SELECT t.tag_id, t.nome, t.colore, t.descrizione
+            FROM contratti_tag ct
+            JOIN tag_contratti t ON ct.tag_id = t.tag_id
+            WHERE ct.contratto_id = :cid
+            ORDER BY t.nome
+        """), {"cid": contratto_id}).mappings().all()
+        return [dict(r) for r in rows]
+    except Exception as e:
+        print(f"Error in _get_tags_for_contratto: {e}")
+        return []
+
+
+def user_can_manage_contratti_tags(user: dict) -> bool:
+    if not user:
+        return False
+    if user.get("ruolo") in ("admin", "amministrativo"):
+        return True
+    return user_has_tag_amministrazione(user)
 
 # Inizializzazione automatica delle tabelle
 try:
@@ -415,6 +524,7 @@ def contratti_list(
     stato: Optional[str] = None,
     reparto_id: Optional[str] = None,
     operatore_id: Optional[str] = None,
+    tag_id: Optional[str] = None,
     q: Optional[str] = None,
     sort_by: Optional[str] = None,
     sort_dir: Optional[str] = None,
@@ -429,6 +539,7 @@ def contratti_list(
     fornitore_id_val = safe_int(fornitore_id)
     reparto_id_val = safe_int(reparto_id)
     operatore_id_val = safe_int(operatore_id)
+    tag_id_val = safe_int(tag_id)
 
     scope_sql, scope_params = get_contratto_scope_filter(user)
     where_clauses = [scope_sql]
@@ -454,6 +565,10 @@ def contratti_list(
     if operatore_id_val:
         where_clauses.append("(c.dec_user_id = :operatore_id OR c.creato_da_id = :operatore_id)")
         params["operatore_id"] = operatore_id_val
+
+    if tag_id_val:
+        where_clauses.append("EXISTS (SELECT 1 FROM contratti_tag ct WHERE ct.contratto_id = c.contratto_id AND ct.tag_id = :tag_id)")
+        params["tag_id"] = tag_id_val
 
     if q and q.strip():
         where_clauses.append("""(
@@ -510,6 +625,7 @@ def contratti_list(
             WHERE UPPER(t.nome) = 'DEC' AND u.attivo = 1
             ORDER BY u.cognome, u.nome
         """)).mappings().all()
+        all_tags = _get_all_contratti_tags(conn)
         anni_disponibili = conn.execute(text("SELECT DISTINCT anno FROM contratti ORDER BY anno DESC")).scalars().all()
         if not anni_disponibili:
             anni_disponibili = [current_year]
@@ -542,6 +658,9 @@ def contratti_list(
 
             editable_ids_set = set(conn.execute(text(query_editable), params_editable).scalars().all())
 
+        tags_map = _get_tags_map_for_contratti(conn)
+        all_tags = _get_all_contratti_tags(conn)
+
         contratti_augmented = []
         for c_item in contratti:
             c_dict = dict(c_item)
@@ -550,6 +669,7 @@ def contratti_list(
             c_costo = float(c_dict.get("totale_costo") or 0.0)
             c_dict["aliquota_iva"] = aliquota
             c_dict["totale_costo_iva"] = round(c_costo * (1.0 + aliquota / 100.0), 2)
+            c_dict["tags"] = tags_map.get(c_dict["contratto_id"], [])
             contratti_augmented.append(c_dict)
 
         # Calcolo KPI per la selezione
@@ -569,12 +689,14 @@ def contratti_list(
         "fornitori": fornitori,
         "reparti": reparti,
         "operatori": operatori,
+        "tags": all_tags,
         "anni_disponibili": anni_disponibili,
         "anno_selezionato": anno_val,
         "fornitore_selezionato": fornitore_id_val,
         "stato_selezionato": stato or "",
         "reparto_selezionato": reparto_id_val,
         "operatore_selezionato": operatore_id_val,
+        "tag_selezionato": tag_id_val,
         "q": q or "",
         "totale_spesa": totale_spesa,
         "totale_spesa_iva": totale_spesa_iva,
@@ -597,6 +719,7 @@ def contratti_export_csv(
     stato: Optional[str] = None,
     reparto_id: Optional[str] = None,
     operatore_id: Optional[str] = None,
+    tag_id: Optional[str] = None,
     q: Optional[str] = None,
     sort_by: Optional[str] = None,
     sort_dir: Optional[str] = None
@@ -609,6 +732,7 @@ def contratti_export_csv(
     fornitore_id_val = safe_int(fornitore_id)
     reparto_id_val = safe_int(reparto_id)
     operatore_id_val = safe_int(operatore_id)
+    tag_id_val = safe_int(tag_id)
 
     scope_sql, scope_params = get_contratto_scope_filter(user)
     where_clauses = [scope_sql]
@@ -633,6 +757,10 @@ def contratti_export_csv(
     if operatore_id_val:
         where_clauses.append("(c.dec_user_id = :operatore_id OR c.creato_da_id = :operatore_id)")
         params["operatore_id"] = operatore_id_val
+
+    if tag_id_val:
+        where_clauses.append("EXISTS (SELECT 1 FROM contratti_tag ct WHERE ct.contratto_id = c.contratto_id AND ct.tag_id = :tag_id)")
+        params["tag_id"] = tag_id_val
 
     if q and q.strip():
         where_clauses.append("""(
@@ -676,6 +804,7 @@ def contratti_export_csv(
             WHERE {where_sql}
             ORDER BY {order_by_sql}
         """), params).mappings().all()
+        tags_map = _get_tags_map_for_contratti(conn)
 
     output = io.StringIO()
     output.write('\ufeff')
@@ -685,6 +814,7 @@ def contratti_export_csv(
         "ID",
         "Anno",
         "Titolo Contratto",
+        "Tag",
         "Codice Contratto",
         "CIG",
         "CUP",
@@ -716,6 +846,7 @@ def contratti_export_csv(
         aliquota = float(c['aliquota_iva'] if (c.get('aliquota_iva') is not None) else 22.0)
         tot_iva = round(costo_float * (aliquota / 100.0), 2)
         tot_costo_iva = round(costo_float + tot_iva, 2)
+        tag_nomi = ", ".join(t["nome"] for t in tags_map.get(c["contratto_id"], []))
 
         costo_val = f"{costo_float:.2f}".replace('.', ',')
         aliquota_str = f"{aliquota:.1f}".replace('.', ',') if (aliquota % 1 != 0) else f"{int(aliquota)}"
@@ -727,6 +858,7 @@ def contratti_export_csv(
             c["contratto_id"],
             c["anno"],
             c["titolo"] or "",
+            tag_nomi,
             c["codice_contratto"] or "",
             c["cig"] or "",
             c["cup"] or "",
@@ -770,6 +902,7 @@ def contratti_export_excel(
     stato: Optional[str] = None,
     reparto_id: Optional[str] = None,
     operatore_id: Optional[str] = None,
+    tag_id: Optional[str] = None,
     q: Optional[str] = None,
     sort_by: Optional[str] = None,
     sort_dir: Optional[str] = None
@@ -782,6 +915,7 @@ def contratti_export_excel(
     fornitore_id_val = safe_int(fornitore_id)
     reparto_id_val = safe_int(reparto_id)
     operatore_id_val = safe_int(operatore_id)
+    tag_id_val = safe_int(tag_id)
 
     scope_sql, scope_params = get_contratto_scope_filter(user)
     where_clauses = [scope_sql]
@@ -806,6 +940,10 @@ def contratti_export_excel(
     if operatore_id_val:
         where_clauses.append("(c.dec_user_id = :operatore_id OR c.creato_da_id = :operatore_id)")
         params["operatore_id"] = operatore_id_val
+
+    if tag_id_val:
+        where_clauses.append("EXISTS (SELECT 1 FROM contratti_tag ct WHERE ct.contratto_id = c.contratto_id AND ct.tag_id = :tag_id)")
+        params["tag_id"] = tag_id_val
 
     if q and q.strip():
         where_clauses.append("""(
@@ -848,6 +986,7 @@ def contratti_export_excel(
             WHERE {where_sql}
             ORDER BY {order_by_sql}
         """), params).mappings().all()
+        tags_map = _get_tags_map_for_contratti(conn)
 
     # Creazione file Excel professionale (.xlsx) con openpyxl
     wb = openpyxl.Workbook()
@@ -874,6 +1013,7 @@ def contratti_export_excel(
         ("ID", 8, align_center),
         ("Anno", 8, align_center),
         ("Titolo Contratto", 35, align_left),
+        ("Tag", 20, align_left),
         ("Codice Contratto", 18, align_center),
         ("CIG", 14, align_center),
         ("CUP", 14, align_center),
@@ -929,10 +1069,13 @@ def contratti_export_excel(
         tot_iva_sum += iva_val
         tot_costo_iva_sum += costo_iva
 
+        tag_nomi = ", ".join(t["nome"] for t in tags_map.get(c["contratto_id"], []))
+
         row_vals = [
             c["contratto_id"],
             c["anno"],
             c["titolo"] or "",
+            tag_nomi,
             c["codice_contratto"] or "",
             c["cig"] or "",
             c["cup"] or "",
@@ -968,13 +1111,13 @@ def contratti_export_excel(
             if is_even:
                 cell.fill = zebra_fill
 
-            if col_idx in (19,):
+            if col_idx in (20,):
                 cell.number_format = '#,##0.0'
-            elif col_idx in (20, 22, 23):
+            elif col_idx in (21, 23, 24):
                 cell.number_format = '#,##0.00 €'
-            elif col_idx in (21,):
+            elif col_idx in (22,):
                 cell.number_format = '0"%"'
-            elif col_idx in (1, 2, 18):
+            elif col_idx in (1, 2, 19):
                 cell.number_format = '#,##0'
 
         row_idx += 1
@@ -995,23 +1138,23 @@ def contratti_export_excel(
         cell.fill = summary_fill
 
     ws.cell(row=row_idx, column=3, value="TOTALE COMPLESSIVO").alignment = align_left
-    cell_mod = ws.cell(row=row_idx, column=18, value=tot_moduli_sum)
+    cell_mod = ws.cell(row=row_idx, column=19, value=tot_moduli_sum)
     cell_mod.alignment = align_center
     cell_mod.number_format = '#,##0'
 
-    cell_gg = ws.cell(row=row_idx, column=19, value=tot_giornate_sum)
+    cell_gg = ws.cell(row=row_idx, column=20, value=tot_giornate_sum)
     cell_gg.alignment = align_right
     cell_gg.number_format = '#,##0.0'
 
-    cell_c = ws.cell(row=row_idx, column=20, value=tot_costo_sum)
+    cell_c = ws.cell(row=row_idx, column=21, value=tot_costo_sum)
     cell_c.alignment = align_right
     cell_c.number_format = '#,##0.00 €'
 
-    cell_iva = ws.cell(row=row_idx, column=22, value=tot_iva_sum)
+    cell_iva = ws.cell(row=row_idx, column=23, value=tot_iva_sum)
     cell_iva.alignment = align_right
     cell_iva.number_format = '#,##0.00 €'
 
-    cell_c_iva = ws.cell(row=row_idx, column=23, value=tot_costo_iva_sum)
+    cell_c_iva = ws.cell(row=row_idx, column=24, value=tot_costo_iva_sum)
     cell_c_iva.alignment = align_right
     cell_c_iva.number_format = '#,##0.00 €'
 
@@ -1044,7 +1187,8 @@ def contratti_riepilogo_economico(
     fornitore_id: Optional[str] = None,
     reparto_id: Optional[str] = None,
     stato: Optional[str] = None,
-    operatore_id: Optional[str] = None
+    operatore_id: Optional[str] = None,
+    tag_id: Optional[str] = None
 ):
     user = check_contratti_access(r)
     if isinstance(user, RedirectResponse):
@@ -1056,6 +1200,7 @@ def contratti_riepilogo_economico(
     fornitore_id_val = safe_int(fornitore_id)
     reparto_id_val = safe_int(reparto_id)
     operatore_id_val = safe_int(operatore_id)
+    tag_id_val = safe_int(tag_id)
 
     # Se l'anno non è specificato nei parametri (primo accesso, anno is None), impostiamo l'anno corrente di default.
     # Se il parametro anno è 0 o stringa vuota, significa visualizzare "Tutti gli anni".
@@ -1087,6 +1232,10 @@ def contratti_riepilogo_economico(
     if operatore_id_val:
         where_clauses.append("(c.dec_user_id = :operatore_id OR c.creato_da_id = :operatore_id)")
         params["operatore_id"] = operatore_id_val
+
+    if tag_id_val:
+        where_clauses.append("EXISTS (SELECT 1 FROM contratti_tag ct WHERE ct.contratto_id = c.contratto_id AND ct.tag_id = :tag_id)")
+        params["tag_id"] = tag_id_val
 
     where_sql = " AND ".join(where_clauses)
 
@@ -1227,6 +1376,7 @@ def contratti_riepilogo_economico(
             WHERE UPPER(t.nome) = 'DEC' AND u.attivo = 1
             ORDER BY u.cognome, u.nome
         """)).mappings().all()
+        all_tags = _get_all_contratti_tags(conn)
         anni_disponibili = conn.execute(text("SELECT DISTINCT anno FROM contratti ORDER BY anno DESC")).scalars().all()
         if not anni_disponibili:
             anni_disponibili = [current_year]
@@ -1248,11 +1398,13 @@ def contratti_riepilogo_economico(
         "fornitori": fornitori,
         "reparti": reparti,
         "operatori": operatori,
+        "tags": all_tags,
         "anni_disponibili": anni_disponibili,
         "anno_selezionato": anno_filtro,
         "fornitore_selezionato": fornitore_id_val,
         "reparto_selezionato": reparto_id_val,
         "operatore_selezionato": operatore_id_val,
+        "tag_selezionato": tag_id_val,
         "stato_selezionato": stato or "",
         "current_year": current_year
     })
@@ -1984,6 +2136,130 @@ def contratti_confronto_annuale_csv(
     return Response(content=csv_data.encode("utf-8"), headers=headers_resp, media_type="text/csv")
 
 
+# ==========================================
+# GESTIONE TAG CONTRATTI
+# ==========================================
+
+@router.get("/admin/contratti/tag", response_class=HTMLResponse)
+@router.get("/contratti/tag", response_class=HTMLResponse)
+def admin_contratti_tags_list(r: Request):
+    user = check_contratti_access(r)
+    if isinstance(user, RedirectResponse):
+        return user
+    if not user_can_manage_contratti_tags(user):
+        return RedirectResponse(url="/contratti?error=accesso_negato", status_code=303)
+
+    with engine.connect() as conn:
+        tags = _get_all_contratti_tags(conn)
+
+    return templates.TemplateResponse(r, "admin_contratti_tag.html", {
+        "request": r, "cfg": CFG, "user": user, "tags": tags
+    })
+
+
+@router.post("/admin/contratti/tag/nuovo")
+@router.post("/contratti/tag/nuovo")
+def admin_contratti_tag_add(
+    r: Request,
+    nome: str = Form(...),
+    colore: str = Form("#0d6efd"),
+    descrizione: Optional[str] = Form(None)
+):
+    user = check_contratti_access(r)
+    if isinstance(user, RedirectResponse):
+        return user
+    if not user_can_manage_contratti_tags(user):
+        return RedirectResponse(url="/contratti?error=accesso_negato", status_code=303)
+
+    nome_clean = (nome or "").strip()
+    colore_clean = (colore or "").strip() or "#0d6efd"
+    desc_clean = (descrizione or "").strip() if descrizione else None
+
+    if not nome_clean:
+        return RedirectResponse(url=f"/admin/contratti/tag?error={urllib.parse.quote('Il nome del tag non può essere vuoto.')}", status_code=303)
+
+    try:
+        with engine.begin() as conn:
+            _ensure_contratti_tag_tables(conn)
+            exists = conn.execute(text("SELECT COUNT(*) FROM tag_contratti WHERE LOWER(nome) = LOWER(:nome)"), {"nome": nome_clean}).scalar()
+            if exists:
+                err_msg = f"Esiste già un tag contratti con il nome '{nome_clean}'."
+                return RedirectResponse(url=f"/admin/contratti/tag?error={urllib.parse.quote(err_msg)}", status_code=303)
+            conn.execute(text("""
+                INSERT INTO tag_contratti (nome, colore, descrizione)
+                VALUES (:nome, :colore, :desc)
+            """), {"nome": nome_clean, "colore": colore_clean, "desc": desc_clean})
+    except Exception as e:
+        err_msg = f"Errore durante la creazione del tag: {e}"
+        return RedirectResponse(url=f"/admin/contratti/tag?error={urllib.parse.quote(err_msg)}", status_code=303)
+
+    return RedirectResponse(url=f"/admin/contratti/tag?success={urllib.parse.quote('Tag contratto creato con successo.')}", status_code=303)
+
+
+@router.post("/admin/contratti/tag/modifica/{id}")
+@router.post("/contratti/tag/modifica/{id}")
+def admin_contratti_tag_edit(
+    id: int,
+    r: Request,
+    nome: str = Form(...),
+    colore: str = Form("#0d6efd"),
+    descrizione: Optional[str] = Form(None)
+):
+    user = check_contratti_access(r)
+    if isinstance(user, RedirectResponse):
+        return user
+    if not user_can_manage_contratti_tags(user):
+        return RedirectResponse(url="/contratti?error=accesso_negato", status_code=303)
+
+    nome_clean = (nome or "").strip()
+    colore_clean = (colore or "").strip() or "#0d6efd"
+    desc_clean = (descrizione or "").strip() if descrizione else None
+
+    if not nome_clean:
+        return RedirectResponse(url=f"/admin/contratti/tag?error={urllib.parse.quote('Il nome del tag non può essere vuoto.')}", status_code=303)
+
+    try:
+        with engine.begin() as conn:
+            _ensure_contratti_tag_tables(conn)
+            exists = conn.execute(text("""
+                SELECT COUNT(*) FROM tag_contratti
+                WHERE LOWER(nome) = LOWER(:nome) AND tag_id != :id
+            """), {"nome": nome_clean, "id": id}).scalar()
+            if exists:
+                err_msg = f"Esiste già un altro tag denominato '{nome_clean}'."
+                return RedirectResponse(url=f"/admin/contratti/tag?error={urllib.parse.quote(err_msg)}", status_code=303)
+            conn.execute(text("""
+                UPDATE tag_contratti
+                SET nome = :nome, colore = :colore, descrizione = :desc
+                WHERE tag_id = :id
+            """), {"id": id, "nome": nome_clean, "colore": colore_clean, "desc": desc_clean})
+    except Exception as e:
+        err_msg = f"Errore durante la modifica del tag: {e}"
+        return RedirectResponse(url=f"/admin/contratti/tag?error={urllib.parse.quote(err_msg)}", status_code=303)
+
+    return RedirectResponse(url=f"/admin/contratti/tag?success={urllib.parse.quote('Tag contratto modificato con successo.')}", status_code=303)
+
+
+@router.post("/admin/contratti/tag/elimina/{id}")
+@router.post("/contratti/tag/elimina/{id}")
+def admin_contratti_tag_delete(id: int, r: Request):
+    user = check_contratti_access(r)
+    if isinstance(user, RedirectResponse):
+        return user
+    if not user_can_manage_contratti_tags(user):
+        return RedirectResponse(url="/contratti?error=accesso_negato", status_code=303)
+
+    try:
+        with engine.begin() as conn:
+            _ensure_contratti_tag_tables(conn)
+            conn.execute(text("DELETE FROM tag_contratti WHERE tag_id = :id"), {"id": id})
+    except Exception as e:
+        err_msg = f"Errore durante l'eliminazione del tag: {e}"
+        return RedirectResponse(url=f"/admin/contratti/tag?error={urllib.parse.quote(err_msg)}", status_code=303)
+
+    return RedirectResponse(url=f"/admin/contratti/tag?success={urllib.parse.quote('Tag contratto eliminato con successo.')}", status_code=303)
+
+
 @router.get("/contratti/fornitori")
 def redirect_contratti_fornitori():
     return RedirectResponse(url="/fornitori", status_code=307)
@@ -2060,6 +2336,8 @@ def contratto_nuovo_form(r: Request, error: Optional[str] = None):
                 ORDER BY u.cognome, u.nome
             """)).mappings().all()
 
+        tags = _get_all_contratti_tags(conn)
+
     current_year = datetime.now().year
 
     return templates.TemplateResponse(r, "contratto_form.html", {
@@ -2071,6 +2349,8 @@ def contratto_nuovo_form(r: Request, error: Optional[str] = None):
         "reparti": reparti,
         "servizi": servizi,
         "dec_operators": dec_operators,
+        "tags": tags,
+        "contratto_tag_ids": [],
         "current_year": current_year,
         "error": error
     })
@@ -2094,6 +2374,7 @@ def contratto_nuovo_save(
     dec_user_id: Optional[str] = Form(None),
     reparto_id: Optional[str] = Form(None),
     descrizione: Optional[str] = Form(None),
+    tag_ids: list[int] = Form(None),
     # Modulo iniziale opzionale
     modulo_descrizione: Optional[str] = Form(None),
     modulo_servizio_id: Optional[str] = Form(None),
@@ -2162,6 +2443,14 @@ def contratto_nuovo_save(
             contratto_id = conn.execute(text("SELECT LAST_INSERT_ID()")).scalar()
         else:
             contratto_id = conn.execute(text("SELECT LASTVAL()")).scalar()
+
+        # Salvataggio tag associati
+        if tag_ids and isinstance(tag_ids, (list, tuple)):
+            for tid in tag_ids:
+                try:
+                    conn.execute(text("INSERT INTO contratti_tag (contratto_id, tag_id) VALUES (:cid, :tid)"), {"cid": contratto_id, "tid": int(tid)})
+                except Exception:
+                    pass
 
         # Inserimento modulo iniziale se specificato
         if modulo_descrizione and modulo_descrizione.strip():
@@ -2248,6 +2537,7 @@ def contratto_detail(
         """), {"fid": contratto["fornitore_id"]}).mappings().all()
 
         financials = get_contratto_financials(conn, contratto_id)
+        tags = _get_tags_for_contratto(conn, contratto_id)
 
         ordini_rows = conn.execute(text("""
             SELECT co.*,
@@ -2297,6 +2587,8 @@ def contratto_detail(
         "moduli": moduli,
         "ordini": ordini,
         "financials": financials,
+        "tags": tags,
+        "tags": tags,
         "servizi": servizi,
         "contatti_fornitore": contatti_fornitore,
         "totale_costo": totale_costo,
@@ -2347,6 +2639,9 @@ def contratto_edit_form(r: Request, contratto_id: int, error: Optional[str] = No
                 ORDER BY u.cognome, u.nome
             """)).mappings().all()
 
+        tags = _get_all_contratti_tags(conn)
+        contratto_tag_ids = [t["tag_id"] for t in _get_tags_for_contratto(conn, contratto_id)]
+
     current_year = datetime.now().year
 
     return templates.TemplateResponse(r, "contratto_form.html", {
@@ -2358,6 +2653,8 @@ def contratto_edit_form(r: Request, contratto_id: int, error: Optional[str] = No
         "reparti": reparti,
         "servizi": servizi,
         "dec_operators": dec_operators,
+        "tags": tags,
+        "contratto_tag_ids": contratto_tag_ids,
         "current_year": current_year,
         "error": error
     })
@@ -2381,7 +2678,8 @@ def contratto_edit_save(
     stato: str = Form("attivo"),
     dec_user_id: Optional[str] = Form(None),
     reparto_id: Optional[str] = Form(None),
-    descrizione: Optional[str] = Form(None)
+    descrizione: Optional[str] = Form(None),
+    tag_ids: list[int] = Form(None)
 ):
     user = check_contratti_access(r)
     if isinstance(user, RedirectResponse):
@@ -2439,6 +2737,15 @@ def contratto_edit_save(
             "aggiornato_il": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
             "cid": contratto_id
         })
+
+        # Sincronizza i tag del contratto
+        conn.execute(text("DELETE FROM contratti_tag WHERE contratto_id = :cid"), {"cid": contratto_id})
+        if tag_ids and isinstance(tag_ids, (list, tuple)):
+            for tid in tag_ids:
+                try:
+                    conn.execute(text("INSERT INTO contratti_tag (contratto_id, tag_id) VALUES (:cid, :tid)"), {"cid": contratto_id, "tid": int(tid)})
+                except Exception:
+                    pass
 
     return RedirectResponse(url=f"/contratto/{contratto_id}?success=modificato", status_code=303)
 
@@ -2565,6 +2872,14 @@ def contratto_duplica(
                 "ordine": m["ordine"],
                 "creato_il": now
             })
+
+        # Duplica i tag associati al contratto
+        orig_tag_ids = conn.execute(text("SELECT tag_id FROM contratti_tag WHERE contratto_id = :cid"), {"cid": contratto_id}).scalars().all()
+        for tid in orig_tag_ids:
+            try:
+                conn.execute(text("INSERT INTO contratti_tag (contratto_id, tag_id) VALUES (:cid, :tid)"), {"cid": new_contratto_id, "tid": tid})
+            except Exception:
+                pass
 
     return RedirectResponse(url=f"/contratto/{new_contratto_id}?success=duplicato", status_code=303)
 
@@ -3293,6 +3608,7 @@ def contratto_stampa(r: Request, contratto_id: int):
             ordini.append(od)
 
         financials = get_contratto_financials(conn, contratto_id)
+        tags = _get_tags_for_contratto(conn, contratto_id)
 
     aliquota_iva = float(contratto["aliquota_iva"] if (contratto and contratto.get("aliquota_iva") is not None) else 22.0)
     iva_molt = 1.0 + (aliquota_iva / 100.0)
@@ -3317,6 +3633,7 @@ def contratto_stampa(r: Request, contratto_id: int):
         "moduli": moduli,
         "ordini": ordini,
         "financials": financials,
+        "tags": tags,
         "totale_costo": totale_costo,
         "totale_costo_iva": totale_costo_iva,
         "aliquota_iva": aliquota_iva,
