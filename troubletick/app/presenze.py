@@ -386,6 +386,7 @@ def copertura_servizi(r: Request, mese: int = None, anno: int = None, reparto_id
             for d in week_dates:
                 d_str = d.isoformat()
                 holiday = festivita_map.get(d_str)
+                is_weekend_day = d.weekday() in (5, 6)
                 
                 day_servizi = []
                 uncovered_count = 0
@@ -411,7 +412,6 @@ def copertura_servizi(r: Request, mese: int = None, anno: int = None, reparto_id
                             "motivo": absent_record["motivo"] if absent_record else None
                         })
                         
-                    is_weekend_day = d.weekday() in (5, 6)
                     if not is_weekend_day and not holiday:
                         if len(servizi_ops[s["servizio_id"]]) > 0 and present_count == 0:
                             uncovered_count += 1
