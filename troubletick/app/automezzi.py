@@ -4489,12 +4489,18 @@ def prenota_automezzo(
         return RedirectResponse(url=f"/autopark?error={err_msg}", status_code=303)
 
     destinazione_val = (destinazione or "").strip()
-    if destinazione_val == "__custom__" or not destinazione_val:
+    if destinazione_val == "__custom__":
         destinazione_val = (destinazione_custom or "").strip()
-    if not destinazione_val:
-        import urllib.parse
-        err_msg = urllib.parse.quote("Il campo Destinazione è obbligatorio.")
-        return RedirectResponse(url=f"/autopark?error={err_msg}", status_code=303)
+
+    is_stessa_sede = str(restituzione_stessa_sede).lower() in ("true", "1", "on", "yes")
+    if is_stessa_sede:
+        sede_arrivo_id_val = sede_partenza_id
+    else:
+        if not sede_arrivo_id or not str(sede_arrivo_id).isdigit():
+            import urllib.parse
+            err_msg = urllib.parse.quote("Selezionare la sede di riconsegna (destinazione).")
+            return RedirectResponse(url=f"/autopark?error={err_msg}", status_code=303)
+        sede_arrivo_id_val = int(sede_arrivo_id)
     
     # 1. Resolve final_email of the driver (standard users can choose colleagues from same department)
     if email_conducente and email_conducente.strip():
@@ -4591,11 +4597,9 @@ def prenota_automezzo(
         except Exception:
             num_passeggeri = 1
 
-        is_stessa_sede = str(restituzione_stessa_sede).lower() in ("true", "1", "on", "yes")
-        if is_stessa_sede:
-            sede_arrivo_id_val = sede_partenza_id
-        else:
-            sede_arrivo_id_val = int(sede_arrivo_id) if (sede_arrivo_id and str(sede_arrivo_id).isdigit()) else sede_partenza_id
+        if not destinazione_val:
+            s_dest = conn.execute(text("SELECT nome FROM sedi WHERE sede_id = :sid"), {"sid": sede_arrivo_id_val}).first()
+            destinazione_val = s_dest.nome if s_dest and s_dest.nome else "Sede aziendale"
 
         # Verifica se per il veicolo esiste una prenotazione successiva che parte da un'altra sede
         next_b = sede_info.get("prossima_prenotazione")
@@ -5332,11 +5336,17 @@ def registra_viaggio_istantaneo(
         return RedirectResponse(url=f"/autopark?instant=1&error={urllib.parse.quote(err_msg)}", status_code=303)
 
     destinazione_val = (destinazione or "").strip()
-    if destinazione_val == "__custom__" or not destinazione_val:
+    if destinazione_val == "__custom__":
         destinazione_val = (destinazione_custom or "").strip()
-    if not destinazione_val:
-        err_msg = "Il campo Destinazione è obbligatorio."
-        return RedirectResponse(url=f"/autopark?instant=1&error={urllib.parse.quote(err_msg)}", status_code=303)
+
+    is_stessa_sede = str(restituzione_stessa_sede).lower() in ("true", "1", "on", "yes")
+    if is_stessa_sede:
+        sede_arrivo_id_val = sede_partenza_id
+    else:
+        if not sede_arrivo_id or not str(sede_arrivo_id).isdigit():
+            err_msg = "Selezionare la sede di riconsegna (destinazione)."
+            return RedirectResponse(url=f"/autopark?instant=1&error={urllib.parse.quote(err_msg)}", status_code=303)
+        sede_arrivo_id_val = int(sede_arrivo_id)
         
     with engine.connect() as conn:
         # Check if user active
@@ -5400,11 +5410,9 @@ def registra_viaggio_istantaneo(
         except Exception:
             num_passeggeri = 1
 
-        is_stessa_sede = str(restituzione_stessa_sede).lower() in ("true", "1", "on", "yes")
-        if is_stessa_sede:
-            sede_arrivo_id_val = sede_partenza_id
-        else:
-            sede_arrivo_id_val = int(sede_arrivo_id) if (sede_arrivo_id and str(sede_arrivo_id).isdigit()) else sede_partenza_id
+        if not destinazione_val:
+            s_dest = conn.execute(text("SELECT nome FROM sedi WHERE sede_id = :sid"), {"sid": sede_arrivo_id_val}).first()
+            destinazione_val = s_dest.nome if s_dest and s_dest.nome else "Sede aziendale"
 
         # Verifica eventuale prenotazione successiva con partenza da altra sede
         sede_info = get_veicolo_sede_prevista(conn, automezzo_id, data_viaggio, ora_partenza)

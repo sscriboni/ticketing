@@ -332,20 +332,7 @@
                             <div class="form-text small">Preimpostata di default sulla sede assegnata all'operatore/conducente.</div>
                         </div>
 
-                        <!-- 3. Destinazione -->
-                        <div class="mb-3">
-                            <label for="destinazione_select" class="form-label fw-semibold">
-                                <i class="bi bi-pin-map-fill text-primary me-1"></i> Destinazione <span class="text-danger">*</span>
-                            </label>
-                            <select class="form-select rounded-3" id="destinazione_select" name="destinazione" required>
-                                <option value="" disabled selected>-- Seleziona destinazione --</option>
-                                {% for s in sedi %}
-                                    <option value="{% if s.comune_nome %}[{{ s.comune_nome }}] {% endif %}{{ s.nome }}">{% if s.comune_nome %}[{{ s.comune_nome }}] {% endif %}{{ s.nome }}</option>
-                                {% endfor %}
-                                <option value="__custom__">Altra destinazione (specificare)...</option>
-                            </select>
-                            <input type="text" class="form-control rounded-3 mt-2 d-none" id="destinazione_custom" name="destinazione_custom" placeholder="Inserisci destinazione (es. Cliente Rossi, Roma Centro, ecc.)">
-                        </div>
+                        <!-- 3. Destinazione rimossa: corrisponde alla sede di partenza (default) o alla sede di riconsegna diversa indicata sotto -->
 
                         {% if instant %}
                             <!-- Instant mode dates (hidden + read-only presentation) -->
@@ -399,7 +386,7 @@
                             </select>
                         </div>
 
-                        <!-- 4. Restituzione Veicolo -->
+                        <!-- 4. Restituzione Veicolo e Destinazione -->
                         <div class="mb-3 p-3 bg-light rounded-3 border">
                             <div class="form-check form-switch mb-1">
                                 <input class="form-check-input" type="checkbox" role="switch" id="restituzione_stessa_sede" name="restituzione_stessa_sede" value="true" checked>
@@ -408,14 +395,14 @@
                                 </label>
                             </div>
                             <div class="form-text small mb-2 text-muted">
-                                Lascia selezionato per restituire l'auto nella sede di ritiro, oppure disattivalo per indicare un'altra sede di consegna.
+                                Lascia selezionato per restituire l'auto nella sede di ritiro, oppure disattivalo per indicare la destinazione / sede di riconsegna.
                             </div>
                             <div id="box_sede_riconsegna_diversa" class="d-none mt-2 pt-2 border-top">
                                 <label for="sede_arrivo_id" class="form-label fw-semibold">
-                                    <i class="bi bi-flag-fill text-warning me-1"></i> Sede di Consegna / Riconsegna <span class="text-danger">*</span>
+                                    <i class="bi bi-pin-map-fill text-warning me-1"></i> Destinazione / Sede di Riconsegna <span class="text-danger">*</span>
                                 </label>
                                 <select class="form-select rounded-3" id="sede_arrivo_id" name="sede_arrivo_id">
-                                    <option value="" disabled selected>Seleziona sede di riconsegna...</option>
+                                    <option value="" disabled selected>Seleziona sede di riconsegna (destinazione)...</option>
                                     {% for s in sedi %}
                                         <option value="{{ s.sede_id }}">{% if s.comune_nome %}[{{ s.comune_nome }}] {% endif %}{{ s.nome }}</option>
                                     {% endfor %}
@@ -1016,7 +1003,7 @@ Grazie!
                 <div class="row g-3 small text-muted">
                     <div class="col-md-3">
                         <h6 class="fw-bold text-dark"><i class="bi bi-calendar-check me-1 text-success"></i> 1. Prenotazione Auto</h6>
-                        <p class="mb-0">Imposta i dati richiesti: <strong>Sede di Partenza</strong>, <strong>Destinazione</strong>, <strong>Data Viaggio</strong> e <strong>Fascia Oraria</strong>. Puoi selezionare il conducente tra i colleghi del tuo stesso reparto (di default te stesso).</p>
+                        <p class="mb-0">Imposta i dati richiesti: <strong>Sede di Partenza</strong>, <strong>Data Viaggio</strong> e <strong>Fascia Oraria</strong> (e l'eventuale sede diversa di riconsegna). Puoi selezionare il conducente tra i colleghi del tuo stesso reparto (di default te stesso).</p>
                     </div>
                     <div class="col-md-3">
                         <h6 class="fw-bold text-dark"><i class="bi bi-journal-check me-1 text-primary"></i> 2. Registrazione Viaggio</h6>
@@ -1139,13 +1126,17 @@ Grazie!
             restituzioneStessaSedeSwitch.addEventListener("change", function() {
                 if (restituzioneStessaSedeSwitch.checked) {
                     if (boxSedeRiconsegnaDiversa) boxSedeRiconsegnaDiversa.classList.add("d-none");
-                    if (sedeArrivoSelect && sedeSelect) {
-                        sedeArrivoSelect.value = sedeSelect.value;
+                    if (sedeArrivoSelect) {
+                        sedeArrivoSelect.required = false;
+                        if (sedeSelect) sedeArrivoSelect.value = sedeSelect.value;
                     }
                 } else {
                     if (boxSedeRiconsegnaDiversa) boxSedeRiconsegnaDiversa.classList.remove("d-none");
-                    if (sedeArrivoSelect && !sedeArrivoSelect.value && sedeSelect) {
-                        sedeArrivoSelect.value = sedeSelect.value;
+                    if (sedeArrivoSelect) {
+                        sedeArrivoSelect.required = true;
+                        if (sedeSelect && sedeArrivoSelect.value === sedeSelect.value) {
+                            sedeArrivoSelect.value = "";
+                        }
                     }
                 }
                 checkSubsequentAdvice();
@@ -1549,44 +1540,15 @@ Grazie!
             });
         }
 
-        const destSelect = document.getElementById("destinazione_select");
-        const destCustom = document.getElementById("destinazione_custom");
-
-        function syncDestinazione() {
-            if (!destSelect) return;
-            if (destSelect.value === "__custom__") {
-                if (destCustom) {
-                    destCustom.classList.remove("d-none");
-                    destCustom.required = true;
-                    destCustom.focus();
-                }
-            } else {
-                if (destCustom) {
-                    destCustom.classList.add("d-none");
-                    destCustom.required = false;
-                    destCustom.value = "";
-                }
-            }
-        }
-
-        if (destSelect) {
-            destSelect.addEventListener("change", syncDestinazione);
-        }
-
         if (bookingForm) {
             bookingForm.addEventListener("submit", function(e) {
-                if (destSelect && destSelect.value === "__custom__") {
-                    if (!destCustom || !destCustom.value.trim()) {
+                if (restituzioneStessaSedeSwitch && !restituzioneStessaSedeSwitch.checked) {
+                    if (!sedeArrivoSelect || !sedeArrivoSelect.value) {
                         e.preventDefault();
-                        alert("Specificare l'altra destinazione prima di confermare la prenotazione.");
-                        if (destCustom) destCustom.focus();
+                        alert("Selezionare la sede di riconsegna (destinazione) prima di procedere.");
+                        if (sedeArrivoSelect) sedeArrivoSelect.focus();
                         return;
                     }
-                } else if (destSelect && !destSelect.value) {
-                    e.preventDefault();
-                    alert("Il campo Destinazione è obbligatorio. Seleziona una sede o specifica un'altra destinazione.");
-                    destSelect.focus();
-                    return;
                 }
                 if (oraPartenza && oraRiconsegna && oraPartenza.value && oraRiconsegna.value) {
                     if (oraRiconsegna.value <= oraPartenza.value) {

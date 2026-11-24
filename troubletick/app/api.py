@@ -1186,6 +1186,10 @@ def create_prenotazione(req: PrenotazioneCreateRequest, background_tasks: Backgr
 
         # Inserimento transazionale
         with engine.begin() as conn:
+            if not destinazione:
+                s_dest = conn.execute(text("SELECT nome FROM sedi WHERE sede_id = :sid"), {"sid": sede_arrivo_id}).first()
+                destinazione = s_dest.nome if s_dest and s_dest.nome else "Sede aziendale"
+
             res = conn.execute(text("""
                 INSERT INTO viaggi_automezzi (
                     automezzo_id, data_viaggio, ora_partenza, ora_riconsegna_prevista, ora_arrivo,
