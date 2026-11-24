@@ -318,10 +318,10 @@
                         <input type="hidden" id="email_conducente" name="email_conducente" value="{{ user.email or '' }}" data-sede-id="{{ user.sede_id or '' }}">
                         {% endif %}
 
-                        <!-- 2. Sede di Partenza -->
+                        <!-- Sede di Partenza -->
                         <div class="mb-3">
                             <label for="sede_partenza_id" class="form-label fw-semibold">
-                                <i class="bi bi-geo-alt-fill text-primary me-1"></i> 2. Sede di Partenza <span class="text-danger">*</span>
+                                <i class="bi bi-geo-alt-fill text-primary me-1"></i> Sede di Partenza <span class="text-danger">*</span>
                             </label>
                             <select class="form-select rounded-3" id="sede_partenza_id" name="sede_partenza_id" required>
                                 <option value="" disabled {% if not user.sede_id %}selected{% endif %}>Seleziona sede di partenza...</option>
@@ -329,10 +329,8 @@
                                     <option value="{{ s.sede_id }}" {% if user.sede_id and user.sede_id == s.sede_id %}selected{% endif %}>{% if s.comune_nome %}[{{ s.comune_nome }}] {% endif %}{{ s.nome }} ({{ s.auto_disponibili }} auto disponibili)</option>
                                 {% endfor %}
                             </select>
-                            <div class="form-text small">Preimpostata di default sulla sede assegnata all'operatore/conducente.</div>
+                            <div class="form-text small">Preimpostata di default sulla sede assegnata al conducente.</div>
                         </div>
-
-                        <!-- 3. Destinazione rimossa: corrisponde alla sede di partenza (default) o alla sede di riconsegna diversa indicata sotto -->
 
                         {% if instant %}
                             <!-- Instant mode dates (hidden + read-only presentation) -->
@@ -340,27 +338,27 @@
                             <input type="hidden" name="ora_partenza" id="ora_partenza" value="{{ instant_hour }}">
                             
                             <div class="mb-3">
-                                <label class="form-label fw-semibold">Data Partenza <span class="text-danger">*</span></label>
+                                <label class="form-label fw-semibold">2. Data Partenza <span class="text-danger">*</span></label>
                                 <div class="p-2 border rounded bg-light text-muted fw-bold">{{ instant_date }}</div>
                             </div>
                             
                             <div class="mb-3">
-                                <label class="form-label fw-semibold">Ora Partenza Effettiva <span class="text-danger">*</span></label>
+                                <label class="form-label fw-semibold">3. Ora Partenza Effettiva <span class="text-danger">*</span></label>
                                 <div class="p-2 border rounded bg-light text-muted fw-bold">{{ instant_actual_time }}</div>
                             </div>
                         {% else %}
-                            <!-- Data Viaggio -->
+                            <!-- 2. Data Viaggio -->
                             <div class="mb-3">
                                 <label for="data_viaggio" class="form-label fw-semibold">
-                                    <i class="bi bi-calendar-event text-primary me-1"></i> Data Viaggio <span class="text-danger">*</span>
+                                    <i class="bi bi-calendar-event text-primary me-1"></i> 2. Data Viaggio <span class="text-danger">*</span>
                                 </label>
                                 <input type="date" class="form-control rounded-3" id="data_viaggio" name="data_viaggio" min="{{ today_str }}" required>
                             </div>
 
-                            <!-- Ora Partenza -->
+                            <!-- 3. Ora Partenza -->
                             <div class="mb-3">
                                 <label for="ora_partenza" class="form-label fw-semibold">
-                                    <i class="bi bi-clock text-primary me-1"></i> Ora Partenza <span class="text-danger">*</span>
+                                    <i class="bi bi-clock text-primary me-1"></i> 3. Ora Partenza <span class="text-danger">*</span>
                                 </label>
                                 <select class="form-select rounded-3" id="ora_partenza" name="ora_partenza" required>
                                     <option value="" disabled selected>Seleziona ora di partenza...</option>
@@ -372,10 +370,10 @@
                             </div>
                         {% endif %}
 
-                        <!-- Ora Riconsegna Prevista -->
+                        <!-- 4. Ora Riconsegna Prevista -->
                         <div class="mb-3">
                             <label for="ora_riconsegna_prevista" class="form-label fw-semibold">
-                                <i class="bi bi-clock-history text-primary me-1"></i> Ora Riconsegna Prevista <span class="text-danger">*</span>
+                                <i class="bi bi-clock-history text-primary me-1"></i> 4. Ora Riconsegna Prevista <span class="text-danger">*</span>
                             </label>
                             <select class="form-select rounded-3" id="ora_riconsegna_prevista" name="ora_riconsegna_prevista" required>
                                 <option value="" disabled selected>Seleziona ora di riconsegna...</option>
@@ -386,12 +384,12 @@
                             </select>
                         </div>
 
-                        <!-- 4. Restituzione Veicolo e Destinazione -->
+                        <!-- 5. Sede di Riconsegna -->
                         <div class="mb-3 p-3 bg-light rounded-3 border">
                             <div class="form-check form-switch mb-1">
                                 <input class="form-check-input" type="checkbox" role="switch" id="restituzione_stessa_sede" name="restituzione_stessa_sede" value="true" checked>
                                 <label class="form-check-label fw-bold text-dark" for="restituzione_stessa_sede">
-                                    <i class="bi bi-arrow-repeat text-success me-1"></i> Restituzione nella sede di partenza
+                                    <i class="bi bi-arrow-repeat text-success me-1"></i> 5. Restituzione nella sede di partenza
                                 </label>
                             </div>
                             <div class="form-text small mb-2 text-muted">
@@ -399,7 +397,7 @@
                             </div>
                             <div id="box_sede_riconsegna_diversa" class="d-none mt-2 pt-2 border-top">
                                 <label for="sede_arrivo_id" class="form-label fw-semibold">
-                                    <i class="bi bi-pin-map-fill text-warning me-1"></i> Destinazione / Sede di Riconsegna <span class="text-danger">*</span>
+                                    <i class="bi bi-pin-map-fill text-warning me-1"></i> Sede di Riconsegna (Destinazione) <span class="text-danger">*</span>
                                 </label>
                                 <select class="form-select rounded-3" id="sede_arrivo_id" name="sede_arrivo_id">
                                     <option value="" disabled selected>Seleziona sede di riconsegna (destinazione)...</option>
@@ -411,10 +409,10 @@
                             </div>
                         </div>
 
-                        <!-- 5. Seleziona Veicolo -->
+                        <!-- 6. Seleziona Veicolo -->
                         <div class="mb-3">
                             <label for="automezzo_id" class="form-label fw-semibold">
-                                <i class="bi bi-car-front-fill text-primary me-1"></i> 5. Seleziona Veicolo <span class="text-danger">*</span>
+                                <i class="bi bi-car-front-fill text-primary me-1"></i> 6. Seleziona Veicolo <span class="text-danger">*</span>
                             </label>
                             <select class="form-select rounded-3" id="automezzo_id" name="automezzo_id" required>
                                 <option value="" disabled selected>Seleziona prima i dati della partenza...</option>
@@ -470,36 +468,38 @@
                             </div>
                         </div>
 
-                        <!-- 6. Numero Passeggeri -->
-                        <div class="mb-3">
-                            <label for="numero_passeggeri" class="form-label fw-semibold">
-                                <i class="bi bi-people-fill text-primary me-1"></i> Numero Passeggeri <span class="text-danger">*</span>
-                            </label>
-                            <input type="number" class="form-control rounded-3" id="numero_passeggeri" name="numero_passeggeri" min="1" max="5" value="1" required>
-                            <div class="form-text small">Numero totale di persone a bordo (minimo 1, massimo 5, default 1).</div>
-                        </div>
-
-                        <!-- 7. Note Aggiuntive -->
-                        <div class="mb-3">
-                            <label for="note" class="form-label fw-semibold">Note <span class="text-muted fw-normal small">(Facoltativo)</span></label>
-                            <textarea class="form-control rounded-3" id="note" name="note" rows="2" placeholder="Eventuali note sul viaggio..."></textarea>
-                        </div>
-
-                        {% if instant %}
-                            <button type="submit" id="btnSubmitBooking" class="btn btn-success w-100 mt-2 fw-bold">
-                                <i class="bi bi-play-circle-fill me-1"></i> Avvia Viaggio
-                            </button>
-                            <div class="text-center mt-2">
-                                <a href="/autopark" class="btn btn-sm btn-link text-decoration-none text-muted">
-                                    <i class="bi bi-arrow-left"></i> Torna a prenotazione standard
-                                </a>
+                        <!-- Dettagli Viaggio: mostrati solo se viene selezionato un autoveicolo -->
+                        <div id="boxDettagliViaggio" class="d-none mt-3 pt-3 border-top">
+                            <!-- 7. Numero Passeggeri -->
+                            <div class="mb-3">
+                                <label for="numero_passeggeri" class="form-label fw-semibold">
+                                    <i class="bi bi-people-fill text-primary me-1"></i> Numero Passeggeri <span class="text-danger">*</span>
+                                </label>
+                                <input type="number" class="form-control rounded-3" id="numero_passeggeri" name="numero_passeggeri" min="1" max="5" value="1" required>
+                                <div class="form-text small">Numero totale di persone a bordo (minimo 1, massimo 5, default 1).</div>
                             </div>
-                        {% else %}
-                            <button type="submit" id="btnSubmitBooking" class="btn btn-premium btn-premium-primary w-100 mt-2">
-                                <i class="bi bi-check-lg me-1"></i> Conferma Prenotazione
-                            </button>
-                        {% endif %}
-                    </form>
+
+                            <!-- 8. Note Aggiuntive -->
+                            <div class="mb-3">
+                                <label for="note" class="form-label fw-semibold">Note Viaggio <span class="text-muted fw-normal small">(Facoltativo)</span></label>
+                                <textarea class="form-control rounded-3" id="note" name="note" rows="2" placeholder="Eventuali note sul viaggio..."></textarea>
+                            </div>
+
+                            {% if instant %}
+                                <button type="submit" id="btnSubmitBooking" class="btn btn-success w-100 mt-2 fw-bold">
+                                    <i class="bi bi-play-circle-fill me-1"></i> Avvia Viaggio
+                                </button>
+                                <div class="text-center mt-2">
+                                    <a href="/autopark" class="btn btn-sm btn-link text-decoration-none text-muted">
+                                        <i class="bi bi-arrow-left"></i> Torna a prenotazione standard
+                                    </a>
+                                </div>
+                            {% else %}
+                                <button type="submit" id="btnSubmitBooking" class="btn btn-premium btn-premium-primary w-100 mt-2">
+                                    <i class="bi bi-check-lg me-1"></i> Conferma Prenotazione
+                                </button>
+                            {% endif %}
+                        </div>
                     </form>
                 {% endif %}
             </div>
@@ -1314,6 +1314,8 @@ Grazie!
 
             const allFieldsSelected = (sedeId > 0 && selectedDate && selectedOraP && selectedOraR);
 
+            const boxDettagliViaggio = document.getElementById("boxDettagliViaggio");
+
             if (!allFieldsSelected) {
                 vehicleSelect.innerHTML = "";
                 vehicleSelect.disabled = false;
@@ -1321,10 +1323,11 @@ Grazie!
                 placeholder.value = "";
                 placeholder.disabled = true;
                 placeholder.selected = true;
-                placeholder.textContent = "Seleziona prima i dati della partenza...";
+                placeholder.textContent = "Imposta prima conducente, data e orari...";
                 vehicleSelect.appendChild(placeholder);
                 vehicleSelect.value = "";
 
+                if (boxDettagliViaggio) boxDettagliViaggio.classList.add("d-none");
                 if (vehicleInfoBox) vehicleInfoBox.classList.add("d-none");
                 if (statusBadge) statusBadge.classList.add("d-none");
                 if (noVehicleAlertBox) noVehicleAlertBox.classList.add("d-none");
@@ -1371,6 +1374,14 @@ Grazie!
             let availableCount = 0;
 
             filtered.forEach(v => {
+                const is_available = (v.stato === 'Disponibile' && v.escluso_prenotazione === 0);
+                const overlap = hasBookingOverlap(v.automezzo_id, selectedDate, selectedOraP, selectedOraR);
+
+                // Mostra SOLO gli autoveicoli disponibili (escludi non disponibili e già prenotati)
+                if (!is_available || overlap) {
+                    return;
+                }
+
                 const opt = document.createElement("option");
                 const expSede = (selectedDate && selectedOraP) ? getVehicleExpectedSede(v, selectedDate, selectedOraP) : { sedeId: v.sede_attuale_id || 0, sedeNome: v.sede_attuale_nome || "Tutte le Sedi" };
                 opt.value = v.automezzo_id;
@@ -1381,9 +1392,6 @@ Grazie!
                 opt.setAttribute("data-sede-assegnata-id", v.sede_assegnata_id || 0);
                 opt.setAttribute("data-posizione", v.posizione_parcheggio || "");
                 opt.setAttribute("data-istruzioni", v.messaggio_carpooling || "");
-                
-                const is_available = (v.stato === 'Disponibile' && v.escluso_prenotazione === 0);
-                const overlap = hasBookingOverlap(v.automezzo_id, selectedDate, selectedOraP, selectedOraR);
 
                 let badgeInfo = "";
                 if (expSede.sedeId === sedeId) {
@@ -1394,45 +1402,37 @@ Grazie!
                     badgeInfo = ` [Assegnata qui - Attualmente a: ${expSede.sedeNome}]`;
                 }
 
-                if (!is_available) {
-                    opt.disabled = true;
-                    let reason = v.stato;
-                    if (v.escluso_prenotazione === 1) reason = "Escluso";
-                    opt.textContent = `${v.marca_nome} ${v.modello} (${v.targa}) - Non Disponibile (${reason})${badgeInfo}`;
-                    opt.classList.add("text-muted", "bg-light");
-                } else if (overlap) {
-                    opt.disabled = true;
-                    opt.textContent = `${v.marca_nome} ${v.modello} (${v.targa}) - Già prenotata (${overlap.ora_partenza} - ${overlap.ora_riconsegna_prevista})${badgeInfo}`;
-                    opt.classList.add("text-muted", "bg-light");
-                } else {
-                    opt.disabled = false;
-                    availableCount++;
-                    opt.textContent = `${v.marca_nome} ${v.modello} (${v.targa}) - Disponibile (${v.km_attuali} km)${badgeInfo}`;
-                    if (!firstAvailableOpt) {
-                        firstAvailableOpt = opt;
-                    }
+                opt.disabled = false;
+                availableCount++;
+                opt.textContent = `${v.marca_nome} ${v.modello} (${v.targa}) - Disponibile (${v.km_attuali} km)${badgeInfo}`;
+                if (!firstAvailableOpt) {
+                    firstAvailableOpt = opt;
                 }
 
-                if (currentSelectedValue && String(v.automezzo_id) === String(currentSelectedValue) && !opt.disabled) {
+                if (currentSelectedValue && String(v.automezzo_id) === String(currentSelectedValue)) {
                     opt.selected = true;
                     currentSelectedStillValid = true;
                 }
                 vehicleSelect.appendChild(opt);
             });
 
-            if (!currentSelectedStillValid && firstAvailableOpt) {
-                firstAvailableOpt.selected = true;
-                vehicleSelect.value = firstAvailableOpt.value;
-            } else if (!currentSelectedStillValid && !firstAvailableOpt) {
+            if (currentSelectedStillValid) {
+                vehicleSelect.value = currentSelectedValue;
+            } else {
                 placeholder.selected = true;
-                placeholder.textContent = "Nessun veicolo disponibile per questa sede nei criteri selezionati";
                 vehicleSelect.value = "";
+                if (availableCount === 0) {
+                    placeholder.textContent = "Nessun veicolo disponibile nei criteri selezionati";
+                } else {
+                    placeholder.textContent = "Scegli un veicolo disponibile...";
+                }
             }
 
             const selectedOpt = vehicleSelect.options[vehicleSelect.selectedIndex];
             const vehicleIstruzioniBox = document.getElementById("vehicleIstruzioniBox");
             const vehicleIstruzioniText = document.getElementById("vehicleIstruzioniText");
             if (selectedOpt && selectedOpt.value) {
+                if (boxDettagliViaggio) boxDettagliViaggio.classList.remove("d-none");
                 if (vehicleKmText) vehicleKmText.textContent = selectedOpt.getAttribute("data-km");
                 if (vehicleSedeText) {
                     let st = selectedOpt.getAttribute("data-sede") || "Non specificata";
@@ -1461,6 +1461,7 @@ Grazie!
                     vehicleIstruzioniBox.classList.add("d-none");
                 }
             } else {
+                if (boxDettagliViaggio) boxDettagliViaggio.classList.add("d-none");
                 if (vehicleInfoBox) vehicleInfoBox.classList.add("d-none");
                 if (vehicleIstruzioniBox) vehicleIstruzioniBox.classList.add("d-none");
             }
@@ -1499,17 +1500,26 @@ Grazie!
             if (oraRiconsegna) oraRiconsegna.addEventListener("change", updateVehicleOptions);
             
             vehicleSelect.addEventListener("change", function() {
+                const boxDettagliViaggio = document.getElementById("boxDettagliViaggio");
                 const selectedOption = vehicleSelect.options[vehicleSelect.selectedIndex];
                 const vehicleIstruzioniBox = document.getElementById("vehicleIstruzioniBox");
                 const vehicleIstruzioniText = document.getElementById("vehicleIstruzioniText");
                 if (selectedOption && selectedOption.value) {
+                    if (boxDettagliViaggio) boxDettagliViaggio.classList.remove("d-none");
                     const km = selectedOption.getAttribute("data-km");
                     const sedeNome = selectedOption.getAttribute("data-sede");
                     const vehicleSedeId = selectedOption.getAttribute("data-sede-id");
                     const posParch = selectedOption.getAttribute("data-posizione");
                     
                     if (vehicleKmText) vehicleKmText.textContent = km;
-                    if (vehicleSedeText) vehicleSedeText.textContent = sedeNome || "Non specificata";
+                    if (vehicleSedeText) {
+                        let st = sedeNome || "Non specificata";
+                        const assNome = selectedOption.getAttribute("data-sede-assegnata");
+                        if (assNome && assNome !== st) {
+                            st += ` (Sede assegnata: ${assNome})`;
+                        }
+                        vehicleSedeText.textContent = st;
+                    }
                     const posRow = document.getElementById("vehiclePosizioneRow");
                     const posText = document.getElementById("vehiclePosizioneText");
                     if (posParch && posParch.trim()) {
@@ -1532,6 +1542,7 @@ Grazie!
                         sedeSelect.value = vehicleSedeId;
                     }
                 } else {
+                    if (boxDettagliViaggio) boxDettagliViaggio.classList.add("d-none");
                     if (vehicleInfoBox) vehicleInfoBox.classList.add("d-none");
                     if (vehicleIstruzioniBox) vehicleIstruzioniBox.classList.add("d-none");
                 }
