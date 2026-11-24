@@ -177,6 +177,7 @@ class PrenotazioneCreateRequest(BaseModel):
     ora_riconsegna_prevista: str
     sede_partenza_id: int
     sede_arrivo_id: Optional[int] = None
+    conferma_impegno_trasferimento: Optional[bool] = False
     destinazione: Optional[str] = None
     email_conducente: Optional[str] = None
     note: Optional[str] = None
@@ -1130,10 +1131,18 @@ def create_prenotazione(req: PrenotazioneCreateRequest, background_tasks: Backgr
             if subsequent_conflict and next_sede_id and sede_arrivo_id != next_sede_id:
                 s_arr_row = conn.execute(text("SELECT nome FROM sedi WHERE sede_id = :sid"), {"sid": sede_arrivo_id}).mappings().first()
                 s_arr_nome = s_arr_row["nome"] if s_arr_row else f"Sede ID {sede_arrivo_id}"
+                if not req.conferma_impegno_trasferimento:
+                    api_logger.warning("[BOOKING REJECTED] Conflitto sede successiva non approvato per automezzo ID %s (Sede successiva: %s, Riconsegna: %s)", automezzo_id, next_sede_nome, s_arr_nome)
+                    raise HTTPException(
+                        status_code=400,
+                        detail=f"Per procedere con la prenotazione è obbligatorio approvare l'impegno a far trovare il veicolo presso la sede '{next_sede_nome}' per la prenotazione successiva."
+                    )
                 avviso_discrepanza_logistica = (
-                    f"Attenzione: il veicolo è prenotato successivamente con partenza da '{next_sede_nome}', "
-                    f"ma la sede di riconsegna indicata è '{s_arr_nome}'."
+                    f"Impegno formalmente confermato dall'utente: l'utente si è impegnato a garantire la presenza del mezzo "
+                    f"presso la sede '{next_sede_nome}' per la successiva prenotazione già programmata."
                 )
+                impegno_tag = f"[Impegno formale: trasferimento a '{next_sede_nome}']"
+                note = f"{note}\n{impegno_tag}".strip() if note else impegno_tag
 
             km_iniziali = car["km_attuali"] or 0
 

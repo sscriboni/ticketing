@@ -4021,28 +4021,28 @@ def get_autopark(r: Request, msg: str = None, error: str = None):
         # Fetch colleagues in the same department (or all users if admin/global)
         if role in ("admin", "global_fleet_manager"):
             colleghi_raw = conn.execute(text("""
-                SELECT user_id, nome, cognome, email, username, reparto_id
+                SELECT user_id, nome, cognome, email, username, reparto_id, sede_id
                 FROM users
                 WHERE attivo = 1 AND email IS NOT NULL AND TRIM(email) != ''
                 ORDER BY cognome ASC, nome ASC, username ASC
             """)).mappings().all()
         elif user_reparto_id is not None:
             colleghi_raw = conn.execute(text("""
-                SELECT user_id, nome, cognome, email, username, reparto_id
+                SELECT user_id, nome, cognome, email, username, reparto_id, sede_id
                 FROM users
                 WHERE attivo = 1 AND reparto_id = :rep_id AND email IS NOT NULL AND TRIM(email) != ''
                 ORDER BY cognome ASC, nome ASC, username ASC
             """), {"rep_id": user_reparto_id}).mappings().all()
         else:
             colleghi_raw = conn.execute(text("""
-                SELECT user_id, nome, cognome, email, username, reparto_id
+                SELECT user_id, nome, cognome, email, username, reparto_id, sede_id
                 FROM users
                 WHERE user_id = :uid AND attivo = 1
             """), {"uid": uid}).mappings().all()
 
         colleghi_list = [dict(c) for c in colleghi_raw]
         if not any(c.get("user_id") == uid for c in colleghi_list):
-            curr_u = conn.execute(text("SELECT user_id, nome, cognome, email, username, reparto_id FROM users WHERE user_id = :uid"), {"uid": uid}).mappings().first()
+            curr_u = conn.execute(text("SELECT user_id, nome, cognome, email, username, reparto_id, sede_id FROM users WHERE user_id = :uid"), {"uid": uid}).mappings().first()
             if curr_u:
                 colleghi_list.insert(0, dict(curr_u))
 
@@ -4451,6 +4451,8 @@ def prenota_automezzo(
     ora_riconsegna_prevista: str = Form(...),
     sede_partenza_id: int = Form(...),
     sede_arrivo_id: typing.Optional[int] = Form(None),
+    restituzione_stessa_sede: typing.Optional[str] = Form("true"),
+    conferma_impegno_trasferimento: typing.Optional[int] = Form(None),
     destinazione: typing.Optional[str] = Form(None),
     destinazione_custom: typing.Optional[str] = Form(None),
     email_conducente: str = Form(None),
@@ -4589,18 +4591,33 @@ def prenota_automezzo(
         except Exception:
             num_passeggeri = 1
 
-        sede_arrivo_id_val = int(sede_arrivo_id) if (sede_arrivo_id and str(sede_arrivo_id).isdigit()) else sede_partenza_id
+        is_stessa_sede = str(restituzione_stessa_sede).lower() in ("true", "1", "on", "yes")
+        if is_stessa_sede:
+            sede_arrivo_id_val = sede_partenza_id
+        else:
+            sede_arrivo_id_val = int(sede_arrivo_id) if (sede_arrivo_id and str(sede_arrivo_id).isdigit()) else sede_partenza_id
 
         # Verifica se per il veicolo esiste una prenotazione successiva che parte da un'altra sede
         next_b = sede_info.get("prossima_prenotazione")
         avviso_discrepanza = None
         if next_b and next_b.get("sede_partenza_id") and next_b["sede_partenza_id"] != sede_arrivo_id_val:
             next_sede_nome = next_b.get("sede_partenza_nome") or f"Sede ID {next_b['sede_partenza_id']}"
+            if not conferma_impegno_trasferimento:
+                import urllib.parse
+                err_msg = urllib.parse.quote(
+                    f"Attenzione: per prenotare questo mezzo con riconsegna in altra sede è obbligatorio approvare "
+                    f"l'impegno a far trovare l'auto presso la sede '{next_sede_nome}' prima della successiva prenotazione "
+                    f"del {next_b['data_viaggio']} alle ore {next_b['ora_partenza']}."
+                )
+                return RedirectResponse(url=f"/autopark?error={err_msg}", status_code=303)
+
             avviso_discrepanza = (
-                f"Attenzione Discrepanza Logistica: Questa prenotazione prevede la riconsegna presso una sede diversa da quella "
-                f"necessaria per la successiva prenotazione già programmata per il {next_b['data_viaggio']} alle {next_b['ora_partenza']} "
-                f"(partenza prevista da: {next_sede_nome}). Sarà necessario organizzare il trasferimento del veicolo."
+                f"Impegno formalmente confermato dall'utente: l'utente si è impegnato a garantire la presenza del mezzo "
+                f"presso la sede '{next_sede_nome}' entro il {next_b['data_viaggio']} alle {next_b['ora_partenza']} "
+                f"per la successiva prenotazione già programmata."
             )
+            impegno_tag = f"[Impegno formale: trasferimento a '{next_sede_nome}' entro {next_b['data_viaggio']} {next_b['ora_partenza']}]"
+            note = f"{note}\n{impegno_tag}".strip() if note else impegno_tag
 
         conn.execute(text("""
             INSERT INTO viaggi_automezzi (
@@ -5291,6 +5308,8 @@ def registra_viaggio_istantaneo(
     automezzo_id: int = Form(...),
     sede_partenza_id: int = Form(...),
     sede_arrivo_id: typing.Optional[int] = Form(None),
+    restituzione_stessa_sede: typing.Optional[str] = Form("true"),
+    conferma_impegno_trasferimento: typing.Optional[int] = Form(None),
     ora_riconsegna_prevista: str = Form(...),
     destinazione: typing.Optional[str] = Form(None),
     destinazione_custom: typing.Optional[str] = Form(None),
@@ -5381,7 +5400,22 @@ def registra_viaggio_istantaneo(
         except Exception:
             num_passeggeri = 1
 
-        sede_arrivo_id_val = int(sede_arrivo_id) if (sede_arrivo_id and str(sede_arrivo_id).isdigit()) else sede_partenza_id
+        is_stessa_sede = str(restituzione_stessa_sede).lower() in ("true", "1", "on", "yes")
+        if is_stessa_sede:
+            sede_arrivo_id_val = sede_partenza_id
+        else:
+            sede_arrivo_id_val = int(sede_arrivo_id) if (sede_arrivo_id and str(sede_arrivo_id).isdigit()) else sede_partenza_id
+
+        # Verifica eventuale prenotazione successiva con partenza da altra sede
+        sede_info = get_veicolo_sede_prevista(conn, automezzo_id, data_viaggio, ora_partenza)
+        next_b = sede_info.get("prossima_prenotazione")
+        if next_b and next_b.get("sede_partenza_id") and next_b["sede_partenza_id"] != sede_arrivo_id_val:
+            next_sede_nome = next_b.get("sede_partenza_nome") or f"Sede ID {next_b['sede_partenza_id']}"
+            if not conferma_impegno_trasferimento:
+                err_msg = f"Attenzione: è obbligatorio approvare l'impegno a far trovare il veicolo presso la sede '{next_sede_nome}' prima della successiva prenotazione ({next_b['data_viaggio']} ore {next_b['ora_partenza']})."
+                return RedirectResponse(url=f"/autopark?instant=1&error={urllib.parse.quote(err_msg)}", status_code=303)
+            impegno_tag = f"[Impegno formale: trasferimento a '{next_sede_nome}' entro {next_b['data_viaggio']} {next_b['ora_partenza']}]"
+            note = f"{note}\n{impegno_tag}".strip() if note else impegno_tag
 
         conn.execute(text("""
             INSERT INTO viaggi_automezzi (
