@@ -318,15 +318,15 @@
                         <input type="hidden" id="email_conducente" name="email_conducente" value="{{ user.email or '' }}" data-sede-id="{{ user.sede_id or '' }}">
                         {% endif %}
 
-                        <!-- Sede di Partenza -->
+                        <!-- 2. Sede di Partenza -->
                         <div class="mb-3">
                             <label for="sede_partenza_id" class="form-label fw-semibold">
-                                <i class="bi bi-geo-alt-fill text-primary me-1"></i> Sede di Partenza <span class="text-danger">*</span>
+                                <i class="bi bi-geo-alt-fill text-primary me-1"></i> 2. Sede di Partenza <span class="text-danger">*</span>
                             </label>
                             <select class="form-select rounded-3" id="sede_partenza_id" name="sede_partenza_id" required>
                                 <option value="" disabled {% if not user.sede_id %}selected{% endif %}>Seleziona sede di partenza...</option>
                                 {% for s in sedi %}
-                                    <option value="{{ s.sede_id }}" {% if user.sede_id and user.sede_id == s.sede_id %}selected{% endif %}>{% if s.comune_nome %}[{{ s.comune_nome }}] {% endif %}{{ s.nome }} ({{ s.auto_disponibili }} auto disponibili)</option>
+                                    <option value="{{ s.sede_id }}" {% if user.sede_id and user.sede_id == s.sede_id %}selected{% endif %}>{% if s.comune_nome %}[{{ s.comune_nome }}] {% endif %}{{ s.nome }}</option>
                                 {% endfor %}
                             </select>
                             <div class="form-text small">Preimpostata di default sulla sede assegnata al conducente.</div>
@@ -338,27 +338,27 @@
                             <input type="hidden" name="ora_partenza" id="ora_partenza" value="{{ instant_hour }}">
                             
                             <div class="mb-3">
-                                <label class="form-label fw-semibold">2. Data Partenza <span class="text-danger">*</span></label>
+                                <label class="form-label fw-semibold">3. Data Partenza <span class="text-danger">*</span></label>
                                 <div class="p-2 border rounded bg-light text-muted fw-bold">{{ instant_date }}</div>
                             </div>
                             
                             <div class="mb-3">
-                                <label class="form-label fw-semibold">3. Ora Partenza Effettiva <span class="text-danger">*</span></label>
+                                <label class="form-label fw-semibold">4. Ora Partenza Effettiva <span class="text-danger">*</span></label>
                                 <div class="p-2 border rounded bg-light text-muted fw-bold">{{ instant_actual_time }}</div>
                             </div>
                         {% else %}
-                            <!-- 2. Data Viaggio -->
+                            <!-- 3. Data Viaggio -->
                             <div class="mb-3">
                                 <label for="data_viaggio" class="form-label fw-semibold">
-                                    <i class="bi bi-calendar-event text-primary me-1"></i> 2. Data Viaggio <span class="text-danger">*</span>
+                                    <i class="bi bi-calendar-event text-primary me-1"></i> 3. Data Viaggio <span class="text-danger">*</span>
                                 </label>
                                 <input type="date" class="form-control rounded-3" id="data_viaggio" name="data_viaggio" min="{{ today_str }}" required>
                             </div>
 
-                            <!-- 3. Ora Partenza -->
+                            <!-- 4. Orario di Partenza -->
                             <div class="mb-3">
                                 <label for="ora_partenza" class="form-label fw-semibold">
-                                    <i class="bi bi-clock text-primary me-1"></i> 3. Ora Partenza <span class="text-danger">*</span>
+                                    <i class="bi bi-clock text-primary me-1"></i> 4. Orario di Partenza <span class="text-danger">*</span>
                                 </label>
                                 <select class="form-select rounded-3" id="ora_partenza" name="ora_partenza" required>
                                     <option value="" disabled selected>Seleziona ora di partenza...</option>
@@ -370,10 +370,10 @@
                             </div>
                         {% endif %}
 
-                        <!-- 4. Ora Riconsegna Prevista -->
+                        <!-- 5. Ora di Riconsegna Prevista -->
                         <div class="mb-3">
                             <label for="ora_riconsegna_prevista" class="form-label fw-semibold">
-                                <i class="bi bi-clock-history text-primary me-1"></i> 4. Ora Riconsegna Prevista <span class="text-danger">*</span>
+                                <i class="bi bi-clock-history text-primary me-1"></i> 5. Ora di Riconsegna <span class="text-danger">*</span>
                             </label>
                             <select class="form-select rounded-3" id="ora_riconsegna_prevista" name="ora_riconsegna_prevista" required>
                                 <option value="" disabled selected>Seleziona ora di riconsegna...</option>
@@ -384,12 +384,12 @@
                             </select>
                         </div>
 
-                        <!-- 5. Sede di Riconsegna -->
+                        <!-- 6. Sede di Riconsegna -->
                         <div class="mb-3 p-3 bg-light rounded-3 border">
                             <div class="form-check form-switch mb-1">
                                 <input class="form-check-input" type="checkbox" role="switch" id="restituzione_stessa_sede" name="restituzione_stessa_sede" value="true" checked>
                                 <label class="form-check-label fw-bold text-dark" for="restituzione_stessa_sede">
-                                    <i class="bi bi-arrow-repeat text-success me-1"></i> 5. Restituzione nella sede di partenza
+                                    <i class="bi bi-arrow-repeat text-success me-1"></i> 6. Restituzione nella sede di partenza
                                 </label>
                             </div>
                             <div class="form-text small mb-2 text-muted">
@@ -409,10 +409,10 @@
                             </div>
                         </div>
 
-                        <!-- 6. Seleziona Veicolo -->
+                        <!-- 7. Seleziona Veicolo -->
                         <div class="mb-3">
                             <label for="automezzo_id" class="form-label fw-semibold">
-                                <i class="bi bi-car-front-fill text-primary me-1"></i> 6. Seleziona Veicolo <span class="text-danger">*</span>
+                                <i class="bi bi-car-front-fill text-primary me-1"></i> 7. Seleziona Veicolo <span class="text-danger">*</span>
                             </label>
                             <select class="form-select rounded-3" id="automezzo_id" name="automezzo_id" required>
                                 <option value="" disabled selected>Seleziona prima i dati della partenza...</option>
