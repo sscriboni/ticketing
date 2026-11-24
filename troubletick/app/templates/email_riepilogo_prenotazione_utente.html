@@ -39,6 +39,29 @@
                                 {% endif %}
                             </p>
                             
+                            {% if azione == "cancellata" and motivo_cancellazione %}
+                            <!-- Cancellation Message Alert Box -->
+                            <table border="0" cellpadding="0" cellspacing="0" width="100%" style="background-color: #fef2f2; border: 2px solid #ef4444; border-radius: 10px; margin-bottom: 22px; overflow: hidden;">
+                                <tr>
+                                    <td style="background-color: #fee2e2; padding: 10px 16px; border-bottom: 1px solid #fca5a5;">
+                                        <span style="font-size: 12px; font-weight: 800; color: #b91c1c; text-transform: uppercase; letter-spacing: 0.6px;">
+                                            ⚠️ Comunicazione di Cancellazione
+                                        </span>
+                                    </td>
+                                </tr>
+                                <tr>
+                                    <td style="padding: 14px 16px; font-size: 14px; color: #7f1d1d; line-height: 1.5; white-space: pre-wrap;">{{ motivo_cancellazione }}</td>
+                                </tr>
+                                {% if cancellato_da_nome %}
+                                <tr>
+                                    <td style="padding: 6px 16px 12px 16px; font-size: 12px; color: #991b1b; font-style: italic;">
+                                        Operazione registrata da: <strong>{{ cancellato_da_nome }}</strong>{% if cancellato_da_email %} ({{ cancellato_da_email }}){% endif %}
+                                    </td>
+                                </tr>
+                                {% endif %}
+                            </table>
+                            {% endif %}
+                            
                             <!-- Booker vs Driver Highlight Box -->
                             <table border="0" cellpadding="0" cellspacing="0" width="100%" style="background-color: #f8fafc; border: 2px solid {{ '#2563eb' if azione == 'nuova' else '#64748b' }}; border-radius: 10px; margin-bottom: 22px; overflow: hidden;">
                                 <tr>
@@ -53,7 +76,7 @@
                                         Prenotazione effettuata da:
                                     </td>
                                     <td style="padding: 10px 16px 6px 16px; font-size: 14px; color: #0f172a; font-weight: 700;">
-                                        📝 {{ autore_nome }}{% if autore_email %} <span style="font-weight: 400; color: #64748b; font-size: 12px;">({{ autore_email }})</span>{% endif %}
+                                        📝 {{ prenotante_nome or autore_nome }}{% if prenotante_email or autore_email %} <span style="font-weight: 400; color: #64748b; font-size: 12px;">({{ prenotante_email or autore_email }})</span>{% endif %}
                                     </td>
                                 </tr>
                                 <tr>
@@ -64,10 +87,20 @@
                                         👤 {{ prenotazione.conducente_nome }}{% if prenotazione.conducente_email %} <span style="font-weight: 400; color: #64748b; font-size: 12px;">({{ prenotazione.conducente_email }})</span>{% endif %}
                                     </td>
                                 </tr>
-                                {% if autore_email and prenotazione.conducente_email and autore_email|lower != prenotazione.conducente_email|lower %}
+                                {% if azione == "cancellata" and cancellato_da_nome %}
                                 <tr>
-                                    <td colspan="2" style="padding: 8px 16px; background-color: #f0fdf4; border-top: 1px dashed #bbf7d0; font-size: 12px; color: #166534; font-weight: 600;">
-                                        ℹ️ Nota: Prenotazione effettuata da <strong>{{ autore_nome }}</strong> a favore del collega <strong>{{ prenotazione.conducente_nome }}</strong>. Entrambi ricevono questa notifica di riepilogo.
+                                    <td style="padding: 6px 16px 10px 16px; font-size: 13px; color: #991b1b; font-weight: 600; border-top: 1px dashed #e2e8f0;">
+                                        Cancellata da:
+                                    </td>
+                                    <td style="padding: 6px 16px 10px 16px; font-size: 14px; color: #7f1d1d; font-weight: 700; border-top: 1px dashed #e2e8f0;">
+                                        🛑 {{ cancellato_da_nome }}{% if cancellato_da_email %} <span style="font-weight: 400; color: #991b1b; font-size: 12px;">({{ cancellato_da_email }})</span>{% endif %}
+                                    </td>
+                                </tr>
+                                {% endif %}
+                                {% if prenotante_email and prenotazione.conducente_email and prenotante_email|lower != prenotazione.conducente_email|lower %}
+                                <tr>
+                                    <td colspan="2" style="padding: 8px 16px; background-color: {{ '#f0fdf4' if azione == 'nuova' else '#f8fafc' }}; border-top: 1px dashed #e2e8f0; font-size: 12px; color: #475569; font-weight: 600;">
+                                        ℹ️ Nota: Prenotazione effettuata da <strong>{{ prenotante_nome }}</strong> a favore del collega <strong>{{ prenotazione.conducente_nome }}</strong>. Entrambi ricevono questa notifica.
                                     </td>
                                 </tr>
                                 {% endif %}

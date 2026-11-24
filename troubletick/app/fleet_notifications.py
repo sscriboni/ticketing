@@ -29,6 +29,10 @@ def notifica_utente_prenotazione(
     note: str = None,
     autore_nome: str = None,
     autore_email: str = None,
+    prenotato_da_id: int = None,
+    motivo_cancellazione: str = None,
+    cancellato_da_nome: str = None,
+    cancellato_da_email: str = None,
 ) -> bool:
     """
     Invia un'email riepilogativa all'utente che ha effettuato/ricevuto la prenotazione
@@ -107,16 +111,41 @@ def notifica_utente_prenotazione(
             if not resolved_conducente_nome:
                 resolved_conducente_nome = resolved_conducente_email or "Gentile Utente"
 
-            # 4. Determinazione destinatari (conducente e autore se diverso)
-            dest_email = resolved_conducente_email
+            # 3b. Risoluzione anagrafica prenotante (chi ha effettuato la prenotazione originaria)
+            prenotante_nome = (autore_nome or "").strip()
+            prenotante_email = (autore_email or "").strip().lower()
+            if prenotato_da_id:
+                u_pren = conn.execute(text("SELECT nome, cognome, email FROM users WHERE user_id = :uid"), {"uid": prenotato_da_id}).mappings().first()
+                if u_pren:
+                    prenotante_nome = f"{u_pren.get('nome', '')} {u_pren.get('cognome', '')}".strip()
+                    if u_pren.get("email"):
+                        prenotante_email = u_pren.get("email").strip().lower()
+            
+            if not prenotante_nome:
+                prenotante_nome = resolved_conducente_nome
+            if not prenotante_email:
+                prenotante_email = resolved_conducente_email
+
+            # 4. Determinazione destinatari
+            dest_email = None
             cc_email = None
 
-            autore_email_clean = (autore_email or "").strip().lower()
-            if autore_email_clean:
-                if not dest_email:
-                    dest_email = autore_email_clean
-                elif dest_email != autore_email_clean:
-                    cc_email = autore_email_clean
+            if azione_clean == "cancellata":
+                # In cancellazione: Conducente in 'A:' (To) e Prenotante in 'Cc:' se diversi
+                if resolved_conducente_email:
+                    dest_email = resolved_conducente_email
+                    if prenotante_email and prenotante_email != resolved_conducente_email:
+                        cc_email = prenotante_email
+                elif prenotante_email:
+                    dest_email = prenotante_email
+            else:
+                # In nuova prenotazione:
+                dest_email = resolved_conducente_email
+                if prenotante_email:
+                    if not dest_email:
+                        dest_email = prenotante_email
+                    elif dest_email != prenotante_email:
+                        cc_email = prenotante_email
 
             if not dest_email:
                 msg = f"[{now_str}] SKIPPED - User Booking Notify: Nessun indirizzo email conducente o richiedente disponibile per il veicolo {car['targa']}."
@@ -151,7 +180,8 @@ def notifica_utente_prenotazione(
                 "note": (note or "").strip()
             }
 
-            autore_display = (autore_nome or "").strip() or "Sistema / Utente"
+            autore_display = (prenotante_nome or "").strip() or "Sistema / Utente"
+            dest_display = resolved_conducente_nome if (dest_email == resolved_conducente_email) else prenotante_nome
 
             html_body = templates.get_template("email_riepilogo_prenotazione_utente.html").render({
                 "cfg": CFG,
@@ -159,11 +189,16 @@ def notifica_utente_prenotazione(
                 "veicolo": dict(car),
                 "prenotazione": prenotazione_dict,
                 "autore_nome": autore_display,
-                "autore_email": (autore_email or "").strip(),
-                "destinatario_nome": resolved_conducente_nome,
+                "autore_email": (prenotante_email or "").strip(),
+                "prenotante_nome": prenotante_nome,
+                "prenotante_email": prenotante_email,
+                "destinatario_nome": dest_display,
                 "app_url": CFG.get("app_url", ""),
                 "istruzioni": (car.get("istruzioni_carpooling") or "").strip(),
-                "fleet_managers": fleet_managers_list
+                "fleet_managers": fleet_managers_list,
+                "motivo_cancellazione": (motivo_cancellazione or "").strip(),
+                "cancellato_da_nome": (cancellato_da_nome or "").strip(),
+                "cancellato_da_email": (cancellato_da_email or "").strip(),
             })
 
             return send_email_async(
@@ -195,6 +230,10 @@ def notifica_fleet_managers_prenotazione(
     note: str = None,
     autore_nome: str = None,
     autore_email: str = None,
+    prenotato_da_id: int = None,
+    motivo_cancellazione: str = None,
+    cancellato_da_nome: str = None,
+    cancellato_da_email: str = None,
 ) -> bool:
     """
     Invia un'email di notifica a tutti i Fleet Manager attivi assegnati al reparto
@@ -205,6 +244,13 @@ def notifica_fleet_managers_prenotazione(
     azione_clean = (azione or "nuova").strip().lower()
     if azione_clean not in ("nuova", "cancellata"):
         azione_clean = "nuova"
+
+    # Se in cancellazione cancellato_da_* non è specificato ma autore_* sì, usalo
+    if azione_clean == "cancellata":
+        if not cancellato_da_nome and autore_nome:
+            cancellato_da_nome = autore_nome
+        if not cancellato_da_email and autore_email:
+            cancellato_da_email = autore_email
 
     # Invia sempre la notifica riepilogativa all'utente che ha prenotato / conducente
     try:
@@ -221,7 +267,11 @@ def notifica_fleet_managers_prenotazione(
             conducente_nome=conducente_nome,
             note=note,
             autore_nome=autore_nome,
-            autore_email=autore_email
+            autore_email=autore_email,
+            prenotato_da_id=prenotato_da_id,
+            motivo_cancellazione=motivo_cancellazione,
+            cancellato_da_nome=cancellato_da_nome,
+            cancellato_da_email=cancellato_da_email,
         )
     except Exception as e_user:
         logger.warning(f"Errore invio notifica utente: {e_user}")
@@ -330,7 +380,21 @@ def notifica_fleet_managers_prenotazione(
                 "note": (note or "").strip()
             }
 
-            autore_display = (autore_nome or "").strip() or "Sistema / Utente"
+            prenotante_nome = (autore_nome or "").strip()
+            prenotante_email = (autore_email or "").strip().lower()
+            if prenotato_da_id:
+                u_pren = conn.execute(text("SELECT nome, cognome, email FROM users WHERE user_id = :uid"), {"uid": prenotato_da_id}).mappings().first()
+                if u_pren:
+                    prenotante_nome = f"{u_pren.get('nome', '')} {u_pren.get('cognome', '')}".strip()
+                    if u_pren.get("email"):
+                        prenotante_email = u_pren.get("email").strip().lower()
+
+            if not prenotante_nome:
+                prenotante_nome = resolved_conducente_nome
+            if not prenotante_email:
+                prenotante_email = resolved_conducente_email
+
+            autore_display = (prenotante_nome or "").strip() or "Sistema / Utente"
 
             # 6. Invio email a ciascun Fleet Manager destinatario
             sent_count = 0
@@ -346,7 +410,12 @@ def notifica_fleet_managers_prenotazione(
                     "veicolo": dict(car),
                     "prenotazione": prenotazione_dict,
                     "autore_nome": autore_display,
-                    "autore_email": (autore_email or "").strip(),
+                    "autore_email": (prenotante_email or "").strip(),
+                    "prenotante_nome": prenotante_nome,
+                    "prenotante_email": prenotante_email,
+                    "cancellato_da_nome": (cancellato_da_nome or "").strip(),
+                    "cancellato_da_email": (cancellato_da_email or "").strip(),
+                    "motivo_cancellazione": (motivo_cancellazione or "").strip(),
                     "destinatario_nome": fm_nome,
                     "app_url": CFG.get("app_url", "")
                 })

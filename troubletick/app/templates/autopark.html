@@ -569,11 +569,27 @@
                                             
                                             {% if user.ruolo in ('admin', 'fleet_manager', 'global_fleet_manager') or p.user_id == user.id or p.prenotato_da_id == user.id %}
                                             {% set is_past_date = (p.data_viaggio < today_str) %}
+                                            {% set is_owner = (p.user_id == user.id or p.prenotato_da_id == user.id) %}
+                                            {% if is_owner %}
                                             <form action="/autopark/elimina/{{ p.viaggio_id }}" method="POST" class="d-inline flex-fill" onsubmit="return confirm('Sei sicuro di voler eliminare questa prenotazione?');">
                                                 <button type="submit" class="btn btn-sm btn-outline-danger w-100 rounded-3 fw-bold" {% if is_past_date %}disabled title="Non è più possibile eliminare una prenotazione dopo il giorno previsto per il viaggio"{% endif %}>
                                                     <i class="bi bi-trash-fill me-1"></i> Elimina
                                                 </button>
                                             </form>
+                                            {% else %}
+                                            <button type="button" class="btn btn-sm btn-outline-danger flex-fill rounded-3 fw-bold"
+                                                    {% if is_past_date %}disabled title="Non è più possibile eliminare una prenotazione dopo il giorno previsto per il viaggio"{% endif %}
+                                                    data-action-url="/autopark/elimina/{{ p.viaggio_id }}"
+                                                    data-targa="{{ p.targa }}"
+                                                    data-veicolo="{{ p.marca_nome }} {{ p.modello }}"
+                                                    data-data="{{ p.data_viaggio }}"
+                                                    data-orari="{{ p.ora_partenza }}{% if p.ora_riconsegna_prevista %} - {{ p.ora_riconsegna_prevista }}{% endif %}"
+                                                    data-prenotante="{{ ((p.prenotante_nome ~ ' ' ~ p.prenotante_cognome)|trim or (p.driver_nome ~ ' ' ~ p.driver_cognome)|trim) | e }}"
+                                                    data-conducente="{{ ((p.driver_nome ~ ' ' ~ p.driver_cognome)|trim or p.driver_email) | e }}"
+                                                    onclick="triggerDeleteBookingModal(this)">
+                                                <i class="bi bi-trash-fill me-1"></i> Elimina
+                                            </button>
+                                            {% endif %}
                                             {% endif %}
                                         </div>
 
@@ -859,11 +875,26 @@ Grazie!
                                                     </button>
                                                     {% endif %}
                                                     {% if user.ruolo in ('admin', 'fleet_manager', 'global_fleet_manager') or (p.can_delete_48h and (p.user_id == user.id or p.prenotato_da_id == user.id)) %}
+                                                    {% set is_owner = (p.user_id == user.id or p.prenotato_da_id == user.id) %}
+                                                    {% if is_owner %}
                                                     <form action="/autopark/elimina/{{ p.viaggio_id }}" method="POST" class="d-inline m-0" onsubmit="return confirm('Sei sicuro di voler eliminare questa prenotazione non registrata?');">
                                                         <button type="submit" class="btn btn-sm btn-outline-danger" title="Elimina prenotazione (fino a 48 ore)">
                                                             <i class="bi bi-trash"></i>
                                                         </button>
                                                     </form>
+                                                    {% else %}
+                                                    <button type="button" class="btn btn-sm btn-outline-danger" title="Elimina prenotazione altrui"
+                                                            data-action-url="/autopark/elimina/{{ p.viaggio_id }}"
+                                                            data-targa="{{ p.targa }}"
+                                                            data-veicolo="{{ p.marca_nome }} {{ p.modello }}"
+                                                            data-data="{{ p.data_viaggio }}"
+                                                            data-orari="{{ p.ora_partenza }}{% if p.ora_riconsegna_prevista %} - {{ p.ora_riconsegna_prevista }}{% endif %}"
+                                                            data-prenotante="{{ ((p.prenotante_nome ~ ' ' ~ p.prenotante_cognome)|trim or (p.driver_nome ~ ' ' ~ p.driver_cognome)|trim) | e }}"
+                                                            data-conducente="{{ ((p.driver_nome ~ ' ' ~ p.driver_cognome)|trim or p.driver_email) | e }}"
+                                                            onclick="triggerDeleteBookingModal(this)">
+                                                        <i class="bi bi-trash"></i>
+                                                    </button>
+                                                    {% endif %}
                                                     {% endif %}
                                                 {% else %}
                                                     {# Viaggio già registrato: NON modificabile dall'utente ordinario, solo da Fleet Manager e Admin #}
@@ -1475,6 +1506,35 @@ Grazie!
         }
         return true;
     }
+
+    function openDeleteBookingModal(actionUrl, targa, veicolo, dataViaggio, orari, prenotante, conducente) {
+        const form = document.getElementById('deleteBookingForm');
+        form.action = actionUrl;
+        document.getElementById('delBookingTargaLabel').textContent = targa || '';
+        document.getElementById('delBookingVeicoloLabel').textContent = veicolo || '';
+        document.getElementById('delBookingDataLabel').textContent = dataViaggio || '';
+        document.getElementById('delBookingOrarioLabel').textContent = orari || '';
+        
+        document.getElementById('delBookingPrenotanteLabel').textContent = (prenotante || '').trim() || 'Non specificato';
+        document.getElementById('delBookingConducenteLabel').textContent = (conducente || '').trim() || 'Non specificato';
+        
+        document.getElementById('delBookingMotivo').value = "ci dispiace informare che l'auto prenotata non è piu' disponibile";
+        
+        const modalEl = document.getElementById('deleteBookingModal');
+        const modal = bootstrap.Modal.getOrCreateInstance(modalEl);
+        modal.show();
+    }
+
+    function triggerDeleteBookingModal(btn) {
+        const actionUrl = btn.getAttribute('data-action-url');
+        const targa = btn.getAttribute('data-targa');
+        const veicolo = btn.getAttribute('data-veicolo');
+        const dataViaggio = btn.getAttribute('data-data');
+        const orari = btn.getAttribute('data-orari');
+        const prenotante = btn.getAttribute('data-prenotante');
+        const conducente = btn.getAttribute('data-conducente');
+        openDeleteBookingModal(actionUrl, targa, veicolo, dataViaggio, orari, prenotante, conducente);
+    }
 </script>
 
 <!-- Modal Modifica Viaggio Registrato -->
@@ -1664,6 +1724,69 @@ Grazie!
                     <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Annulla</button>
                     <button type="submit" class="btn btn-success fw-bold">
                         <i class="bi bi-check-lg me-1"></i> Salva e Registra Viaggio
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+<!-- Modal Cancellazione Prenotazione con Messaggio Opzionale -->
+<div class="modal fade" id="deleteBookingModal" tabindex="-1" aria-labelledby="deleteBookingModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content border-0 shadow">
+            <div class="modal-header bg-danger text-white">
+                <h5 class="modal-title fw-bold" id="deleteBookingModalLabel">
+                    <i class="bi bi-calendar-x me-2"></i> Cancellazione Prenotazione
+                </h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <form action="" method="post" id="deleteBookingForm">
+                <div class="modal-body p-4">
+                    <div class="alert alert-danger bg-danger bg-opacity-10 border-danger border-opacity-25 py-2 px-3 mb-3 d-flex align-items-center justify-content-between">
+                        <div>
+                            <i class="bi bi-car-front-fill me-2 text-danger"></i> <strong id="delBookingVeicoloLabel"></strong>
+                        </div>
+                        <span class="badge bg-dark font-monospace fs-6" id="delBookingTargaLabel"></span>
+                    </div>
+
+                    <div class="card bg-light border-0 mb-3">
+                        <div class="card-body py-2 px-3">
+                            <div class="d-flex align-items-center mb-2">
+                                <i class="bi bi-info-circle-fill text-muted me-1 small"></i>
+                                <span class="text-muted fw-bold small text-uppercase" style="font-size: 0.75rem; letter-spacing: 0.5px;">Dettagli Prenotazione</span>
+                            </div>
+                            <div class="row g-2 small">
+                                <div class="col-6">
+                                    <span class="text-muted">Data:</span> <strong id="delBookingDataLabel" class="text-dark"></strong>
+                                </div>
+                                <div class="col-6">
+                                    <span class="text-muted">Orario:</span> <strong id="delBookingOrarioLabel" class="text-dark"></strong>
+                                </div>
+                                <div class="col-12" id="delBookingPrenotanteRow">
+                                    <span class="text-muted">Prenotata da:</span> <strong id="delBookingPrenotanteLabel" class="text-dark"></strong>
+                                </div>
+                                <div class="col-12" id="delBookingConducenteRow">
+                                    <span class="text-muted">Conducente:</span> <strong id="delBookingConducenteLabel" class="text-dark"></strong>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="mb-2">
+                        <label class="form-label small fw-bold text-dark mb-1">
+                            <i class="bi bi-envelope-paper me-1 text-danger"></i> Messaggio opzionale per l'utente / conducente:
+                        </label>
+                        <textarea name="motivo_cancellazione" id="delBookingMotivo" class="form-control" rows="3">ci dispiace informare che l'auto prenotata non è piu' disponibile</textarea>
+                        <div class="form-text small text-muted">
+                            Questo messaggio verrà inviato via email all'utente che ha prenotato e al guidatore. Se cancelli il testo e lasci il campo vuoto, non verrà inviato alcun messaggio aggiuntivo.
+                        </div>
+                    </div>
+                </div>
+                <div class="modal-footer bg-light">
+                    <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Annulla</button>
+                    <button type="submit" class="btn btn-danger fw-bold">
+                        <i class="bi bi-trash-fill me-1"></i> Conferma Cancellazione
                     </button>
                 </div>
             </form>

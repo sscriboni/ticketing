@@ -160,9 +160,24 @@
                                                  <i class="bi bi-play-fill me-1"></i> Avvia
                                              </button>
                                          </form>
-                                        <button class="btn btn-sm btn-outline-danger" onclick="confirmDeleteTrip({{ v.viaggio_id }}, '{{ v.targa }}', {{ v.km_iniziali or 0 }}, false)" title="Elimina/Annulla prenotazione">
-                                            <i class="bi bi-trash"></i>
-                                        </button>
+                                         {% set is_owner = (v.user_id == user.id or v.prenotato_da_id == user.id) %}
+                                         {% if is_owner %}
+                                         <button class="btn btn-sm btn-outline-danger" onclick="confirmDeleteTrip({{ v.viaggio_id }}, '{{ v.targa }}', {{ v.km_iniziali or 0 }}, false)" title="Elimina/Annulla prenotazione">
+                                             <i class="bi bi-trash"></i>
+                                         </button>
+                                         {% else %}
+                                         <button type="button" class="btn btn-sm btn-outline-danger" title="Elimina/Annulla prenotazione altrui"
+                                                 data-action-url="../automezzi/viaggi/elimina/{{ v.viaggio_id }}"
+                                                 data-targa="{{ v.targa }}"
+                                                 data-veicolo="{{ v.marca }} {{ v.modello }}"
+                                                 data-data="{{ v.data_viaggio }}"
+                                                 data-orari="{{ v.ora_partenza }}"
+                                                 data-prenotante="{{ ((v.prenotante_nome ~ ' ' ~ v.prenotante_cognome)|trim or (v.user_nome ~ ' ' ~ v.user_cognome)|trim) | e }}"
+                                                 data-conducente="{{ (v.user_nome ~ ' ' ~ v.user_cognome)|trim | e }}"
+                                                 onclick="triggerDeleteBookingModal(this)">
+                                             <i class="bi bi-trash"></i>
+                                         </button>
+                                         {% endif %}
                                     </div>
                                 </td>
                             </tr>
@@ -494,6 +509,69 @@
                         </div>
 
                         <button type="submit" class="btn btn-success text-white w-100 py-2.5 fw-bold">Completa e Salva</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+
+    <!-- Modal Cancellazione Prenotazione con Messaggio Opzionale -->
+    <div class="modal fade" id="deleteBookingModal" tabindex="-1" aria-labelledby="deleteBookingModalLabel" aria-hidden="true">
+        <div class="modal-dialog modal-dialog-centered">
+            <div class="modal-content border-0 shadow">
+                <div class="modal-header bg-danger text-white">
+                    <h5 class="modal-title fw-bold" id="deleteBookingModalLabel">
+                        <i class="bi bi-calendar-x me-2"></i> Cancellazione Prenotazione
+                    </h5>
+                    <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <form action="" method="post" id="deleteBookingForm">
+                    <div class="modal-body p-4">
+                        <div class="alert alert-danger bg-danger bg-opacity-10 border-danger border-opacity-25 py-2 px-3 mb-3 d-flex align-items-center justify-content-between">
+                            <div>
+                                <i class="bi bi-car-front-fill me-2 text-danger"></i> <strong id="delBookingVeicoloLabel"></strong>
+                            </div>
+                            <span class="badge bg-dark font-monospace fs-6" id="delBookingTargaLabel"></span>
+                        </div>
+
+                        <div class="card bg-light border-0 mb-3">
+                            <div class="card-body py-2 px-3">
+                                <div class="d-flex align-items-center mb-2">
+                                    <i class="bi bi-info-circle-fill text-muted me-1 small"></i>
+                                    <span class="text-muted fw-bold small text-uppercase" style="font-size: 0.75rem; letter-spacing: 0.5px;">Dettagli Prenotazione</span>
+                                </div>
+                                <div class="row g-2 small">
+                                    <div class="col-6">
+                                        <span class="text-muted">Data:</span> <strong id="delBookingDataLabel" class="text-dark"></strong>
+                                    </div>
+                                    <div class="col-6">
+                                        <span class="text-muted">Orario:</span> <strong id="delBookingOrarioLabel" class="text-dark"></strong>
+                                    </div>
+                                    <div class="col-12" id="delBookingPrenotanteRow">
+                                        <span class="text-muted">Prenotata da:</span> <strong id="delBookingPrenotanteLabel" class="text-dark"></strong>
+                                    </div>
+                                    <div class="col-12" id="delBookingConducenteRow">
+                                        <span class="text-muted">Conducente:</span> <strong id="delBookingConducenteLabel" class="text-dark"></strong>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="mb-2">
+                            <label class="form-label small fw-bold text-dark mb-1">
+                                <i class="bi bi-envelope-paper me-1 text-danger"></i> Messaggio opzionale per l'utente / conducente:
+                            </label>
+                            <textarea name="motivo_cancellazione" id="delBookingMotivo" class="form-control" rows="3">ci dispiace informare che l'auto prenotata non è piu' disponibile</textarea>
+                            <div class="form-text small text-muted">
+                                Questo messaggio verrà inviato via email all'utente che ha prenotato e al guidatore. Se cancelli il testo e lasci il campo vuoto, non verrà inviato alcun messaggio aggiuntivo.
+                            </div>
+                        </div>
+                    </div>
+                    <div class="modal-footer bg-light">
+                        <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Annulla</button>
+                        <button type="submit" class="btn btn-danger fw-bold">
+                            <i class="bi bi-trash-fill me-1"></i> Conferma Cancellazione
+                        </button>
                     </div>
                 </form>
             </div>
@@ -860,6 +938,35 @@
                 
                 form.submit();
             }
+        }
+
+        function openDeleteBookingModal(actionUrl, targa, veicolo, dataViaggio, orari, prenotante, conducente) {
+            const form = document.getElementById('deleteBookingForm');
+            form.action = actionUrl;
+            document.getElementById('delBookingTargaLabel').textContent = targa || '';
+            document.getElementById('delBookingVeicoloLabel').textContent = veicolo || '';
+            document.getElementById('delBookingDataLabel').textContent = dataViaggio || '';
+            document.getElementById('delBookingOrarioLabel').textContent = orari || '';
+            
+            document.getElementById('delBookingPrenotanteLabel').textContent = (prenotante || '').trim() || 'Non specificato';
+            document.getElementById('delBookingConducenteLabel').textContent = (conducente || '').trim() || 'Non specificato';
+            
+            document.getElementById('delBookingMotivo').value = "ci dispiace informare che l'auto prenotata non è piu' disponibile";
+            
+            const modalEl = document.getElementById('deleteBookingModal');
+            const modal = bootstrap.Modal.getOrCreateInstance(modalEl);
+            modal.show();
+        }
+
+        function triggerDeleteBookingModal(btn) {
+            const actionUrl = btn.getAttribute('data-action-url');
+            const targa = btn.getAttribute('data-targa');
+            const veicolo = btn.getAttribute('data-veicolo');
+            const dataViaggio = btn.getAttribute('data-data');
+            const orari = btn.getAttribute('data-orari');
+            const prenotante = btn.getAttribute('data-prenotante');
+            const conducente = btn.getAttribute('data-conducente');
+            openDeleteBookingModal(actionUrl, targa, veicolo, dataViaggio, orari, prenotante, conducente);
         }
 
         function openEditTripModal(btn) {
