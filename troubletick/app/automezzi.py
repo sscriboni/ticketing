@@ -4188,6 +4188,18 @@ def get_autopark(r: Request, msg: str = None, error: str = None):
             LEFT JOIN comuni c ON s.comune_id = c.comune_id
             ORDER BY CASE WHEN c.nome IS NULL OR c.nome = '' THEN 1 ELSE 0 END, c.nome ASC, s.nome ASC
         """)).mappings().all()
+
+        active_schedule = conn.execute(text("""
+            SELECT v.viaggio_id, v.automezzo_id, v.data_viaggio, v.ora_partenza, v.ora_riconsegna_prevista,
+                   v.sede_partenza_id, v.sede_arrivo_id, s.nome as sede_partenza_nome, s_arr.nome as sede_arrivo_nome
+            FROM viaggi_automezzi v
+            LEFT JOIN sedi s ON v.sede_partenza_id = s.sede_id
+            LEFT JOIN sedi s_arr ON v.sede_arrivo_id = s_arr.sede_id
+            WHERE v.ora_arrivo IS NULL
+              AND v.data_viaggio >= :today
+            ORDER BY v.data_viaggio ASC, v.ora_partenza ASC
+        """), {"today": today_str}).mappings().all()
+        active_schedule_list = [dict(row) for row in active_schedule]
         
         # Instant booking properties
         instant_mode = r.query_params.get("instant") == "1"
@@ -4270,18 +4282,6 @@ def get_autopark(r: Request, msg: str = None, error: str = None):
                     }
         except Exception as e_bi:
             print("Error loading booked_info:", e_bi)
-
-        active_schedule = conn.execute(text("""
-            SELECT v.viaggio_id, v.automezzo_id, v.data_viaggio, v.ora_partenza, v.ora_riconsegna_prevista,
-                   v.sede_partenza_id, v.sede_arrivo_id, s.nome as sede_partenza_nome, s_arr.nome as sede_arrivo_nome
-            FROM viaggi_automezzi v
-            LEFT JOIN sedi s ON v.sede_partenza_id = s.sede_id
-            LEFT JOIN sedi s_arr ON v.sede_arrivo_id = s_arr.sede_id
-            WHERE v.ora_arrivo IS NULL
-              AND v.data_viaggio >= :today
-            ORDER BY v.data_viaggio ASC, v.ora_partenza ASC
-        """), {"today": today_str}).mappings().all()
-        active_schedule_list = [dict(row) for row in active_schedule]
 
     return templates.TemplateResponse(r, "autopark.html", {
         "request": r, 
