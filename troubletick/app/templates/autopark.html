@@ -1335,12 +1335,18 @@ Grazie!
             if (sedeId > 0 && selectedDate && selectedOraP) {
                 filtered = allVehicles.filter(v => {
                     const exp = getVehicleExpectedSede(v, selectedDate, selectedOraP);
-                    return exp.sedeId === sedeId;
+                    const vAssId = parseInt(v.sede_assegnata_id || 0);
+                    const vAttId = parseInt(v.sede_attuale_id || 0);
+                    const vAttRealeId = parseInt(v.sede_attuale_reale_id || 0);
+                    // L'auto è disponibile per la sede se consegnata/prevista qui oppure assegnata a questa sede
+                    return (exp.sedeId === sedeId || vAttId === sedeId || vAttRealeId === sedeId || vAssId === sedeId);
                 });
             } else if (sedeId > 0) {
                 filtered = allVehicles.filter(v => {
-                    const vSede = parseInt(v.sede_attuale_id || 0);
-                    return vSede === sedeId;
+                    const vAssId = parseInt(v.sede_assegnata_id || 0);
+                    const vAttId = parseInt(v.sede_attuale_id || 0);
+                    const vAttRealeId = parseInt(v.sede_attuale_reale_id || 0);
+                    return (vAttId === sedeId || vAttRealeId === sedeId || vAssId === sedeId);
                 });
             }
             
@@ -1371,26 +1377,37 @@ Grazie!
                 opt.setAttribute("data-km", v.km_attuali);
                 opt.setAttribute("data-sede", expSede.sedeNome);
                 opt.setAttribute("data-sede-id", expSede.sedeId);
+                opt.setAttribute("data-sede-assegnata", v.sede_assegnata_nome || "");
+                opt.setAttribute("data-sede-assegnata-id", v.sede_assegnata_id || 0);
                 opt.setAttribute("data-posizione", v.posizione_parcheggio || "");
                 opt.setAttribute("data-istruzioni", v.messaggio_carpooling || "");
                 
                 const is_available = (v.stato === 'Disponibile' && v.escluso_prenotazione === 0);
                 const overlap = hasBookingOverlap(v.automezzo_id, selectedDate, selectedOraP, selectedOraR);
 
+                let badgeInfo = "";
+                if (expSede.sedeId === sedeId) {
+                    if (v.sede_assegnata_id && parseInt(v.sede_assegnata_id) !== sedeId && v.sede_assegnata_nome) {
+                        badgeInfo = ` [Consegnata qui - Assegnata: ${v.sede_assegnata_nome}]`;
+                    }
+                } else if (parseInt(v.sede_assegnata_id) === sedeId) {
+                    badgeInfo = ` [Assegnata qui - Attualmente a: ${expSede.sedeNome}]`;
+                }
+
                 if (!is_available) {
                     opt.disabled = true;
                     let reason = v.stato;
                     if (v.escluso_prenotazione === 1) reason = "Escluso";
-                    opt.textContent = `${v.marca_nome} ${v.modello} (${v.targa}) - Non Disponibile (${reason})`;
+                    opt.textContent = `${v.marca_nome} ${v.modello} (${v.targa}) - Non Disponibile (${reason})${badgeInfo}`;
                     opt.classList.add("text-muted", "bg-light");
                 } else if (overlap) {
                     opt.disabled = true;
-                    opt.textContent = `${v.marca_nome} ${v.modello} (${v.targa}) - Già prenotata (${overlap.ora_partenza} - ${overlap.ora_riconsegna_prevista})`;
+                    opt.textContent = `${v.marca_nome} ${v.modello} (${v.targa}) - Già prenotata (${overlap.ora_partenza} - ${overlap.ora_riconsegna_prevista})${badgeInfo}`;
                     opt.classList.add("text-muted", "bg-light");
                 } else {
                     opt.disabled = false;
                     availableCount++;
-                    opt.textContent = `${v.marca_nome} ${v.modello} (${v.targa}) - Disponibile (${v.km_attuali} km)`;
+                    opt.textContent = `${v.marca_nome} ${v.modello} (${v.targa}) - Disponibile (${v.km_attuali} km)${badgeInfo}`;
                     if (!firstAvailableOpt) {
                         firstAvailableOpt = opt;
                     }
@@ -1417,7 +1434,14 @@ Grazie!
             const vehicleIstruzioniText = document.getElementById("vehicleIstruzioniText");
             if (selectedOpt && selectedOpt.value) {
                 if (vehicleKmText) vehicleKmText.textContent = selectedOpt.getAttribute("data-km");
-                if (vehicleSedeText) vehicleSedeText.textContent = selectedOpt.getAttribute("data-sede") || "Non specificata";
+                if (vehicleSedeText) {
+                    let st = selectedOpt.getAttribute("data-sede") || "Non specificata";
+                    const assNome = selectedOpt.getAttribute("data-sede-assegnata");
+                    if (assNome && assNome !== st) {
+                        st += ` (Sede assegnata: ${assNome})`;
+                    }
+                    vehicleSedeText.textContent = st;
+                }
                 const posParch = selectedOpt.getAttribute("data-posizione");
                 const posRow = document.getElementById("vehiclePosizioneRow");
                 const posText = document.getElementById("vehiclePosizioneText");

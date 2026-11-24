@@ -4049,12 +4049,17 @@ def get_autopark(r: Request, msg: str = None, error: str = None):
         # Fetch all vehicles
         veicoli_all = conn.execute(text("""
             SELECT a.*,
+                   a.sede_assegnata_id,
+                   a.sede_attuale_id,
                    COALESCE(NULLIF(a.sede_attuale_id, 0), NULLIF(a.sede_assegnata_id, 0), 0) AS sede_attuale_id_resolved,
-                   m.nome AS marca_nome, s.nome AS sede_attuale_nome,
+                   m.nome AS marca_nome,
+                   s_att.nome AS sede_attuale_nome,
+                   s_ass.nome AS sede_assegnata_nome,
                    r.messaggio_carpooling AS messaggio_carpooling
             FROM automezzi a
             JOIN marche_automezzi m ON a.marca_id = m.marca_id
-            LEFT JOIN sedi s ON COALESCE(NULLIF(a.sede_attuale_id, 0), NULLIF(a.sede_assegnata_id, 0)) = s.sede_id
+            LEFT JOIN sedi s_att ON COALESCE(NULLIF(a.sede_attuale_id, 0), NULLIF(a.sede_assegnata_id, 0)) = s_att.sede_id
+            LEFT JOIN sedi s_ass ON a.sede_assegnata_id = s_ass.sede_id
             LEFT JOIN reparti r ON a.reparto_assegnato_id = r.reparto_id
             ORDER BY m.nome, a.modello
         """)).mappings().all()
@@ -4069,7 +4074,10 @@ def get_autopark(r: Request, msg: str = None, error: str = None):
                 "km_attuali": v["km_attuali"],
                 "stato": v["stato"],
                 "escluso_prenotazione": v["escluso_prenotazione"],
+                "sede_assegnata_id": v["sede_assegnata_id"] or 0,
+                "sede_assegnata_nome": v["sede_assegnata_nome"] or "",
                 "sede_attuale_id": v["sede_attuale_id_resolved"],
+                "sede_attuale_reale_id": v["sede_attuale_id"] or 0,
                 "sede_attuale_nome": v["sede_attuale_nome"] or "Tutte le Sedi",
                 "posizione_parcheggio": v["posizione_parcheggio"] or "",
                 "messaggio_carpooling": v.get("messaggio_carpooling") or ""
@@ -4177,11 +4185,11 @@ def get_autopark(r: Request, msg: str = None, error: str = None):
                 p_dict["in_pausa"] = bool(p.get("in_pausa", 0))
                 prenotazioni_sede_attive.append(p_dict)
                 
-        # Fetch all locations (sedi) with count of available vehicles assigned to the location
+        # Fetch all locations (sedi) with count of available vehicles (assigned or delivered to the location)
         sedi_list = conn.execute(text("""
             SELECT s.sede_id, s.nome, c.nome AS comune_nome,
-                   (SELECT COUNT(*) FROM automezzi a 
-                    WHERE COALESCE(NULLIF(a.sede_attuale_id, 0), NULLIF(a.sede_assegnata_id, 0), 0) = s.sede_id
+                   (SELECT COUNT(DISTINCT a.automezzo_id) FROM automezzi a 
+                    WHERE (a.sede_assegnata_id = s.sede_id OR a.sede_attuale_id = s.sede_id)
                       AND a.stato = 'Disponibile' 
                       AND a.escluso_prenotazione = 0) AS auto_disponibili
             FROM sedi s
@@ -4532,15 +4540,16 @@ def prenota_automezzo(
             return RedirectResponse(url=f"/autopark?error={err_msg}", status_code=303)
             
     with engine.begin() as conn:
-        # 3. Check if the vehicle exists, is not excluded, and is expected at this location
-        car = conn.execute(text("SELECT stato, km_attuali, escluso_prenotazione FROM automezzi WHERE automezzo_id = :id"), {"id": automezzo_id}).first()
+        # 3. Check if the vehicle exists, is not excluded, and is expected or assigned at this location
+        car = conn.execute(text("SELECT stato, km_attuali, escluso_prenotazione, sede_assegnata_id, sede_attuale_id FROM automezzi WHERE automezzo_id = :id"), {"id": automezzo_id}).first()
         if not car or car.escluso_prenotazione == 1:
             import urllib.parse
             return RedirectResponse(url=f"/autopark?error={urllib.parse.quote('Il veicolo selezionato non è disponibile per la prenotazione.')}", status_code=303)
 
         sede_info = get_veicolo_sede_prevista(conn, automezzo_id, data_viaggio, ora_partenza)
         sede_prevista_id = sede_info["sede_prevista_id"]
-        if sede_prevista_id != 0 and sede_prevista_id != sede_partenza_id:
+        car_ass_id = car.sede_assegnata_id or 0
+        if sede_prevista_id != 0 and sede_prevista_id != sede_partenza_id and car_ass_id != sede_partenza_id:
             nome_prev = sede_info["sede_prevista_nome"] or f"Sede ID {sede_prevista_id}"
             import urllib.parse
             return RedirectResponse(url=f"/autopark?error={urllib.parse.quote(f'Il veicolo selezionato non si troverà presso questa sede di partenza alla data/ora indicata (sede prevista: {nome_prev}).')}", status_code=303)
@@ -5366,9 +5375,11 @@ def registra_viaggio_istantaneo(
             text("SELECT km_attuali, escluso_prenotazione, sede_attuale_id, sede_assegnata_id FROM automezzi WHERE automezzo_id = :id"),
             {"id": automezzo_id},
         ).first()
-        car_sede = (car.sede_attuale_id if car and car.sede_attuale_id else (car.sede_assegnata_id if car else 0)) or 0
+        car_sede_att = car.sede_attuale_id or 0 if car else 0
+        car_sede_ass = car.sede_assegnata_id or 0 if car else 0
+        is_sede_ok = (sede_partenza_id in (car_sede_att, car_sede_ass)) or (car_sede_att == 0 and car_sede_ass == 0)
         
-        if not car or car.escluso_prenotazione == 1 or (car_sede != 0 and car_sede != sede_partenza_id):
+        if not car or car.escluso_prenotazione == 1 or not is_sede_ok:
             err_msg = "Il veicolo selezionato non è disponibile per questa sede di partenza."
             return RedirectResponse(url=f"/autopark?instant=1&error={urllib.parse.quote(err_msg)}", status_code=303)
             

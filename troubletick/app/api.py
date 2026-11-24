@@ -890,8 +890,8 @@ def get_sedi(user: dict = Depends(get_current_user)):
         with engine.connect() as conn:
             rows = conn.execute(text("""
                 SELECT s.sede_id, s.nome, COALESCE(c.nome, '') AS comune_nome, COALESCE(s.indirizzo, '') AS indirizzo,
-                       (SELECT COUNT(*) FROM automezzi a 
-                        WHERE COALESCE(NULLIF(a.sede_attuale_id, 0), NULLIF(a.sede_assegnata_id, 0), 0) = s.sede_id
+                       (SELECT COUNT(DISTINCT a.automezzo_id) FROM automezzi a 
+                        WHERE (a.sede_assegnata_id = s.sede_id OR a.sede_attuale_id = s.sede_id)
                           AND a.stato = 'Disponibile' 
                           AND a.escluso_prenotazione = 0) AS auto_disponibili
                 FROM sedi s
@@ -1120,15 +1120,20 @@ def create_prenotazione(req: PrenotazioneCreateRequest, background_tasks: Backgr
                 raise HTTPException(status_code=400, detail="Il veicolo selezionato è attualmente escluso dalle prenotazioni.")
 
             # Verifica sede prevista per il veicolo alla data/ora richiesta
-            exp_sede_id, exp_sede_nome, subsequent_conflict, next_sede_id, next_sede_nome, next_viaggio_id = get_veicolo_sede_prevista(
-                conn, automezzo_id, data_viaggio, ora_partenza
-            )
-            if exp_sede_id != 0 and exp_sede_id != sede_partenza_id:
+            sede_info = get_veicolo_sede_prevista(conn, automezzo_id, data_viaggio, ora_partenza)
+            exp_sede_id = sede_info["sede_prevista_id"]
+            exp_sede_nome = sede_info["sede_prevista_nome"]
+            next_b = sede_info.get("prossima_prenotazione")
+            next_sede_id = next_b.get("sede_partenza_id") if next_b else None
+            next_sede_nome = next_b.get("sede_partenza_nome") if next_b else None
+            car_ass_id = car["sede_assegnata_id"] or 0
+            
+            if exp_sede_id != 0 and exp_sede_id != sede_partenza_id and car_ass_id != sede_partenza_id:
                 api_logger.warning("[BOOKING REJECTED] Automezzo ID %s non si troverà nella sede di partenza %s (Sede prevista: %s - %s)", automezzo_id, sede_partenza_id, exp_sede_id, exp_sede_nome)
                 raise HTTPException(status_code=400, detail=f"Il veicolo selezionato si troverà presso '{exp_sede_nome}' e non presso la sede di partenza selezionata.")
 
             avviso_discrepanza_logistica = None
-            if subsequent_conflict and next_sede_id and sede_arrivo_id != next_sede_id:
+            if next_b and next_sede_id and sede_arrivo_id != next_sede_id:
                 s_arr_row = conn.execute(text("SELECT nome FROM sedi WHERE sede_id = :sid"), {"sid": sede_arrivo_id}).mappings().first()
                 s_arr_nome = s_arr_row["nome"] if s_arr_row else f"Sede ID {sede_arrivo_id}"
                 if not req.conferma_impegno_trasferimento:
