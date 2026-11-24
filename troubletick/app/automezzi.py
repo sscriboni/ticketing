@@ -4085,7 +4085,10 @@ def get_autopark(r: Request, msg: str = None, error: str = None):
         
         # Build query for bookings
         base_query = """
-            SELECT v.*, a.modello, a.targa, m.nome AS marca_nome, s.nome AS sede_partenza_nome,
+            SELECT v.*, a.modello, a.targa, m.nome AS marca_nome,
+                   a.sede_assegnata_id AS auto_sede_assegnata_id,
+                   s_ass.nome AS auto_sede_assegnata_nome,
+                   s.nome AS sede_partenza_nome,
                    s_arr.nome AS sede_arrivo_nome,
                    a.posizione_parcheggio AS auto_posizione_parcheggio,
                    s_att.nome AS auto_sede_attuale_nome,
@@ -4094,6 +4097,7 @@ def get_autopark(r: Request, msg: str = None, error: str = None):
             FROM viaggi_automezzi v
             JOIN automezzi a ON v.automezzo_id = a.automezzo_id
             JOIN marche_automezzi m ON a.marca_id = m.marca_id
+            LEFT JOIN sedi s_ass ON a.sede_assegnata_id = s_ass.sede_id
             LEFT JOIN sedi s ON v.sede_partenza_id = s.sede_id
             LEFT JOIN sedi s_arr ON v.sede_arrivo_id = s_arr.sede_id
             LEFT JOIN sedi s_att ON COALESCE(NULLIF(a.sede_attuale_id, 0), NULLIF(a.sede_assegnata_id, 0)) = s_att.sede_id
@@ -4128,6 +4132,15 @@ def get_autopark(r: Request, msg: str = None, error: str = None):
             p_dict["in_pausa"] = bool(p.get("in_pausa", 0))
             p_dict["can_start"] = not has_started and not has_ended
             p_dict["can_complete"] = has_started and not has_ended
+
+            # Controllo discrepanza sedi rispetto alla sede assegnata dell'auto
+            auto_sede_ass_id = p_dict.get("auto_sede_assegnata_id")
+            partenza_id = p_dict.get("sede_partenza_id")
+            arrivo_id = p_dict.get("sede_arrivo_id") or partenza_id
+            p_dict["sede_arrivo_nome_effettiva"] = p_dict.get("sede_arrivo_nome") or p_dict.get("sede_partenza_nome")
+            p_dict["partenza_diversa_da_assegnata"] = bool(auto_sede_ass_id and partenza_id and int(auto_sede_ass_id) != int(partenza_id))
+            p_dict["arrivo_diverso_da_assegnato"] = bool(auto_sede_ass_id and arrivo_id and int(auto_sede_ass_id) != int(arrivo_id))
+            p_dict["fuori_sede_assegnata"] = p_dict["partenza_diversa_da_assegnata"] or p_dict["arrivo_diverso_da_assegnato"]
             
             # Booking belongs to past if already completed OR trip day has passed
             is_past_day = p["data_viaggio"] < today_str
@@ -4183,6 +4196,15 @@ def get_autopark(r: Request, msg: str = None, error: str = None):
                 has_started = bool(p.get("ora_partenza_effettiva"))
                 p_dict["is_in_corso"] = has_started
                 p_dict["in_pausa"] = bool(p.get("in_pausa", 0))
+
+                auto_sede_ass_id = p_dict.get("auto_sede_assegnata_id")
+                partenza_id = p_dict.get("sede_partenza_id")
+                arrivo_id = p_dict.get("sede_arrivo_id") or partenza_id
+                p_dict["sede_arrivo_nome_effettiva"] = p_dict.get("sede_arrivo_nome") or p_dict.get("sede_partenza_nome")
+                p_dict["partenza_diversa_da_assegnata"] = bool(auto_sede_ass_id and partenza_id and int(auto_sede_ass_id) != int(partenza_id))
+                p_dict["arrivo_diverso_da_assegnato"] = bool(auto_sede_ass_id and arrivo_id and int(auto_sede_ass_id) != int(arrivo_id))
+                p_dict["fuori_sede_assegnata"] = p_dict["partenza_diversa_da_assegnata"] or p_dict["arrivo_diverso_da_assegnato"]
+
                 prenotazioni_sede_attive.append(p_dict)
                 
         # Fetch all locations (sedi) with count of available vehicles (assigned or delivered to the location)

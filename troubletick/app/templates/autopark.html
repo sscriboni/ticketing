@@ -580,10 +580,18 @@
                                                 <li class="mb-1 text-success"><i class="bi bi-play-fill me-2"></i><strong>Partenza registrata:</strong> {{ p.ora_partenza_effettiva }}</li>
                                                 <li class="mb-1"><i class="bi bi-speedometer2 me-2"></i><strong>KM di partenza:</strong> {{ p.km_iniziali }} km</li>
                                             {% endif %}
-                                            <li class="mb-1"><i class="bi bi-geo-alt me-2"></i><strong>Partenza da:</strong> {{ p.sede_partenza_nome }}</li>
-                                            {% if p.sede_arrivo_nome and p.sede_arrivo_nome != p.sede_partenza_nome %}
-                                            <li class="mb-1 text-primary"><i class="bi bi-flag-fill me-2"></i><strong>Riconsegna a:</strong> {{ p.sede_arrivo_nome }} <span class="badge bg-warning text-dark small" style="font-size: 0.7rem;">Sede diversa</span></li>
-                                            {% endif %}
+                                            <li class="mb-1"><i class="bi bi-geo-alt me-2"></i><strong>Partenza da:</strong> {{ p.sede_partenza_nome }}
+                                                {% if p.partenza_diversa_da_assegnata %}
+                                                    <span class="badge bg-warning text-dark small ms-1" style="font-size: 0.7rem;" title="Sede di partenza diversa dalla sede assegnata all'auto ({{ p.auto_sede_assegnata_nome }})"><i class="bi bi-exclamation-triangle-fill text-danger me-1"></i>&ne; Sede ass. ({{ p.auto_sede_assegnata_nome }})</span>
+                                                {% endif %}
+                                            </li>
+                                            <li class="mb-1 text-primary"><i class="bi bi-flag-fill me-2"></i><strong>Riconsegna a:</strong> {{ p.sede_arrivo_nome_effettiva or p.sede_partenza_nome }}
+                                                {% if p.arrivo_diverso_da_assegnato %}
+                                                    <span class="badge bg-danger text-white small ms-1" style="font-size: 0.7rem;" title="Sede di riconsegna diversa dalla sede assegnata all'auto ({{ p.auto_sede_assegnata_nome }})"><i class="bi bi-geo-alt-fill me-1"></i>&ne; Sede ass. ({{ p.auto_sede_assegnata_nome }})</span>
+                                                {% elif p.sede_arrivo_nome and p.sede_arrivo_nome != p.sede_partenza_nome %}
+                                                    <span class="badge bg-warning text-dark small ms-1" style="font-size: 0.7rem;">Sede diversa</span>
+                                                {% endif %}
+                                            </li>
                                             <li class="mb-1"><i class="bi bi-pin-map-fill text-primary me-2"></i><strong>Destinazione:</strong> <span class="fw-semibold text-dark">{{ p.destinazione or '-' }}</span></li>
                                             {% if p.auto_sede_attuale_nome or p.auto_posizione_parcheggio or p.posizione_parcheggio %}
                                             <li class="mb-1 text-dark">

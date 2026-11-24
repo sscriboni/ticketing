@@ -230,26 +230,33 @@
             </a>
           </div>
           {% if stats.fleet_prenotazioni_list %}
-          <div class="table-responsive" style="max-height: 380px; overflow-y: auto;">
+          <div class="table-responsive" style="max-height: 420px; overflow-y: auto;">
             <table class="table table-hover align-middle custom-table mb-0" style="font-size: 0.85rem;">
               <thead class="table-light sticky-top">
                 <tr>
                   <th>Veicolo</th>
                   <th>Richiedente</th>
                   <th>Data & Orario</th>
+                  <th>Sedi (Partenza &rarr; Riconsegna)</th>
                   <th>Stato Viaggio</th>
                 </tr>
               </thead>
               <tbody>
                 {% for p in stats.fleet_prenotazioni_list %}
-                <tr>
+                <tr class="{% if p.fuori_sede_assegnata %}table-warning bg-opacity-25{% endif %}">
                   <td>
                     <strong class="font-monospace text-dark fs-5 text-uppercase" style="letter-spacing: 1.5px; font-weight: 800;">{{ p.targa }}</strong>
                     <small class="d-block text-muted">{{ p.marca_nome }} {{ p.modello }}</small>
+                    {% if p.auto_sede_assegnata_nome %}
+                      <span class="badge bg-light text-dark border small mt-1 d-inline-flex align-items-center gap-1" title="Sede assegnata al veicolo">
+                        <i class="bi bi-house-door-fill text-primary"></i>
+                        <span>Sede ass.: <strong>{{ p.auto_sede_assegnata_nome }}</strong></span>
+                      </span>
+                    {% endif %}
                     {% if p.auto_sede_attuale_nome or p.auto_posizione_parcheggio or p.posizione_parcheggio %}
-                      <span class="badge bg-light text-dark border small mt-1 d-inline-flex align-items-center gap-1" title="Ultima posizione conosciuta del veicolo">
+                      <span class="badge bg-light text-muted border small mt-1 d-inline-flex align-items-center gap-1" title="Ultima posizione conosciuta del veicolo">
                         <i class="bi bi-pin-map-fill text-danger"></i>
-                        <span>{{ p.auto_sede_attuale_nome or '-' }}{% if p.auto_posizione_parcheggio or p.posizione_parcheggio %} &bull; {{ p.auto_posizione_parcheggio or p.posizione_parcheggio }}{% endif %}</span>
+                        <span>Pos: {{ p.auto_sede_attuale_nome or '-' }}{% if p.auto_posizione_parcheggio or p.posizione_parcheggio %} &bull; {{ p.auto_posizione_parcheggio or p.posizione_parcheggio }}{% endif %}</span>
                       </span>
                     {% endif %}
                   </td>
@@ -259,12 +266,43 @@
                     <small class="d-block text-muted">{{ p.ora_partenza }} &rarr; {{ p.ora_arrivo_presunta or '-' }}</small>
                   </td>
                   <td>
+                    <div class="d-flex flex-column gap-1">
+                      <!-- Sede Partenza -->
+                      <div>
+                        <small class="text-muted d-block" style="font-size: 0.72rem; line-height: 1.1;">Partenza:</small>
+                        <span class="fw-semibold">{{ p.sede_partenza_nome or '-' }}</span>
+                        {% if p.partenza_diversa_da_assegnata %}
+                          <span class="badge bg-warning text-dark border border-warning d-inline-flex align-items-center gap-1 mt-0.5" style="font-size: 0.72rem;" title="Partenza da sede diversa da quella assegnata all'auto ({{ p.auto_sede_assegnata_nome }})">
+                            <i class="bi bi-exclamation-triangle-fill text-danger"></i> &ne; Sede ass. ({{ p.auto_sede_assegnata_nome }})
+                          </span>
+                        {% endif %}
+                      </div>
+                      <!-- Sede Riconsegna -->
+                      <div>
+                        <small class="text-muted d-block" style="font-size: 0.72rem; line-height: 1.1;">Riconsegna:</small>
+                        <span class="fw-semibold">{{ p.sede_arrivo_nome_effettiva or '-' }}</span>
+                        {% if p.arrivo_diverso_da_assegnato %}
+                          <span class="badge bg-danger text-white border d-inline-flex align-items-center gap-1 mt-0.5" style="font-size: 0.72rem;" title="Riconsegna in sede diversa da quella assegnata all'auto ({{ p.auto_sede_assegnata_nome }})">
+                            <i class="bi bi-geo-alt-fill"></i> &ne; Sede ass. ({{ p.auto_sede_assegnata_nome }})
+                          </span>
+                        {% endif %}
+                      </div>
+                    </div>
+                  </td>
+                  <td>
                     {% if p.ora_arrivo %}
                       <span class="badge bg-secondary"><i class="bi bi-check-circle me-1"></i> Completato</span>
                     {% elif p.ora_partenza_effettiva %}
                       <span class="badge bg-success"><i class="bi bi-car-front-fill me-1"></i> In Corso (Partito {{ p.ora_partenza_effettiva }})</span>
                     {% else %}
                       <span class="badge bg-warning text-dark"><i class="bi bi-clock me-1"></i> Prenotato</span>
+                    {% endif %}
+                    {% if p.fuori_sede_assegnata %}
+                      <div class="mt-1">
+                        <span class="badge bg-warning-subtle text-danger border border-warning small d-inline-flex align-items-center gap-1" style="font-size: 0.7rem;" title="Il viaggio prevede partenza e/o riconsegna fuori dalla sede assegnata al veicolo">
+                          <i class="bi bi-arrow-left-right"></i> Fuori Sede Ass.
+                        </span>
+                      </div>
                     {% endif %}
                   </td>
                 </tr>

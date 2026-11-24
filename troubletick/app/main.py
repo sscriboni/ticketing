@@ -1817,6 +1817,9 @@ def home(r: Request):
                 fleet_prenotazioni_list = c.execute(text("""
                     SELECT v.*, v.ora_riconsegna_prevista as ora_arrivo_presunta,
                            a.targa, m.nome as marca_nome, a.modello,
+                           a.sede_assegnata_id as auto_sede_assegnata_id,
+                           s_ass.nome as auto_sede_assegnata_nome,
+                           a.sede_attuale_id as auto_sede_attuale_id,
                            a.posizione_parcheggio as auto_posizione_parcheggio,
                            s_att.nome as auto_sede_attuale_nome,
                            u.nome as user_nome, u.cognome as user_cognome,
@@ -1824,6 +1827,7 @@ def home(r: Request):
                     FROM viaggi_automezzi v 
                     JOIN automezzi a ON v.automezzo_id = a.automezzo_id 
                     JOIN marche_automezzi m ON a.marca_id = m.marca_id
+                    LEFT JOIN sedi s_ass ON a.sede_assegnata_id = s_ass.sede_id
                     LEFT JOIN sedi s_att ON COALESCE(NULLIF(a.sede_attuale_id, 0), NULLIF(a.sede_assegnata_id, 0)) = s_att.sede_id
                     JOIN users u ON v.user_id = u.user_id
                     LEFT JOIN sedi sp ON v.sede_partenza_id = sp.sede_id
@@ -1896,6 +1900,9 @@ def home(r: Request):
                 fleet_prenotazioni_list = c.execute(text("""
                     SELECT v.*, v.ora_riconsegna_prevista as ora_arrivo_presunta,
                            a.targa, m.nome as marca_nome, a.modello,
+                           a.sede_assegnata_id as auto_sede_assegnata_id,
+                           s_ass.nome as auto_sede_assegnata_nome,
+                           a.sede_attuale_id as auto_sede_attuale_id,
                            a.posizione_parcheggio as auto_posizione_parcheggio,
                            s_att.nome as auto_sede_attuale_nome,
                            u.nome as user_nome, u.cognome as user_cognome,
@@ -1903,6 +1910,7 @@ def home(r: Request):
                     FROM viaggi_automezzi v 
                     JOIN automezzi a ON v.automezzo_id = a.automezzo_id 
                     JOIN marche_automezzi m ON a.marca_id = m.marca_id
+                    LEFT JOIN sedi s_ass ON a.sede_assegnata_id = s_ass.sede_id
                     LEFT JOIN sedi s_att ON COALESCE(NULLIF(a.sede_attuale_id, 0), NULLIF(a.sede_assegnata_id, 0)) = s_att.sede_id
                     JOIN users u ON v.user_id = u.user_id
                     LEFT JOIN sedi sp ON v.sede_partenza_id = sp.sede_id
@@ -1925,6 +1933,20 @@ def home(r: Request):
                 for k, val in p_dict.items():
                     if isinstance(val, (date, datetime, time)):
                         p_dict[k] = str(val)
+
+                auto_sede_ass_id = p_dict.get("auto_sede_assegnata_id")
+                partenza_id = p_dict.get("sede_partenza_id")
+                arrivo_id = p_dict.get("sede_arrivo_id") or partenza_id
+
+                p_dict["sede_arrivo_nome_effettiva"] = p_dict.get("sede_arrivo_nome") or p_dict.get("sede_partenza_nome")
+
+                partenza_diversa = bool(auto_sede_ass_id and partenza_id and int(auto_sede_ass_id) != int(partenza_id))
+                arrivo_diverso = bool(auto_sede_ass_id and arrivo_id and int(auto_sede_ass_id) != int(arrivo_id))
+
+                p_dict["partenza_diversa_da_assegnata"] = partenza_diversa
+                p_dict["arrivo_diverso_da_assegnato"] = arrivo_diverso
+                p_dict["fuori_sede_assegnata"] = partenza_diversa or arrivo_diverso
+
                 fleet_prenotazioni_dicts.append(p_dict)
 
             # Verifica presenza messaggio di istruzioni per il carpooling
