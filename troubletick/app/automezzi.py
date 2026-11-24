@@ -3919,7 +3919,7 @@ def delete_viaggio(
     with engine.begin() as conn:
         v = conn.execute(text("""
             SELECT automezzo_id, ora_arrivo, ora_partenza_effettiva, data_viaggio, ora_partenza,
-                   ora_riconsegna_prevista, sede_partenza_id, user_id, prenotato_da_id, email_conducente, note
+                   ora_riconsegna_prevista, sede_partenza_id, sede_arrivo_id, user_id, prenotato_da_id, email_conducente, note
             FROM viaggi_automezzi
             WHERE viaggio_id = :id
         """), {"id": id}).mappings().first()
@@ -3936,6 +3936,36 @@ def delete_viaggio(
             # Se era una prenotazione (non ancora avviata e non conclusa), notifica i Fleet Manager del reparto e utente/conducente
             if not v.get("ora_partenza_effettiva") and not v.get("ora_arrivo"):
                 autore_display = f"{user.get('nome', '')} {user.get('cognome', '')}".strip() or user.get("username", "Utente")
+                
+                arr_sede = v.get("sede_arrivo_id")
+                part_sede = v.get("sede_partenza_id")
+                avviso_dislocazione = None
+                if arr_sede and arr_sede != part_sede:
+                    subsequent_at_arr = conn.execute(text("""
+                        SELECT v2.viaggio_id, v2.data_viaggio, v2.ora_partenza, s.nome as sede_partenza_nome
+                        FROM viaggi_automezzi v2
+                        LEFT JOIN sedi s ON v2.sede_partenza_id = s.sede_id
+                        WHERE v2.automezzo_id = :aid
+                          AND v2.viaggio_id != :id
+                          AND v2.ora_arrivo IS NULL
+                          AND v2.sede_partenza_id = :arr_sede
+                          AND (v2.data_viaggio > :dv OR (v2.data_viaggio = :dv AND v2.ora_partenza >= :op))
+                        ORDER BY v2.data_viaggio ASC, v2.ora_partenza ASC
+                    """), {
+                        "aid": v["automezzo_id"],
+                        "id": id,
+                        "arr_sede": arr_sede,
+                        "dv": v["data_viaggio"],
+                        "op": v.get("ora_riconsegna_prevista") or v.get("ora_partenza") or "00:00"
+                    }).mappings().first()
+                    if subsequent_at_arr:
+                        sede_arr_nome = subsequent_at_arr.get("sede_partenza_nome") or f"Sede ID {arr_sede}"
+                        avviso_dislocazione = (
+                            f"Avviso Logistica Cancellazione: Con l'annullamento di questa prenotazione, il veicolo non verrà trasferito "
+                            f"presso la sede di riconsegna prevista ({sede_arr_nome}). "
+                            f"Attenzione: per tale sede è già programmata una successiva prenotazione il {subsequent_at_arr['data_viaggio']} alle {subsequent_at_arr['ora_partenza']}."
+                        )
+
                 background_tasks.add_task(
                     notifica_fleet_managers_prenotazione,
                     azione="cancellata",
@@ -3944,6 +3974,7 @@ def delete_viaggio(
                     ora_partenza=v.get("ora_partenza") or "",
                     ora_riconsegna_prevista=v.get("ora_riconsegna_prevista") or "",
                     sede_partenza_id=v.get("sede_partenza_id"),
+                    sede_arrivo_id=v.get("sede_arrivo_id"),
                     conducente_id=v.get("user_id"),
                     conducente_email=v.get("email_conducente"),
                     note=v.get("note"),
@@ -3952,7 +3983,8 @@ def delete_viaggio(
                     prenotato_da_id=v.get("prenotato_da_id"),
                     motivo_cancellazione=motivo_cancellazione,
                     cancellato_da_nome=autore_display,
-                    cancellato_da_email=user.get("email")
+                    cancellato_da_email=user.get("email"),
+                    avviso_discrepanza_logistica=avviso_dislocazione
                 )
             
     return RedirectResponse(url="/admin/automezzi/viaggi", status_code=303)
@@ -4239,6 +4271,18 @@ def get_autopark(r: Request, msg: str = None, error: str = None):
         except Exception as e_bi:
             print("Error loading booked_info:", e_bi)
 
+        active_schedule = conn.execute(text("""
+            SELECT v.viaggio_id, v.automezzo_id, v.data_viaggio, v.ora_partenza, v.ora_riconsegna_prevista,
+                   v.sede_partenza_id, v.sede_arrivo_id, s.nome as sede_partenza_nome, s_arr.nome as sede_arrivo_nome
+            FROM viaggi_automezzi v
+            LEFT JOIN sedi s ON v.sede_partenza_id = s.sede_id
+            LEFT JOIN sedi s_arr ON v.sede_arrivo_id = s_arr.sede_id
+            WHERE v.ora_arrivo IS NULL
+              AND v.data_viaggio >= :today
+            ORDER BY v.data_viaggio ASC, v.ora_partenza ASC
+        """), {"today": today_str}).mappings().all()
+        active_schedule_list = [dict(row) for row in active_schedule]
+
     return templates.TemplateResponse(r, "autopark.html", {
         "request": r, 
         "cfg": CFG, 
@@ -4246,6 +4290,7 @@ def get_autopark(r: Request, msg: str = None, error: str = None):
         "veicoli": veicoli_dicts, 
         "prenotazioni_attive": attive_list, 
         "prenotazioni_sede_attive": prenotazioni_sede_attive,
+        "active_schedule": active_schedule_list,
         "user_sede_id": user_sede_id,
         "user_sede_nome": user_sede_nome,
         "prenotazioni_passate": passate_list, 
@@ -4331,6 +4376,71 @@ def stampa_indisponibilita_autopark(
         "ora_generazione": now_str
     })
 
+def get_veicolo_sede_prevista(conn, automezzo_id: int, data_viaggio: str, ora_partenza: str) -> dict:
+    """
+    Determina la sede in cui si troverà il veicolo alla data e ora richiesta,
+    e verifica se esiste una prenotazione successiva che richiede una specifica sede di rientro.
+    Ritorna:
+    {
+        "sede_prevista_id": int,
+        "sede_prevista_nome": str,
+        "prossima_prenotazione": dict or None
+    }
+    """
+    car = conn.execute(text("""
+        SELECT a.automezzo_id, a.sede_attuale_id, a.sede_assegnata_id, a.escluso_prenotazione, a.stato,
+               s_att.nome as sede_attuale_nome, s_ass.nome as sede_assegnata_nome
+        FROM automezzi a
+        LEFT JOIN sedi s_att ON a.sede_attuale_id = s_att.sede_id
+        LEFT JOIN sedi s_ass ON a.sede_assegnata_id = s_ass.sede_id
+        WHERE a.automezzo_id = :aid
+    """), {"aid": automezzo_id}).mappings().first()
+    if not car:
+        return {"sede_prevista_id": 0, "sede_prevista_nome": "", "prossima_prenotazione": None}
+
+    base_sede_id = (car["sede_attuale_id"] or car["sede_assegnata_id"] or 0)
+    base_sede_nome = (car["sede_attuale_nome"] or car["sede_assegnata_nome"] or "")
+    req_start = f"{data_viaggio} {ora_partenza}"
+
+    bookings = conn.execute(text("""
+        SELECT v.viaggio_id, v.data_viaggio, v.ora_partenza, v.ora_riconsegna_prevista,
+               v.sede_partenza_id, v.sede_arrivo_id,
+               s_part.nome as sede_partenza_nome, s_arr.nome as sede_arrivo_nome
+        FROM viaggi_automezzi v
+        LEFT JOIN sedi s_part ON v.sede_partenza_id = s_part.sede_id
+        LEFT JOIN sedi s_arr ON v.sede_arrivo_id = s_arr.sede_id
+        WHERE v.automezzo_id = :aid
+          AND v.ora_arrivo IS NULL
+        ORDER BY v.data_viaggio ASC, v.ora_partenza ASC
+    """), {"aid": automezzo_id}).mappings().all()
+
+    sede_prevista_id = base_sede_id
+    sede_prevista_nome = base_sede_nome
+    prior_end = ""
+    prossima_prenotazione = None
+
+    for b in bookings:
+        b_start = f"{b['data_viaggio']} {b['ora_partenza']}"
+        b_end = f"{b['data_viaggio']} {b['ora_riconsegna_prevista'] or b['ora_partenza']}"
+        b_arr_id = b["sede_arrivo_id"] or b["sede_partenza_id"]
+        b_arr_nome = b["sede_arrivo_nome"] or b["sede_partenza_nome"]
+
+        if b_end <= req_start:
+            if b_end > prior_end:
+                prior_end = b_end
+                sede_prevista_id = b_arr_id
+                sede_prevista_nome = b_arr_nome
+        elif b_start >= req_start:
+            if prossima_prenotazione is None:
+                prossima_prenotazione = dict(b)
+
+    return {
+        "sede_prevista_id": sede_prevista_id,
+        "sede_prevista_nome": sede_prevista_nome,
+        "prossima_prenotazione": prossima_prenotazione
+    }
+
+
 @router.post("/autopark/prenota")
 def prenota_automezzo(
     r: Request,
@@ -4340,6 +4450,7 @@ def prenota_automezzo(
     ora_partenza: str = Form(...),
     ora_riconsegna_prevista: str = Form(...),
     sede_partenza_id: int = Form(...),
+    sede_arrivo_id: typing.Optional[int] = Form(None),
     destinazione: typing.Optional[str] = Form(None),
     destinazione_custom: typing.Optional[str] = Form(None),
     email_conducente: str = Form(None),
@@ -4413,13 +4524,18 @@ def prenota_automezzo(
             return RedirectResponse(url=f"/autopark?error={err_msg}", status_code=303)
             
     with engine.begin() as conn:
-                
-        # 3. Check if the vehicle exists, is not excluded, and is at the correct location
-        car = conn.execute(text("SELECT stato, km_attuali, escluso_prenotazione, sede_attuale_id, sede_assegnata_id FROM automezzi WHERE automezzo_id = :id"), {"id": automezzo_id}).first()
-        car_sede = (car.sede_attuale_id if car and car.sede_attuale_id else (car.sede_assegnata_id if car else 0)) or 0
-        if not car or car.escluso_prenotazione == 1 or (car_sede != 0 and car_sede != sede_partenza_id):
+        # 3. Check if the vehicle exists, is not excluded, and is expected at this location
+        car = conn.execute(text("SELECT stato, km_attuali, escluso_prenotazione FROM automezzi WHERE automezzo_id = :id"), {"id": automezzo_id}).first()
+        if not car or car.escluso_prenotazione == 1:
             import urllib.parse
-            return RedirectResponse(url=f"/autopark?error={urllib.parse.quote('Il veicolo selezionato non è disponibile per questa sede di partenza.')}", status_code=303)
+            return RedirectResponse(url=f"/autopark?error={urllib.parse.quote('Il veicolo selezionato non è disponibile per la prenotazione.')}", status_code=303)
+
+        sede_info = get_veicolo_sede_prevista(conn, automezzo_id, data_viaggio, ora_partenza)
+        sede_prevista_id = sede_info["sede_prevista_id"]
+        if sede_prevista_id != 0 and sede_prevista_id != sede_partenza_id:
+            nome_prev = sede_info["sede_prevista_nome"] or f"Sede ID {sede_prevista_id}"
+            import urllib.parse
+            return RedirectResponse(url=f"/autopark?error={urllib.parse.quote(f'Il veicolo selezionato non si troverà presso questa sede di partenza alla data/ora indicata (sede prevista: {nome_prev}).')}", status_code=303)
             
         km_iniziali = car.km_attuali or 0
         
@@ -4473,13 +4589,26 @@ def prenota_automezzo(
         except Exception:
             num_passeggeri = 1
 
+        sede_arrivo_id_val = int(sede_arrivo_id) if (sede_arrivo_id and str(sede_arrivo_id).isdigit()) else sede_partenza_id
+
+        # Verifica se per il veicolo esiste una prenotazione successiva che parte da un'altra sede
+        next_b = sede_info.get("prossima_prenotazione")
+        avviso_discrepanza = None
+        if next_b and next_b.get("sede_partenza_id") and next_b["sede_partenza_id"] != sede_arrivo_id_val:
+            next_sede_nome = next_b.get("sede_partenza_nome") or f"Sede ID {next_b['sede_partenza_id']}"
+            avviso_discrepanza = (
+                f"Attenzione Discrepanza Logistica: Questa prenotazione prevede la riconsegna presso una sede diversa da quella "
+                f"necessaria per la successiva prenotazione già programmata per il {next_b['data_viaggio']} alle {next_b['ora_partenza']} "
+                f"(partenza prevista da: {next_sede_nome}). Sarà necessario organizzare il trasferimento del veicolo."
+            )
+
         conn.execute(text("""
             INSERT INTO viaggi_automezzi (
                 automezzo_id, data_viaggio, ora_partenza, ora_riconsegna_prevista, ora_arrivo, 
                 km_iniziali, km_finali, sede_partenza_id, sede_arrivo_id, destinazione, user_id, email_conducente, ora_partenza_effettiva, note, prenotato_da_id, numero_passeggeri
             ) VALUES (
                 :automezzo_id, :data_viaggio, :ora_partenza, :ora_riconsegna_prevista, NULL,
-                :km_iniziali, NULL, :sede_partenza_id, NULL, :destinazione, :user_id, :email_conducente, NULL, :note, :prenotato_da_id, :numero_passeggeri
+                :km_iniziali, NULL, :sede_partenza_id, :sede_arrivo_id, :destinazione, :user_id, :email_conducente, NULL, :note, :prenotato_da_id, :numero_passeggeri
             )
         """), {
             "automezzo_id": automezzo_id,
@@ -4488,6 +4617,7 @@ def prenota_automezzo(
             "ora_riconsegna_prevista": ora_riconsegna_prevista,
             "km_iniziali": km_iniziali,
             "sede_partenza_id": sede_partenza_id,
+            "sede_arrivo_id": sede_arrivo_id_val,
             "destinazione": destinazione_val,
             "user_id": driver.user_id,
             "email_conducente": driver.email,
@@ -4507,12 +4637,14 @@ def prenota_automezzo(
             ora_partenza=ora_partenza,
             ora_riconsegna_prevista=ora_riconsegna_prevista,
             sede_partenza_id=sede_partenza_id,
+            sede_arrivo_id=sede_arrivo_id_val,
             conducente_id=driver.user_id,
             conducente_email=driver.email,
             conducente_nome=driver_nome,
             note=note,
             autore_nome=autore_display,
-            autore_email=current_email
+            autore_email=current_email,
+            avviso_discrepanza_logistica=avviso_discrepanza
         )
         
     return RedirectResponse(url=f"/autopark?msg=booked&vid={automezzo_id}", status_code=303)
@@ -4688,14 +4820,14 @@ def elimina_prenotazione(
     
     import urllib.parse
     with engine.begin() as conn:
-        fields = "automezzo_id, km_iniziali, km_finali, user_id, prenotato_da_id, ora_partenza_effettiva, ora_arrivo, data_viaggio, ora_partenza, ora_riconsegna_prevista, sede_partenza_id, email_conducente, note"
+        fields = "automezzo_id, km_iniziali, km_finali, user_id, prenotato_da_id, ora_partenza_effettiva, ora_arrivo, data_viaggio, ora_partenza, ora_riconsegna_prevista, sede_partenza_id, sede_arrivo_id, email_conducente, note"
         if role in ("admin", "global_fleet_manager"):
             v = conn.execute(text(f"SELECT {fields} FROM viaggi_automezzi WHERE viaggio_id = :id"), {"id": id}).mappings().first()
         elif role == "fleet_manager":
             user_reparto_id = conn.execute(text("SELECT reparto_id FROM users WHERE user_id = :uid"), {"uid": uid}).scalar() or 0
             v = conn.execute(text(f"""
                 SELECT v.automezzo_id, v.km_iniziali, v.km_finali, v.user_id, v.prenotato_da_id, v.ora_partenza_effettiva, v.data_viaggio,
-                       v.ora_partenza, v.ora_riconsegna_prevista, v.sede_partenza_id, v.email_conducente, v.note
+                       v.ora_partenza, v.ora_riconsegna_prevista, v.sede_partenza_id, v.sede_arrivo_id, v.email_conducente, v.note
                 FROM viaggi_automezzi v
                 JOIN users u ON v.user_id = u.user_id
                 WHERE v.viaggio_id = :id AND (u.reparto_id = :rep OR v.user_id = :uid OR v.prenotato_da_id = :uid)
@@ -4754,6 +4886,36 @@ def elimina_prenotazione(
             # Se era una prenotazione per oggi o futura (non ancora avviata), notifica i Fleet Manager del reparto e utente/conducente
             if not v.get("ora_partenza_effettiva") and not v.get("ora_arrivo") and v["data_viaggio"] >= today_str:
                 autore_display = f"{user.get('nome', '')} {user.get('cognome', '')}".strip() or user.get("username", "Utente")
+                
+                arr_sede = v.get("sede_arrivo_id")
+                part_sede = v.get("sede_partenza_id")
+                avviso_dislocazione = None
+                if arr_sede and arr_sede != part_sede:
+                    subsequent_at_arr = conn.execute(text("""
+                        SELECT v2.viaggio_id, v2.data_viaggio, v2.ora_partenza, s.nome as sede_partenza_nome
+                        FROM viaggi_automezzi v2
+                        LEFT JOIN sedi s ON v2.sede_partenza_id = s.sede_id
+                        WHERE v2.automezzo_id = :aid
+                          AND v2.viaggio_id != :id
+                          AND v2.ora_arrivo IS NULL
+                          AND v2.sede_partenza_id = :arr_sede
+                          AND (v2.data_viaggio > :dv OR (v2.data_viaggio = :dv AND v2.ora_partenza >= :op))
+                        ORDER BY v2.data_viaggio ASC, v2.ora_partenza ASC
+                    """), {
+                        "aid": v["automezzo_id"],
+                        "id": id,
+                        "arr_sede": arr_sede,
+                        "dv": v["data_viaggio"],
+                        "op": v.get("ora_riconsegna_prevista") or v.get("ora_partenza") or "00:00"
+                    }).mappings().first()
+                    if subsequent_at_arr:
+                        sede_arr_nome = subsequent_at_arr.get("sede_partenza_nome") or f"Sede ID {arr_sede}"
+                        avviso_dislocazione = (
+                            f"Avviso Logistica Cancellazione: Con l'annullamento di questa prenotazione, il veicolo non verrà trasferito "
+                            f"presso la sede di riconsegna prevista ({sede_arr_nome}). "
+                            f"Attenzione: per tale sede è già programmata una successiva prenotazione per il {subsequent_at_arr['data_viaggio']} alle {subsequent_at_arr['ora_partenza']}."
+                        )
+
                 background_tasks.add_task(
                     notifica_fleet_managers_prenotazione,
                     azione="cancellata",
@@ -4762,6 +4924,7 @@ def elimina_prenotazione(
                     ora_partenza=v.get("ora_partenza") or "",
                     ora_riconsegna_prevista=v.get("ora_riconsegna_prevista") or "",
                     sede_partenza_id=v.get("sede_partenza_id"),
+                    sede_arrivo_id=v.get("sede_arrivo_id"),
                     conducente_id=v.get("user_id"),
                     conducente_email=v.get("email_conducente"),
                     note=v.get("note"),
@@ -4770,7 +4933,8 @@ def elimina_prenotazione(
                     prenotato_da_id=v.get("prenotato_da_id"),
                     motivo_cancellazione=motivo_cancellazione,
                     cancellato_da_nome=autore_display,
-                    cancellato_da_email=user.get("email")
+                    cancellato_da_email=user.get("email"),
+                    avviso_discrepanza_logistica=avviso_dislocazione
                 )
 
             return RedirectResponse(url=f"/autopark?msg={urllib.parse.quote(msg_text)}", status_code=303)
@@ -5126,6 +5290,7 @@ def registra_viaggio_istantaneo(
     r: Request,
     automezzo_id: int = Form(...),
     sede_partenza_id: int = Form(...),
+    sede_arrivo_id: typing.Optional[int] = Form(None),
     ora_riconsegna_prevista: str = Form(...),
     destinazione: typing.Optional[str] = Form(None),
     destinazione_custom: typing.Optional[str] = Form(None),
@@ -5216,18 +5381,21 @@ def registra_viaggio_istantaneo(
         except Exception:
             num_passeggeri = 1
 
+        sede_arrivo_id_val = int(sede_arrivo_id) if (sede_arrivo_id and str(sede_arrivo_id).isdigit()) else sede_partenza_id
+
         conn.execute(text("""
             INSERT INTO viaggi_automezzi (
                 automezzo_id, data_viaggio, ora_partenza, ora_riconsegna_prevista,
                 ora_arrivo, km_iniziali, km_finali,
                 sede_partenza_id, sede_arrivo_id, destinazione, user_id, email_conducente, ora_partenza_effettiva, note, in_pausa, numero_passeggeri
             ) VALUES (
-                :aid, :dv, :op, :orc, NULL, :km, NULL, :sp, NULL, :dest, :driver_uid, :email, :ora_partenza_eff, :note, 0, :numero_passeggeri
+                :aid, :dv, :op, :orc, NULL, :km, NULL, :sp, :sa, :dest, :driver_uid, :email, :ora_partenza_eff, :note, 0, :numero_passeggeri
             )
         """), {
             "aid": automezzo_id, "dv": data_viaggio,
             "op": ora_partenza, "orc": ora_riconsegna_prevista,
             "km": km_iniziali, "sp": sede_partenza_id,
+            "sa": sede_arrivo_id_val,
             "dest": destinazione_val,
             "driver_uid": uid, "email": driver.email, "ora_partenza_eff": ora_partenza_eff, "note": note,
             "numero_passeggeri": num_passeggeri

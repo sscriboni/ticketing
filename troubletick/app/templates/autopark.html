@@ -306,6 +306,20 @@
                             </select>
                         </div>
 
+                        <!-- 1b. Sede di Riconsegna -->
+                        <div class="mb-3">
+                            <label for="sede_arrivo_id" class="form-label fw-semibold">
+                                Sede di Riconsegna <span class="text-danger">*</span>
+                                <small class="text-muted fw-normal">(se diversa, l'auto sarà poi disponibile qui)</small>
+                            </label>
+                            <select class="form-select rounded-3" id="sede_arrivo_id" name="sede_arrivo_id" required>
+                                <option value="" disabled>Seleziona sede di riconsegna...</option>
+                                {% for s in sedi %}
+                                    <option value="{{ s.sede_id }}" {% if user.sede_id and user.sede_id == s.sede_id %}selected{% endif %}>{% if s.comune_nome %}[{{ s.comune_nome }}] {% endif %}{{ s.nome }}</option>
+                                {% endfor %}
+                            </select>
+                        </div>
+
                         <!-- 2. Destinazione -->
                         <div class="mb-3">
                             <label for="destinazione_select" class="form-label fw-semibold">Destinazione <span class="text-danger">*</span></label>
@@ -376,8 +390,12 @@
                             </div>
                             <div class="form-text mt-2 text-primary d-none" id="vehicleInfoBox">
                                 <i class="bi bi-speedometer2"></i> Odometro attuale: <strong id="vehicleKmText">--</strong> km<br>
-                                <i class="bi bi-geo-alt-fill"></i> Sede attuale: <strong id="vehicleSedeText">--</strong>
+                                <i class="bi bi-geo-alt-fill"></i> Sede prevista: <strong id="vehicleSedeText">--</strong>
                                 <span id="vehiclePosizioneRow" class="d-none"><br><i class="bi bi-pin-map-fill text-danger"></i> Posizione / Stallo: <strong id="vehiclePosizioneText" class="text-dark">--</strong></span>
+                            </div>
+                            <div id="subsequentBookingAdvice" class="alert alert-warning border-warning border-2 rounded-3 mt-2 mb-0 d-none" style="font-size: 0.85rem;" role="alert">
+                                <i class="bi bi-exclamation-triangle-fill me-1 text-warning"></i>
+                                <span id="subsequentBookingAdviceText"></span>
                             </div>
                             <div class="alert alert-info border-info border-2 rounded-3 mt-3 d-none shadow-sm" id="vehicleIstruzioniBox" role="alert">
                                 <div class="d-flex align-items-start">
@@ -535,6 +553,9 @@
                                                 <li class="mb-1"><i class="bi bi-speedometer2 me-2"></i><strong>KM di partenza:</strong> {{ p.km_iniziali }} km</li>
                                             {% endif %}
                                             <li class="mb-1"><i class="bi bi-geo-alt me-2"></i><strong>Partenza da:</strong> {{ p.sede_partenza_nome }}</li>
+                                            {% if p.sede_arrivo_nome and p.sede_arrivo_nome != p.sede_partenza_nome %}
+                                            <li class="mb-1 text-primary"><i class="bi bi-flag-fill me-2"></i><strong>Riconsegna a:</strong> {{ p.sede_arrivo_nome }} <span class="badge bg-warning text-dark small" style="font-size: 0.7rem;">Sede diversa</span></li>
+                                            {% endif %}
                                             <li class="mb-1"><i class="bi bi-pin-map-fill text-primary me-2"></i><strong>Destinazione:</strong> <span class="fw-semibold text-dark">{{ p.destinazione or '-' }}</span></li>
                                             {% if p.auto_sede_attuale_nome or p.auto_posizione_parcheggio or p.posizione_parcheggio %}
                                             <li class="mb-1 text-dark">
@@ -1042,13 +1063,104 @@ Grazie!
 
         const allVehicles = {{ veicoli | tojson }};
         const activeBookings = {{ prenotazioni_attive | tojson }};
+        const activeSchedule = {{ active_schedule | tojson }};
         const sedeSelect = document.getElementById("sede_partenza_id");
+        const sedeArrivoSelect = document.getElementById("sede_arrivo_id");
+        let sedeArrivoManuallyChanged = false;
         const vehicleSelect = document.getElementById("automezzo_id");
         const vehicleInfoBox = document.getElementById("vehicleInfoBox");
         const vehicleKmText = document.getElementById("vehicleKmText");
         const vehicleSedeText = document.getElementById("vehicleSedeText");
         const statusBadge = document.getElementById("vehicleStatusBadge");
         const countText = document.getElementById("vehicleCountText");
+
+        if (sedeSelect && sedeArrivoSelect) {
+            sedeSelect.addEventListener("change", function() {
+                if (!sedeArrivoManuallyChanged) {
+                    sedeArrivoSelect.value = sedeSelect.value;
+                }
+                checkSubsequentAdvice();
+            });
+            sedeArrivoSelect.addEventListener("change", function() {
+                sedeArrivoManuallyChanged = true;
+                checkSubsequentAdvice();
+            });
+        }
+
+        function getVehicleExpectedSede(vehicle, reqDate, reqOraP) {
+            const aid = parseInt(vehicle.automezzo_id);
+            const reqStart = `${reqDate} ${reqOraP || '00:00'}`;
+
+            const vBookings = (activeSchedule || []).filter(b => parseInt(b.automezzo_id) === aid);
+            let lastPrior = null;
+            let nextSubsequent = null;
+
+            for (let i = 0; i < vBookings.length; i++) {
+                const b = vBookings[i];
+                const bStart = `${b.data_viaggio} ${b.ora_partenza}`;
+                const bEnd = `${b.data_viaggio} ${b.ora_riconsegna_prevista || b.ora_partenza}`;
+                if (bEnd <= reqStart) {
+                    if (!lastPrior || bEnd > `${lastPrior.data_viaggio} ${lastPrior.ora_riconsegna_prevista || lastPrior.ora_partenza}`) {
+                        lastPrior = b;
+                    }
+                } else if (bStart >= reqStart) {
+                    if (!nextSubsequent || bStart < `${nextSubsequent.data_viaggio} ${nextSubsequent.ora_partenza}`) {
+                        nextSubsequent = b;
+                    }
+                }
+            }
+
+            let expectedId = parseInt(vehicle.sede_attuale_id || 0);
+            let expectedNome = vehicle.sede_attuale_nome || "Non specificata";
+
+            if (lastPrior) {
+                expectedId = parseInt(lastPrior.sede_arrivo_id || lastPrior.sede_partenza_id || expectedId);
+                expectedNome = lastPrior.sede_arrivo_nome || lastPrior.sede_partenza_nome || expectedNome;
+            }
+
+            return {
+                sedeId: expectedId,
+                sedeNome: expectedNome,
+                nextBooking: nextSubsequent
+            };
+        }
+
+        function checkSubsequentAdvice() {
+            const adviceBox = document.getElementById("subsequentBookingAdvice");
+            const adviceText = document.getElementById("subsequentBookingAdviceText");
+            if (!adviceBox || !adviceText || !vehicleSelect) return;
+
+            const selectedVehicleId = parseInt(vehicleSelect.value) || 0;
+            const selectedDate = dateInput ? dateInput.value : "";
+            const selectedOraP = oraPartenza ? oraPartenza.value : "";
+            const selectedSedeArrivo = sedeArrivoSelect ? (parseInt(sedeArrivoSelect.value) || 0) : 0;
+
+            if (!selectedVehicleId || !selectedDate || !selectedOraP) {
+                adviceBox.classList.add("d-none");
+                return;
+            }
+
+            const v = allVehicles.find(x => parseInt(x.automezzo_id) === selectedVehicleId);
+            if (!v) {
+                adviceBox.classList.add("d-none");
+                return;
+            }
+
+            const exp = getVehicleExpectedSede(v, selectedDate, selectedOraP);
+            if (exp.nextBooking) {
+                const nextSedeId = parseInt(exp.nextBooking.sede_partenza_id);
+                const nextSedeNome = exp.nextBooking.sede_partenza_nome || "sede successiva";
+                const nextData = exp.nextBooking.data_viaggio.split("-").reverse().join("/");
+                const nextOra = exp.nextBooking.ora_partenza;
+
+                if (selectedSedeArrivo && selectedSedeArrivo !== nextSedeId) {
+                    adviceText.textContent = `Avviso logistico: questo veicolo è già prenotato in data ${nextData} alle ${nextOra} con partenza da "${nextSedeNome}". Se riconsegnato in un'altra sede, verrà segnalata una discrepanza logistica ai Fleet Manager.`;
+                    adviceBox.classList.remove("d-none");
+                    return;
+                }
+            }
+            adviceBox.classList.add("d-none");
+        }
 
         function hasBookingOverlap(automezzoId, dateStr, startStr, endStr) {
             if (!dateStr || !startStr || !endStr) return null;
@@ -1095,7 +1207,12 @@ Grazie!
             }
 
             let filtered = allVehicles;
-            if (sedeId > 0) {
+            if (sedeId > 0 && selectedDate && selectedOraP) {
+                filtered = allVehicles.filter(v => {
+                    const exp = getVehicleExpectedSede(v, selectedDate, selectedOraP);
+                    return exp.sedeId === sedeId;
+                });
+            } else if (sedeId > 0) {
                 filtered = allVehicles.filter(v => {
                     const vSede = parseInt(v.sede_attuale_id || 0);
                     return vSede === sedeId;
@@ -1124,10 +1241,11 @@ Grazie!
 
             filtered.forEach(v => {
                 const opt = document.createElement("option");
+                const expSede = (selectedDate && selectedOraP) ? getVehicleExpectedSede(v, selectedDate, selectedOraP) : { sedeId: v.sede_attuale_id || 0, sedeNome: v.sede_attuale_nome || "Tutte le Sedi" };
                 opt.value = v.automezzo_id;
                 opt.setAttribute("data-km", v.km_attuali);
-                opt.setAttribute("data-sede", v.sede_attuale_nome || "Tutte le Sedi");
-                opt.setAttribute("data-sede-id", v.sede_attuale_id || 0);
+                opt.setAttribute("data-sede", expSede.sedeNome);
+                opt.setAttribute("data-sede-id", expSede.sedeId);
                 opt.setAttribute("data-posizione", v.posizione_parcheggio || "");
                 opt.setAttribute("data-istruzioni", v.messaggio_carpooling || "");
                 
@@ -1219,6 +1337,7 @@ Grazie!
                     }
                 }
             }
+            checkSubsequentAdvice();
         }
 
         if (vehicleSelect) {
@@ -1267,6 +1386,7 @@ Grazie!
                     if (vehicleInfoBox) vehicleInfoBox.classList.add("d-none");
                     if (vehicleIstruzioniBox) vehicleIstruzioniBox.classList.add("d-none");
                 }
+                checkSubsequentAdvice();
             });
             
             updateVehicleOptions();

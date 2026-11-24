@@ -10,6 +10,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 from sqlalchemy import text
 from fleet_notifications import notifica_fleet_managers_prenotazione
+from automezzi import get_veicolo_sede_prevista
 
 # Importazione del modulo di autenticazione centralizzato auth.py e engine da core.py
 CURRENT_DIR = os.path.dirname(os.path.abspath(__file__))
@@ -175,6 +176,7 @@ class PrenotazioneCreateRequest(BaseModel):
     ora_partenza: str
     ora_riconsegna_prevista: str
     sede_partenza_id: int
+    sede_arrivo_id: Optional[int] = None
     destinazione: Optional[str] = None
     email_conducente: Optional[str] = None
     note: Optional[str] = None
@@ -1044,6 +1046,7 @@ def create_prenotazione(req: PrenotazioneCreateRequest, background_tasks: Backgr
     ora_partenza = req.ora_partenza.strip()
     ora_riconsegna = req.ora_riconsegna_prevista.strip()
     sede_partenza_id = int(req.sede_partenza_id)
+    sede_arrivo_id = int(req.sede_arrivo_id) if req.sede_arrivo_id else sede_partenza_id
     automezzo_id = int(req.automezzo_id)
     destinazione = (req.destinazione or "").strip()
     note = (req.note or "").strip()
@@ -1115,10 +1118,22 @@ def create_prenotazione(req: PrenotazioneCreateRequest, background_tasks: Backgr
                 api_logger.warning("[BOOKING REJECTED] Automezzo ID %s escluso dalle prenotazioni", automezzo_id)
                 raise HTTPException(status_code=400, detail="Il veicolo selezionato è attualmente escluso dalle prenotazioni.")
 
-            car_sede = car["sede_attuale_id"] or car["sede_assegnata_id"] or 0
-            if car_sede != 0 and car_sede != sede_partenza_id:
-                api_logger.warning("[BOOKING REJECTED] Automezzo ID %s non presente nella sede di partenza richiesta %s (Sede auto: %s)", automezzo_id, sede_partenza_id, car_sede)
-                raise HTTPException(status_code=400, detail="Il veicolo selezionato non si trova nella sede di partenza specificata.")
+            # Verifica sede prevista per il veicolo alla data/ora richiesta
+            exp_sede_id, exp_sede_nome, subsequent_conflict, next_sede_id, next_sede_nome, next_viaggio_id = get_veicolo_sede_prevista(
+                conn, automezzo_id, data_viaggio, ora_partenza
+            )
+            if exp_sede_id != 0 and exp_sede_id != sede_partenza_id:
+                api_logger.warning("[BOOKING REJECTED] Automezzo ID %s non si troverà nella sede di partenza %s (Sede prevista: %s - %s)", automezzo_id, sede_partenza_id, exp_sede_id, exp_sede_nome)
+                raise HTTPException(status_code=400, detail=f"Il veicolo selezionato si troverà presso '{exp_sede_nome}' e non presso la sede di partenza selezionata.")
+
+            avviso_discrepanza_logistica = None
+            if subsequent_conflict and next_sede_id and sede_arrivo_id != next_sede_id:
+                s_arr_row = conn.execute(text("SELECT nome FROM sedi WHERE sede_id = :sid"), {"sid": sede_arrivo_id}).mappings().first()
+                s_arr_nome = s_arr_row["nome"] if s_arr_row else f"Sede ID {sede_arrivo_id}"
+                avviso_discrepanza_logistica = (
+                    f"Attenzione: il veicolo è prenotato successivamente con partenza da '{next_sede_nome}', "
+                    f"ma la sede di riconsegna indicata è '{s_arr_nome}'."
+                )
 
             km_iniziali = car["km_attuali"] or 0
 
@@ -1169,7 +1184,7 @@ def create_prenotazione(req: PrenotazioneCreateRequest, background_tasks: Backgr
                     ora_partenza_effettiva, note
                 ) VALUES (
                     :automezzo_id, :data_viaggio, :ora_partenza, :ora_riconsegna_prevista, NULL,
-                    :km_iniziali, NULL, :sede_partenza_id, NULL, :destinazione, :user_id, :email_conducente,
+                    :km_iniziali, NULL, :sede_partenza_id, :sede_arrivo_id, :destinazione, :user_id, :email_conducente,
                     NULL, :note
                 )
             """), {
@@ -1179,6 +1194,7 @@ def create_prenotazione(req: PrenotazioneCreateRequest, background_tasks: Backgr
                 "ora_riconsegna_prevista": ora_riconsegna,
                 "km_iniziali": km_iniziali,
                 "sede_partenza_id": sede_partenza_id,
+                "sede_arrivo_id": sede_arrivo_id,
                 "destinazione": destinazione,
                 "user_id": driver["user_id"],
                 "email_conducente": driver["email"],
@@ -1205,12 +1221,14 @@ def create_prenotazione(req: PrenotazioneCreateRequest, background_tasks: Backgr
         ora_partenza=ora_partenza,
         ora_riconsegna_prevista=ora_riconsegna,
         sede_partenza_id=sede_partenza_id,
+        sede_arrivo_id=sede_arrivo_id,
         conducente_id=driver.get("user_id"),
         conducente_email=driver.get("email"),
         conducente_nome=driver_nome,
         note=note,
         autore_nome=autore_display,
-        autore_email=current_email
+        autore_email=current_email,
+        avviso_discrepanza_logistica=avviso_discrepanza_logistica
     )
 
     return PrenotazioneActionResponse(
@@ -1390,8 +1408,9 @@ def cancel_prenotazione(viaggio_id: int, background_tasks: BackgroundTasks, user
     is_global = any(r in ("admin", "global_fleet_manager") for r in user_roles) or role in ("admin", "global_fleet_manager")
     is_fleet_mgr = "fleet_manager" in user_roles or role == "fleet_manager"
 
-    fields = "viaggio_id, user_id, email_conducente, automezzo_id, data_viaggio, ora_partenza, ora_riconsegna_prevista, sede_partenza_id, note, ora_partenza_effettiva, ora_arrivo"
+    fields = "viaggio_id, user_id, email_conducente, automezzo_id, data_viaggio, ora_partenza, ora_riconsegna_prevista, sede_partenza_id, sede_arrivo_id, note, ora_partenza_effettiva, ora_arrivo"
 
+    avviso_discrepanza_logistica = None
     try:
         with engine.begin() as conn:
             if is_global:
@@ -1402,7 +1421,7 @@ def cancel_prenotazione(viaggio_id: int, background_tasks: BackgroundTasks, user
             elif is_fleet_mgr and reparto_id:
                 v = conn.execute(text(f"""
                     SELECT v.viaggio_id, v.user_id, v.email_conducente, v.automezzo_id, v.data_viaggio,
-                           v.ora_partenza, v.ora_riconsegna_prevista, v.sede_partenza_id, v.note,
+                           v.ora_partenza, v.ora_riconsegna_prevista, v.sede_partenza_id, v.sede_arrivo_id, v.note,
                            v.ora_partenza_effettiva, v.ora_arrivo
                     FROM viaggi_automezzi v
                     JOIN users u ON v.user_id = u.user_id
@@ -1422,6 +1441,32 @@ def cancel_prenotazione(viaggio_id: int, background_tasks: BackgroundTasks, user
             if not is_global and not is_fleet_mgr and (v["ora_arrivo"] or v["ora_partenza_effettiva"]):
                 api_logger.warning("[BOOKING CANCEL REJECTED] Viaggio ID %s già iniziato/completato, annullamento respinto per utente ID %s", viaggio_id, uid)
                 raise HTTPException(status_code=400, detail="Non puoi eliminare un viaggio che è già iniziato o completato.")
+
+            # Verifica se la prenotazione cancellata trasferiva l'auto e c'erano prenotazioni successive
+            if v.get("sede_arrivo_id") and v.get("sede_partenza_id") and v["sede_arrivo_id"] != v["sede_partenza_id"]:
+                subseq = conn.execute(text("""
+                    SELECT v2.viaggio_id, v2.data_viaggio, v2.ora_partenza, s.nome as sede_partenza_nome
+                    FROM viaggi_automezzi v2
+                    LEFT JOIN sedi s ON v2.sede_partenza_id = s.sede_id
+                    WHERE v2.automezzo_id = :aid
+                      AND v2.viaggio_id != :vid
+                      AND (v2.ora_arrivo IS NULL OR v2.ora_arrivo = '')
+                      AND (v2.data_viaggio > :data_v OR (v2.data_viaggio = :data_v AND v2.ora_partenza >= :ora_r))
+                    ORDER BY v2.data_viaggio ASC, v2.ora_partenza ASC
+                    LIMIT 1
+                """), {
+                    "aid": v["automezzo_id"],
+                    "vid": viaggio_id,
+                    "data_v": v["data_viaggio"],
+                    "ora_r": v.get("ora_riconsegna_prevista") or v.get("ora_partenza") or "00:00"
+                }).mappings().first()
+                if subseq:
+                    s_arr_nome = conn.execute(text("SELECT nome FROM sedi WHERE sede_id = :sid"), {"sid": v["sede_arrivo_id"]}).scalar() or f"Sede ID {v['sede_arrivo_id']}"
+                    avviso_discrepanza_logistica = (
+                        f"Attenzione: la prenotazione annullata prevedeva il trasferimento del veicolo presso '{s_arr_nome}'. "
+                        f"Tuttavia esiste una successiva prenotazione per lo stesso veicolo in data {subseq['data_viaggio']} alle {subseq['ora_partenza']} "
+                        f"a partire dalla sede '{subseq['sede_partenza_nome']}'."
+                    )
 
             conn.execute(text("DELETE FROM viaggi_automezzi WHERE viaggio_id = :id"), {"id": viaggio_id})
 
@@ -1444,11 +1489,13 @@ def cancel_prenotazione(viaggio_id: int, background_tasks: BackgroundTasks, user
             ora_partenza=v.get("ora_partenza") or "",
             ora_riconsegna_prevista=v.get("ora_riconsegna_prevista") or "",
             sede_partenza_id=v.get("sede_partenza_id"),
+            sede_arrivo_id=v.get("sede_arrivo_id"),
             conducente_id=v.get("user_id"),
             conducente_email=v.get("email_conducente"),
             note=v.get("note"),
             autore_nome=autore_display,
-            autore_email=email
+            autore_email=email,
+            avviso_discrepanza_logistica=avviso_discrepanza_logistica
         )
 
     return PrenotazioneActionResponse(

@@ -23,6 +23,8 @@ def notifica_utente_prenotazione(
     ora_riconsegna_prevista: str = None,
     sede_partenza_id: int = None,
     sede_partenza_nome: str = None,
+    sede_arrivo_id: int = None,
+    sede_arrivo_nome: str = None,
     conducente_id: int = None,
     conducente_email: str = None,
     conducente_nome: str = None,
@@ -33,6 +35,7 @@ def notifica_utente_prenotazione(
     motivo_cancellazione: str = None,
     cancellato_da_nome: str = None,
     cancellato_da_email: str = None,
+    avviso_discrepanza_logistica: str = None,
 ) -> bool:
     """
     Invia un'email riepilogativa all'utente che ha effettuato/ricevuto la prenotazione
@@ -82,7 +85,7 @@ def notifica_utente_prenotazione(
                 """), {"rep_id": rep_id}).mappings().all()
                 fleet_managers_list = [dict(fm) for fm in fm_rows]
 
-            # 2. Risoluzione sede di partenza
+            # 2. Risoluzione sede di partenza e sede di arrivo/riconsegna
             resolved_sede_nome = (sede_partenza_nome or "").strip()
             if not resolved_sede_nome and sede_partenza_id:
                 s_row = conn.execute(text("SELECT nome FROM sedi WHERE sede_id = :sid"), {"sid": sede_partenza_id}).mappings().first()
@@ -90,6 +93,14 @@ def notifica_utente_prenotazione(
                     resolved_sede_nome = s_row["nome"]
             if not resolved_sede_nome:
                 resolved_sede_nome = car.get("sede_attuale_nome") or car.get("sede_assegnata_nome") or "Non specificata"
+
+            resolved_sede_arrivo_nome = (sede_arrivo_nome or "").strip()
+            if not resolved_sede_arrivo_nome and sede_arrivo_id:
+                s_arr_row = conn.execute(text("SELECT nome FROM sedi WHERE sede_id = :sid"), {"sid": sede_arrivo_id}).mappings().first()
+                if s_arr_row:
+                    resolved_sede_arrivo_nome = s_arr_row["nome"]
+            if not resolved_sede_arrivo_nome:
+                resolved_sede_arrivo_nome = resolved_sede_nome
 
             # 3. Risoluzione anagrafica conducente
             resolved_conducente_nome = (conducente_nome or "").strip()
@@ -175,6 +186,8 @@ def notifica_utente_prenotazione(
                 "ora_partenza": ora_partenza or "--:--",
                 "ora_riconsegna_prevista": ora_riconsegna_prevista or "--:--",
                 "sede_partenza_nome": resolved_sede_nome,
+                "sede_arrivo_nome": resolved_sede_arrivo_nome,
+                "sede_diversa": (resolved_sede_arrivo_nome != resolved_sede_nome),
                 "conducente_nome": resolved_conducente_nome,
                 "conducente_email": resolved_conducente_email,
                 "note": (note or "").strip()
@@ -199,6 +212,7 @@ def notifica_utente_prenotazione(
                 "motivo_cancellazione": (motivo_cancellazione or "").strip(),
                 "cancellato_da_nome": (cancellato_da_nome or "").strip(),
                 "cancellato_da_email": (cancellato_da_email or "").strip(),
+                "avviso_discrepanza_logistica": (avviso_discrepanza_logistica or "").strip(),
             })
 
             return send_email_async(
@@ -224,6 +238,8 @@ def notifica_fleet_managers_prenotazione(
     ora_riconsegna_prevista: str = None,
     sede_partenza_id: int = None,
     sede_partenza_nome: str = None,
+    sede_arrivo_id: int = None,
+    sede_arrivo_nome: str = None,
     conducente_id: int = None,
     conducente_email: str = None,
     conducente_nome: str = None,
@@ -234,6 +250,7 @@ def notifica_fleet_managers_prenotazione(
     motivo_cancellazione: str = None,
     cancellato_da_nome: str = None,
     cancellato_da_email: str = None,
+    avviso_discrepanza_logistica: str = None,
 ) -> bool:
     """
     Invia un'email di notifica a tutti i Fleet Manager attivi assegnati al reparto
@@ -262,6 +279,8 @@ def notifica_fleet_managers_prenotazione(
             ora_riconsegna_prevista=ora_riconsegna_prevista,
             sede_partenza_id=sede_partenza_id,
             sede_partenza_nome=sede_partenza_nome,
+            sede_arrivo_id=sede_arrivo_id,
+            sede_arrivo_nome=sede_arrivo_nome,
             conducente_id=conducente_id,
             conducente_email=conducente_email,
             conducente_nome=conducente_nome,
@@ -272,6 +291,7 @@ def notifica_fleet_managers_prenotazione(
             motivo_cancellazione=motivo_cancellazione,
             cancellato_da_nome=cancellato_da_nome,
             cancellato_da_email=cancellato_da_email,
+            avviso_discrepanza_logistica=avviso_discrepanza_logistica,
         )
     except Exception as e_user:
         logger.warning(f"Errore invio notifica utente: {e_user}")
@@ -322,7 +342,7 @@ def notifica_fleet_managers_prenotazione(
                 _log_email_event(msg)
                 return False
 
-            # 3. Risoluzione sede di partenza se non specificata
+            # 3. Risoluzione sede di partenza e riconsegna se non specificata
             resolved_sede_nome = (sede_partenza_nome or "").strip()
             if not resolved_sede_nome and sede_partenza_id:
                 s_row = conn.execute(text("SELECT nome FROM sedi WHERE sede_id = :sid"), {"sid": sede_partenza_id}).mappings().first()
@@ -330,6 +350,14 @@ def notifica_fleet_managers_prenotazione(
                     resolved_sede_nome = s_row["nome"]
             if not resolved_sede_nome:
                 resolved_sede_nome = car.get("sede_attuale_nome") or car.get("sede_assegnata_nome") or "Non specificata"
+
+            resolved_sede_arrivo_nome = (sede_arrivo_nome or "").strip()
+            if not resolved_sede_arrivo_nome and sede_arrivo_id:
+                s_arr_row = conn.execute(text("SELECT nome FROM sedi WHERE sede_id = :sid"), {"sid": sede_arrivo_id}).mappings().first()
+                if s_arr_row:
+                    resolved_sede_arrivo_nome = s_arr_row["nome"]
+            if not resolved_sede_arrivo_nome:
+                resolved_sede_arrivo_nome = resolved_sede_nome
 
             # 4. Risoluzione anagrafica conducente
             resolved_conducente_nome = (conducente_nome or "").strip()
@@ -375,6 +403,8 @@ def notifica_fleet_managers_prenotazione(
                 "ora_partenza": ora_partenza or "--:--",
                 "ora_riconsegna_prevista": ora_riconsegna_prevista or "--:--",
                 "sede_partenza_nome": resolved_sede_nome,
+                "sede_arrivo_nome": resolved_sede_arrivo_nome,
+                "sede_diversa": (resolved_sede_arrivo_nome != resolved_sede_nome),
                 "conducente_nome": resolved_conducente_nome,
                 "conducente_email": resolved_conducente_email,
                 "note": (note or "").strip()
@@ -417,7 +447,8 @@ def notifica_fleet_managers_prenotazione(
                     "cancellato_da_email": (cancellato_da_email or "").strip(),
                     "motivo_cancellazione": (motivo_cancellazione or "").strip(),
                     "destinatario_nome": fm_nome,
-                    "app_url": CFG.get("app_url", "")
+                    "app_url": CFG.get("app_url", ""),
+                    "avviso_discrepanza_logistica": (avviso_discrepanza_logistica or "").strip(),
                 })
 
                 res = send_email_async(
