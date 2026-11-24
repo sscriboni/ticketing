@@ -4459,7 +4459,7 @@ def prenota_automezzo(
     ora_riconsegna_prevista: str = Form(...),
     sede_partenza_id: int = Form(...),
     sede_arrivo_id: typing.Optional[int] = Form(None),
-    restituzione_stessa_sede: typing.Optional[str] = Form("true"),
+    restituzione_stessa_sede: typing.Optional[str] = Form(None),
     conferma_impegno_trasferimento: typing.Optional[int] = Form(None),
     destinazione: typing.Optional[str] = Form(None),
     destinazione_custom: typing.Optional[str] = Form(None),
@@ -4500,15 +4500,21 @@ def prenota_automezzo(
     if destinazione_val == "__custom__":
         destinazione_val = (destinazione_custom or "").strip()
 
-    is_stessa_sede = str(restituzione_stessa_sede).lower() in ("true", "1", "on", "yes")
-    if is_stessa_sede:
-        sede_arrivo_id_val = sede_partenza_id
-    else:
-        if not sede_arrivo_id or not str(sede_arrivo_id).isdigit():
+    is_stessa_sede = bool(restituzione_stessa_sede and str(restituzione_stessa_sede).lower() in ("true", "1", "on", "yes"))
+    if not is_stessa_sede or (sede_arrivo_id and int(sede_arrivo_id) != int(sede_partenza_id)):
+        if sede_arrivo_id and str(sede_arrivo_id).isdigit() and int(sede_arrivo_id) != int(sede_partenza_id):
+            sede_arrivo_id_val = int(sede_arrivo_id)
+            is_stessa_sede = False
+        elif not is_stessa_sede:
             import urllib.parse
             err_msg = urllib.parse.quote("Selezionare la sede di riconsegna (destinazione).")
             return RedirectResponse(url=f"/autopark?error={err_msg}", status_code=303)
-        sede_arrivo_id_val = int(sede_arrivo_id)
+        else:
+            sede_arrivo_id_val = sede_partenza_id
+            is_stessa_sede = True
+    else:
+        sede_arrivo_id_val = sede_partenza_id
+        is_stessa_sede = True
     
     # 1. Resolve final_email of the driver (standard users can choose colleagues from same department)
     if email_conducente and email_conducente.strip():
@@ -4606,9 +4612,13 @@ def prenota_automezzo(
         except Exception:
             num_passeggeri = 1
 
-        if not destinazione_val:
+        if not is_stessa_sede:
             s_dest = conn.execute(text("SELECT nome FROM sedi WHERE sede_id = :sid"), {"sid": sede_arrivo_id_val}).first()
-            destinazione_val = s_dest.nome if s_dest and s_dest.nome else "Sede aziendale"
+            destinazione_val = s_dest.nome if s_dest and s_dest.nome else f"Sede ID {sede_arrivo_id_val}"
+        else:
+            if not destinazione_val:
+                s_dest = conn.execute(text("SELECT nome FROM sedi WHERE sede_id = :sid"), {"sid": sede_arrivo_id_val}).first()
+                destinazione_val = s_dest.nome if s_dest and s_dest.nome else "Ritorno in sede"
 
         # Verifica se per il veicolo esiste una prenotazione successiva che parte da un'altra sede
         next_b = sede_info.get("prossima_prenotazione")
@@ -5321,7 +5331,7 @@ def registra_viaggio_istantaneo(
     automezzo_id: int = Form(...),
     sede_partenza_id: int = Form(...),
     sede_arrivo_id: typing.Optional[int] = Form(None),
-    restituzione_stessa_sede: typing.Optional[str] = Form("true"),
+    restituzione_stessa_sede: typing.Optional[str] = Form(None),
     conferma_impegno_trasferimento: typing.Optional[int] = Form(None),
     ora_riconsegna_prevista: str = Form(...),
     destinazione: typing.Optional[str] = Form(None),
@@ -5348,14 +5358,21 @@ def registra_viaggio_istantaneo(
     if destinazione_val == "__custom__":
         destinazione_val = (destinazione_custom or "").strip()
 
-    is_stessa_sede = str(restituzione_stessa_sede).lower() in ("true", "1", "on", "yes")
-    if is_stessa_sede:
-        sede_arrivo_id_val = sede_partenza_id
-    else:
-        if not sede_arrivo_id or not str(sede_arrivo_id).isdigit():
+    is_stessa_sede = bool(restituzione_stessa_sede and str(restituzione_stessa_sede).lower() in ("true", "1", "on", "yes"))
+    if not is_stessa_sede or (sede_arrivo_id and int(sede_arrivo_id) != int(sede_partenza_id)):
+        if sede_arrivo_id and str(sede_arrivo_id).isdigit() and int(sede_arrivo_id) != int(sede_partenza_id):
+            sede_arrivo_id_val = int(sede_arrivo_id)
+            is_stessa_sede = False
+        elif not is_stessa_sede:
+            import urllib.parse
             err_msg = "Selezionare la sede di riconsegna (destinazione)."
             return RedirectResponse(url=f"/autopark?instant=1&error={urllib.parse.quote(err_msg)}", status_code=303)
-        sede_arrivo_id_val = int(sede_arrivo_id)
+        else:
+            sede_arrivo_id_val = sede_partenza_id
+            is_stessa_sede = True
+    else:
+        sede_arrivo_id_val = sede_partenza_id
+        is_stessa_sede = True
         
     with engine.connect() as conn:
         # Check if user active
@@ -5421,9 +5438,13 @@ def registra_viaggio_istantaneo(
         except Exception:
             num_passeggeri = 1
 
-        if not destinazione_val:
+        if not is_stessa_sede:
             s_dest = conn.execute(text("SELECT nome FROM sedi WHERE sede_id = :sid"), {"sid": sede_arrivo_id_val}).first()
-            destinazione_val = s_dest.nome if s_dest and s_dest.nome else "Sede aziendale"
+            destinazione_val = s_dest.nome if s_dest and s_dest.nome else f"Sede ID {sede_arrivo_id_val}"
+        else:
+            if not destinazione_val:
+                s_dest = conn.execute(text("SELECT nome FROM sedi WHERE sede_id = :sid"), {"sid": sede_arrivo_id_val}).first()
+                destinazione_val = s_dest.nome if s_dest and s_dest.nome else "Ritorno in sede"
 
         # Verifica eventuale prenotazione successiva con partenza da altra sede
         sede_info = get_veicolo_sede_prevista(conn, automezzo_id, data_viaggio, ora_partenza)
