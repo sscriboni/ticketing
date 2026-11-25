@@ -243,8 +243,13 @@ try:
             data_inizio TEXT NOT NULL,
             data_fine TEXT NOT NULL,
             tipo TEXT NOT NULL,
-            nota TEXT
+            nota TEXT,
+            sede_id INTEGER
         )"""))
+        try:
+            c.execute(text("ALTER TABLE presenze ADD COLUMN sede_id INTEGER"))
+        except Exception:
+            pass
         c.execute(text(f"""CREATE TABLE IF NOT EXISTS festivita (
             festivita_id {DB_PK},
             data TEXT NOT NULL,

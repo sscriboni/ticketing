@@ -87,13 +87,29 @@ def calendario_presenze(r: Request):
     
     with engine.connect() as c:
         presenze_raw = c.execute(text("""
-            SELECT p.*, u.nome, u.cognome, r.nome as reparto_nome
+            SELECT p.*, u.nome, u.cognome, r.nome as reparto_nome,
+                   u.sede_id as user_sede_id,
+                   s_pres.nome as sede_nome,
+                   s_user.nome as user_sede_nome
             FROM presenze p
             JOIN users u ON p.user_id = u.user_id
             LEFT JOIN reparti r ON u.reparto_id = r.reparto_id
+            LEFT JOIN sedi s_pres ON p.sede_id = s_pres.sede_id
+            LEFT JOIN sedi s_user ON u.sede_id = s_user.sede_id
             WHERE p.user_id = :uid
             ORDER BY p.data_inizio DESC
         """), {"uid": uid}).mappings().all()
+        
+        # Elenco completo delle sedi per il form
+        sedi_list = c.execute(text("""
+            SELECT sede_id, nome
+            FROM sedi
+            ORDER BY nome ASC
+        """)).mappings().all()
+
+        # Recupera sede assegnata all'utente aggiornata dal DB
+        u_row = c.execute(text("SELECT sede_id FROM users WHERE user_id = :uid"), {"uid": uid}).mappings().first()
+        user_sede_id = u_row.get("sede_id") if u_row else user.get("sede_id")
         
         festivita = c.execute(text("""
             SELECT f.*, c.nome as comune_nome 
@@ -113,10 +129,16 @@ def calendario_presenze(r: Request):
         p["is_vecchia"] = is_vecchia
         if is_vecchia:
             num_vecchie += 1
+            
+        p_sede_id = p.get("sede_id")
+        u_home_sede = p.get("user_sede_id")
+        p["is_fuori_sede"] = bool(p_sede_id and u_home_sede and int(p_sede_id) != int(u_home_sede))
+        p["sede_nome"] = p.get("sede_nome") or (p.get("user_sede_nome") if p_sede_id else None)
+        
         presenze.append(p)
         
     return templates.TemplateResponse(r, "calendario_presenze.html", {
-        "request": r, "cfg": CFG, "user": user, "presenze": presenze, "num_vecchie": num_vecchie, "cutoff_date": cutoff_date, "festivita": festivita
+        "request": r, "cfg": CFG, "user": user, "user_sede_id": user_sede_id, "sedi_list": sedi_list, "presenze": presenze, "num_vecchie": num_vecchie, "cutoff_date": cutoff_date, "festivita": festivita
     })
 
 @router.post("/calendario-presenze/nuova")
@@ -125,10 +147,12 @@ def nuova_presenza(
     data_inizio: str = Form(...), 
     data_fine: str = Form(""), 
     tipo: str = Form(...), 
+    sede_id: typing.Optional[int] = Form(None),
     nota: str = Form("")
 ):
     if "user" not in r.session: return RedirectResponse(url="/login")
     user = r.session.get("user")
+    uid = user.get("id")
     if not data_fine or not data_fine.strip():
         data_fine = data_inizio
         
@@ -136,15 +160,28 @@ def nuova_presenza(
     if data_inizio < today_str or data_fine < today_str:
         error_msg = "Non è possibile inserire presenze nel passato."
         return RedirectResponse(url=f"/calendario-presenze?error={urllib.parse.quote(error_msg)}", status_code=303)
+
+    # Se sede_id non è valorizzato, verifichiamo la sede assegnata all'utente
+    if not sede_id or sede_id <= 0:
+        with engine.connect() as c:
+            u_row = c.execute(text("SELECT sede_id FROM users WHERE user_id = :uid"), {"uid": uid}).mappings().first()
+            if u_row and u_row.get("sede_id"):
+                sede_id = u_row.get("sede_id")
+            else:
+                sede_id = None
+
+    if not sede_id:
+        error_msg = "Selezionare una sede di presenza valida."
+        return RedirectResponse(url=f"/calendario-presenze?error={urllib.parse.quote(error_msg)}", status_code=303)
     
     # Cap nota at 40 characters
     nota = (nota or "").strip()[:40]
     
     with engine.begin() as c:
         c.execute(text("""
-            INSERT INTO presenze (user_id, data_inizio, data_fine, tipo, nota)
-            VALUES (:uid, :di, :df, :t, :n)
-        """), {"uid": user.get("id"), "di": data_inizio, "df": data_fine, "t": tipo, "n": nota})
+            INSERT INTO presenze (user_id, data_inizio, data_fine, tipo, nota, sede_id)
+            VALUES (:uid, :di, :df, :t, :n, :sid)
+        """), {"uid": uid, "di": data_inizio, "df": data_fine, "t": tipo, "n": nota, "sid": sede_id})
         
     return RedirectResponse(url="/calendario-presenze", status_code=303)
 
@@ -575,9 +612,12 @@ def assenze_mese(r: Request, mese: int = None, anno: int = None, reparto_id: int
         """), {"rid": reparto_id, "start": first_day_of_month.isoformat(), "end": last_day_of_month.isoformat()}).mappings().all()
 
         presenze_list = c.execute(text("""
-            SELECT p.user_id, p.data_inizio, p.data_fine, p.tipo, p.nota
+            SELECT p.user_id, p.data_inizio, p.data_fine, p.tipo, p.nota,
+                   p.sede_id, s.nome as sede_nome, u.sede_id as user_sede_id, su.nome as user_sede_nome
             FROM presenze p
             JOIN users u ON p.user_id = u.user_id
+            LEFT JOIN sedi s ON p.sede_id = s.sede_id
+            LEFT JOIN sedi su ON u.sede_id = su.sede_id
             WHERE u.reparto_id = :rid AND p.data_inizio <= :end AND p.data_fine >= :start
         """), {"rid": reparto_id, "start": first_day_of_month.isoformat(), "end": last_day_of_month.isoformat()}).mappings().all()
 
@@ -669,6 +709,11 @@ def assenze_mese(r: Request, mese: int = None, anno: int = None, reparto_id: int
                 is_present = presence_record is not None
                 presenza_tipo = presence_record["tipo"] if is_present else None
                 presenza_nota = presence_record["nota"] if is_present else None
+                presenza_sede_nome = presence_record.get("sede_nome") if is_present else None
+                presenza_fuori_sede = bool(
+                    is_present and presence_record.get("sede_id") and presence_record.get("user_sede_id")
+                    and int(presence_record["sede_id"]) != int(presence_record["user_sede_id"])
+                )
 
                 is_weekend = d.weekday() in (5, 6)
                 
@@ -690,6 +735,8 @@ def assenze_mese(r: Request, mese: int = None, anno: int = None, reparto_id: int
                     "present": is_present,
                     "presenza_tipo": presenza_tipo,
                     "presenza_nota": presenza_nota,
+                    "presenza_sede_nome": presenza_sede_nome,
+                    "presenza_fuori_sede": presenza_fuori_sede,
                     "holiday": holiday,
                     "is_weekend": is_weekend,
                     "is_today": is_today,

@@ -124,6 +124,16 @@
                                         {% else %}
                                         <span class="badge bg-secondary text-white">{{ p.tipo|title }}</span>
                                         {% endif %}
+                                        {% if p.sede_nome %}
+                                        <div class="mt-1 small">
+                                            <span class="text-secondary fw-semibold"><i class="bi bi-geo-alt me-1"></i>({{ p.sede_nome }})</span>
+                                            {% if p.is_fuori_sede %}
+                                            <span class="badge bg-warning text-dark border border-warning ms-1" style="font-size: 0.7rem;" title="Presenza svolta in sede diversa da quella assegnata">
+                                                <i class="bi bi-exclamation-triangle-fill text-danger me-1"></i>Sede diversa
+                                            </span>
+                                            {% endif %}
+                                        </div>
+                                        {% endif %}
                                     </td>
                                     <td><small class="text-muted">{{ p.nota or '—' }}</small></td>
                                     <td>
@@ -164,10 +174,26 @@
                                 <option value="smartwork">Smartwork</option>
                                 <option value="corsi">Corsi</option>
                                 <option value="trasferta">Trasferta</option>
-                                <option value="altra sede">Altra Sede</option>
                                 <option value="presente 1/2 gg">Presente 1/2 gg</option>
                                 <option value="assenza parziale">Assenza Parziale</option>
                             </select>
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label fw-bold">Sede di Presenza <span class="text-danger">*</span></label>
+                            <select name="sede_id" id="presenza_sede_id" class="form-select" required>
+                                {% if not user_sede_id %}
+                                <option value="" selected disabled>-- Seleziona sede --</option>
+                                {% endif %}
+                                {% for s in sedi_list %}
+                                <option value="{{ s.sede_id }}" {% if user_sede_id and s.sede_id == user_sede_id %}selected{% endif %}>
+                                    {{ s.nome }}{% if user_sede_id and s.sede_id == user_sede_id %} (Tua sede assegnata){% endif %}
+                                </option>
+                                {% endfor %}
+                            </select>
+                            <div id="sede-diversa-alert" class="small mt-1 text-warning-emphasis d-none">
+                                <i class="bi bi-exclamation-triangle-fill text-warning me-1"></i> Hai selezionato una sede diversa da quella assegnata al tuo profilo.
+                            </div>
+                            <small class="text-muted d-block mt-1">Precompilata con la tua sede di appartenenza. Seleziona una sede diversa se ti recherai altrove.</small>
                         </div>
                         <div class="mb-4">
                             <label class="form-label fw-bold">Nota (Max 40 caratteri)</label>
@@ -206,7 +232,7 @@
                 events: [
                     {% for p in presenze %}
             {
-                    title: '{{ p.nome|replace("'", "\\'") }} {{ p.cognome|replace("'", "\\'") }} ({{ p.tipo|title }}){% if p.nota %} - {{ p.nota|replace("'", "\\'") }}{% endif %}',
+                    title: '{{ p.nome|replace("'", "\\'") }} {{ p.cognome|replace("'", "\\'") }} ({{ p.tipo|title }}){% if p.sede_nome %} - {{ p.sede_nome|replace("'", "\\'") }}{% endif %}{% if p.nota %} - {{ p.nota|replace("'", "\\'") }}{% endif %}',
                     start: '{{ p.data_inizio }}',
                     end: (function () {
                         var d = new Date('{{ p.data_fine }}T12:00:00');
@@ -251,6 +277,20 @@
                 calendarContainer.style.display = 'none';
             }
         });
+
+        // Avviso se viene selezionata una sede diversa da quella assegnata
+        var sedeSelect = document.getElementById('presenza_sede_id');
+        var sedeAlert = document.getElementById('sede-diversa-alert');
+        var assignedSedeId = '{{ user_sede_id or "" }}';
+        if (sedeSelect && sedeAlert && assignedSedeId) {
+            sedeSelect.addEventListener('change', function () {
+                if (this.value && this.value !== assignedSedeId) {
+                    sedeAlert.classList.remove('d-none');
+                } else {
+                    sedeAlert.classList.add('d-none');
+                }
+            });
+        }
 });
     </script>
     <script>
