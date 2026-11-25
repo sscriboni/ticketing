@@ -41,40 +41,105 @@ def calendario(r: Request, copertura_alert: str = None, servizi_scoperti: str = 
         5: "Maggio", 6: "Giugno", 7: "Luglio", 8: "Agosto",
         9: "Settembre", 10: "Ottobre", 11: "Novembre", 12: "Dicembre"
     }
-    grouped_assenze = {}
+    festivita_dates = {f["data"] for f in festivita}
     current_year = date.today().year
 
-    for a in assenze:
-        d_init = str(a.get("data_inizio") or "")
-        try:
-            yr = int(d_init[:4])
-            m = int(d_init[5:7])
-        except (ValueError, IndexError):
-            yr = 0
-            m = 0
+    # Ripartizione delle assenze nei singoli mesi/anni contando i giorni lavorativi effettivi (esclusi weekend e festivi, identico a stampa)
+    anni_map = {}
+    totale_giorni_complessivo = 0
 
-        if yr not in grouped_assenze:
-            grouped_assenze[yr] = {}
-        if m not in grouped_assenze[yr]:
-            grouped_assenze[yr][m] = {
-                "mese_num": m,
-                "mese_nome": months_it.get(m, f"Mese {m}"),
-                "elenco": []
-            }
-        grouped_assenze[yr][m]["elenco"].append(a)
+    for a in assenze:
+        di_str = str(a.get("data_inizio") or "")
+        df_str = str(a.get("data_fine") or di_str)
+        motivo = (a.get("motivo") or "Assente").strip()
+        motivo_lower = motivo.lower()
+
+        try:
+            curr_d = datetime.strptime(di_str, "%Y-%m-%d").date()
+            end_d = datetime.strptime(df_str, "%Y-%m-%d").date()
+        except Exception:
+            curr_d = None
+            end_d = None
+
+        if not curr_d or not end_d:
+            continue
+
+        if curr_d > end_d:
+            end_d = curr_d
+
+        periodo_giorni_totali = 0
+        giorni_per_mese = {} # (yr, m) -> count_working_days
+
+        d = curr_d
+        while d <= end_d:
+            yr = d.year
+            m = d.month
+            key = (yr, m)
+            if key not in giorni_per_mese:
+                giorni_per_mese[key] = 0
+
+            d_str = d.isoformat()
+            is_weekend = d.weekday() in (5, 6)
+            is_festivo = d_str in festivita_dates
+            if not is_weekend and not is_festivo:
+                giorni_per_mese[key] += 1
+                periodo_giorni_totali += 1
+                totale_giorni_complessivo += 1
+
+            d += timedelta(days=1)
+
+        a["giorni_totali"] = periodo_giorni_totali
+
+        for (yr, m), gg_count in giorni_per_mese.items():
+            if yr not in anni_map:
+                anni_map[yr] = {}
+            if m not in anni_map[yr]:
+                anni_map[yr][m] = {
+                    "mese_num": m,
+                    "mese_nome": months_it.get(m, f"Mese {m}"),
+                    "totale_giorni": 0,
+                    "tot_ferie": 0,
+                    "tot_corsi": 0,
+                    "tot_altre": 0,
+                    "elenco": []
+                }
+            
+            anni_map[yr][m]["totale_giorni"] += gg_count
+            if motivo_lower == "ferie":
+                anni_map[yr][m]["tot_ferie"] += gg_count
+            elif motivo_lower == "corsi":
+                anni_map[yr][m]["tot_corsi"] += gg_count
+            else:
+                anni_map[yr][m]["tot_altre"] += gg_count
+
+            item = dict(a)
+            item["giorni_nel_mese"] = gg_count
+            anni_map[yr][m]["elenco"].append(item)
 
     storico_anni = []
-    for yr, mesi_dict in grouped_assenze.items():
-        tot_anno = sum(len(m_data["elenco"]) for m_data in mesi_dict.values())
+    for yr in sorted(anni_map.keys(), reverse=True):
+        mesi_dict = anni_map[yr]
+        sorted_mesi = [mesi_dict[m] for m in sorted(mesi_dict.keys(), reverse=True)]
+        tot_anno_giorni = sum(m_data["totale_giorni"] for m_data in sorted_mesi)
+        tot_anno_ferie = sum(m_data["tot_ferie"] for m_data in sorted_mesi)
+        tot_anno_corsi = sum(m_data["tot_corsi"] for m_data in sorted_mesi)
+        tot_anno_altre = sum(m_data["tot_altre"] for m_data in sorted_mesi)
+        
         storico_anni.append({
             "anno": yr,
             "is_current": (yr == current_year),
-            "totale": tot_anno,
-            "mesi": list(mesi_dict.values())
+            "totale": tot_anno_giorni,
+            "totale_giorni": tot_anno_giorni,
+            "tot_ferie": tot_anno_ferie,
+            "tot_corsi": tot_anno_corsi,
+            "tot_altre": tot_anno_altre,
+            "totale_periodi": sum(len(m_data["elenco"]) for m_data in sorted_mesi),
+            "mesi": sorted_mesi
         })
-            
+
     return templates.TemplateResponse(r, "calendario.html", {
-        "request": r, "cfg": CFG, "user": user, "assenze": assenze, "storico_anni": storico_anni, "festivita": festivita,
+        "request": r, "cfg": CFG, "user": user, "assenze": assenze, "storico_anni": storico_anni,
+        "totale_giorni_complessivo": totale_giorni_complessivo, "festivita": festivita,
         "copertura_alert": copertura_alert, "servizi_scoperti": servizi_scoperti
     })
 

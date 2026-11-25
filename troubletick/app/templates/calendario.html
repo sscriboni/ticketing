@@ -72,7 +72,7 @@
                             <i class="bi bi-calendar3-range text-primary me-2"></i>Storico Assenze per Anno e Mese
                         </h4>
                         {% if assenze|length > 0 %}
-                        <span class="badge bg-light text-secondary border">Totale: {{ assenze|length }}</span>
+                        <span class="badge bg-light text-dark border">Totale assenze: <strong>{{ totale_giorni_complessivo }}</strong> {% if totale_giorni_complessivo == 1 %}giorno{% else %}giorni{% endif %} ({{ assenze|length }} {% if assenze|length == 1 %}periodo{% else %}periodi{% endif %})</span>
                         {% endif %}
                     </div>
 
@@ -96,13 +96,30 @@
                                             {% endif %}
                                             {% if anno_data.anno > 0 %}
                                             <a href="/calendario/stampa?anno={{ anno_data.anno }}" target="_blank" class="btn btn-sm btn-outline-secondary ms-2 py-0 px-2" title="Stampa Calendario Assenze {{ anno_data.anno }}" onclick="event.stopPropagation()">
-                                                <i class="bi bi-printer"></i>
+                                                <i class="bi bi-printer"></i> Stampa
                                             </a>
                                             {% endif %}
                                         </span>
-                                        <span class="badge bg-primary-subtle text-primary border border-primary-subtle">
-                                            {{ anno_data.totale }} {% if anno_data.totale == 1 %}assenza{% else %}assenze{% endif %}
-                                        </span>
+                                        <div class="d-flex align-items-center gap-1">
+                                            {% if anno_data.tot_ferie > 0 %}
+                                            <span class="badge border" style="background-color: #f0fdfa; color: #0d9488; font-size: 0.78rem;">
+                                                Ferie: <strong>{{ anno_data.tot_ferie }}</strong> gg
+                                            </span>
+                                            {% endif %}
+                                            {% if anno_data.tot_corsi > 0 %}
+                                            <span class="badge border" style="background-color: #faf5ff; color: #6f42c1; font-size: 0.78rem;">
+                                                Corsi: <strong>{{ anno_data.tot_corsi }}</strong> gg
+                                            </span>
+                                            {% endif %}
+                                            {% if anno_data.tot_altre > 0 %}
+                                            <span class="badge border" style="background-color: #fff1f2; color: #e11d48; font-size: 0.78rem;">
+                                                Altre: <strong>{{ anno_data.tot_altre }}</strong> gg
+                                            </span>
+                                            {% endif %}
+                                            <span class="badge bg-primary text-white">
+                                                {{ anno_data.totale_giorni }} {% if anno_data.totale_giorni == 1 %}giorno{% else %}giorni{% endif %}
+                                            </span>
+                                        </div>
                                     </div>
                                 </button>
                             </h2>
@@ -114,9 +131,29 @@
                                             <span class="fw-bold text-dark">
                                                 <i class="bi bi-calendar-month text-primary me-1"></i> {{ m.mese_nome }} {{ anno_data.anno }}
                                             </span>
-                                            <span class="badge bg-secondary-subtle text-secondary small">
-                                                {{ m.elenco|length }} {% if m.elenco|length == 1 %}periodo{% else %}periodi{% endif %}
-                                            </span>
+                                            <div class="d-flex align-items-center gap-2">
+                                                {% if m.tot_ferie > 0 %}
+                                                <span class="badge border" style="background-color: #f0fdfa; color: #0d9488; font-size: 0.72rem;">
+                                                    Ferie: {{ m.tot_ferie }} gg
+                                                </span>
+                                                {% endif %}
+                                                {% if m.tot_corsi > 0 %}
+                                                <span class="badge border" style="background-color: #faf5ff; color: #6f42c1; font-size: 0.72rem;">
+                                                    Corsi: {{ m.tot_corsi }} gg
+                                                </span>
+                                                {% endif %}
+                                                {% if m.tot_altre > 0 %}
+                                                <span class="badge border" style="background-color: #fff1f2; color: #e11d48; font-size: 0.72rem;">
+                                                    Altre: {{ m.tot_altre }} gg
+                                                </span>
+                                                {% endif %}
+                                                <span class="badge bg-primary text-white" style="font-size: 0.78rem;">
+                                                    {{ m.totale_giorni }} {% if m.totale_giorni == 1 %}giorno{% else %}giorni{% endif %}
+                                                </span>
+                                                <span class="badge bg-secondary-subtle text-secondary small">
+                                                    {{ m.elenco|length }} {% if m.elenco|length == 1 %}periodo{% else %}periodi{% endif %}
+                                                </span>
+                                            </div>
                                         </div>
                                         <div class="table-responsive">
                                             <table class="table table-hover table-striped align-middle mb-0">
@@ -127,6 +164,7 @@
                                                         <th>Tipo Assenza</th>
                                                         <th>Dal</th>
                                                         <th>Al</th>
+                                                        <th class="text-center">Giorni nel Mese</th>
                                                         <th class="text-end">Azioni</th>
                                                     </tr>
                                                 </thead>
@@ -147,6 +185,16 @@
                                                         </td>
                                                         <td><span class="badge bg-light text-dark border">{{ a.data_inizio }}</span></td>
                                                         <td><span class="badge bg-light text-dark border">{{ a.data_fine }}</span></td>
+                                                        <td class="text-center">
+                                                            <span class="badge bg-primary-subtle text-primary border border-primary-subtle fw-bold">
+                                                                {{ a.giorni_nel_mese }} gg
+                                                            </span>
+                                                            {% if a.giorni_totali != a.giorni_nel_mese %}
+                                                            <small class="text-muted d-block" style="font-size: 0.7rem;" title="Totale giorni lavorativi periodo: {{ a.giorni_totali }} gg">
+                                                                ({{ a.giorni_totali }} gg tot)
+                                                            </small>
+                                                            {% endif %}
+                                                        </td>
                                                         <td class="text-end">
                                                             {% if user.ruolo == 'admin' or user.id == a.user_id %}
                                                             <form method="post" action="/calendario/{{ a.assenza_id }}/elimina"
