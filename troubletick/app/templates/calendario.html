@@ -94,6 +94,11 @@
                                             {% if anno_data.is_current %}
                                             <span class="badge bg-success-subtle text-success border border-success-subtle ms-2" style="font-size: 0.75rem;">In corso</span>
                                             {% endif %}
+                                            {% if anno_data.anno > 0 %}
+                                            <a href="/calendario/stampa?anno={{ anno_data.anno }}" target="_blank" class="btn btn-sm btn-outline-secondary ms-2 py-0 px-2" title="Stampa Calendario Assenze {{ anno_data.anno }}" onclick="event.stopPropagation()">
+                                                <i class="bi bi-printer"></i>
+                                            </a>
+                                            {% endif %}
                                         </span>
                                         <span class="badge bg-primary-subtle text-primary border border-primary-subtle">
                                             {{ anno_data.totale }} {% if anno_data.totale == 1 %}assenza{% else %}assenze{% endif %}
@@ -119,6 +124,7 @@
                                                     <tr>
                                                         <th>Operatore</th>
                                                         <th>Reparto</th>
+                                                        <th>Tipo Assenza</th>
                                                         <th>Dal</th>
                                                         <th>Al</th>
                                                         <th class="text-end">Azioni</th>
@@ -129,6 +135,16 @@
                                                     <tr>
                                                         <td><strong>{{ a.nome }} {{ a.cognome }}</strong></td>
                                                         <td>{{ a.reparto_nome or '—' }}</td>
+                                                        <td>
+                                                            {% set mot = (a.motivo or 'Assente')|lower %}
+                                                            {% if mot == 'ferie' %}
+                                                            <span class="badge text-white" style="background-color: #0d9488;"><i class="bi bi-sun-fill me-1"></i>Ferie</span>
+                                                            {% elif mot == 'corsi' %}
+                                                            <span class="badge text-white" style="background-color: #6f42c1;"><i class="bi bi-journal-bookmark me-1"></i>Corsi</span>
+                                                            {% else %}
+                                                            <span class="badge bg-secondary text-white"><i class="bi bi-calendar-x me-1"></i>{{ a.motivo|title if a.motivo and a.motivo != 'assente' else 'Assente' }}</span>
+                                                            {% endif %}
+                                                        </td>
                                                         <td><span class="badge bg-light text-dark border">{{ a.data_inizio }}</span></td>
                                                         <td><span class="badge bg-light text-dark border">{{ a.data_fine }}</span></td>
                                                         <td class="text-end">
@@ -167,7 +183,15 @@
                                 class="form-control" required></div>
                         <div class="mb-3"><label class="form-label fw-bold">Data Fine</label><input type="date"
                                 name="data_fine" class="form-control"></div>
-                        <input type="hidden" name="motivo" value="assente">
+                        <div class="mb-3">
+                            <label class="form-label fw-bold">Tipo Assenza <span class="text-muted fw-normal small">(opzionale)</span></label>
+                            <select name="motivo" class="form-select">
+                                <option value="">-- Seleziona tipo (opzionale) --</option>
+                                <option value="Ferie">Ferie</option>
+                                <option value="Corsi">Corsi</option>
+                            </select>
+                            <small class="text-muted">Se non selezionato, verrà registrata come Assente.</small>
+                        </div>
                         <button type="submit" class="btn btn-primary w-100">Salva Assenza</button>
                     </form>
                 </div>
@@ -216,8 +240,10 @@
 
         {% for a in assenze %}
         (function () {
-            var title = '{{ a.nome }} {{ a.cognome }} (Assente)';
-            var color = '#dc3545';
+            {% set mot_val = a.motivo or 'Assente' %}
+            {% set mot_label = 'Ferie' if mot_val|lower == 'ferie' else ('Corsi' if mot_val|lower == 'corsi' else 'Assente') %}
+            var title = '{{ a.nome|replace("'", "\\'") }} {{ a.cognome|replace("'", "\\'") }} ({{ mot_label }})';
+            var color = {% if mot_val|lower == 'ferie' %}'#0d9488'{% elif mot_val|lower == 'corsi' %}'#6f42c1'{% else %}'#dc3545'{% endif %};
 
             var curStart = null;
             var curEnd = null;

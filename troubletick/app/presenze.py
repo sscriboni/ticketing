@@ -1,3 +1,4 @@
+import typing
 from datetime import datetime, timedelta, date
 import calendar
 import urllib.parse
@@ -246,6 +247,10 @@ def nuova_assenza(r: Request, data_inizio: str = Form(...), data_fine: str = For
             
         return RedirectResponse(url=f"/calendario?error={urllib.parse.quote(error_msg)}", status_code=303)
         
+    motivo = (motivo or "").strip()
+    if not motivo:
+        motivo = "Assente"
+
     with engine.begin() as c:
         c.execute(text("""INSERT INTO assenze (user_id, data_inizio, data_fine, motivo)
                           VALUES (:uid, :di, :df, :m)"""), 
@@ -343,6 +348,147 @@ def elimina_assenza(r: Request, assenza_id: int):
         else:
             c.execute(text("DELETE FROM assenze WHERE assenza_id = :id AND user_id = :uid"), {"id": assenza_id, "uid": user.get("id")})
     return RedirectResponse(url="/calendario", status_code=303)
+
+@router.get("/calendario/stampa", response_class=HTMLResponse)
+def calendario_stampa(r: Request, anno: int = None, user_id: int = None):
+    if not CFG.get('modulo_presenze', True):
+        return RedirectResponse(url="/")
+    if "user" not in r.session: return RedirectResponse(url="/login")
+    current_u = r.session.get("user")
+    
+    target_uid = current_u.get("id")
+    if user_id and current_u.get("ruolo") in ("admin", "responsabile"):
+        target_uid = int(user_id)
+        
+    current_year = date.today().year
+    anno = int(anno) if (anno and anno > 1900 and anno < 2200) else current_year
+    
+    with engine.connect() as c:
+        target_user = c.execute(text("""
+            SELECT u.user_id, u.nome, u.cognome, u.username, u.email, r.nome as reparto_nome, s.nome as sede_nome
+            FROM users u
+            LEFT JOIN reparti r ON u.reparto_id = r.reparto_id
+            LEFT JOIN sedi s ON u.sede_id = s.sede_id
+            WHERE u.user_id = :uid
+        """), {"uid": target_uid}).mappings().first()
+        
+        start_year = f"{anno}-01-01"
+        end_year = f"{anno}-12-31"
+        
+        assenze_raw = c.execute(text("""
+            SELECT assenza_id, user_id, data_inizio, data_fine, motivo
+            FROM assenze
+            WHERE user_id = :uid 
+              AND data_inizio <= :end_year 
+              AND data_fine >= :start_year
+            ORDER BY data_inizio ASC
+        """), {"uid": target_uid, "start_year": start_year, "end_year": end_year}).mappings().all()
+        
+        festivita_raw = c.execute(text("""
+            SELECT f.data, f.descrizione, f.comune_id, c.nome as comune_nome 
+            FROM festivita f 
+            LEFT JOIN comuni c ON f.comune_id = c.comune_id 
+            WHERE f.data >= :start_year AND f.data <= :end_year
+            ORDER BY f.data ASC
+        """), {"start_year": start_year, "end_year": end_year}).mappings().all()
+
+    festivita_map = {}
+    for f in festivita_raw:
+        d_str = f["data"]
+        desc = f["descrizione"]
+        if f.get("comune_nome"):
+            desc += f" ({f['comune_nome']})"
+        festivita_map[d_str] = desc
+
+    day_absence_map = {}
+    for a in assenze_raw:
+        di = max(a["data_inizio"], start_year)
+        df = min(a["data_fine"], end_year)
+        try:
+            curr_d = datetime.strptime(di, "%Y-%m-%d").date()
+            end_d = datetime.strptime(df, "%Y-%m-%d").date()
+            while curr_d <= end_d:
+                day_key = curr_d.isoformat()
+                m_val = (a.get("motivo") or "Assente").strip()
+                day_absence_map[day_key] = m_val
+                curr_d += timedelta(days=1)
+        except Exception:
+            pass
+
+    months_it = [
+        "", "Gennaio", "Febbraio", "Marzo", "Aprile", "Maggio", "Giugno",
+        "Luglio", "Agosto", "Settembre", "Ottobre", "Novembre", "Dicembre"
+    ]
+    mesi_data = []
+    
+    tot_ferie_giorni = 0
+    tot_corsi_giorni = 0
+    tot_altre_giorni = 0
+    tot_assenze_lavorative = 0
+    
+    for m in range(1, 13):
+        first_wd, num_days_m = calendar.monthrange(anno, m)
+        weeks = []
+        current_week = []
+        
+        for _ in range(first_wd):
+            current_week.append(None)
+            
+        for day_num in range(1, num_days_m + 1):
+            d_obj = date(anno, m, day_num)
+            d_str = d_obj.isoformat()
+            is_weekend = d_obj.weekday() in (5, 6)
+            is_festivo = d_str in festivita_map
+            festivo_desc = festivita_map.get(d_str)
+            
+            absence_type = day_absence_map.get(d_str)
+            is_absent = bool(absence_type)
+            
+            if is_absent and not is_weekend and not is_festivo:
+                tot_assenze_lavorative += 1
+                if absence_type.lower() == "ferie":
+                    tot_ferie_giorni += 1
+                elif absence_type.lower() == "corsi":
+                    tot_corsi_giorni += 1
+                else:
+                    tot_altre_giorni += 1
+                    
+            day_info = {
+                "day_num": day_num,
+                "date_str": d_str,
+                "is_weekend": is_weekend,
+                "is_festivo": is_festivo,
+                "festivo_desc": festivo_desc,
+                "is_absent": is_absent,
+                "absence_type": absence_type
+            }
+            current_week.append(day_info)
+            if len(current_week) == 7:
+                weeks.append(current_week)
+                current_week = []
+                
+        if current_week:
+            while len(current_week) < 7:
+                current_week.append(None)
+            weeks.append(current_week)
+            
+        mesi_data.append({
+            "mese_num": m,
+            "mese_nome": months_it[m],
+            "weeks": weeks
+        })
+        
+    stats = {
+        "tot_ferie": tot_ferie_giorni,
+        "tot_corsi": tot_corsi_giorni,
+        "tot_altre": tot_altre_giorni,
+        "totale_giorni": tot_assenze_lavorative
+    }
+    
+    return templates.TemplateResponse(r, "calendario_annuale_stampa.html", {
+        "request": r, "cfg": CFG, "user": current_u, "target_user": target_user or current_u,
+        "anno": anno, "mesi": mesi_data, "stats": stats, "data_stampa": date.today().strftime("%d/%m/%Y")
+    })
 
 @router.get("/copertura-servizi", response_class=HTMLResponse)
 def copertura_servizi(r: Request, mese: int = None, anno: int = None, reparto_id: int = None):
