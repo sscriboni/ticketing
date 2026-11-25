@@ -3,7 +3,7 @@ from typing import Optional
 from contextlib import asynccontextmanager
 from datetime import datetime, date, time, timedelta
 from fastapi import FastAPI, Request, Form, UploadFile, File, BackgroundTasks
-from fastapi.responses import HTMLResponse, RedirectResponse, Response, FileResponse
+from fastapi.responses import HTMLResponse, RedirectResponse, Response, FileResponse, JSONResponse
 from fastapi.templating import Jinja2Templates
 from fastapi.staticfiles import StaticFiles
 from starlette.middleware.sessions import SessionMiddleware
@@ -3685,7 +3685,7 @@ def report_copertura(r: Request, mese: int = None, anno: int = None, reparto_id:
     })
 
 @app.post("/api/copertura-servizi/toggle")
-async def api_toggle_copertura(
+def api_toggle_copertura(
     r: Request,
     servizio_id: int = Form(...),
     user_id: int = Form(...),
