@@ -82,15 +82,12 @@
         <div class="col-md-3">
             <label class="form-label fw-bold small text-muted">Operatore</label>
             <select name="operatore_id" class="form-select" onchange="this.form.submit()">
-                {% if not operatori_list %}
-                <option value="" disabled selected>Nessun operatore legato a servizi</option>
-                {% else %}
+                <option value="" {% if not selected_operatore_id %}selected{% endif %}>-- Tutti gli operatori --</option>
                 {% for op in operatori_list %}
                 <option value="{{ op.user_id }}" {% if op.user_id == selected_operatore_id %}selected{% endif %}>
                     {{ op.cognome }} {{ op.nome }} ({{ op.username }})
                 </option>
                 {% endfor %}
-                {% endif %}
             </select>
         </div>
         {% endif %}
@@ -119,6 +116,8 @@
             Copertura mensile: <strong>{{ nome_mese }} {{ anno }}</strong>
             {% if selected_operatore_nome %}
                 <span class="text-muted fs-6 ms-2">— Operatore: <strong class="text-primary">{{ selected_operatore_nome }}</strong></span>
+            {% else %}
+                <span class="text-muted fs-6 ms-2">— <strong class="text-primary">Tutti gli operatori</strong></span>
             {% endif %}
         </h5>
     </div>

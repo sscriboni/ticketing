@@ -3379,7 +3379,7 @@ def test_email(r: Request,
 
 @app.get("/admin/report-copertura", response_class=HTMLResponse)
 @app.get("/report-copertura", response_class=HTMLResponse)
-def report_copertura(r: Request, mese: int = None, anno: int = None, reparto_id: int = None, operatore_id: int = None):
+def report_copertura(r: Request, mese: int = None, anno: int = None, reparto_id: int = None, operatore_id: typing.Optional[str] = None):
     if not CFG.get('modulo_presenze', True):
         return RedirectResponse(url="/")
     user = current_user(r)
@@ -3395,6 +3395,10 @@ def report_copertura(r: Request, mese: int = None, anno: int = None, reparto_id:
     anno = int(anno) if anno else oggi.year
     mese = int(mese) if mese else oggi.month
     num_days = calendar.monthrange(anno, mese)[1]
+    
+    parsed_op_id = None
+    if operatore_id is not None and str(operatore_id).strip() and str(operatore_id).strip().isdigit() and int(operatore_id) > 0:
+        parsed_op_id = int(operatore_id)
     
     with engine.connect() as c:
         reparti_list = []
@@ -3419,14 +3423,12 @@ def report_copertura(r: Request, mese: int = None, anno: int = None, reparto_id:
                     ORDER BY u.cognome, u.nome
                 """), {"rep_id": target_reparto_id}).mappings().all()
                 
-            if operatore_id is not None:
+            if parsed_op_id is not None:
                 op_ids = [op["user_id"] for op in operatori_list]
-                if int(operatore_id) in op_ids:
-                    target_user_id = int(operatore_id)
-                elif operatori_list:
-                    target_user_id = operatori_list[0]["user_id"]
-            elif operatori_list:
-                target_user_id = operatori_list[0]["user_id"]
+                if parsed_op_id in op_ids:
+                    target_user_id = parsed_op_id
+            else:
+                target_user_id = None
                 
         elif user.get("ruolo") == "responsabile":
             target_reparto_id = user.get("reparto_id") or c.execute(text("SELECT reparto_id FROM users WHERE user_id = :uid"), {"uid": user.get("id")}).scalar()
@@ -3440,14 +3442,12 @@ def report_copertura(r: Request, mese: int = None, anno: int = None, reparto_id:
                     ORDER BY u.cognome, u.nome
                 """), {"rep_id": target_reparto_id}).mappings().all()
                 
-            if operatore_id is not None:
+            if parsed_op_id is not None:
                 op_ids = [op["user_id"] for op in operatori_list]
-                if int(operatore_id) in op_ids:
-                    target_user_id = int(operatore_id)
-                elif operatori_list:
-                    target_user_id = operatori_list[0]["user_id"]
-            elif operatori_list:
-                target_user_id = operatori_list[0]["user_id"]
+                if parsed_op_id in op_ids:
+                    target_user_id = parsed_op_id
+            else:
+                target_user_id = None
                 
         else: # assistenza (operatore)
             target_reparto_id = user.get("reparto_id") or c.execute(text("SELECT reparto_id FROM users WHERE user_id = :uid"), {"uid": user.get("id")}).scalar()
@@ -3461,19 +3461,32 @@ def report_copertura(r: Request, mese: int = None, anno: int = None, reparto_id:
 
         # Query services and coverage
         rows = []
-        if target_reparto_id is not None and target_user_id is not None:
-            rows = c.execute(text("""
-                SELECT s.servizio_id, s.descrizione as servizio_desc, 
-                       r.reparto_id, r.nome as reparto_nome,
-                       u.user_id, u.nome, u.cognome
-                FROM servizi s
-                JOIN reparti r ON s.reparto_id = r.reparto_id
-                LEFT JOIN operatori_servizi os ON s.servizio_id = os.servizio_id
-                LEFT JOIN users u ON os.user_id = u.user_id AND u.attivo = 1 AND u.ruolo != 'admin'
-                WHERE r.reparto_id = :rep_id 
-                  AND s.servizio_id IN (SELECT servizio_id FROM operatori_servizi WHERE user_id = :target_uid)
-                ORDER BY r.nome, s.descrizione
-            """), {"rep_id": target_reparto_id, "target_uid": target_user_id}).mappings().all()
+        if target_reparto_id is not None:
+            if target_user_id is not None:
+                rows = c.execute(text("""
+                    SELECT s.servizio_id, s.descrizione as servizio_desc, 
+                           r.reparto_id, r.nome as reparto_nome,
+                           u.user_id, u.nome, u.cognome
+                    FROM servizi s
+                    JOIN reparti r ON s.reparto_id = r.reparto_id
+                    LEFT JOIN operatori_servizi os ON s.servizio_id = os.servizio_id
+                    LEFT JOIN users u ON os.user_id = u.user_id AND u.attivo = 1 AND u.ruolo != 'admin'
+                    WHERE r.reparto_id = :rep_id 
+                      AND s.servizio_id IN (SELECT servizio_id FROM operatori_servizi WHERE user_id = :target_uid)
+                    ORDER BY r.nome, s.descrizione
+                """), {"rep_id": target_reparto_id, "target_uid": target_user_id}).mappings().all()
+            else:
+                rows = c.execute(text("""
+                    SELECT s.servizio_id, s.descrizione as servizio_desc, 
+                           r.reparto_id, r.nome as reparto_nome,
+                           u.user_id, u.nome, u.cognome
+                    FROM servizi s
+                    JOIN reparti r ON s.reparto_id = r.reparto_id
+                    LEFT JOIN operatori_servizi os ON s.servizio_id = os.servizio_id
+                    LEFT JOIN users u ON os.user_id = u.user_id AND u.attivo = 1 AND u.ruolo != 'admin'
+                    WHERE r.reparto_id = :rep_id
+                    ORDER BY r.nome, s.descrizione
+                """), {"rep_id": target_reparto_id}).mappings().all()
         
         reparti_dict = {}
         user_names = {}
