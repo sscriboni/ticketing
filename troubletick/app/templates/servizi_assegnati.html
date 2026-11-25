@@ -122,7 +122,14 @@
                             <tr class="service-row">
                                 <td>
                                     <div class="fw-bold text-dark">{{ s.nome }}</div>
-                                    <small class="text-muted"><i class="bi bi-building me-1"></i>{{ s.reparto_nome or '—' }}</small>
+                                    <div class="d-flex flex-wrap align-items-center gap-1 mt-0.5">
+                                        <small class="text-muted"><i class="bi bi-building me-1"></i>{{ s.reparto_nome or '—' }}</small>
+                                        {% if s.sede_erogazione_nome %}
+                                        <span class="badge bg-light text-dark border ms-1" style="font-size: 0.72rem;" title="Sede di erogazione: personale presente in sede">
+                                            <i class="bi bi-geo-alt-fill text-danger me-1"></i>{{ s.sede_erogazione_nome }}
+                                        </span>
+                                        {% endif %}
+                                    </div>
                                 </td>
                                 <td>
                                     {% if s.operatori %}

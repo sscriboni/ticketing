@@ -123,8 +123,14 @@ try:
             reparto_id INTEGER NOT NULL,
             accetta_ticket INTEGER DEFAULT 1,
             note TEXT,
-            reperibilita_h24 INTEGER DEFAULT 0
+            reperibilita_h24 INTEGER DEFAULT 0,
+            sede_erogazione_id INTEGER,
+            FOREIGN KEY(sede_erogazione_id) REFERENCES sedi(sede_id)
         )"""))
+        try:
+            c.execute(text("ALTER TABLE servizi ADD COLUMN sede_erogazione_id INTEGER"))
+        except Exception:
+            pass
         c.execute(text(f"""CREATE TABLE IF NOT EXISTS automezzi (
             automezzo_id {DB_PK},
             targa TEXT UNIQUE NOT NULL,
@@ -3612,13 +3618,16 @@ def admin_servizi(r: Request, error: str = None):
         return user
     with engine.connect() as c:
         servizi_raw = c.execute(text("""
-            SELECT s.servizio_id, s.descrizione, s.descrizione_lunga, s.reparto_id, s.accetta_ticket, s.note, s.reperibilita_h24,
-                   r.nome AS reparto_nome, r.reperibilita_h24 AS reparto_reperibilita_h24 
+            SELECT s.servizio_id, s.descrizione, s.descrizione_lunga, s.reparto_id, s.accetta_ticket, s.note, s.reperibilita_h24, s.sede_erogazione_id,
+                   r.nome AS reparto_nome, r.reperibilita_h24 AS reparto_reperibilita_h24,
+                   se.nome AS sede_erogazione_nome
             FROM servizi s 
             LEFT JOIN reparti r ON s.reparto_id = r.reparto_id 
+            LEFT JOIN sedi se ON s.sede_erogazione_id = se.sede_id
             ORDER BY r.nome, s.descrizione
         """)).mappings().all()
         reparti = c.execute(text("SELECT reparto_id, nome, reperibilita_h24 FROM reparti ORDER BY nome")).mappings().all()
+        sedi = c.execute(text("SELECT sede_id, nome FROM sedi ORDER BY nome")).mappings().all()
         argomenti = c.execute(text("SELECT a.argomento_id, a.descrizione, a.descrizione_lunga, a.servizio_id, s.descrizione AS servizio_nome FROM argomenti a JOIN servizi s ON a.servizio_id = s.servizio_id ORDER BY s.descrizione, a.descrizione")).mappings().all()
         
         # Aggrega argomenti per servizio
@@ -3646,7 +3655,7 @@ def admin_servizi(r: Request, error: str = None):
             s_dict["num_argomenti"] = len(s_dict["argomenti"])
             servizi.append(s_dict)
 
-    return templates.TemplateResponse(r, "admin_servizi.html", {"request": r, "cfg": CFG, "user": user, "servizi": servizi, "reparti": reparti, "argomenti": argomenti, "error": error})
+    return templates.TemplateResponse(r, "admin_servizi.html", {"request": r, "cfg": CFG, "user": user, "servizi": servizi, "reparti": reparti, "sedi": sedi, "argomenti": argomenti, "error": error})
 
 @app.post("/admin/reparto")
 async def add_reparto(
@@ -3831,7 +3840,8 @@ def add_servizio(
     note: str = Form(""),
     reparto_id: int = Form(...),
     accetta_ticket: int = Form(0),
-    reperibilita_h24: int = Form(0)
+    reperibilita_h24: int = Form(0),
+    sede_erogazione_id: str = Form("")
 ):
     user = require_superuser(r)
     if isinstance(user, RedirectResponse):
@@ -3841,16 +3851,18 @@ def add_servizio(
         service_rep_h24 = 1 if (reperibilita_h24 and rep_h24) else 0
         desc_lunga = "" if (hasattr(descrizione_lunga, "default") or descrizione_lunga is None) else str(descrizione_lunga)
         note_val = "" if (hasattr(note, "default") or note is None) else str(note)
+        sede_erog_id = int(sede_erogazione_id) if (sede_erogazione_id and str(sede_erogazione_id).strip().isdigit() and int(sede_erogazione_id) > 0) else None
         c.execute(text("""
-            INSERT INTO servizi (descrizione, descrizione_lunga, reparto_id, accetta_ticket, note, reperibilita_h24) 
-            VALUES (:descrizione, :descrizione_lunga, :reparto_id, :at, :note, :rep_h24)
+            INSERT INTO servizi (descrizione, descrizione_lunga, reparto_id, accetta_ticket, note, reperibilita_h24, sede_erogazione_id) 
+            VALUES (:descrizione, :descrizione_lunga, :reparto_id, :at, :note, :rep_h24, :sede_erog_id)
         """), {
             "descrizione": descrizione,
             "descrizione_lunga": desc_lunga,
             "reparto_id": reparto_id,
             "at": accetta_ticket,
             "note": note_val,
-            "rep_h24": service_rep_h24
+            "rep_h24": service_rep_h24,
+            "sede_erog_id": sede_erog_id
         })
     return RedirectResponse(url="/admin/servizi", status_code=303)
 
@@ -3862,6 +3874,7 @@ def edit_servizio_form(r: Request, servizio_id: int):
         servizio = c.execute(text("SELECT * FROM servizi WHERE servizio_id = :id"), {"id": servizio_id}).mappings().first()
         if not servizio: return RedirectResponse(url="/admin/servizi")
         reparti = c.execute(text("SELECT reparto_id, nome, reperibilita_h24 FROM reparti ORDER BY nome")).mappings().all()
+        sedi = c.execute(text("SELECT sede_id, nome FROM sedi ORDER BY nome")).mappings().all()
         tutti_fornitori = c.execute(text("SELECT fornitore_id, ragione_sociale FROM fornitori WHERE attivo = 1 ORDER BY ragione_sociale")).mappings().all()
         fornitori_associati = c.execute(text("""
             SELECT sf.fornitore_id, sf.note as sf_note, sf.principale, f.ragione_sociale
@@ -3872,7 +3885,7 @@ def edit_servizio_form(r: Request, servizio_id: int):
         """), {"sid": servizio_id}).mappings().all()
         fornitori_ids = [fa["fornitore_id"] for fa in fornitori_associati]
     return templates.TemplateResponse(r, "edit_servizio.html", {
-        "request": r, "cfg": CFG, "user": user, "servizio": servizio, "reparti": reparti,
+        "request": r, "cfg": CFG, "user": user, "servizio": servizio, "reparti": reparti, "sedi": sedi,
         "tutti_fornitori": tutti_fornitori, "fornitori_associati": fornitori_associati, "fornitori_ids": fornitori_ids
     })
 
@@ -3885,7 +3898,8 @@ async def edit_servizio_action(
     note: str = Form(""),
     reparto_id: int = Form(...),
     accetta_ticket: int = Form(0),
-    reperibilita_h24: int = Form(0)
+    reperibilita_h24: int = Form(0),
+    sede_erogazione_id: str = Form("")
 ):
     user = require_superuser(r)
     if isinstance(user, RedirectResponse): return user
@@ -3899,11 +3913,13 @@ async def edit_servizio_action(
         service_rep_h24 = 1 if (reperibilita_h24 and rep_h24) else 0
         desc_lunga = "" if (hasattr(descrizione_lunga, "default") or descrizione_lunga is None) else str(descrizione_lunga)
         note_val = "" if (hasattr(note, "default") or note is None) else str(note)
+        sede_erog_id = int(sede_erogazione_id) if (sede_erogazione_id and str(sede_erogazione_id).strip().isdigit() and int(sede_erogazione_id) > 0) else None
 
         c.execute(text("""
             UPDATE servizi 
             SET descrizione = :desc, descrizione_lunga = :desc_lunga, reparto_id = :rid, 
-                accetta_ticket = :at, note = :note, reperibilita_h24 = :rep_h24 
+                accetta_ticket = :at, note = :note, reperibilita_h24 = :rep_h24,
+                sede_erogazione_id = :sede_erog_id
             WHERE servizio_id = :id
         """), {
             "desc": descrizione,
@@ -3912,6 +3928,7 @@ async def edit_servizio_action(
             "at": accetta_ticket,
             "note": note_val,
             "rep_h24": service_rep_h24,
+            "sede_erog_id": sede_erog_id,
             "id": servizio_id
         })
         

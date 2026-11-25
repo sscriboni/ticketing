@@ -56,6 +56,16 @@
                                 {% endfor %}
                             </select>
                         </div>
+                        <div class="mb-3">
+                            <label class="form-label fw-bold small">Sede di Erogazione (opzionale)</label>
+                            <select name="sede_erogazione_id" class="form-select">
+                                <option value="" {% if not servizio.sede_erogazione_id %}selected{% endif %}>-- Nessuna (non vincolato a sede specifica) --</option>
+                                {% for s_item in sedi %}
+                                <option value="{{ s_item.sede_id }}" {% if servizio.sede_erogazione_id == s_item.sede_id %}selected{% endif %}>{{ s_item.nome }}</option>
+                                {% endfor %}
+                            </select>
+                            <div class="form-text text-muted small">Indica se il servizio viene erogato su una sede fisica specifica con personale presente in quella sede.</div>
+                        </div>
                         <div class="mb-3 form-check form-switch">
                             <input type="checkbox" name="reperibilita_h24" class="form-check-input" value="1" id="chkReperibilitaEdit" {% if servizio.reperibilita_h24 %}checked{% endif %}>
                             <label class="form-check-label small fw-bold" for="chkReperibilitaEdit">Reperibilità h24</label>

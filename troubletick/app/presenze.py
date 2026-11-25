@@ -1001,10 +1001,12 @@ def servizi_assegnati(r: Request):
         operators_list = list(operators.values())
         
         services_raw = c.execute(text("""
-            SELECT s.servizio_id, s.descrizione AS servizio_nome, r.nome AS reparto_nome,
+            SELECT s.servizio_id, s.descrizione AS servizio_nome, s.sede_erogazione_id,
+                   r.nome AS reparto_nome, se.nome AS sede_erogazione_nome,
                    u.user_id, u.nome AS operatore_nome, u.cognome AS operatore_cognome, u.ruolo AS operatore_ruolo
             FROM servizi s
             LEFT JOIN reparti r ON s.reparto_id = r.reparto_id
+            LEFT JOIN sedi se ON s.sede_erogazione_id = se.sede_id
             LEFT JOIN operatori_servizi os ON s.servizio_id = os.servizio_id
             LEFT JOIN users u ON os.user_id = u.user_id AND u.attivo = 1 AND (:reparto_id IS NULL OR u.reparto_id = :reparto_id)
             WHERE (:reparto_id IS NULL OR s.reparto_id = :reparto_id)
@@ -1019,6 +1021,7 @@ def servizi_assegnati(r: Request):
                     "servizio_id": sid,
                     "nome": row["servizio_nome"],
                     "reparto_nome": row["reparto_nome"],
+                    "sede_erogazione_nome": row["sede_erogazione_nome"],
                     "operatori": []
                 }
             if row["user_id"]:

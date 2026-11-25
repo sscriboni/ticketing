@@ -46,6 +46,16 @@
             </select>
           </div>
           <div class="col-12 col-md-4">
+            <label class="form-label fw-bold">Sede di erogazione (opzionale)</label>
+            <select name="sede_erogazione_id" class="form-select">
+              <option value="" selected>-- Nessuna (non vincolato a sede) --</option>
+              {% for s_item in sedi %}
+              <option value="{{ s_item.sede_id }}">{{ s_item.nome }}</option>
+              {% endfor %}
+            </select>
+            <div class="form-text small text-muted" style="font-size: 0.72rem;">Servizio erogato su sede fisica specifica con personale presente.</div>
+          </div>
+          <div class="col-12 col-md-6">
             <label class="form-label fw-bold">Descrizione (max 250 car.)</label>
             <input name="descrizione_lunga" class="form-control" maxlength="250" placeholder="Spiegazione sintetica del servizio...">
           </div>
@@ -53,20 +63,22 @@
             <label class="form-label fw-bold">Note / Istruzioni utente (HTML supportato)</label>
             <textarea name="note" class="form-control" rows="2" placeholder="Spiega all'utente i dati da inserire (es. matricola, modello, ubicazione...)"></textarea>
           </div>
-          <div class="col-12 col-md-3">
+          <div class="col-12 col-md-6">
             <label class="form-label fw-bold d-block">Opzioni Servizio</label>
-            <div class="form-check form-switch mb-2">
-              <input type="checkbox" name="reperibilita_h24" class="form-check-input" value="1" id="chkReperibilitaNuovo" disabled>
-              <label class="form-check-label small fw-bold" for="chkReperibilitaNuovo">Reperibilità h24</label>
-              <div id="helpRepServizioNuovo" class="form-text text-muted small" style="font-size: 0.72rem;">Disponibile solo con Reparto H24.</div>
-            </div>
-            <div class="form-check form-switch">
-              <input type="checkbox" name="accetta_ticket" class="form-check-input" value="1" id="chkAccetta" checked>
-              <label class="form-check-label small" for="chkAccetta">Ricezione ticket attiva (pubblico)</label>
+            <div class="d-flex gap-4">
+              <div class="form-check form-switch mb-2">
+                <input type="checkbox" name="reperibilita_h24" class="form-check-input" value="1" id="chkReperibilitaNuovo" disabled>
+                <label class="form-check-label small fw-bold" for="chkReperibilitaNuovo">Reperibilità h24</label>
+                <div id="helpRepServizioNuovo" class="form-text text-muted small" style="font-size: 0.72rem;">Disponibile solo con Reparto H24.</div>
+              </div>
+              <div class="form-check form-switch">
+                <input type="checkbox" name="accetta_ticket" class="form-check-input" value="1" id="chkAccetta" checked>
+                <label class="form-check-label small" for="chkAccetta">Ricezione ticket attiva (pubblico)</label>
+              </div>
             </div>
           </div>
-          <div class="col-12 col-md-3 d-flex align-items-end">
-            <button type="submit" class="btn btn-primary w-100 py-2"><i class="bi bi-check-lg me-1"></i> Salva Servizio</button>
+          <div class="col-12 col-md-6 d-flex align-items-end justify-content-end">
+            <button type="submit" class="btn btn-primary px-4 py-2"><i class="bi bi-check-lg me-1"></i> Salva Servizio</button>
           </div>
         </div>
       </form>
@@ -84,6 +96,7 @@
           <th style="min-width: 180px;">Servizio</th>
           <th style="min-width: 220px;">Descrizione</th>
           <th class="text-nowrap" style="min-width: 140px;">Reparto</th>
+          <th class="text-nowrap" style="min-width: 150px;">Sede Erogazione</th>
           <th style="min-width: 240px;">Argomenti Collegati</th>
           <th style="min-width: 190px;">Fornitori Collegati</th>
           <th class="text-nowrap text-center" style="min-width: 120px;">Reperibilità H24</th>
@@ -97,6 +110,11 @@
         <td>
           <div class="fw-bold fs-6">{{ servizio.descrizione }}</div>
           <div class="d-flex flex-wrap gap-1 mt-1">
+            {% if servizio.sede_erogazione_nome %}
+            <span class="badge bg-secondary-subtle text-dark border" style="font-size: 0.72rem;" title="Sede di erogazione: {{ servizio.sede_erogazione_nome }}">
+              <i class="bi bi-geo-alt-fill text-danger me-1"></i>{{ servizio.sede_erogazione_nome }}
+            </span>
+            {% endif %}
             {% if servizio.num_argomenti > 0 %}
             <span class="badge bg-primary text-white" style="font-size: 0.72rem;" title="{{ servizio.num_argomenti }} argoment{{ 'o' if servizio.num_argomenti == 1 else 'i' }} collegat{{ 'o' if servizio.num_argomenti == 1 else 'i' }}: {% for a in servizio.argomenti %}{{ a.descrizione }}{% if not loop.last %}, {% endif %}{% endfor %}">
               <i class="bi bi-tags-fill me-1"></i>{{ servizio.num_argomenti }} arg.
@@ -115,6 +133,15 @@
           {% endif %}
         </td>
         <td class="text-nowrap fw-semibold">{{ servizio.reparto_nome or '—' }}</td>
+        <td class="text-nowrap">
+          {% if servizio.sede_erogazione_nome %}
+          <span class="badge bg-light text-dark border border-secondary-subtle">
+            <i class="bi bi-geo-alt-fill text-danger me-1"></i>{{ servizio.sede_erogazione_nome }}
+          </span>
+          {% else %}
+          <span class="text-muted small fst-italic">—</span>
+          {% endif %}
+        </td>
         <td>
           {% if servizio.num_argomenti > 0 %}
             <div class="d-flex flex-wrap gap-1 align-items-center">
