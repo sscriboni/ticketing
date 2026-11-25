@@ -256,15 +256,16 @@ try:
             c.execute(text("ALTER TABLE presenze ADD COLUMN sede_id INTEGER"))
         except Exception:
             pass
-        c.execute(text(f"""CREATE TABLE IF NOT EXISTS copertura_servizi_scelte (
-            servizio_id INTEGER NOT NULL,
-            user_id INTEGER NOT NULL,
-            data TEXT NOT NULL,
-            copre INTEGER NOT NULL DEFAULT 1,
-            PRIMARY KEY (servizio_id, user_id, data),
-            FOREIGN KEY (servizio_id) REFERENCES servizi(servizio_id) ON DELETE CASCADE,
-            FOREIGN KEY (user_id) REFERENCES users(user_id) ON DELETE CASCADE
-        )"""))
+        try:
+            c.execute(text(f"""CREATE TABLE IF NOT EXISTS copertura_servizi_scelte (
+                servizio_id INTEGER NOT NULL,
+                user_id INTEGER NOT NULL,
+                data VARCHAR(20) NOT NULL,
+                copre INTEGER NOT NULL DEFAULT 1,
+                PRIMARY KEY (servizio_id, user_id, data)
+            )"""))
+        except Exception:
+            pass
         c.execute(text(f"""CREATE TABLE IF NOT EXISTS festivita (
             festivita_id {DB_PK},
             data TEXT NOT NULL,
@@ -3392,6 +3393,20 @@ def test_email(r: Request,
     except Exception as e:
         return {"status": "error", "message": str(e)}
 
+def ensure_copertura_servizi_table(conn):
+    try:
+        conn.execute(text("""
+            CREATE TABLE IF NOT EXISTS copertura_servizi_scelte (
+                servizio_id INTEGER NOT NULL,
+                user_id INTEGER NOT NULL,
+                data VARCHAR(20) NOT NULL,
+                copre INTEGER NOT NULL DEFAULT 1,
+                PRIMARY KEY (servizio_id, user_id, data)
+            )
+        """))
+    except Exception:
+        pass
+
 @app.get("/admin/report-copertura", response_class=HTMLResponse)
 @app.get("/report-copertura", response_class=HTMLResponse)
 def report_copertura(r: Request, mese: int = None, anno: int = None, reparto_id: int = None, operatore_id: typing.Optional[str] = None):
@@ -3581,11 +3596,15 @@ def report_copertura(r: Request, mese: int = None, anno: int = None, reparto_id:
                 if a["data_inizio"] <= d["data_str"] <= a["data_fine"]:
                     absent_on_day[d["data_str"]].add(a["user_id"])
                     
-        scelte_rows = c.execute(text("""
-            SELECT servizio_id, user_id, data, copre FROM copertura_servizi_scelte
-            WHERE data >= :start AND data <= :end
-        """), {"start": start_date, "end": end_date}).mappings().all()
-        opt_outs = {(r["servizio_id"], r["user_id"], r["data"]) for r in scelte_rows if r["copre"] == 0}
+        ensure_copertura_servizi_table(c)
+        try:
+            scelte_rows = c.execute(text("""
+                SELECT servizio_id, user_id, data, copre FROM copertura_servizi_scelte
+                WHERE data >= :start AND data <= :end
+            """), {"start": start_date, "end": end_date}).mappings().all()
+            opt_outs = {(r["servizio_id"], r["user_id"], r["data"]) for r in scelte_rows if r["copre"] == 0}
+        except Exception:
+            opt_outs = set()
         
         report_data = []
         for r_nome, s_dict in reparti_dict.items():
@@ -3680,6 +3699,7 @@ async def api_toggle_copertura(
         return JSONResponse({"ok": False, "error": "Non autorizzato"}, status_code=403)
         
     with engine.begin() as conn:
+        ensure_copertura_servizi_table(conn)
         cur = conn.execute(text("""
             SELECT copre FROM copertura_servizi_scelte
             WHERE servizio_id = :sid AND user_id = :uid AND data = :dt
