@@ -114,7 +114,7 @@
               <li><a class="dropdown-item" href="/calendario"><i class="bi bi-calendar3 me-2"></i>Calendario Assenze</a></li>
               <li><a class="dropdown-item" href="/calendario-presenze"><i class="bi bi-calendar-event me-2"></i>Calendario Presenze</a></li>
               <li><a class="dropdown-item" href="/copertura-servizi"><i class="bi bi-calendar-check me-2"></i>Verifica copertura Servizi</a></li>
-              <li><a class="dropdown-item" href="/admin/report-copertura"><i class="bi bi-grid-3x3-gap me-2"></i>Report Copertura Personale</a></li>
+              <li><a class="dropdown-item" href="/admin/report-copertura"><i class="bi bi-shield-check me-2"></i>Copertura Servizi</a></li>
               <li><a class="dropdown-item" href="/assenze-mese"><i class="bi bi-calendar-range me-2"></i>Calendario di Reparto</a></li>
               <li><a class="dropdown-item" href="/reperibilita"><i class="bi bi-clock-history me-2 text-warning"></i>Reperibilità</a></li>
               {% if user.ruolo == 'admin' or user_has_tag_rep_admin(user) %}
@@ -222,7 +222,7 @@
               <li><hr class="dropdown-divider"></li>
               {% if cfg.get('modulo_presenze', True) %}
               <li><h6 class="dropdown-header text-uppercase fw-bold text-primary small"><i class="bi bi-people me-1"></i> Presenze & Personale</h6></li>
-              <li><a class="dropdown-item" href="/admin/report-copertura"><i class="bi bi-grid-3x3-gap me-2 text-primary"></i>Report Copertura Personale</a></li>
+              <li><a class="dropdown-item" href="/admin/report-copertura"><i class="bi bi-shield-check me-2 text-primary"></i>Copertura Servizi</a></li>
               <li><hr class="dropdown-divider"></li>
               {% endif %}
               <li><h6 class="dropdown-header text-uppercase fw-bold text-success small"><i class="bi bi-boxes me-1"></i> Magazzini & Materiali</h6></li>
@@ -304,7 +304,7 @@
               <li><a class="dropdown-item" href="/calendario"><i class="bi bi-calendar3 me-2"></i>Calendario Assenze</a></li>
               <li><a class="dropdown-item" href="/calendario-presenze"><i class="bi bi-calendar-event me-2"></i>Calendario Presenze</a></li>
               <li><a class="dropdown-item" href="/copertura-servizi"><i class="bi bi-calendar-check me-2"></i>Verifica copertura Servizi</a></li>
-              <li><a class="dropdown-item" href="/admin/report-copertura"><i class="bi bi-grid-3x3-gap me-2"></i>Report Copertura Personale</a></li>
+              <li><a class="dropdown-item" href="/admin/report-copertura"><i class="bi bi-shield-check me-2"></i>Copertura Servizi</a></li>
               <li><a class="dropdown-item" href="/assenze-mese"><i class="bi bi-calendar-range me-2"></i>Calendario di Reparto</a></li>
               <li><a class="dropdown-item" href="/reperibilita"><i class="bi bi-clock-history me-2 text-warning"></i>Reperibilità</a></li>
               <li><hr class="dropdown-divider"></li>
@@ -371,7 +371,7 @@
               <li><hr class="dropdown-divider"></li>
               {% if cfg.get('modulo_presenze', True) %}
               <li><h6 class="dropdown-header text-uppercase fw-bold text-primary small"><i class="bi bi-people me-1"></i> Presenze & Personale</h6></li>
-              <li><a class="dropdown-item" href="/admin/report-copertura"><i class="bi bi-grid-3x3-gap me-2 text-primary"></i>Report Copertura Personale</a></li>
+              <li><a class="dropdown-item" href="/admin/report-copertura"><i class="bi bi-shield-check me-2 text-primary"></i>Copertura Servizi</a></li>
               <li><hr class="dropdown-divider"></li>
               {% endif %}
               <li><h6 class="dropdown-header text-uppercase fw-bold text-success small"><i class="bi bi-boxes me-1"></i> Magazzini & Materiali</h6></li>
@@ -464,7 +464,7 @@
             <ul class="dropdown-menu shadow" aria-labelledby="presenzeDropdown">
               <li><a class="dropdown-item" href="/calendario"><i class="bi bi-calendar3 me-2"></i>Calendario Assenze</a></li>
               <li><a class="dropdown-item" href="/calendario-presenze"><i class="bi bi-calendar-event me-2"></i>Calendario Presenze</a></li>
-              <li><a class="dropdown-item" href="/admin/report-copertura"><i class="bi bi-grid-3x3-gap me-2"></i>Report Copertura Personale</a></li>
+              <li><a class="dropdown-item" href="/admin/report-copertura"><i class="bi bi-shield-check me-2"></i>Copertura Servizi</a></li>
               <li><a class="dropdown-item" href="/assenze-mese"><i class="bi bi-calendar-range me-2"></i>Calendario di Reparto</a></li>
               <li><a class="dropdown-item" href="/reperibilita"><i class="bi bi-clock-history me-2 text-warning"></i>Reperibilità</a></li>
               <li><hr class="dropdown-divider"></li>

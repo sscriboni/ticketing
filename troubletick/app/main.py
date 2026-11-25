@@ -256,6 +256,15 @@ try:
             c.execute(text("ALTER TABLE presenze ADD COLUMN sede_id INTEGER"))
         except Exception:
             pass
+        c.execute(text(f"""CREATE TABLE IF NOT EXISTS copertura_servizi_scelte (
+            servizio_id INTEGER NOT NULL,
+            user_id INTEGER NOT NULL,
+            data TEXT NOT NULL,
+            copre INTEGER NOT NULL DEFAULT 1,
+            PRIMARY KEY (servizio_id, user_id, data),
+            FOREIGN KEY (servizio_id) REFERENCES servizi(servizio_id) ON DELETE CASCADE,
+            FOREIGN KEY (user_id) REFERENCES users(user_id) ON DELETE CASCADE
+        )"""))
         c.execute(text(f"""CREATE TABLE IF NOT EXISTS festivita (
             festivita_id {DB_PK},
             data TEXT NOT NULL,
@@ -3433,6 +3442,14 @@ def report_copertura(r: Request, mese: int = None, anno: int = None, reparto_id:
                 op_ids = [op["user_id"] for op in operatori_list]
                 if parsed_op_id in op_ids:
                     target_user_id = parsed_op_id
+            elif operatore_id is None:
+                op_ids = [op["user_id"] for op in operatori_list]
+                if user.get("id") in op_ids:
+                    target_user_id = user.get("id")
+                elif operatori_list:
+                    target_user_id = operatori_list[0]["user_id"]
+                else:
+                    target_user_id = None
             else:
                 target_user_id = None
                 
@@ -3452,6 +3469,14 @@ def report_copertura(r: Request, mese: int = None, anno: int = None, reparto_id:
                 op_ids = [op["user_id"] for op in operatori_list]
                 if parsed_op_id in op_ids:
                     target_user_id = parsed_op_id
+            elif operatore_id is None:
+                op_ids = [op["user_id"] for op in operatori_list]
+                if user.get("id") in op_ids:
+                    target_user_id = user.get("id")
+                elif operatori_list:
+                    target_user_id = operatori_list[0]["user_id"]
+                else:
+                    target_user_id = None
             else:
                 target_user_id = None
                 
@@ -3499,12 +3524,15 @@ def report_copertura(r: Request, mese: int = None, anno: int = None, reparto_id:
         for row in rows:
             r_nome = row["reparto_nome"]
             s_desc = row["servizio_desc"]
+            sid = row["servizio_id"]
             uid = row["user_id"]
             
-            if r_nome not in reparti_dict: reparti_dict[r_nome] = {}
-            if s_desc not in reparti_dict[r_nome]: reparti_dict[r_nome][s_desc] = set()
+            if r_nome not in reparti_dict:
+                reparti_dict[r_nome] = {}
+            if sid not in reparti_dict[r_nome]:
+                reparti_dict[r_nome][sid] = {"descrizione": s_desc, "users": set()}
             if uid: 
-                reparti_dict[r_nome][s_desc].add(uid)
+                reparti_dict[r_nome][sid]["users"].add(uid)
                 user_names[uid] = f"{row['nome']} {row['cognome']}".strip()
                 
         start_date = f"{anno}-{mese:02d}-01"
@@ -3547,36 +3575,78 @@ def report_copertura(r: Request, mese: int = None, anno: int = None, reparto_id:
             WHERE data_inizio <= :end AND data_fine >= :start
         """), {"start": start_date, "end": end_date}).mappings().all()
         
-        absent_on_day = {d["giorno"]: set() for d in giorni_lavorativi}
+        absent_on_day = {d["data_str"]: set() for d in giorni_lavorativi}
         for a in assenze_rows:
             for d in giorni_lavorativi:
                 if a["data_inizio"] <= d["data_str"] <= a["data_fine"]:
-                    absent_on_day[d["giorno"]].add(a["user_id"])
+                    absent_on_day[d["data_str"]].add(a["user_id"])
+                    
+        scelte_rows = c.execute(text("""
+            SELECT servizio_id, user_id, data, copre FROM copertura_servizi_scelte
+            WHERE data >= :start AND data <= :end
+        """), {"start": start_date, "end": end_date}).mappings().all()
+        opt_outs = {(r["servizio_id"], r["user_id"], r["data"]) for r in scelte_rows if r["copre"] == 0}
         
         report_data = []
-        for r_nome, servizi in reparti_dict.items():
+        for r_nome, s_dict in reparti_dict.items():
             rep_data = {"reparto": r_nome, "servizi": []}
-            for s_desc, users in servizi.items():
+            for sid, s_info in s_dict.items():
+                s_desc = s_info["descrizione"]
+                users = s_info["users"]
                 copertura = []
                 for d in giorni_lavorativi:
                     day_num = d["giorno"]
-                    present_users_ids = users - absent_on_day[day_num]
+                    dt_str = d["data_str"]
+                    present_users_ids = {uid for uid in users if uid not in absent_on_day[dt_str]}
+                    covering_users_ids = {uid for uid in present_users_ids if (sid, uid, dt_str) not in opt_outs}
+                    
                     present_names = sorted([user_names[uid] for uid in present_users_ids if uid in user_names])
-                    tooltip = ", ".join(present_names) if present_names else "Nessuno"
+                    covering_names = sorted([user_names[uid] for uid in covering_users_ids if uid in user_names])
+                    opted_out_names = sorted([user_names[uid] for uid in (present_users_ids - covering_users_ids) if uid in user_names])
+                    
+                    if covering_users_ids:
+                        tooltip = f"{len(covering_users_ids)} coprono: {', '.join(covering_names)} ({len(present_users_ids)} presenti su {len(users)})"
+                        if opted_out_names:
+                            tooltip += f" — Non coprono: {', '.join(opted_out_names)}"
+                    else:
+                        if present_users_ids:
+                            tooltip = f"0 coprono (servizio scoperto!) — Presenti ma non coprono: {', '.join(opted_out_names)}"
+                        else:
+                            tooltip = "0 coprono (servizio scoperto!) — Nessun operatore presente"
+                            
+                    target_present = bool(target_user_id and target_user_id in present_users_ids)
+                    target_copre = bool(target_user_id and target_user_id in covering_users_ids)
+
                     copertura.append({
                         "giorno": day_num,
+                        "data_str": dt_str,
                         "giorno_settimana": d["giorno_settimana"],
                         "week_num": d["week_num"],
                         "is_even_week": d["is_even_week"],
                         "is_first_day_of_week": d["is_first_day_of_week"],
                         "is_today": d["is_today"],
                         "presenti": len(present_users_ids),
+                        "coprono": len(covering_users_ids),
                         "totale": len(users),
-                        "tooltip": tooltip
+                        "tooltip": tooltip,
+                        "target_present": target_present,
+                        "target_copre": target_copre
                     })
-                rep_data["servizi"].append({"descrizione": s_desc, "copertura": copertura})
+                rep_data["servizi"].append({
+                    "servizio_id": sid,
+                    "descrizione": s_desc,
+                    "operatori_ids": list(users),
+                    "copertura": copertura
+                })
             report_data.append(rep_data)
             
+    can_edit_copertura = False
+    if user:
+        if user.get("ruolo") in ("admin", "responsabile"):
+            can_edit_copertura = True
+        elif target_user_id and user.get("id") == target_user_id:
+            can_edit_copertura = True
+
     mesi_nomi = ["Gennaio", "Febbraio", "Marzo", "Aprile", "Maggio", "Giugno", "Luglio", "Agosto", "Settembre", "Ottobre", "Novembre", "Dicembre"]
     return templates.TemplateResponse(r, "report_copertura.html", {
         "request": r, 
@@ -3591,7 +3661,92 @@ def report_copertura(r: Request, mese: int = None, anno: int = None, reparto_id:
         "selected_reparto_id": target_reparto_id,
         "operatori_list": operatori_list,
         "selected_operatore_id": target_user_id,
-        "selected_operatore_nome": selected_operatore_nome
+        "selected_operatore_nome": selected_operatore_nome,
+        "can_edit_copertura": can_edit_copertura
+    })
+
+@app.post("/api/copertura-servizi/toggle")
+async def api_toggle_copertura(
+    r: Request,
+    servizio_id: int = Form(...),
+    user_id: int = Form(...),
+    data: str = Form(...)
+):
+    user = current_user(r)
+    if not user:
+        return JSONResponse({"ok": False, "error": "Non autenticato"}, status_code=401)
+    
+    if user.get("ruolo") not in ("admin", "responsabile") and user.get("id") != user_id:
+        return JSONResponse({"ok": False, "error": "Non autorizzato"}, status_code=403)
+        
+    with engine.begin() as conn:
+        cur = conn.execute(text("""
+            SELECT copre FROM copertura_servizi_scelte
+            WHERE servizio_id = :sid AND user_id = :uid AND data = :dt
+        """), {"sid": servizio_id, "uid": user_id, "dt": data}).scalar()
+        
+        # Default is 1 (copre). If None or 1, toggle to 0. If 0, toggle to 1.
+        new_copre = 0 if (cur is None or cur == 1) else 1
+        
+        if cur is None:
+            conn.execute(text("""
+                INSERT INTO copertura_servizi_scelte (servizio_id, user_id, data, copre)
+                VALUES (:sid, :uid, :dt, :c)
+            """), {"sid": servizio_id, "uid": user_id, "dt": data, "c": new_copre})
+        else:
+            conn.execute(text("""
+                UPDATE copertura_servizi_scelte SET copre = :c
+                WHERE servizio_id = :sid AND user_id = :uid AND data = :dt
+            """), {"c": new_copre, "sid": servizio_id, "uid": user_id, "dt": data})
+            
+        # Ricalcola copertura per questo servizio e data
+        op_rows = conn.execute(text("""
+            SELECT u.user_id, u.nome, u.cognome
+            FROM operatori_servizi os
+            JOIN users u ON os.user_id = u.user_id
+            WHERE os.servizio_id = :sid AND u.attivo = 1 AND u.ruolo != 'admin'
+        """), {"sid": servizio_id}).mappings().all()
+        
+        assigned_uids = {row["user_id"] for row in op_rows}
+        user_names = {row["user_id"]: f"{row['nome']} {row['cognome']}".strip() for row in op_rows}
+        
+        abs_rows = conn.execute(text("""
+            SELECT user_id FROM assenze
+            WHERE data_inizio <= :dt AND data_fine >= :dt
+        """), {"dt": data}).scalars().all()
+        abs_uids = set(abs_rows)
+        
+        present_uids = assigned_uids - abs_uids
+        
+        opt_rows = conn.execute(text("""
+            SELECT user_id FROM copertura_servizi_scelte
+            WHERE servizio_id = :sid AND data = :dt AND copre = 0
+        """), {"sid": servizio_id, "dt": data}).scalars().all()
+        opted_out_uids = set(opt_rows)
+        
+        covering_uids = present_uids - opted_out_uids
+        
+        present_names = sorted([user_names[uid] for uid in present_uids if uid in user_names])
+        covering_names = sorted([user_names[uid] for uid in covering_uids if uid in user_names])
+        opted_out_names = sorted([user_names[uid] for uid in (present_uids - covering_uids) if uid in user_names])
+        
+        if len(covering_uids) > 0:
+            tooltip = f"{len(covering_uids)} coprono: {', '.join(covering_names)} ({len(present_uids)} presenti su {len(assigned_uids)})"
+            if opted_out_names:
+                tooltip += f" — Non coprono: {', '.join(opted_out_names)}"
+        else:
+            if len(present_uids) > 0:
+                tooltip = f"0 coprono (servizio scoperto!) — Presenti ma non coprono: {', '.join(opted_out_names)}"
+            else:
+                tooltip = "0 coprono (servizio scoperto!) — Nessun operatore presente"
+
+    return JSONResponse({
+        "ok": True,
+        "copre": bool(new_copre),
+        "coprono": len(covering_uids),
+        "presenti": len(present_uids),
+        "totale": len(assigned_uids),
+        "tooltip": tooltip
     })
 
 @app.get("/admin/reparti", response_class=HTMLResponse)

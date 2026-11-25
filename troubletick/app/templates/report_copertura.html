@@ -1,4 +1,4 @@
-<!doctype html><html lang="it"><head><meta charset="utf-8"><title>Report Copertura — {{ cfg.app_title }}</title>
+<!doctype html><html lang="it"><head><meta charset="utf-8"><title>Copertura Servizi — {{ cfg.app_title }}</title>
 <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
 <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css">
 <style>
@@ -45,13 +45,17 @@
         background-color: #dc3545 !important;
         color: #ffffff !important;
     }
+    .btn-copertura-toggle:hover {
+        transform: scale(1.15);
+        transition: transform 0.15s ease-in-out;
+    }
 </style>
 </head>
 <body class="bg-light">
 {% include 'navbar.html' %}
 <div class="container-fluid py-4 px-4">
 <div class="d-flex justify-content-between align-items-center mb-4">
-    <h2>Report Copertura Personale</h2>
+    <h2 class="fw-bold mb-0"><i class="bi bi-shield-check me-2 text-primary"></i>Copertura Servizi</h2>
 </div>
 
 {% if user.ruolo in ('admin', 'responsabile') %}
@@ -60,7 +64,7 @@
     <a class="nav-link text-primary" href="/copertura-servizi"><i class="bi bi-calendar3 me-2"></i>Vista Calendario</a>
   </li>
   <li class="nav-item">
-    <a class="nav-link active" href="/admin/report-copertura"><i class="bi bi-grid-3x3-gap me-2"></i>Vista Tabellare (Report)</a>
+    <a class="nav-link active" href="/admin/report-copertura"><i class="bi bi-grid-3x3-gap me-2"></i>Vista Tabellare (Copertura Servizi)</a>
   </li>
 </ul>
 {% endif %}
@@ -115,9 +119,9 @@
         <h5 class="mb-0">
             Copertura mensile: <strong>{{ nome_mese }} {{ anno }}</strong>
             {% if selected_operatore_nome %}
-                <span class="text-muted fs-6 ms-2">— Operatore: <strong class="text-primary">{{ selected_operatore_nome }}</strong></span>
+                <span class="text-muted fs-6 ms-2">— Servizi operatore: <strong class="text-primary">{{ selected_operatore_nome }}</strong></span>
             {% else %}
-                <span class="text-muted fs-6 ms-2">— <strong class="text-primary">Tutti gli operatori</strong></span>
+                <span class="text-muted fs-6 ms-2">— <strong class="text-primary">Tutti i servizi di reparto</strong></span>
             {% endif %}
         </h5>
     </div>
@@ -126,7 +130,7 @@
             <tr>
                 <th class="text-start" style="width: 220px; min-width: 220px; max-width: 220px;">Reparto / Servizio</th>
                 {% for d in giorni_lavorativi %}
-                <th style="width: 44px; min-width: 44px; text-align: center; padding: 4px 2px;" 
+                <th style="width: 52px; min-width: 52px; text-align: center; padding: 4px 2px;" 
                     class="{% if d.is_today %}th-today{% elif d.is_even_week %}th-week-even{% else %}th-week-odd{% endif %} {% if d.is_first_day_of_week and not d.is_today %}week-start-border{% endif %}">
                     {% if d.is_today %}
                         <span class="badge-today">Oggi</span>
@@ -141,7 +145,7 @@
             {% if not report_data or report_data|length == 0 %}
             <tr>
                 <td colspan="{{ (giorni_lavorativi|length) + 1 }}" class="text-center py-4 text-muted">
-                    <i class="bi bi-info-circle me-1"></i> Nessun servizio o reparto collegato trovato per il periodo selezionato.
+                    <i class="bi bi-info-circle me-1"></i> Nessun servizio collegato trovato per il periodo selezionato.
                 </td>
             </tr>
             {% endif %}
@@ -149,11 +153,40 @@
             <tr class="table-secondary"><td colspan="{{ (giorni_lavorativi|length) + 1 }}" class="text-start fw-bold">{{ rep.reparto }}</td></tr>
                 {% for serv in rep.servizi %}
                 <tr>
-                    <td class="text-start ps-4 fw-medium">{{ serv.descrizione }}</td>
+                    <td class="text-start ps-4 fw-medium">
+                        {{ serv.descrizione }}
+                    </td>
                     {% for c in serv.copertura %}
-                    <td class="{% if c.presenti == 0 %}cell-zero{% endif %} {% if c.is_today %}td-today{% elif c.is_even_week %}td-week-even{% else %}td-week-odd{% endif %} {% if c.is_first_day_of_week and not c.is_today %}week-start-border{% endif %}" 
-                        title="{% if c.is_today %}[OGGI] {% endif %}{{ c.giorno_settimana }} {{ c.giorno }}: {{ c.tooltip }} ({{ c.presenti }} presenti su {{ c.totale }})">
-                        {{ c.presenti }}
+                    <td class="{% if c.coprono == 0 %}cell-zero{% endif %} {% if c.is_today %}td-today{% elif c.is_even_week %}td-week-even{% else %}td-week-odd{% endif %} {% if c.is_first_day_of_week and not c.is_today %}week-start-border{% endif %}" 
+                        title="{% if c.is_today %}[OGGI] {% endif %}{{ c.giorno_settimana }} {{ c.giorno }}: {{ c.tooltip }}"
+                        style="padding: 4px 2px;">
+                        
+                        <!-- Numero operatori che coprono il servizio -->
+                        <div class="fw-bold fs-6 counter-coprono" style="line-height: 1.1;">{{ c.coprono }}</div>
+                        <div class="{% if c.coprono == 0 %}text-white-50{% else %}text-muted{% endif %}" style="font-size: 0.65rem; line-height: 1;" title="{{ c.presenti }} presenti su {{ c.totale }} assegnati">
+                            {{ c.presenti }} pres.
+                        </div>
+
+                        <!-- Indicatore / Toggle Copertura per l'operatore selezionato -->
+                        {% if selected_operatore_id and selected_operatore_id in serv.operatori_ids %}
+                        <div class="mt-1">
+                            {% if not c.target_present %}
+                                <span class="badge bg-secondary-subtle text-secondary border border-secondary-subtle py-0 px-1" style="font-size: 0.62rem;" title="Operatore assente in questa data">Ass.</span>
+                            {% elif can_edit_copertura %}
+                                <button type="button" 
+                                        class="btn btn-xs py-0 px-1 border-0 btn-copertura-toggle {% if c.target_copre %}text-success{% else %}text-danger{% endif %}" 
+                                        style="font-size: 0.85rem; line-height: 1; background: transparent;"
+                                        onclick="toggleCopertura(this, {{ serv.servizio_id }}, {{ selected_operatore_id }}, '{{ c.data_str }}')"
+                                        title="{% if c.target_copre %}Copertura attiva (clicca per escludere la copertura){% else %}Copertura disattivata (clicca per coprire il servizio){% endif %}">
+                                    <i class="bi {% if c.target_copre %}bi-check-circle-fill{% else %}bi-x-circle-fill{% endif %}"></i>
+                                </button>
+                            {% else %}
+                                <span class="{% if c.target_copre %}text-success{% else %}text-danger{% endif %}" style="font-size: 0.85rem;" title="{% if c.target_copre %}Copre il servizio{% else %}Non copre il servizio{% endif %}">
+                                    <i class="bi {% if c.target_copre %}bi-check-circle-fill{% else %}bi-x-circle-fill{% endif %}"></i>
+                                </span>
+                            {% endif %}
+                        </div>
+                        {% endif %}
                     </td>
                     {% endfor %}
                 </tr>
@@ -167,7 +200,80 @@
     <ul class="mb-0 mt-1 ps-3">
         <li><span class="badge bg-primary me-1">Oggi</span> La colonna evidenziata con stacco cromatico indica il <strong>giorno corrente</strong> del mese in corso.</li>
         <li>Le diverse tonalità di sfondo e le linee separano chiaramente le <strong>settimane lavorative</strong>.</li>
-        <li>In <span class="badge bg-danger">Rosso</span> sono evidenziati i giorni in cui un determinato servizio risulta <strong>scoperto</strong> (0 operatori disponibili). Passa con il mouse su ciascuna cella per consultare i colleghi presenti.</li>
+        <li>In <span class="badge bg-danger">Rosso</span> sono evidenziati i giorni in cui un determinato servizio risulta <strong>scoperto</strong> (0 operatori che coprono il servizio).</li>
+        <li>In ogni cella il numero principale indica gli <strong>operatori che coprono</strong> il servizio, seguito dal numero di <strong>presenti</strong>. Passa con il mouse sulla cella per vedere i dettagli dei colleghi.</li>
+        <li>Clicca sull'icona <i class="bi bi-check-circle-fill text-success"></i> / <i class="bi bi-x-circle-fill text-danger"></i> per indicare se coprirai o meno il servizio in quel giorno (default: attivo). Il contatore generale si aggiorna automaticamente tenendo conto sia delle presenze sia della tua scelta.</li>
     </ul>
 </div>
-</div></body></html>
+</div>
+
+<script>
+async function toggleCopertura(btn, servizioId, userId, dateStr) {
+    btn.disabled = true;
+    const originalIcon = btn.innerHTML;
+    btn.innerHTML = '<span class="spinner-border spinner-border-sm" role="status" style="width: 0.7rem; height: 0.7rem;"></span>';
+    
+    try {
+        const formData = new FormData();
+        formData.append('servizio_id', servizioId);
+        formData.append('user_id', userId);
+        formData.append('data', dateStr);
+        
+        const resp = await fetch('/api/copertura-servizi/toggle', {
+            method: 'POST',
+            body: formData
+        });
+        
+        const data = await resp.json();
+        if (data.ok) {
+            const td = btn.closest('td');
+            // Aggiorna stato del pulsante
+            if (data.copre) {
+                btn.className = 'btn btn-xs py-0 px-1 border-0 btn-copertura-toggle text-success';
+                btn.innerHTML = '<i class="bi bi-check-circle-fill"></i>';
+                btn.title = 'Copertura attiva (clicca per escludere la copertura)';
+            } else {
+                btn.className = 'btn btn-xs py-0 px-1 border-0 btn-copertura-toggle text-danger';
+                btn.innerHTML = '<i class="bi bi-x-circle-fill"></i>';
+                btn.title = 'Copertura disattivata (clicca per coprire il servizio)';
+            }
+            
+            // Aggiorna contatore
+            const counterEl = td.querySelector('.counter-coprono');
+            if (counterEl) {
+                counterEl.textContent = data.coprono;
+            }
+            
+            // Aggiorna sottotitolo presenti (colore testo in caso di cell-zero)
+            const presEl = counterEl ? counterEl.nextElementSibling : null;
+            
+            // Aggiorna classe cell-zero se il servizio è scoperto (0 che coprono)
+            if (data.coprono === 0) {
+                td.classList.add('cell-zero');
+                if (presEl) { presEl.className = 'text-white-50'; }
+            } else {
+                td.classList.remove('cell-zero');
+                if (presEl) { presEl.className = 'text-muted'; }
+            }
+            
+            // Aggiorna tooltip
+            if (data.tooltip) {
+                const isTodayPrefix = td.title.startsWith('[OGGI]') ? '[OGGI] ' : '';
+                const parts = td.title.split(': ');
+                const headerPart = parts.length > 1 ? parts[0] + ': ' : '';
+                td.title = isTodayPrefix + (headerPart || '') + data.tooltip;
+            }
+        } else {
+            alert(data.error || 'Errore durante l\'aggiornamento della copertura');
+            btn.innerHTML = originalIcon;
+        }
+    } catch (err) {
+        console.error(err);
+        alert('Errore di connessione');
+        btn.innerHTML = originalIcon;
+    } finally {
+        btn.disabled = false;
+    }
+}
+</script>
+</body></html>
